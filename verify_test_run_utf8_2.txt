@@ -1,0 +1,75 @@
+﻿
+
+  Coverage Maximizer 2 - Uncovered Libraries
+    WithdrawLib Coverage
+Mocking USDC...
+MockUSDC deployed at: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+Searching for MockPyth factory...
+Deploying MockPyth...
+MockPyth deployed at: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+Deploying MarketCalendar...
+      1) "before each" hook for "should exercise all WithdrawLib functions with non-zero balances"
+
+  Comprehensive Coverage - Core Contracts
+    DividendManager Coverage
+Mocking USDC...
+MockUSDC deployed at: 0x162A433068F51e18b7d13932F27e66a3f99E6890
+Searching for MockPyth factory...
+Deploying MockPyth...
+MockPyth deployed at: 0x922D6956C99E12DFeB3224DEA977D0939758A1Fe
+Deploying MarketCalendar...
+      Γ£ö should exercise all branches in settleDividends and getUnsettledDividends
+    OracleAggregator Coverage
+Mocking USDC...
+MockUSDC deployed at: 0x22753E4264FDDc6181dc7cce468904A80a363E44
+Searching for MockPyth factory...
+Deploying MockPyth...
+MockPyth deployed at: 0xA7c59f010700930003b33aB25a7a0679C860f29c
+Deploying MarketCalendar...
+      Γ£ö should exercise _normalizePythPrice division and _recordPrice
+    PositionToken Coverage
+Mocking USDC...
+MockUSDC deployed at: 0xe1Fd27F4390DcBE165f4D60DBF821e4B9Bb02dEd
+Searching for MockPyth factory...
+Deploying MockPyth...
+MockPyth deployed at: 0xc582Bc0317dbb0908203541971a358c44b1F3766
+Deploying MarketCalendar...
+      Γ£ö should exercise metadata and unauthorized mint
+    TradingCore Coverage
+Mocking USDC...
+MockUSDC deployed at: 0x3904b8f5b0F49cD206b7d5AABeE5D1F37eE15D8d
+Searching for MockPyth factory...
+Deploying MockPyth...
+MockPyth deployed at: 0x2Dd78Fd9B8F40659Af32eF98555B8b31bC97A351
+Deploying MarketCalendar...
+      2) should exercise setParams, cleanupPositions and resolveFailedRepayment
+
+
+  3 passing (2s)
+  2 failing
+
+  1) Coverage Maximizer 2 - Uncovered Libraries
+       "before each" hook for "should exercise all WithdrawLib functions with non-zero balances":
+     Error: Transaction reverted: function selector was not recognized and there's no fallback nor receive function
+    at CoverageHarness.<unrecognized-selector> (contracts/test/CoverageHarness.sol:19)
+    at EdrProviderWrapper.request (node_modules\hardhat\src\internal\hardhat-network\provider\provider.ts:453:41)
+    at async HardhatEthersSigner.sendTransaction (node_modules\@nomicfoundation\hardhat-ethers\src\signers.ts:185:18)
+    at async Context.<anonymous> (test\CoverageMaximizer2.test.ts:66:9)
+  
+
+  2) Comprehensive Coverage - Core Contracts
+       TradingCore Coverage
+         should exercise setParams, cleanupPositions and resolveFailedRepayment:
+     Error: VM Exception while processing transaction: reverted with custom error 'InsufficientCollateral()'
+    at TradingLib.withdrawCollateral (contracts/libraries/TradingLib.sol:293)
+    at TradingLib.executeOrderFull (contracts/libraries/TradingLib.sol:534)
+    at TradingCore.executeOrder (contracts/core/TradingCore.sol:386)
+    at EdrProviderWrapper.request (node_modules\hardhat\src\internal\hardhat-network\provider\provider.ts:453:41)
+    at async HardhatEthersSigner.sendTransaction (node_modules\@nomicfoundation\hardhat-ethers\src\signers.ts:185:18)
+    at async send (node_modules\ethers\src.ts\contract\contract.ts:313:20)
+    at async Proxy.executeOrder (node_modules\ethers\src.ts\contract\contract.ts:352:16)
+    at async Context.<anonymous> (test\ComprehensiveCoverage.test.ts:118:13)
+  
+
+
+

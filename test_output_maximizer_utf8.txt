@@ -1,0 +1,34 @@
+﻿
+
+  Coverage Maximizer 2 - Uncovered Libraries
+    WithdrawLib Coverage
+Mocking USDC...
+MockUSDC deployed at: 0x5FbDB2315678afecb367f032d93F642f64180aa3
+Searching for MockPyth factory...
+Deploying MockPyth...
+MockPyth deployed at: 0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512
+Deploying MarketCalendar...
+      1) "before each" hook for "should exercise all WithdrawLib functions with non-zero balances"
+
+
+  0 passing (1s)
+  1 failing
+
+  1) Coverage Maximizer 2 - Uncovered Libraries
+       "before each" hook for "should exercise all WithdrawLib functions with non-zero balances":
+     HardhatEthersError: The contract CoverageHarness is missing links for the following libraries:
+* contracts/libraries/CleanupLib.sol:CleanupLib
+* contracts/libraries/ConfigLib.sol:ConfigLib
+* contracts/libraries/DustLib.sol:DustLib
+* contracts/libraries/FlashLoanCheck.sol:FlashLoanCheck
+* contracts/libraries/WithdrawLib.sol:WithdrawLib
+
+Learn more about linking contracts at https://v2.hardhat.org/hardhat-runner/plugins/nomicfoundation-hardhat-ethers#library-linking
+
+      at collectLibrariesAndLink (C:\Users\amir2\Desktop\realyx\node_modules\@nomicfoundation\hardhat-ethers\src\internal\helpers.ts:294:11)
+      at getContractFactoryFromArtifact (C:\Users\amir2\Desktop\realyx\node_modules\@nomicfoundation\hardhat-ethers\src\internal\helpers.ts:178:32)
+      at getContractFactory (C:\Users\amir2\Desktop\realyx\node_modules\@nomicfoundation\hardhat-ethers\src\internal\helpers.ts:122:12)
+      at async Context.<anonymous> (C:\Users\amir2\Desktop\realyx\test\CoverageMaximizer2.test.ts:44:25)
+
+
+

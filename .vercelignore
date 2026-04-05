@@ -1,0 +1,13 @@
+# Not needed for Vercel (frontend + api + backend dist)
+contracts
+scripts
+test
+hardhat.config.ts
+abi
+deployment
+infrastructure
+docs
+*.sol
+subgraph/tests
+subgraph/abis
+subgraph/scripts

@@ -1,0 +1,185 @@
+/**
+ * Pyth Hermes (real-time) and Benchmarks (history) for prices and charts.
+ */
+
+const HERMES_BASE = "https://hermes.pyth.network";
+const BENCHMARKS_BASE = "https://benchmarks.pyth.network";
+const CACHE_MS = 1_000; // 1s for live prices (trading protocol)
+
+// Market address (lowercase) -> Pyth price feed ID (hex with 0x)
+export const PYTH_FEED_BY_MARKET: Record<string, string> = {
+  "0x986a383f6de4a24dd3f524f0f93546229b58265f": "0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
+  "0x886a383f6de4a24dd3f524f0f93546229b58265f": "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+  "0x906a383f6de4a24dd3f524f0f93546229b58265f": "0x8ac0c70fff57e9aefdf5edf44b51d62c2d433653cbb2cf5cc06bb115af04d221",
+  "0x926a383f6de4a24dd3f524f0f93546229b58265f": "0x39d020f60982ed892abbcd4a06a276a9f9b7bfbce003204c110b6e488f502da3",
+  "0x936a383f6de4a24dd3f524f0f93546229b58265f": "0x9a4df90b25497f66b1afb012467e316e801ca3d839456db028892fe8c70c8016",
+  "0x086a383f6de4a24dd3f524f0f93546229b58265f": "0xd40472610abe56d36d065a0cf889fc8f1dd9f3b7f2a478231a5fc6df07ea5ce3",
+  "0x286a383f6de4a24dd3f524f0f93546229b58265f": "0x44465e17d2e9d390e70c999d5a11fda4f092847fcd2e3e5aa089d96c98a30e67",
+  "0x786a383f6de4a24dd3f524f0f93546229b58265f": "0x4244d07890e4610f46bbde67de8f43a4bf8b569eebe904f136b469f148503b7f",
+  "0x686a383f6de4a24dd3f524f0f93546229b58265f": "0x47a156470288850a440df3a6ce85a55917b813a19bb5b31128a33a986566a362",
+  "0x586a383f6de4a24dd3f524f0f93546229b58265f": "0xbf3e5871be3f80ab7a4d1f1fd039145179fb58569e159aee1ccd472868ea5900",
+  "0x486a383f6de4a24dd3f524f0f93546229b58265f": "0xc13184461c0c80d98ffcd89be627c2220b94a96c7c67f0c4b16bc12fd3b17758",
+  "0x386a383f6de4a24dd3f524f0f93546229b58265f": "0xb911b0329028cd0283e4259c33809d62942bd2716a58084e5f31d64c00b5424e",
+  "0x946a383f6de4a24dd3f524f0f93546229b58265f": "0x02a67e6184e6c9dd65e14745a2a80df8b2b3d2ca91b4b191404936003d9929ae",
+  "0x956a383f6de4a24dd3f524f0f93546229b58265f": "0x978e6cc68a119ce066aa830017318563a9ed04ec3a0a6439010fc11296a58675",
+  "0x966a383f6de4a24dd3f524f0f93546229b58265f": "0x641435d5dffb5311140b480517c79986d8488d5cf08a11eec53b83ad02cab33f",
+  "0x976a383f6de4a24dd3f524f0f93546229b58265f": "0x27cac3c00ed32285b8686611bbc4a654279c1ea11ab4dc90822c2edd20734bca",
+  "0x996a383f6de4a24dd3f524f0f93546229b58265f": "0x178a6f73a5aede9d0d682e86b0047c9f333ed0efe5c6537ca937565219c4054d",
+  "0x006a383f6de4a24dd3f524f0f93546229b58265f": "0xdd49a9ac6df5cbfa9d8fc6371f7ae927a74d5c6763c1c01b4220d70314c647f9",
+  "0x116a383f6de4a24dd3f524f0f93546229b58265f": "0x53f95ba4e23ed15ea56083e2ee9a5eec48055d6f59033d4bb95f1ca2a2349c28",
+  "0x706a383f6de4a24dd3f524f0f93546229b58265f": "0x2817b78438c769357182c04346fddaad1178c82f4048828fe0997c3c64624e14",
+};
+
+// Market address -> Pyth Benchmarks TradingView symbol (for history API)
+const MARKET_TO_TV_SYMBOL: Record<string, string> = {
+  "0x986a383f6de4a24dd3f524f0f93546229b58265f": "Crypto.BTC/USD",
+  "0x886a383f6de4a24dd3f524f0f93546229b58265f": "Crypto.ETH/USD",
+  "0x906a383f6de4a24dd3f524f0f93546229b58265f": "Crypto.LINK/USD",
+  "0x926a383f6de4a24dd3f524f0f93546229b58265f": "Crypto.SNX/USD",
+  "0x936a383f6de4a24dd3f524f0f93546229b58265f": "Crypto.PENDLE/USD",
+  "0x086a383f6de4a24dd3f524f0f93546229b58265f": "Crypto.ONDO/USD",
+  "0x286a383f6de4a24dd3f524f0f93546229b58265f": "Crypto.XAUT/USD",
+  "0x786a383f6de4a24dd3f524f0f93546229b58265f": "Equity.US.NVDA/USD",
+  "0x686a383f6de4a24dd3f524f0f93546229b58265f": "Equity.US.TSLA/USD",
+  "0x586a383f6de4a24dd3f524f0f93546229b58265f": "Equity.US.META/USD",
+  "0x486a383f6de4a24dd3f524f0f93546229b58265f": "Crypto.USDC/USD",
+  "0x386a383f6de4a24dd3f524f0f93546229b58265f": "Equity.US.GOOGL/USD",
+  "0x946a383f6de4a24dd3f524f0f93546229b58265f": "Equity.US.NFLX/USD",
+  "0x956a383f6de4a24dd3f524f0f93546229b58265f": "Equity.US.AAPL/USD",
+  "0x966a383f6de4a24dd3f524f0f93546229b58265f": "Crypto.COINX/USD",
+  "0x976a383f6de4a24dd3f524f0f93546229b58265f": "Equity.US.MCD/USD",
+  "0x996a383f6de4a24dd3f524f0f93546229b58265f": "Equity.US.QQQ/USD",
+  "0x006a383f6de4a24dd3f524f0f93546229b58265f": "Equity.US.HOOD/USD",
+  "0x116a383f6de4a24dd3f524f0f93546229b58265f": "Equity.US.MSTR/USD",
+  "0x706a383f6de4a24dd3f524f0f93546229b58265f": "Equity.US.SPY/USD",
+};
+
+let cachedAt = 0;
+let cachedPrices: Record<string, number> = {};
+
+function parsePythPrice(priceStr: string, expo: number): number {
+  const p = Number(priceStr);
+  if (!Number.isFinite(p)) return 0;
+  return p * Math.pow(10, expo);
+}
+
+/** Fetch latest Pyth prices for all known markets (Hermes batch). */
+export async function fetchPythPrices(): Promise<Record<string, number>> {
+  if (Date.now() - cachedAt < CACHE_MS && Object.keys(cachedPrices).length > 0) {
+    return cachedPrices;
+  }
+  const feedIds = [...new Set(Object.values(PYTH_FEED_BY_MARKET))];
+  const idsParam = feedIds.map((id) => `ids[]=${id.startsWith("0x") ? id.slice(2) : id}`).join("&");
+  const url = `${HERMES_BASE}/v2/updates/price/latest?${idsParam}`;
+  try {
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return cachedPrices;
+    const data = (await res.json()) as { parsed?: Array<{ id: string; price?: { price: string; expo: number } }> };
+    const parsed = data?.parsed ?? [];
+    const byFeedId: Record<string, number> = {};
+    for (const item of parsed) {
+      if (item.price) {
+        const norm = parsePythPrice(String(item.price.price), item.price.expo);
+        if (norm > 0) byFeedId[item.id] = norm;
+      }
+    }
+    const byMarket: Record<string, number> = {};
+    for (const [addr, feedId] of Object.entries(PYTH_FEED_BY_MARKET)) {
+      const id = feedId.startsWith("0x") ? feedId.slice(2) : feedId;
+      if (byFeedId[id]) byMarket[addr] = byFeedId[id];
+    }
+    cachedPrices = byMarket;
+    cachedAt = Date.now();
+    return byMarket;
+  } catch (e) {
+    console.warn("[pyth] Hermes fetch failed:", e);
+    return cachedPrices;
+  }
+}
+
+export function getPythFeedId(marketAddress: string): string | undefined {
+  return PYTH_FEED_BY_MARKET[marketAddress.toLowerCase()];
+}
+
+export function getPythTvSymbol(marketAddress: string): string | null {
+  return MARKET_TO_TV_SYMBOL[marketAddress.toLowerCase()] ?? null;
+}
+
+/** Compute 24h price change % from Pyth (current vs ~24h ago). */
+export async function fetchPyth24hChange(marketAddress: string): Promise<number | undefined> {
+  const addr = marketAddress.toLowerCase();
+  const symbol = getPythTvSymbol(marketAddress);
+  if (!symbol) return undefined;
+  const [prices, history] = await Promise.all([fetchPythPrices(), fetchPythPriceHistory(marketAddress, 2)]);
+  const current = prices[addr];
+  if (!current || current <= 0 || !history.length) return undefined;
+  const target24h = Date.now() - 24 * 60 * 60 * 1000;
+  let best: { timestamp: number; value: number } | null = null;
+  let bestDiff = Infinity;
+  for (const p of history) {
+    const diff = Math.abs(p.timestamp - target24h);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = p;
+    }
+  }
+  if (!best || best.value <= 0) return undefined;
+  return ((current - best.value) / best.value) * 100;
+}
+
+/** Pyth Benchmarks TradingView history: returns { timestamp, value }[] for sparklines. */
+export async function fetchPythPriceHistory(
+  marketAddress: string,
+  days: number = 7
+): Promise<{ timestamp: number; value: number }[]> {
+  const symbol = getPythTvSymbol(marketAddress);
+  if (!symbol) return [];
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - days * 24 * 3600;
+  const url = `${BENCHMARKS_BASE}/v1/shims/tradingview/history?symbol=${encodeURIComponent(symbol)}&resolution=60&from=${from}&to=${to}`;
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    const res = await fetch(url, { headers: { Accept: "application/json" }, signal: controller.signal });
+    clearTimeout(timeout);
+    if (!res.ok) return [];
+    const data = (await res.json()) as { s: string; t?: number[]; c?: number[] };
+    if (data.s !== "ok" || !Array.isArray(data.t) || !Array.isArray(data.c)) return [];
+    return data.t.map((t, i) => ({ timestamp: t * 1000, value: data.c![i] ?? 0 }));
+  } catch (e) {
+    console.warn("[pyth] Benchmarks history failed:", symbol, e);
+    return [];
+  }
+}
+
+/** Hermes fallback: fetch historical prices at intervals when Benchmarks fails. */
+export async function fetchPythPriceHistoryHermes(
+  marketAddress: string,
+  days: number = 7,
+  points: number = 24
+): Promise<{ timestamp: number; value: number }[]> {
+  const feedId = getPythFeedId(marketAddress);
+  if (!feedId) return [];
+  const id = feedId.startsWith("0x") ? feedId.slice(2) : feedId;
+  const now = Math.floor(Date.now() / 1000);
+  const intervalSeconds = Math.floor((days * 24 * 3600) / (points - 1));
+  const pricePoints: { timestamp: number; value: number }[] = [];
+
+  for (let i = points - 1; i >= 0; i--) {
+    const ts = now - i * intervalSeconds;
+    try {
+      const url = `${HERMES_BASE}/v2/updates/price/${ts}?ids[]=${id}`;
+      const res = await fetch(url, { headers: { Accept: "application/json" } });
+      if (!res.ok) continue;
+      const json = (await res.json()) as { parsed?: Array<{ price?: { price: string; expo: number } }> };
+      const parsed = json?.parsed?.[0];
+      if (!parsed?.price) continue;
+      const value = parsePythPrice(String(parsed.price.price), parsed.price.expo);
+      if (value > 0) pricePoints.push({ timestamp: ts * 1000, value });
+    } catch {
+        /* skip failed point */
+    }
+    if (i > 0) await new Promise((r) => setTimeout(r, 100));
+  }
+  return pricePoints.sort((a, b) => a.timestamp - b.timestamp);
+}

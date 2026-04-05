@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-config
+  namespace: realyx
+data:
+  NODE_ENV: "production"
+  PORT: "3001"
+  WS_PORT: "3002"
+  METRICS_PORT: "9090"
+  CHAIN_ID: "71"
+  SUBGRAPH_URL: "https://api.thegraph.com/subgraphs/name/<your-org>/realyx"

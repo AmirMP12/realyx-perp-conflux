@@ -1,0 +1,17 @@
+[
+  {
+    "inputs": [],
+    "name": "InsufficientTWAPData",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoValidPrice",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TWAPOverflow",
+    "type": "error"
+  }
+]

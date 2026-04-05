@@ -1,0 +1,69 @@
+services:
+  graph-postgres:
+    image: postgres:16-alpine
+    container_name: graph-postgres
+    environment:
+      POSTGRES_USER: graph
+      POSTGRES_PASSWORD: graph_password
+      POSTGRES_DB: graph-node
+    volumes:
+      - graph_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432" # Avoid conflict with main postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U graph"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  ipfs:
+    image: ipfs/kubo:v0.17.0
+    container_name: ipfs
+    ports:
+      - "5001:5001"
+      - "4001:4001"
+      - "8080:8080"
+    volumes:
+      - ipfs_data:/data/ipfs
+    restart: unless-stopped
+
+  graph-node:
+    image: graphprotocol/graph-node:latest
+    container_name: graph-node
+    depends_on:
+      graph-postgres:
+        condition: service_healthy
+      ipfs:
+        condition: service_started
+    environment:
+      postgres_host: graph-postgres
+      postgres_user: graph
+      postgres_pass: graph_password
+      postgres_db: graph-node
+      ipfs: 'ipfs:5001'
+      # To switch between networks, update the value below:
+      # Conflux eSpace Testnet: conflux-espace:https://evmtestnet.confluxrpc.com
+      # Conflux eSpace Mainnet: conflux-espace:https://evm.confluxrpc.com
+      ethereum: 'conflux-espace:https://evmtestnet.confluxrpc.com'
+      GRAPH_LOG: info
+      GRAPH_ETH_CALL_BY_NUMBER_SUPPORTED: 'true'
+      GRAPH_MAX_BLOCK_RANGE_SIZE: '1000'
+      ETHEREUM_RPC_RETRY_INTERVAL: '1s'
+      # Disable query cache for development if needed
+      # GRAPH_QUERY_CACHE_SIZE: 0
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+      - "8020:8020"
+      - "8030:8030"
+      - "8040:8040"
+    restart: unless-stopped
+
+volumes:
+  graph_postgres_data:
+  ipfs_data:
+
+networks:
+  default:
+    name: realyx-network

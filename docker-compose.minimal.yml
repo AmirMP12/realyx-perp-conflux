@@ -1,0 +1,42 @@
+# Minimal Docker Compose - backend + frontend only
+# Run: docker-compose -f docker-compose.minimal.yml up -d
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: realyx-backend
+    environment:
+      PORT: 3001
+      WS_PORT: 3002
+      NODE_ENV: production
+      SUBGRAPH_URL: ${SUBGRAPH_URL:-https://api.studio.thegraph.com/query/1741472/realyx/1.0.0}
+      CHAIN_ID: ${CHAIN_ID:-71}
+      RPC_URL: ${RPC_URL:-https://evmtestnet.confluxrpc.com}
+      TRADING_CORE_ADDRESS: ${TRADING_CORE_ADDRESS:-0xDDe4D077C617C1B84dA369fB8fD391BE6530C40E}
+      ORACLE_AGGREGATOR_ADDRESS: ${ORACLE_AGGREGATOR_ADDRESS:-0x8190715C58f4d1be1a1EF8FdA44133B77972e9e1}
+    ports:
+      - "3011:3001"
+      - "3012:3002"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:3000/ws}
+        VITE_NETWORK: ${NETWORK:-confluxTestnet}
+        VITE_WALLET_CONNECT_PROJECT_ID: ${VITE_WALLET_CONNECT_PROJECT_ID:-}
+        VITE_TRADING_LIB_ADDRESS: ${VITE_TRADING_LIB_ADDRESS:-0x343A73e69A4623A811AFd5CdC13450DfDe5935b4}
+        VITE_POSITION_TOKEN_ADDRESS: ${VITE_POSITION_TOKEN_ADDRESS:-0xb812dE8a28614f52fF9ace0688bCF147fF5d824d}
+        VITE_ORACLE_AGGREGATOR_ADDRESS: ${VITE_ORACLE_AGGREGATOR_ADDRESS:-0x8190715C58f4d1be1a1EF8FdA44133B77972e9e1}
+        VITE_VAULT_CORE_ADDRESS: ${VITE_VAULT_CORE_ADDRESS:-0xd74f9539847E8f5b63cd8F09547c9497FbbB83Ee}
+        VITE_TRADING_CORE_ADDRESS: ${VITE_TRADING_CORE_ADDRESS:-0xDDe4D077C617C1B84dA369fB8fD391BE6530C40E}
+    ports:
+      - "3010:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

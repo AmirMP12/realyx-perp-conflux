@@ -1,0 +1,37 @@
+[
+  {
+    "inputs": [],
+    "name": "InvalidLeverage",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidPrice",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "boostMath",
+    "outputs": [],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "m",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "f",
+        "type": "address"
+      }
+    ],
+    "name": "boostTrading",
+    "outputs": [],
+    "stateMutability": "pure",
+    "type": "function"
+  }
+]

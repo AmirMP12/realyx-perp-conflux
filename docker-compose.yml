@@ -1,0 +1,123 @@
+# Realyx - Docker Compose
+# Run: docker-compose up -d
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: realyx-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-realyx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-realyx_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-realyx}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-realyx}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: realyx-redis
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Backend API Server
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: realyx-backend
+    environment:
+      PORT: 3001
+      WS_PORT: 3002
+      NODE_ENV: production
+      SUBGRAPH_URL: ${SUBGRAPH_URL:-https://api.studio.thegraph.com/query/1741472/realyx/1.0.0}
+      CHAIN_ID: ${CHAIN_ID:-71}
+      RPC_URL: ${RPC_URL:-https://evmtestnet.confluxrpc.com}
+      TRADING_CORE_ADDRESS: ${TRADING_CORE_ADDRESS:-0xDDe4D077C617C1B84dA369fB8fD391BE6530C40E}
+      ORACLE_AGGREGATOR_ADDRESS: ${ORACLE_AGGREGATOR_ADDRESS:-0x8190715C58f4d1be1a1EF8FdA44133B77972e9e1}
+    ports:
+      - "3001:3001"
+      - "3002:3002"
+    restart: unless-stopped
+
+  # Frontend (nginx proxies /api and /ws to backend when served from port 3000)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Use same-origin paths so nginx proxies to backend
+        VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_WS_URL: ${VITE_WS_URL:-ws://localhost:3000/ws}
+        VITE_NETWORK: ${NETWORK:-confluxTestnet}
+        VITE_WALLET_CONNECT_PROJECT_ID: ${VITE_WALLET_CONNECT_PROJECT_ID:-}
+        VITE_TRADING_LIB_ADDRESS: ${VITE_TRADING_LIB_ADDRESS:-0x343A73e69A4623A811AFd5CdC13450DfDe5935b4}
+        VITE_POSITION_TOKEN_ADDRESS: ${VITE_POSITION_TOKEN_ADDRESS:-0xb812dE8a28614f52fF9ace0688bCF147fF5d824d}
+        VITE_ORACLE_AGGREGATOR_ADDRESS: ${VITE_ORACLE_AGGREGATOR_ADDRESS:-0x8190715C58f4d1be1a1EF8FdA44133B77972e9e1}
+        VITE_VAULT_CORE_ADDRESS: ${VITE_VAULT_CORE_ADDRESS:-0xd74f9539847E8f5b63cd8F09547c9497FbbB83Ee}
+        VITE_TRADING_CORE_ADDRESS: ${VITE_TRADING_CORE_ADDRESS:-0xDDe4D077C617C1B84dA369fB8fD391BE6530C40E}
+    container_name: realyx-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: realyx-prometheus
+    volumes:
+      - ./infrastructure/monitoring/prometheus-docker.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: realyx-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
+      GF_USERS_ALLOW_SIGN_UP: false
+    volumes:
+      - ./infrastructure/monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3003:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+
+networks:
+  default:
+    name: realyx-network

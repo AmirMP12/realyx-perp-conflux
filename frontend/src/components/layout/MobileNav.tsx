@@ -1,0 +1,118 @@
+import { Link, useLocation } from 'react-router-dom';
+import { LayoutGrid, CandlestickChart, Wallet, Coins, Menu, BarChart2, Trophy, Share2, Shield, Settings } from 'lucide-react';
+import clsx from 'clsx';
+import { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+
+export function MobileNav() {
+    const location = useLocation();
+    const [isMoreOpen, setIsMoreOpen] = useState(false);
+
+    const navItems = [
+        { name: 'Markets', path: '/', icon: LayoutGrid },
+        { name: 'Trade', path: '/trade', icon: CandlestickChart, isPrimary: true },
+        { name: 'Portfolio', path: '/portfolio', icon: Wallet },
+        { name: 'Vault', path: '/vault', icon: Coins }, // Vault + Insurance could be under Earn
+        { name: 'More', path: '#', icon: Menu, onClick: () => setIsMoreOpen(!isMoreOpen) },
+    ];
+
+    return (
+        <>
+            {/* Bottom Navigation Bar */}
+            <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0B0E14]/80 backdrop-blur-xl border-t border-white/5 pb-safe">
+                <div className="flex items-center justify-around h-[60px] px-2">
+                    {navItems.map((item) => {
+                        const isActive = item.path !== '#' && (
+                            item.path === '/'
+                                ? location.pathname === '/'
+                                : location.pathname.startsWith(item.path)
+                        );
+
+                        const Icon = item.icon;
+
+                        if (item.onClick) {
+                            return (
+                                <button
+                                    key={item.name}
+                                    onClick={item.onClick}
+                                    className={clsx(
+                                        "flex flex-col items-center justify-center w-full h-full space-y-1 touch-manipulation",
+                                        isMoreOpen ? "text-[var(--primary)]" : "text-text-secondary active:text-text-primary"
+                                    )}
+                                >
+                                    <Icon className="w-5 h-5 transition-transform active:scale-95" />
+                                    <span className="text-[10px] font-medium">{item.name}</span>
+                                </button>
+                            );
+                        }
+
+                        return (
+                            <Link
+                                key={item.name}
+                                to={item.path}
+                                className={clsx(
+                                    "flex flex-col items-center justify-center w-full h-full space-y-1 relative touch-manipulation",
+                                    isActive ? "text-[var(--primary)]" : "text-text-secondary active:text-text-primary"
+                                )}
+                            >
+                                {isActive && (
+                                    <motion.div
+                                        layoutId="mobile-nav-indicator"
+                                        className="absolute -top-[1px] w-10 h-[2px] bg-[var(--primary)] rounded-full shadow-[0_0_8px_rgba(45,66,252,0.6)]"
+                                    />
+                                )}
+                                <Icon className={clsx("w-5 h-5 transition-transform active:scale-95", isActive && "text-[var(--primary)]")} />
+                                <span className="text-[10px] font-medium">{item.name}</span>
+                            </Link>
+                        );
+                    })}
+                </div>
+            </nav>
+
+            {/* More Menu Drawer */}
+            <AnimatePresence>
+                {isMoreOpen && (
+                    <>
+                        <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsMoreOpen(false)}
+                            className="lg:hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+                        />
+                        <motion.div
+                            initial={{ y: '100%' }}
+                            animate={{ y: 0 }}
+                            exit={{ y: '100%' }}
+                            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+                            className="lg:hidden fixed bottom-[60px] left-0 right-0 bg-[#151921] border-t border-white/10 rounded-t-2xl z-40 overflow-hidden pb-6"
+                        >
+                            <div className="p-4 grid grid-cols-2 gap-3">
+                                <Link to="/analytics" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 flex flex-col items-center gap-2">
+                                    <BarChart2 className="w-6 h-6 text-text-secondary" />
+                                    <span className="text-sm font-medium">Analytics</span>
+                                </Link>
+                                <Link to="/leaderboard" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 flex flex-col items-center gap-2">
+                                    <Trophy className="w-6 h-6 text-text-secondary" />
+                                    <span className="text-sm font-medium">Leaderboard</span>
+                                </Link>
+                                <Link to="/referrals" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 flex flex-col items-center gap-2">
+                                    <Share2 className="w-6 h-6 text-text-secondary" />
+                                    <span className="text-sm font-medium">Referrals</span>
+                                </Link>
+                                <Link to="/insurance" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 flex flex-col items-center gap-2">
+                                    <Shield className="w-6 h-6 text-text-secondary" />
+                                    <span className="text-sm font-medium">Insurance</span>
+                                </Link>
+                                <Link to="/settings" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 flex flex-col items-center gap-2">
+                                    <Settings className="w-6 h-6 text-text-secondary" />
+                                    <span className="text-sm font-medium">Settings</span>
+                                </Link>
+                            </div>
+                        </motion.div>
+                    </>
+                )}
+            </AnimatePresence>
+        </>
+    );
+}

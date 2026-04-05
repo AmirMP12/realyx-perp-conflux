@@ -1,0 +1,17 @@
+import { config } from "./config.js";
+import { app, logger } from "./app.js";
+import { startWsServer } from "./wsServer.js";
+
+app.listen(config.port, () => {
+  const rpcSet = Boolean(process.env.RPC_URL?.trim());
+  const tradingCoreSet = Boolean((process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE)?.trim());
+  logger.info(
+    { port: config.port, subgraphUrl: config.subgraphUrl, activeMarketsFilter: rpcSet && tradingCoreSet },
+    "Backend listening"
+  );
+  if (!rpcSet || !tradingCoreSet) {
+    logger.warn("RPC_URL or TRADING_CORE_ADDRESS not set — /api/markets will return all subgraph markets (no on-chain filter)");
+  }
+});
+
+startWsServer();
