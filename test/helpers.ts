@@ -46,16 +46,8 @@ export async function getTradingCoreLinkedFactory(): Promise<ContractFactory> {
 }
 
 export async function getOracleLinkedFactory(): Promise<ContractFactory> {
-    const CircuitBreakerLib = await (await ethers.getContractFactory("CircuitBreakerLib")).deploy();
-    const EmergencyPauseLib = await (await ethers.getContractFactory("EmergencyPauseLib")).deploy();
-    const EmergencyPriceLib = await (await ethers.getContractFactory("EmergencyPriceLib")).deploy();
-    return ethers.getContractFactory("OracleAggregator", {
-        libraries: {
-            "contracts/libraries/CircuitBreakerLib.sol:CircuitBreakerLib": await CircuitBreakerLib.getAddress(),
-            "contracts/libraries/EmergencyPauseLib.sol:EmergencyPauseLib": await EmergencyPauseLib.getAddress(),
-            "contracts/libraries/EmergencyPriceLib.sol:EmergencyPriceLib": await EmergencyPriceLib.getAddress(),
-        },
-    });
+    // OracleAggregator no longer uses externally-linked libs; it inlines logic.
+    return ethers.getContractFactory("OracleAggregator");
 }
 
 export async function deployTestEnvironment() {
@@ -86,19 +78,13 @@ export async function deployTestEnvironment() {
     const complianceManager = await ComplianceManager.deploy();
     await complianceManager.initialize(admin.address);
     
-    // Deploy Libs for Oracle
+    // Deploy libs used by some coverage harnesses/tests (even if OracleAggregator no longer links them)
     const CircuitBreakerLib = await (await ethers.getContractFactory("CircuitBreakerLib")).deploy();
     const EmergencyPauseLib = await (await ethers.getContractFactory("EmergencyPauseLib")).deploy();
     const EmergencyPriceLib = await (await ethers.getContractFactory("EmergencyPriceLib")).deploy();
     const GlobalPnLLib = await (await ethers.getContractFactory("GlobalPnLLib")).deploy();
     
-    const OracleAggregator = await ethers.getContractFactory("OracleAggregator", {
-        libraries: {
-            "contracts/libraries/CircuitBreakerLib.sol:CircuitBreakerLib": await CircuitBreakerLib.getAddress(),
-            "contracts/libraries/EmergencyPauseLib.sol:EmergencyPauseLib": await EmergencyPauseLib.getAddress(),
-            "contracts/libraries/EmergencyPriceLib.sol:EmergencyPriceLib": await EmergencyPriceLib.getAddress(),
-        }
-    });
+    const OracleAggregator = await ethers.getContractFactory("OracleAggregator");
     const oracle = await OracleAggregator.deploy();
     await oracle.initialize(admin.address, await pyth.getAddress());
 

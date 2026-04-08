@@ -17,7 +17,6 @@ describe("FlashLoanCheck branch wave", function () {
       libraries: {
         "contracts/libraries/TradingLib.sol:TradingLib": env.libs.tradingLib,
         "contracts/libraries/MonitoringLib.sol:MonitoringLib": await monitoringLib.getAddress(),
-        "contracts/libraries/CircuitBreakerLib.sol:CircuitBreakerLib": env.libs.circuitBreakerLib,
         "contracts/libraries/CleanupLib.sol:CleanupLib": env.libs.cleanupLib,
         "contracts/libraries/ConfigLib.sol:ConfigLib": env.libs.configLib,
         "contracts/libraries/DustLib.sol:DustLib": env.libs.dustLib,

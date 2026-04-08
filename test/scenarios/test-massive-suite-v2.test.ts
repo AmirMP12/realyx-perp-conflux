@@ -17,7 +17,6 @@ describe("Realyx Massive Branch Booster V2", function () {
 
         const CoverageHarness = await ethers.getContractFactory("CoverageHarness", {
             libraries: {
-                "contracts/libraries/CircuitBreakerLib.sol:CircuitBreakerLib": env.libs.circuitBreakerLib,
                 "contracts/libraries/CleanupLib.sol:CleanupLib": env.libs.cleanupLib,
                 "contracts/libraries/ConfigLib.sol:ConfigLib": env.libs.configLib,
                 "contracts/libraries/DustLib.sol:DustLib": env.libs.dustLib,

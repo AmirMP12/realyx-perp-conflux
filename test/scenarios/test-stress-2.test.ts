@@ -44,7 +44,6 @@ describe("Coverage Maximizer 2 - Uncovered Libraries", function () {
         const Harness = await ethers.getContractFactory("CoverageHarness", {
             libraries: {
                 "contracts/libraries/GlobalPnLLib.sol:GlobalPnLLib": await (await ethers.getContractFactory("GlobalPnLLib")).deploy().then(c => c.getAddress()),
-                "contracts/libraries/CircuitBreakerLib.sol:CircuitBreakerLib": env.libs.circuitBreakerLib,
                 "contracts/libraries/TradingLib.sol:TradingLib": env.libs.tradingLib,
                 "contracts/libraries/MonitoringLib.sol:MonitoringLib": await (await ethers.getContractFactory("MonitoringLib", {
                     libraries: {

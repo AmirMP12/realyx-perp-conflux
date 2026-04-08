@@ -43,7 +43,6 @@ describe("High Coverage Test Suite", function () {
                     "contracts/libraries/MonitoringLib.sol:MonitoringLib": await monitoringLib.getAddress(),
                     "contracts/libraries/RateLimitLib.sol:RateLimitLib": env.libs.rateLimitLib,
                     "contracts/libraries/GlobalPnLLib.sol:GlobalPnLLib": await GlobalPnLLib.getAddress(),
-                    "contracts/libraries/CircuitBreakerLib.sol:CircuitBreakerLib": env.libs.circuitBreakerLib,
                     "contracts/libraries/TradingLib.sol:TradingLib": env.libs.tradingLib,
                     "contracts/libraries/CleanupLib.sol:CleanupLib": env.libs.cleanupLib,
                     "contracts/libraries/ConfigLib.sol:ConfigLib": env.libs.configLib,
