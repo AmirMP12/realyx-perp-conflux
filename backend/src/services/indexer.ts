@@ -155,7 +155,7 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
       [trader]
     );
 
-    return res.rows.map(row => {
+    return res.rows.map((row: any) => {
       let isLong = true;
       let size = "0";
       let entryPrice = "0";
@@ -203,7 +203,7 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
       [trader, Math.min(limit, 200)]
     );
 
-    return res.rows.map(row => {
+    return res.rows.map((row: any) => {
       let isLong = true;
       let size = "0";
       let price = "0";
@@ -255,7 +255,7 @@ export async function fetchLeaderboard(limit: number): Promise<User[]> {
       [Math.min(limit, 100)]
     );
 
-    return res.rows.map(row => ({
+    return res.rows.map((row: any) => ({
       id: row.account,
       address: row.account,
       totalTrades: String(row.trades),

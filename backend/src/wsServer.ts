@@ -3,7 +3,8 @@
  * Polls Pyth/API and pushes to connected clients.
  */
 
-import { WebSocketServer } from "ws";
+import { WebSocketServer, WebSocket } from "ws";
+import { IncomingMessage } from "http";
 import { config } from "./config.js";
 import { fetchPythPrices } from "./services/pyth.js";
 import { fetchMarkets, fetchProtocol } from "./services/indexer.js";
@@ -32,13 +33,13 @@ function _getMeta(addr: string) {
 
 export function startWsServer() {
   const wss = new WebSocketServer({ port: config.wsPort });
-  const clients = new Set<import("ws").WebSocket>();
+  const clients = new Set<WebSocket>();
 
-  wss.on("connection", (ws, req) => {
+  wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     clients.add(ws);
     const ip = req.socket.remoteAddress ?? "unknown";
     if (!isTestEnv) console.info(`[ws] Client connected, total: ${clients.size}, ip: ${ip}`);
-    ws.on("message", (raw) => {
+    ws.on("message", (raw: any) => {
       try {
         const msg = JSON.parse(raw.toString());
         if (msg.type === "subscribe" && Array.isArray(msg.channels)) {
