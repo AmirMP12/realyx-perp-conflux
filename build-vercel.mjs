@@ -3,25 +3,33 @@ import path from 'path';
 
 const root = process.cwd();
 
+function run(cmd, desc) {
+  console.log(`\n--- ${desc} ---`);
+  try {
+    // Capture output so we can see it even if the process fails
+    const output = execSync(cmd, { stdio: 'pipe', encoding: 'utf-8', cwd: root });
+    console.log(output);
+    console.log(`✅ ${desc} successful.`);
+  } catch (error) {
+    console.error(`❌ ${desc} FAILED!`);
+    console.error('--- ERROR OUTPUT ---');
+    console.error(error.stdout);
+    console.error(error.stderr);
+    console.error('-------------------');
+    process.exit(1);
+  }
+}
+
 try {
-  console.log('🚀 Starting Realyx Build Process...');
+  console.log('🚀 Starting Realyx Verbose Build Process...');
 
-  console.log('\n--- [1/3] Building Backend ---');
-  execSync('npx tsc -p backend', { stdio: 'inherit', cwd: root });
-  console.log('✅ Backend build complete.');
-
-  console.log('\n--- [2/3] Type-checking Frontend ---');
-  execSync('npx tsc -p frontend', { stdio: 'inherit', cwd: root });
-  console.log('✅ Frontend type-check complete.');
-
-  console.log('\n--- [3/3] Building Frontend Assets (Vite) ---');
-  // We need to be careful with paths for Vite
-  execSync('npx vite build frontend', { stdio: 'inherit', cwd: root });
-  console.log('✅ Frontend assets built.');
+  run('npx tsc -p backend', '[1/3] Building Backend');
+  run('npx tsc -p frontend', '[2/3] Type-checking Frontend');
+  run('npx vite build frontend', '[3/3] Building Frontend Assets (Vite)');
 
   console.log('\n✨ Build successfully finished!');
 } catch (error) {
-  console.error('\n❌ Build failed during execution:');
-  console.error(error.message);
+  console.error('\n❌ Unexpected error in build runner:');
+  console.error(error);
   process.exit(1);
 }
