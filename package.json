@@ -13,7 +13,7 @@
     "hardhat"
   ],
   "scripts": {
-    "build": "cd backend && npm ci && npm run build && cd ../frontend && npm ci && npm run build",
+    "build": "cd backend && npm install && npm run build && cd ../frontend && npm install && npm run build",
     "compile": "hardhat compile && node scripts/fix-abi-enums.js",
     "compile:force": "hardhat compile --force && node scripts/fix-abi-enums.js",
     "clean": "hardhat clean",
