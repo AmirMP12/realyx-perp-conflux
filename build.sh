@@ -1,14 +1,16 @@
 #!/bin/bash
 set -ex
 
+export NODE_ENV=development
+
 echo "--- Building Backend ---"
 cd backend
-npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+npm install
 npm run build
 
 echo "--- Building Frontend ---"
 cd ../frontend
-npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+npm install
 npm run build
 
 echo "--- Done ---"
