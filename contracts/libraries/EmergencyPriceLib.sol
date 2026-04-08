@@ -50,7 +50,7 @@ library EmergencyPriceLib {
         uint256 validUntil,
         uint256 nonce,
         mapping(bytes32 => EmergencyPriceProposal) storage emergencyPriceProposals
-    ) external returns (bytes32 proposalId) {
+    ) internal returns (bytes32 proposalId) {
         proposalId = keccak256(
             abi.encode(collection, price, validUntil, block.timestamp, block.number, msg.sender, nonce)
         );
@@ -77,7 +77,7 @@ library EmergencyPriceLib {
         mapping(address => uint256) storage manualPriceExpiry,
         mapping(address => EmergencyPriceLib.PendingPriceOverride) storage pendingManualPrices,
         address oracleAggregator
-    ) external {
+    ) internal {
         EmergencyPriceProposal storage proposal = emergencyPriceProposals[proposalId];
         if (proposal.collection == address(0)) revert EmergencyPriceProposalNotFound();
         if (proposal.executed) revert EmergencyPriceAlreadyConfirmed();

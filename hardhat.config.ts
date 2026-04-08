@@ -7,6 +7,8 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
+const deployRpcTimeoutMs = Number(process.env.DEPLOY_RPC_TIMEOUT_MS || "900000");
+
 // Helper to get accounts from env
 const getAccounts = () => {
     const privateKey = process.env.PRIVATE_KEY;
@@ -63,7 +65,7 @@ const config: HardhatUserConfig = {
 
     // Mocha test configuration
     mocha: {
-        timeout: 120000,  // 2 minutes for complex tests
+        timeout: 300000,  // 5 minutes for complex/fuzz tests
     },
 
     networks: {
@@ -97,14 +99,14 @@ const config: HardhatUserConfig = {
             url: process.env.CONFLUX_RPC_URL || "https://evm.confluxrpc.com",
             accounts: getAccounts() as string[],
             chainId: 1030,
-            timeout: 60000,
+            timeout: deployRpcTimeoutMs,
             gasPrice: process.env.GAS_PRICE_GWEI ? parseInt(process.env.GAS_PRICE_GWEI, 10) * 1e9 : undefined,
         },
         confluxTestnet: {
-            url: process.env.CONFLUX_TESTNET_RPC_URL || "https://evmtestnet.confluxrpc.com",
+            url: process.env.CONFLUX_TESTNET_RPC_URL || "https://evmtest.confluxrpc.com",
             accounts: getAccounts() as string[],
             chainId: 71,
-            timeout: 120000,
+            timeout: deployRpcTimeoutMs,
             gasPrice: process.env.GAS_PRICE_GWEI ? parseInt(process.env.GAS_PRICE_GWEI, 10) * 1e9 : 30e9,
         },
     },

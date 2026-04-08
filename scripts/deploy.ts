@@ -8,7 +8,6 @@ import {
     type NetworkName,
 } from "./helpers";
 
-/** Per-network gas config: max gas limit for heavy deploys (under chain cap), min gas price (gwei). */
 const NETWORK_GAS: Record<number, { maxDeployGas: number; minGasPriceGwei: number }> = {
     1030: { maxDeployGas: 20_000_000, minGasPriceGwei: 2 }, // Conflux
     71: { maxDeployGas: 20_000_000, minGasPriceGwei: 2 }, // Conflux Testnet
@@ -18,13 +17,10 @@ const DEFAULT_NETWORK_GAS = { maxDeployGas: 16_000_000, minGasPriceGwei: 5 };
 type GasOverrides = { gasPrice: bigint; gasLimit?: number };
 
 export type DeployGasOptions = {
-    /** For normal deploys/calls: gas price only (gas estimated by provider = cheaper). */
     normal: GasOverrides | undefined;
-    /** For heavy deploys only (TradingCore, TradingCoreViews): gas price + high limit. */
     heavy: GasOverrides | undefined;
 };
 
-/** Per-network gas: estimate-friendly defaults, high limit only where needed. */
 async function getDeployGasOptions(): Promise<DeployGasOptions> {
     const envGwei = process.env.GAS_PRICE_GWEI?.trim();
     const provider = ethers.provider;
@@ -77,7 +73,6 @@ function isUnderpriced(e: unknown): boolean {
     return msg.includes("replacement transaction underpriced");
 }
 
-/** Retry with 50% higher gas price on "replacement transaction underpriced" (up to 2 retries). */
 async function withRetryUnderpriced<T>(
     overrides: GasOverrides | undefined,
     fn: (o: GasOverrides | undefined) => Promise<T>,
@@ -195,36 +190,10 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     const complianceManager = await complianceProxy.getAddress();
     console.log("AllowListCompliance (proxy):", complianceManager);
 
-    const CircuitBreakerLib = await ethers.getContractFactory("CircuitBreakerLib");
-    const circuitBreakerLib = await CircuitBreakerLib.deploy(...(normalOverrides ? [normalOverrides] : []));
-    await circuitBreakerLib.waitForDeployment();
-    const circuitBreakerLibAddress = await circuitBreakerLib.getAddress();
-    console.log("CircuitBreakerLib:", circuitBreakerLibAddress);
-
-    const EmergencyPauseLib = await ethers.getContractFactory("EmergencyPauseLib");
-    const emergencyPauseLib = await EmergencyPauseLib.deploy(...(normalOverrides ? [normalOverrides] : []));
-    await emergencyPauseLib.waitForDeployment();
-    const emergencyPauseLibAddress = await emergencyPauseLib.getAddress();
-    console.log("EmergencyPauseLib:", emergencyPauseLibAddress);
-
-    const EmergencyPriceLib = await ethers.getContractFactory("EmergencyPriceLib");
-    const emergencyPriceLib = await EmergencyPriceLib.deploy(...(normalOverrides ? [normalOverrides] : []));
-    await emergencyPriceLib.waitForDeployment();
-    const emergencyPriceLibAddress = await emergencyPriceLib.getAddress();
-    console.log("EmergencyPriceLib:", emergencyPriceLibAddress);
-
-    // OracleAggregator uses linked libraries (CircuitBreakerLib, EmergencyPauseLib, EmergencyPriceLib).
-    const OracleAggregator = await ethers.getContractFactory("OracleAggregator", {
-        libraries: {
-            "contracts/libraries/CircuitBreakerLib.sol:CircuitBreakerLib": circuitBreakerLibAddress,
-            "contracts/libraries/EmergencyPauseLib.sol:EmergencyPauseLib": emergencyPauseLibAddress,
-            "contracts/libraries/EmergencyPriceLib.sol:EmergencyPriceLib": emergencyPriceLibAddress,
-        },
-    });
+    const OracleAggregator = await ethers.getContractFactory("OracleAggregator");
     const oracleProxy = await upgrades.deployProxy(OracleAggregator, [admin, pythAddress], {
         kind: "uups",
         initializer: "initialize",
-        unsafeAllowLinkedLibraries: true, // libs are stateless; upgrade-safe
         ...txOverrides,
     });
     await oracleProxy.waitForDeployment();

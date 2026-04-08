@@ -8,7 +8,7 @@ export const TRADING_CORE_ADDRESS = (import.meta.env.VITE_TRADING_CORE_ADDRESS ?
 export const VAULT_CORE_ADDRESS = (import.meta.env.VITE_VAULT_CORE_ADDRESS ?? '0x0000000000000000000000000000000000000000') as Address;
 export const ORACLE_AGGREGATOR_ADDRESS = (import.meta.env.VITE_ORACLE_AGGREGATOR_ADDRESS ?? '0x0000000000000000000000000000000000000000') as Address;
 
-export const MOCK_USDC_ADDRESS: Address = (import.meta.env.VITE_MOCK_USDC_ADDRESS ?? '0x14D21f963EA8a644235Dd4d9D643437310cB4DeF') as Address;
+export const MOCK_USDC_ADDRESS: Address = (import.meta.env.VITE_MOCK_USDC_ADDRESS ?? '0x4d0874577f1E6326E75EbBAf2F73C548B3ec32F1') as Address;
 
 const ERC20_ABI = [
     { "inputs": [{ "name": "spender", "type": "address" }, { "name": "amount", "type": "uint256" }], "name": "approve", "outputs": [{ "name": "", "type": "bool" }], "stateMutability": "nonpayable", "type": "function" },

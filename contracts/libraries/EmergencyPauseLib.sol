@@ -30,7 +30,7 @@ library EmergencyPauseLib {
     function proposeEmergencyPause(
         address[] calldata targets,
         mapping(bytes32 => EmergencyPauseLib.PauseProposal) storage pauseProposals
-    ) external returns (bytes32 pauseId) {
+    ) internal returns (bytes32 pauseId) {
         pauseId = keccak256(abi.encode(targets, block.timestamp, msg.sender));
         PauseProposal storage proposal = pauseProposals[pauseId];
         proposal.proposer = msg.sender;
@@ -48,7 +48,7 @@ library EmergencyPauseLib {
         mapping(address => bool) storage pausables,
         mapping(address => bool) storage failedTargets,
         address[] storage failedList
-    ) external {
+    ) internal {
         EmergencyPauseLib.PauseProposal storage proposal = pauseProposals[pauseId];
         if (proposal.proposer == address(0)) revert ProposalNotFound();
         if (proposal.executed) revert ProposalExpired();

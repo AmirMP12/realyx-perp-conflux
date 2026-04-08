@@ -32,7 +32,7 @@ library CircuitBreakerLib {
         mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerConfig)) storage breakerConfigs,
         mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerStatus)) storage breakerStatuses,
         mapping(address => mapping(uint256 => uint256)) storage historicalPrices
-    ) external returns (bool) {
+    ) internal returns (bool) {
         return _checkPriceDropBreaker(collection, currentPrice, breakerConfigs, breakerStatuses, historicalPrices);
     }
 
@@ -42,7 +42,7 @@ library CircuitBreakerLib {
         uint256 twap,
         mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerConfig)) storage breakerConfigs,
         mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerStatus)) storage breakerStatuses
-    ) external returns (bool) {
+    ) internal returns (bool) {
         return _checkTWAPDeviationBreaker(collection, currentPrice, twap, breakerConfigs, breakerStatuses);
     }
 
@@ -51,7 +51,7 @@ library CircuitBreakerLib {
         DataTypes.BreakerType breakerType,
         mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerConfig)) storage breakerConfigs,
         mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerStatus)) storage breakerStatuses
-    ) external {
+    ) internal {
         DataTypes.BreakerConfig storage config = breakerConfigs[collection][breakerType];
         if (!config.enabled) revert BreakerNotConfigured();
 
@@ -71,7 +71,7 @@ library CircuitBreakerLib {
         DataTypes.BreakerType breakerType,
         bool isAdmin,
         mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerStatus)) storage breakerStatuses
-    ) external {
+    ) internal {
         DataTypes.BreakerStatus storage status = breakerStatuses[collection][breakerType];
         if (status.state == DataTypes.BreakerState.INACTIVE) {
             revert BreakerNotTriggered();
@@ -93,7 +93,7 @@ library CircuitBreakerLib {
     function autoResetBreakers(
         address collection,
         mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerStatus)) storage breakerStatuses
-    ) external {
+    ) internal {
         uint8 breakerTypeCount = uint8(DataTypes.BreakerType.EMERGENCY) + 1;
         for (uint8 i = 0; i < breakerTypeCount; ) {
             DataTypes.BreakerType breakerType = DataTypes.BreakerType(i);
@@ -119,7 +119,7 @@ library CircuitBreakerLib {
         uint256 windowSeconds,
         uint256 cooldownSeconds,
         mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerConfig)) storage breakerConfigs
-    ) external {
+    ) internal {
         if (windowSeconds == 0) revert InvalidWindowSeconds();
         if (cooldownSeconds == 0) revert InvalidCooldownSeconds();
 
@@ -137,7 +137,7 @@ library CircuitBreakerLib {
         uint8 actionType,
         bool globalPause,
         mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerStatus)) storage breakerStatuses
-    ) external view returns (bool) {
+    ) internal view returns (bool) {
         if (globalPause) return false;
         for (uint8 i = 0; i <= uint8(DataTypes.BreakerType.EMERGENCY); ) {
             DataTypes.BreakerStatus storage status = breakerStatuses[collection][DataTypes.BreakerType(i)];

@@ -235,11 +235,11 @@ cd frontend && npm run lint
 #### Testnet
 | Contract | Address |
 |----------|---------|
-| TradingCore | `0xDDe4D077C617C1B84dA369fB8fD391BE6530C40E` |
-| VaultCore | `0xd74f9539847E8f5b63cd8F09547c9497FbbB83Ee` |
-| OracleAggregator | `0x8190715C58f4d1be1a1EF8FdA44133B77972e9e1` |
-| PositionToken | `0xb812dE8a28614f52fF9ace0688bCF147fF5d824d` |
-| MockUSDC | `0x14D21f963EA8a644235Dd4d9D643437310cB4DeF` |
+| TradingCore | `0x49493c04Df243FDD73a26E0AB10d9Fd89d82a92e` |
+| VaultCore | `0xe934aB1736a7924c1B9A290d57a73a0340092e24` |
+| OracleAggregator | `0xBb9B26F89624a505Fc4318463CC5a7325E5A106E` |
+| PositionToken | `0x0e7110ED111add8Ac5EB148567f4504569aC749f` |
+| MockUSDC | `0x4d0874577f1E6326E75EbBAf2F73C548B3ec32F1` |
 
 ### REST Endpoints
 Base URL: `http://localhost:3001` (or your backend host)

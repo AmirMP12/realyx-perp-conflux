@@ -95,6 +95,6 @@ jobs:
       run: npm ci
     
     - name: Run fuzz tests
-      run: npx hardhat test --timeout 300000
+      run: npx hardhat test
 
   # contract-size: requires hardhat-contract-sizer plugin

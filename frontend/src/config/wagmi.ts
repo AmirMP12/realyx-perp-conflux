@@ -26,7 +26,10 @@ if (import.meta.env.DEV && !import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID) {
     );
 }
 
-const testnetRpc = import.meta.env.VITE_CONFLUX_TESTNET_RPC_URL || 'https://evmtestnet.confluxrpc.com';
+const testnetRpc =
+    import.meta.env.VITE_CONFLUX_TESTNET_RPC_URL ||
+    import.meta.env.VITE_RPC_URL ||
+    'https://evmtestnet.confluxrpc.com';
 
 const appUrl =
     (import.meta.env.VITE_APP_URL as string | undefined) ||
@@ -73,8 +76,19 @@ export const config = createConfig({
     connectors,
     chains: [confluxESpace, confluxESpaceTestnet],
     transports: {
-        [confluxESpace.id]: http(),
-        [confluxESpaceTestnet.id]: http(testnetRpc, { batch: false }),
+        [confluxESpace.id]: http(undefined, {
+            // Keep mainnet reads resilient against temporary provider slowness.
+            timeout: 120_000,
+            retryCount: 5,
+            retryDelay: 1_000,
+        }),
+        [confluxESpaceTestnet.id]: http(testnetRpc, {
+            batch: false,
+            // Increase timeout significantly to reduce RPC timeout failures.
+            timeout: 180_000,
+            retryCount: 8,
+            retryDelay: 1_500,
+        }),
     },
     ssr: false,
 });
