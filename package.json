@@ -17,8 +17,8 @@
     "frontend"
   ],
   "scripts": {
-    "build:backend": "npm run build --workspace=realyx-backend",
-    "build:frontend": "npm run build --workspace=realyx-frontend",
+    "build:backend": "tsc -p backend",
+    "build:frontend": "tsc -p frontend && cd frontend && vite build",
     "build": "npm run build:backend && npm run build:frontend",
     "compile": "hardhat compile && node scripts/fix-abi-enums.js",
     "compile:force": "hardhat compile --force && node scripts/fix-abi-enums.js",
@@ -96,7 +96,8 @@
     "ts-mocha": "^10.0.0",
     "ts-node": "^10.9.2",
     "typechain": "^8.3.2",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8"
   },
   "engines": {
     "node": ">=18.0.0"
