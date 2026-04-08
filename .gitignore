@@ -83,3 +83,5 @@ id.json
 
 # Documentation
 docs/build/
+
+.vercel
