@@ -19,9 +19,7 @@ async function main() {
     }
 
     if (!address) {
-        console.error(
-            "MockUSDC address not found. Set DEPLOYED_MOCK_USDC or deploy first.",
-        );
+        console.error("MockUSDC address not found. Set DEPLOYED_MOCK_USDC or deploy first.");
         process.exit(1);
     }
 
