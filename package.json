@@ -13,9 +13,7 @@
     "hardhat"
   ],
   "scripts": {
-    "build:backend": "npx tsc -p backend",
-    "build:frontend": "npx tsc -p frontend && cd frontend && npx vite build",
-    "build": "npm run build:backend && npm run build:frontend",
+    "build": "node build-vercel.mjs",
     "compile": "hardhat compile && node scripts/fix-abi-enums.js",
     "compile:force": "hardhat compile --force && node scripts/fix-abi-enums.js",
     "clean": "hardhat clean",
