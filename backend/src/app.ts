@@ -41,7 +41,7 @@ app.use("/api/leaderboard", leaderboardRouter);
 app.use("/api/insurance", insuranceRouter);
 app.use("/api/sync", syncRouter);
 
-app.use((_req, res) => {
+app.use((_req: any, res: any) => {
   res.status(404).json({ success: false, error: "Not found" });
 });
 

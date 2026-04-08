@@ -41,7 +41,7 @@ async function initDB() {
 // Call on boot
 initDB();
 
-router.get("/", async (req, res) => {
+router.get("/", async (req: any, res: any) => {
   try {
     if (!process.env.POSTGRES_URL) {
       return res.status(500).json({ success: false, error: "POSTGRES_URL not configured. Add it to Vercel Environment Variables." });
