@@ -16,18 +16,17 @@ library EmergencyPauseLib {
     }
     uint256 private constant PROPOSAL_EXPIRY = 1 hours;
     uint256 private constant PAUSE_GAS_LIMIT = 100000;
-    
+
     error ProposalNotFound();
     error ProposalExpired();
     error AlreadyConfirmed();
-    
+
     event EmergencyPauseProposed(bytes32 indexed pauseId, address indexed proposer, address[] targets);
     event EmergencyPauseExecuted(bytes32 indexed pauseId, address[] targets);
     event EmergencyPauseTargetFailed(bytes32 indexed pauseId, address indexed target);
     event GlobalPauseActivated(address indexed by);
     event GlobalPauseDeactivated(address indexed by);
-    
-    
+
     function proposeEmergencyPause(
         address[] calldata targets,
         mapping(bytes32 => EmergencyPauseLib.PauseProposal) storage pauseProposals
@@ -41,7 +40,7 @@ library EmergencyPauseLib {
         proposal.hasConfirmed[msg.sender] = true;
         emit EmergencyPauseProposed(pauseId, msg.sender, targets);
     }
-    
+
     function confirmEmergencyPause(
         bytes32 pauseId,
         uint256 guardianQuorum,
@@ -55,15 +54,17 @@ library EmergencyPauseLib {
         if (proposal.executed) revert ProposalExpired();
         if (block.timestamp > proposal.timestamp + PROPOSAL_EXPIRY) revert ProposalExpired();
         if (proposal.hasConfirmed[msg.sender]) revert AlreadyConfirmed();
-        
+
         proposal.hasConfirmed[msg.sender] = true;
-        unchecked { ++proposal.confirmations; }
-        
+        unchecked {
+            ++proposal.confirmations;
+        }
+
         if (proposal.confirmations >= guardianQuorum) {
             _executeEmergencyPause(pauseId, proposal, pausables, failedTargets, failedList);
         }
     }
-    
+
     function _executeEmergencyPause(
         bytes32 pauseId,
         EmergencyPauseLib.PauseProposal storage proposal,
@@ -75,21 +76,21 @@ library EmergencyPauseLib {
         while (failedList.length > 0) {
             failedList.pop();
         }
-        
+
         uint256 len = proposal.targets.length;
-        for (uint256 i = 0; i < len;) {
+        for (uint256 i = 0; i < len; ) {
             address target = proposal.targets[i];
             if (pausables[target]) {
-                (bool success,) = target.call{gas: PAUSE_GAS_LIMIT}(
-                    abi.encodeWithSignature("pause()")
-                );
+                (bool success, ) = target.call{gas: PAUSE_GAS_LIMIT}(abi.encodeWithSignature("pause()"));
                 if (!success) {
                     failedTargets[target] = true;
                     failedList.push(target);
                     emit EmergencyPauseTargetFailed(pauseId, target);
                 }
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         emit EmergencyPauseExecuted(pauseId, proposal.targets);
     }

@@ -58,7 +58,7 @@ async function getBumpedGasOverrides(current: GasOverrides | undefined): Promise
 async function withRetryUnderpriced<T>(
     overrides: GasOverrides | undefined,
     fn: (o: GasOverrides | undefined) => Promise<T>,
-    label?: string
+    label?: string,
 ): Promise<T> {
     let current = overrides ? { ...overrides } : undefined;
     for (let attempt = 0; attempt < MAX_UNDERPRICED_ATTEMPTS; attempt++) {
@@ -70,7 +70,7 @@ async function withRetryUnderpriced<T>(
                 console.log(
                     "Retrying (replacement transaction underpriced) with gas",
                     Number(current.gasPrice) / 1e9,
-                    "gwei" + (label ? `: ${label}` : "")
+                    "gwei" + (label ? `: ${label}` : ""),
                 );
                 await delay(RETRY_DELAY_MS);
             } else throw e;
@@ -104,15 +104,11 @@ async function main() {
     const overrides = await getGasOverrides();
     const oracle = await ethers.getContractAt("OracleAggregator", oracleAddr);
 
-    const maxLeverage = process.env.MAX_LEVERAGE?.trim()
-        ? BigInt(process.env.MAX_LEVERAGE)
-        : existing.maxLeverage;
+    const maxLeverage = process.env.MAX_LEVERAGE?.trim() ? BigInt(process.env.MAX_LEVERAGE) : existing.maxLeverage;
     const maxPositionSize = process.env.MAX_POSITION_SIZE?.trim()
         ? BigInt(process.env.MAX_POSITION_SIZE)
         : existing.maxPositionSize;
-    const maxExposure = process.env.MAX_EXPOSURE?.trim()
-        ? BigInt(process.env.MAX_EXPOSURE)
-        : existing.maxTotalExposure;
+    const maxExposure = process.env.MAX_EXPOSURE?.trim() ? BigInt(process.env.MAX_EXPOSURE) : existing.maxTotalExposure;
     const mmBps = process.env.MAINTENANCE_MARGIN_BPS?.trim()
         ? Number(process.env.MAINTENANCE_MARGIN_BPS)
         : Number(existing.maintenanceMargin);
@@ -123,12 +119,20 @@ async function main() {
         ? Number(process.env.MAX_STALENESS)
         : Number(existing.maxStaleness);
 
-    const feed = existing.chainlinkFeed && existing.chainlinkFeed !== ethers.ZeroAddress
-        ? existing.chainlinkFeed
-        : marketAddress;
+    const feed =
+        existing.chainlinkFeed && existing.chainlinkFeed !== ethers.ZeroAddress
+            ? existing.chainlinkFeed
+            : marketAddress;
 
     console.log("Updating market:", marketAddress);
-    console.log("  maxLeverage:", maxLeverage.toString(), "maxPositionSize:", maxPositionSize.toString(), "maxExposure:", maxExposure.toString());
+    console.log(
+        "  maxLeverage:",
+        maxLeverage.toString(),
+        "maxPositionSize:",
+        maxPositionSize.toString(),
+        "maxExposure:",
+        maxExposure.toString(),
+    );
     console.log("  mmBps:", mmBps, "imBps:", imBps, "maxStaleness:", maxStaleness);
 
     if (process.env.PYTH_FEED_ID?.trim()) {
@@ -137,24 +141,26 @@ async function main() {
             : "0x" + process.env.PYTH_FEED_ID.trim();
         const feedIdBytes32 = ethers.hexlify(ethers.zeroPadValue(ethers.getBytes(hex), 32));
         await withRetryUnderpriced(overrides, (o) =>
-            oracle.setPythFeed(marketAddress, feedIdBytes32, maxStaleness, 0, o ?? {})
+            oracle.setPythFeed(marketAddress, feedIdBytes32, maxStaleness, 0, o ?? {}),
         );
         console.log("OracleAggregator.setPythFeed ok");
     }
 
-    await withRetryUnderpriced(overrides, (o) =>
-        tradingCore.updateMarket(
-            marketAddress,
-            feed,
-            maxLeverage,
-            maxPositionSize,
-            maxExposure,
-            mmBps,
-            imBps,
-            maxStaleness,
-            o ?? {}
-        ),
-        "updateMarket"
+    await withRetryUnderpriced(
+        overrides,
+        (o) =>
+            tradingCore.updateMarket(
+                marketAddress,
+                feed,
+                maxLeverage,
+                maxPositionSize,
+                maxExposure,
+                mmBps,
+                imBps,
+                maxStaleness,
+                o ?? {},
+            ),
+        "updateMarket",
     );
     console.log("TradingCore.updateMarket ok");
 

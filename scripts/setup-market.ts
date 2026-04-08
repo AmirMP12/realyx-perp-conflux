@@ -78,7 +78,7 @@ function formatRevertReason(e: unknown): string {
 async function withRetryUnderpriced<T>(
     overrides: GasOverrides | undefined,
     fn: (o: GasOverrides | undefined) => Promise<T>,
-    label?: string
+    label?: string,
 ): Promise<T> {
     let current = overrides ? { ...overrides } : undefined;
     for (let attempt = 0; attempt < MAX_UNDERPRICED_ATTEMPTS; attempt++) {
@@ -90,7 +90,7 @@ async function withRetryUnderpriced<T>(
                 console.log(
                     "Retrying (replacement transaction underpriced) with gas",
                     Number(current.gasPrice) / 1e9,
-                    "gwei" + (label ? `: ${label}` : "")
+                    "gwei" + (label ? `: ${label}` : ""),
                 );
                 await delay(RETRY_DELAY_MS);
             } else throw e;
@@ -103,11 +103,17 @@ function getMarketsFromEnv(): { marketAddress: string; pythFeedId: string; marke
     const multiAddrs = process.env.MARKET_ADDRESSES?.trim();
     const multiFeeds = process.env.PYTH_FEED_IDS?.trim();
     if (multiAddrs && multiFeeds) {
-        const addrs = multiAddrs.split(",").map((s) => s.trim()).filter(Boolean);
-        const feeds = multiFeeds.split(",").map((s) => s.trim()).filter(Boolean);
+        const addrs = multiAddrs
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        const feeds = multiFeeds
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
         if (addrs.length !== feeds.length) {
             throw new Error(
-                `MARKET_ADDRESSES (${addrs.length}) and PYTH_FEED_IDS (${feeds.length}) must have the same number of entries`
+                `MARKET_ADDRESSES (${addrs.length}) and PYTH_FEED_IDS (${feeds.length}) must have the same number of entries`,
             );
         }
         const marketIds = (process.env.MARKET_IDS || "").split(",").map((s) => s.trim());
@@ -123,7 +129,7 @@ function getMarketsFromEnv(): { marketAddress: string; pythFeedId: string; marke
         return [{ marketAddress, pythFeedId, marketId: process.env.MARKET_ID || "" }];
     }
     throw new Error(
-        "Set either MARKET_ADDRESS + PYTH_FEED_ID (single) or MARKET_ADDRESSES + PYTH_FEED_IDS (comma-separated)"
+        "Set either MARKET_ADDRESS + PYTH_FEED_ID (single) or MARKET_ADDRESSES + PYTH_FEED_IDS (comma-separated)",
     );
 }
 
@@ -157,11 +163,15 @@ async function main() {
 
         try {
             await withRetryUnderpriced(overrides, (o) =>
-                oracle.setPythFeed(marketAddress, feedIdBytes32, maxStaleness, 0, o ?? {})
+                oracle.setPythFeed(marketAddress, feedIdBytes32, maxStaleness, 0, o ?? {}),
             );
             console.log("OracleAggregator.setPythFeed ok");
 
-            await withRetryUnderpriced(overrides, (o) => oracle.addSupportedMarket(marketAddress, o ?? {}), "addSupportedMarket");
+            await withRetryUnderpriced(
+                overrides,
+                (o) => oracle.addSupportedMarket(marketAddress, o ?? {}),
+                "addSupportedMarket",
+            );
             console.log("OracleAggregator.addSupportedMarket ok");
 
             if (marketId) {
@@ -173,41 +183,45 @@ async function main() {
             const currentCount = await tradingCore.activeMarketCount();
 
             if (existingMarket.isListed) {
-                await withRetryUnderpriced(overrides, (o) =>
-                    tradingCore.updateMarket(
-                        marketAddress,
-                        marketAddress,
-                        maxLeverage,
-                        maxPositionSize,
-                        maxExposure,
-                        mmBps,
-                        imBps,
-                        maxStaleness,
-                        o ?? {}
-                    ),
-                    "updateMarket"
+                await withRetryUnderpriced(
+                    overrides,
+                    (o) =>
+                        tradingCore.updateMarket(
+                            marketAddress,
+                            marketAddress,
+                            maxLeverage,
+                            maxPositionSize,
+                            maxExposure,
+                            mmBps,
+                            imBps,
+                            maxStaleness,
+                            o ?? {},
+                        ),
+                    "updateMarket",
                 );
                 console.log("TradingCore.updateMarket ok (market already listed)");
             } else {
                 if (currentCount >= MAX_ACTIVE_MARKETS) {
                     throw new Error(
                         `TradingCore has ${currentCount} active markets; max is ${MAX_ACTIVE_MARKETS}. ` +
-                        "Cannot add more markets. Unlist a market first or upgrade the contract to increase MAX_ACTIVE_MARKETS."
+                            "Cannot add more markets. Unlist a market first or upgrade the contract to increase MAX_ACTIVE_MARKETS.",
                     );
                 }
-                await withRetryUnderpriced(overrides, (o) =>
-                    tradingCore.setMarket(
-                        marketAddress,
-                        marketAddress,
-                        maxLeverage,
-                        maxPositionSize,
-                        maxExposure,
-                        mmBps,
-                        imBps,
-                        maxStaleness,
-                        o ?? {}
-                    ),
-                    "setMarket"
+                await withRetryUnderpriced(
+                    overrides,
+                    (o) =>
+                        tradingCore.setMarket(
+                            marketAddress,
+                            marketAddress,
+                            maxLeverage,
+                            maxPositionSize,
+                            maxExposure,
+                            mmBps,
+                            imBps,
+                            maxStaleness,
+                            o ?? {},
+                        ),
+                    "setMarket",
                 );
                 console.log("TradingCore.setMarket ok");
             }
@@ -221,14 +235,19 @@ async function main() {
             console.error("\nExecution reverted for market", marketAddress, marketId || "", ":", reason);
             if (reason.includes("revert") || reason.includes("reverted")) {
                 console.error(
-                    "Common causes: MaxActiveMarketsExceeded (max 20 markets), MarketAlreadyListed, InvalidMarginConfig, or missing OPERATOR role."
+                    "Common causes: MaxActiveMarketsExceeded (max 20 markets), MarketAlreadyListed, InvalidMarginConfig, or missing OPERATOR role.",
                 );
             }
             throw e;
         }
     }
 
-    console.log("\nMarket setup complete for", markets.length, "market(s):", markets.map((m) => m.marketAddress).join(", "));
+    console.log(
+        "\nMarket setup complete for",
+        markets.length,
+        "market(s):",
+        markets.map((m) => m.marketAddress).join(", "),
+    );
 }
 
 main().catch((e) => {

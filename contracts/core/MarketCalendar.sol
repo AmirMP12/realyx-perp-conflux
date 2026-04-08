@@ -10,12 +10,7 @@ import "../interfaces/IMarketCalendar.sol";
  * @title MarketCalendar
  * @notice Manages trading hours and holidays for different markets (RWAs)
  */
-contract MarketCalendar is 
-    Initializable, 
-    AccessControlUpgradeable, 
-    UUPSUpgradeable, 
-    IMarketCalendar 
-{
+contract MarketCalendar is Initializable, AccessControlUpgradeable, UUPSUpgradeable, IMarketCalendar {
     error InvalidTime();
     error OpenMustBeBeforeClose();
     error InvalidDay();
@@ -119,14 +114,14 @@ contract MarketCalendar is
         uint256 z = timestamp / 86400 + 719468;
         uint256 era = (z >= 0 ? z : z - 146096) / 146097;
         uint256 doe = uint256(int256(z) - int256(era * 146097));
-        uint256 yoe = (doe - doe/1460 + doe/36524 - doe/146096) / 365;
+        uint256 yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
         uint256 y = uint256(int256(yoe) + int256(era * 400));
-        uint256 doy = doe - (365*yoe + yoe/4 - yoe/100);
-        uint256 mp = (5*doy + 2)/153;
-        uint256 d = doy - (153*mp + 2)/5 + 1;
+        uint256 doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+        uint256 mp = (5 * doy + 2) / 153;
+        uint256 d = doy - (153 * mp + 2) / 5 + 1;
         uint256 m = mp < 10 ? mp + 3 : mp - 9;
         uint256 effectiveYear = m <= 2 ? y + 1 : y;
-        
+
         return effectiveYear * 10000 + m * 100 + d;
     }
 

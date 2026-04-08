@@ -49,11 +49,11 @@ export function MarketHeader({ market, markets, currentPrice, fundingRate, isLiv
                     </div>
                     <div className="flex flex-col items-start gap-0.5 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-base sm:text-xl text-text-primary leading-none tracking-tight truncate max-w-[140px] sm:max-w-none">{market.symbol}</span>
+                            <span data-testid="market-symbol" className="font-bold text-base sm:text-xl text-text-primary leading-none tracking-tight truncate max-w-[140px] sm:max-w-none">{market.symbol}</span>
                             <CategoryTag category={market.category} size="xs" />
                             <ChevronDown className={clsx("w-4 h-4 text-text-muted transition-transform duration-200", dropdownOpen && "rotate-180")} />
                         </div>
-                        <span className="text-xs text-text-muted">{market.name}</span>
+                        <span data-testid="market-name" className="text-xs text-text-muted">{market.name}</span>
                     </div>
                 </button>
 

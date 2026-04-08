@@ -28,14 +28,29 @@ library ConfigLib {
         if (markets[m].isListed) revert MarketAlreadyListed();
         if (maxLev > DataTypes.MAX_LEVERAGE_LIMIT) revert ExceedsMaxLeverage();
         if (mmBps < 100 || mmBps > 5000 || imBps < 200 || imBps > 10000 || imBps <= mmBps) revert InvalidMarginConfig();
-        markets[m] = DataTypes.Market({chainlinkFeed: feed, maxStaleness: maxStaleness, maxPriceUncertainty: maxOracleUncertainty, maxPositionSize: uint128(maxPos), maxTotalExposure: uint128(maxExp), maintenanceMargin: uint16(mmBps), initialMargin: uint16(imBps), maxLeverage: uint64(maxLev), totalLongSize: 0, totalShortSize: 0, totalLongCost: 0, totalShortCost: 0, isActive: true, isListed: true});
+        markets[m] = DataTypes.Market({
+            chainlinkFeed: feed,
+            maxStaleness: maxStaleness,
+            maxPriceUncertainty: maxOracleUncertainty,
+            maxPositionSize: uint128(maxPos),
+            maxTotalExposure: uint128(maxExp),
+            maintenanceMargin: uint16(mmBps),
+            initialMargin: uint16(imBps),
+            maxLeverage: uint64(maxLev),
+            totalLongSize: 0,
+            totalShortSize: 0,
+            totalLongCost: 0,
+            totalShortCost: 0,
+            isActive: true,
+            isListed: true
+        });
         if (!isMarketActive[m]) {
             if (activeMarkets.length >= MAX_ACTIVE_MARKETS) revert MaxActiveMarketsExceeded();
             activeMarkets.push(m);
             isMarketActive[m] = true;
         }
     }
-    
+
     function updateMarket(
         address m,
         address feed,
@@ -74,13 +89,15 @@ library ConfigLib {
         if (isMarketActive[m]) {
             isMarketActive[m] = false;
             uint256 len = activeMarkets.length;
-            for (uint256 i = 0; i < len;) {
+            for (uint256 i = 0; i < len; ) {
                 if (activeMarkets[i] == m) {
                     activeMarkets[i] = activeMarkets[len - 1];
                     activeMarkets.pop();
                     break;
                 }
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
             }
         }
     }

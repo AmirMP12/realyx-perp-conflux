@@ -1,57 +1,55 @@
 import WebSocket from 'ws';
-import { startWsServer } from '../wsServer';
-import { config } from '../config';
-import http from 'http';
-import { AddressInfo } from 'net';
+import { jest } from '@jest/globals';
+import { startWsServer } from '../wsServer.js';
+import { config } from '../config.js';
 
-// Mock the services that wsServer polls
-jest.mock('../services/pyth', () => ({
-  fetchPythPrices: jest.fn().mockResolvedValue({
+jest.mock('../services/pyth.js', () => ({
+  fetchPythPrices: (jest as any).fn().mockResolvedValue({
     '0x0000000000000000000000000000000000000001': 50000,
   })
 }));
 
-jest.mock('../services/subgraph', () => ({
-  fetchMarkets: jest.fn().mockResolvedValue([
+jest.mock('../services/subgraph.js', () => ({
+  fetchMarkets: (jest as any).fn().mockResolvedValue([
     {
       marketAddress: '0x0000000000000000000000000000000000000001',
       totalLongSize: '1000',
       totalShortSize: '500'
     }
   ]),
-  fetchProtocol: jest.fn().mockResolvedValue({
+  fetchProtocol: (jest as any).fn().mockResolvedValue({
     totalVolumeUsd: '10000'
   })
 }));
 
-jest.mock('../services/activeMarkets', () => ({
-  getActiveMarketAddresses: jest.fn().mockResolvedValue(new Set(['0x0000000000000000000000000000000000000001']))
+jest.mock('../services/activeMarkets.js', () => ({
+  getActiveMarketAddresses: (jest as any).fn().mockResolvedValue(new Set(['0x0000000000000000000000000000000000000001']))
 }));
 
 describe('WebSocket Server Integration', () => {
-  let wsServer: any;
+  let stopWsServer: any;
   let wsClient: WebSocket;
+  const TEST_PORT = 3009;
 
   beforeAll((done) => {
-    // Start WS server, use a random port for testing
-    config.wsPort = 0; // random port assignment logic handled internally if possible, or force mock 
-    // Fallback: Just let it bind to any available
-    wsServer = startWsServer();
-    setTimeout(() => {
-        done();
-    }, 100);
+    (config as any).wsPort = TEST_PORT;
+    stopWsServer = startWsServer();
+    setTimeout(done, 500);
   });
 
   afterAll((done) => {
     if (wsClient) wsClient.close();
-    if (wsServer) wsServer(); // The startWsServer returns a cleanup function
+    if (stopWsServer) stopWsServer();
     done();
   });
 
-  it('should accept client connections and respond to pings/subscriptions', (done) => {
-    // Hardcoded port logic (in real life we'd extract the bound port)
-    // For this test, assume wsPort was set or defaulting to config.wsPort
-    wsClient = new WebSocket(`ws://localhost:${config.wsPort}`);
+  it('should accept client connections and respond to subscriptions', (done) => {
+    wsClient = new WebSocket(`ws://localhost:${TEST_PORT}`);
+
+    let received = false;
+    const timeout = setTimeout(() => {
+      if (!received) done(new Error("Timeout waiting for websocket message"));
+    }, 4000);
 
     wsClient.on('open', () => {
       wsClient.send(JSON.stringify({ type: 'subscribe', channels: ['prices'] }));
@@ -59,16 +57,13 @@ describe('WebSocket Server Integration', () => {
 
     wsClient.on('message', (data) => {
       const msg = JSON.parse(data.toString());
-      if (msg.type === 'price_update') {
-        expect(msg.data.price).toBeDefined();
-        expect(msg.marketAddress).toBe('0x0000000000000000000000000000000000000001');
+      if (msg.type === 'price_update' && msg.data?.price != null) {
+        expect(msg.data.price).toBe(50000);
+        expect(msg.data.marketAddress).toBe('0x0000000000000000000000000000000000000001');
+        received = true;
+        clearTimeout(timeout);
         done();
       }
     });
-
-    // Provide a small timeout
-    setTimeout(() => {
-      done(new Error("Timeout waiting for websocket message"));
-    }, 3000);
   });
 });

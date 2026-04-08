@@ -1,4 +1,62 @@
-import { ethers, upgrades } from "hardhat";
+import { ethers } from "hardhat";
+import type { ContractFactory } from "ethers";
+
+/** Linked factories for UUPS upgrade tests (same wiring as deployTestEnvironment). */
+export async function getTradingCoreLinkedFactory(): Promise<ContractFactory> {
+    const deployLib = async (name: string) => (await (await ethers.getContractFactory(name)).deploy()).getAddress();
+
+    const divSettlement = await deployLib("DividendSettlementLib");
+    const fundLib = await deployLib("FundingLib");
+    const liqLib = await deployLib("LiquidationLib");
+    const posCloseLib = await deployLib("PositionCloseLib");
+    const cleanupLib = await deployLib("CleanupLib");
+    const configLib = await deployLib("ConfigLib");
+    const dustLib = await deployLib("DustLib");
+    const flashLib = await deployLib("FlashLoanCheck");
+    const healthLib = await deployLib("HealthLib");
+    const posTriggersLib = await deployLib("PositionTriggersLib");
+    const tradeCtxLib = await deployLib("TradingContextLib");
+    const withdrawLib = await deployLib("WithdrawLib");
+    const rateLimitLib = await deployLib("RateLimitLib");
+    const TradingLib = await ethers.getContractFactory("TradingLib", {
+        libraries: {
+            "contracts/libraries/DividendSettlementLib.sol:DividendSettlementLib": divSettlement,
+            "contracts/libraries/FundingLib.sol:FundingLib": fundLib,
+            "contracts/libraries/LiquidationLib.sol:LiquidationLib": liqLib,
+            "contracts/libraries/PositionCloseLib.sol:PositionCloseLib": posCloseLib,
+        },
+    });
+    const tradingLib = await (await TradingLib.deploy()).getAddress();
+
+    return ethers.getContractFactory("TradingCore", {
+        libraries: {
+            "contracts/libraries/CleanupLib.sol:CleanupLib": cleanupLib,
+            "contracts/libraries/ConfigLib.sol:ConfigLib": configLib,
+            "contracts/libraries/DustLib.sol:DustLib": dustLib,
+            "contracts/libraries/FlashLoanCheck.sol:FlashLoanCheck": flashLib,
+            "contracts/libraries/FundingLib.sol:FundingLib": fundLib,
+            "contracts/libraries/HealthLib.sol:HealthLib": healthLib,
+            "contracts/libraries/PositionTriggersLib.sol:PositionTriggersLib": posTriggersLib,
+            "contracts/libraries/TradingContextLib.sol:TradingContextLib": tradeCtxLib,
+            "contracts/libraries/TradingLib.sol:TradingLib": tradingLib,
+            "contracts/libraries/WithdrawLib.sol:WithdrawLib": withdrawLib,
+            "contracts/libraries/RateLimitLib.sol:RateLimitLib": rateLimitLib,
+        },
+    });
+}
+
+export async function getOracleLinkedFactory(): Promise<ContractFactory> {
+    const CircuitBreakerLib = await (await ethers.getContractFactory("CircuitBreakerLib")).deploy();
+    const EmergencyPauseLib = await (await ethers.getContractFactory("EmergencyPauseLib")).deploy();
+    const EmergencyPriceLib = await (await ethers.getContractFactory("EmergencyPriceLib")).deploy();
+    return ethers.getContractFactory("OracleAggregator", {
+        libraries: {
+            "contracts/libraries/CircuitBreakerLib.sol:CircuitBreakerLib": await CircuitBreakerLib.getAddress(),
+            "contracts/libraries/EmergencyPauseLib.sol:EmergencyPauseLib": await EmergencyPauseLib.getAddress(),
+            "contracts/libraries/EmergencyPriceLib.sol:EmergencyPriceLib": await EmergencyPriceLib.getAddress(),
+        },
+    });
+}
 
 export async function deployTestEnvironment() {
     const [admin, alice, bob, liquidator, treasury, keeper] = await ethers.getSigners();
@@ -32,6 +90,7 @@ export async function deployTestEnvironment() {
     const CircuitBreakerLib = await (await ethers.getContractFactory("CircuitBreakerLib")).deploy();
     const EmergencyPauseLib = await (await ethers.getContractFactory("EmergencyPauseLib")).deploy();
     const EmergencyPriceLib = await (await ethers.getContractFactory("EmergencyPriceLib")).deploy();
+    const GlobalPnLLib = await (await ethers.getContractFactory("GlobalPnLLib")).deploy();
     
     const OracleAggregator = await ethers.getContractFactory("OracleAggregator", {
         libraries: {
@@ -69,7 +128,7 @@ export async function deployTestEnvironment() {
     const posTriggersLib = await deployLib("PositionTriggersLib");
     const tradeCtxLib = await deployLib("TradingContextLib");
     const withdrawLib = await deployLib("WithdrawLib");
-
+    const rateLimitLib = await deployLib("RateLimitLib");
     const TradingLib = await ethers.getContractFactory("TradingLib", {
         libraries: {
             "contracts/libraries/DividendSettlementLib.sol:DividendSettlementLib": divSettlement,
@@ -79,6 +138,14 @@ export async function deployTestEnvironment() {
         }
     });
     const tradingLib = await (await TradingLib.deploy()).getAddress();
+
+    const MonitoringLib = await ethers.getContractFactory("MonitoringLib", {
+        libraries: {
+            "contracts/libraries/GlobalPnLLib.sol:GlobalPnLLib": await GlobalPnLLib.getAddress(),
+            "contracts/libraries/TradingLib.sol:TradingLib": tradingLib,
+        }
+    });
+    const monitoringLib = await (await MonitoringLib.deploy()).getAddress();
 
     const TradingCore = await ethers.getContractFactory("TradingCore", {
         libraries: {
@@ -92,6 +159,7 @@ export async function deployTestEnvironment() {
             "contracts/libraries/TradingContextLib.sol:TradingContextLib": tradeCtxLib,
             "contracts/libraries/TradingLib.sol:TradingLib": tradingLib,
             "contracts/libraries/WithdrawLib.sol:WithdrawLib": withdrawLib,
+            "contracts/libraries/RateLimitLib.sol:RateLimitLib": rateLimitLib,
         }
     });
     
@@ -127,6 +195,24 @@ export async function deployTestEnvironment() {
     return { 
         admin, alice, bob, liquidator, treasury, keeper,
         usdc, pyth, oracle, vault, trading, positionToken, marketCalendar, dividendManager, complianceManager,
-        libs: { posMathLib, tradingLib, circuitBreakerLib: await CircuitBreakerLib.getAddress() }
+        libs: { 
+            posMathLib, 
+            tradingLib, 
+            cleanupLib,
+            configLib,
+            dustLib,
+            flashLib,
+            withdrawLib,
+            monitoringLib,
+            rateLimitLib,
+            feeLib: await deployLib("FeeCalculator"),
+            fundingLib: fundLib,
+            liqLib: liqLib,
+            posTriggersLib,
+            globalPnLLib: await GlobalPnLLib.getAddress(),
+            circuitBreakerLib: await CircuitBreakerLib.getAddress(),
+            emergencyPauseLib: await EmergencyPauseLib.getAddress(),
+            emergencyPriceLib: await EmergencyPriceLib.getAddress(),
+        }
     };
 }

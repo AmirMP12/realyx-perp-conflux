@@ -16,12 +16,7 @@ import "../interfaces/ITradingCore.sol";
  * @notice Unified USDC vault combining LP deposits and insurance fund
  * @dev Consolidates LiquidityVault + InsuranceFund for improved security
  */
-contract VaultCore is 
-    Initializable,
-    UUPSUpgradeable,
-    ReentrancyGuardUpgradeable,
-    AccessControlled
-{
+contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, AccessControlled {
     using SafeERC20 for IERC20;
 
     error InsufficientShares();
@@ -70,7 +65,7 @@ contract VaultCore is
     bool private _emergencyMode;
     uint256 public emergencyModeActivatedAt;
     uint256 public constant MAX_EMERGENCY_DURATION = 7 days;
-    
+
     uint256 public minInitialDeposit;
     mapping(uint256 => DataTypes.WithdrawalRequest) private _withdrawalRequests;
     uint256 private _nextRequestId;
@@ -135,36 +130,43 @@ contract VaultCore is
     event InsuranceCircuitBreakerTriggered(uint256 threshold, uint256 cumulative);
     event InsuranceCircuitBreakerReset(address indexed resetter);
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
-    event EmergencyEscapeWithdrawCapped(address indexed user, uint256 requestedAssets, uint256 actualAssets, uint256 shares);
+    event EmergencyEscapeWithdrawCapped(
+        address indexed user,
+        uint256 requestedAssets,
+        uint256 actualAssets,
+        uint256 shares
+    );
     event ClaimPartialPayment(uint256 indexed claimId, uint256 paid, uint256 remaining);
 
-    modifier notEmergencyMode() { 
-        if (_emergencyMode) revert EmergencyModeActive(); 
-        _; 
+    modifier notEmergencyMode() {
+        if (_emergencyMode) revert EmergencyModeActive();
+        _;
     }
-    
+
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() { /* _disableInitializers(); */ }
-    
+    constructor() {
+        /* _disableInitializers(); */
+    }
+
     function initialize(address admin, address _usdc, address _treasury) external initializer {
         if (admin == address(0) || _usdc == address(0) || _treasury == address(0)) {
             revert ZeroAddress();
         }
-        
+
         __ReentrancyGuard_init();
         __AccessControlled_init(admin);
         __UUPSUpgradeable_init();
-        
+
         usdc = IERC20(_usdc);
         treasury = _treasury;
-        
+
         defaultMaxExposureBps = 2000;
         restrictionThresholdBps = 7500;
         emergencyThresholdBps = 9000;
         minInitialDeposit = 1000e6;
         withdrawalCooldown = 1 days;
         _nextRequestId = 1;
-        
+
         targetRatioBps = 1000;
         minRatioBps = 500;
         approvalThreshold = 10_000e6;
@@ -173,13 +175,13 @@ contract VaultCore is
         _nextClaimId = 1;
         maxProtocolTVL = 1_000_000_000e6;
         maxClaimsPerWindow = 100_000e6;
-        
+
         _lpShares[address(1)] = DEAD_SHARES;
         _lpTotalShares = DEAD_SHARES;
         _insShares[address(1)] = DEAD_SHARES;
         _insTotalShares = DEAD_SHARES;
     }
-    
+
     function setTradingCore(address _tradingCore) external onlyAdmin {
         if (_tradingCore == address(0)) revert ZeroAddress();
         if (tradingCore != address(0)) {
@@ -190,31 +192,31 @@ contract VaultCore is
     }
 
     function deposit(
-        uint256 assets, 
+        uint256 assets,
         address receiver
     ) external nonReentrant whenNotPaused notEmergencyMode returns (uint256 shares) {
         if (assets == 0) revert ZeroAssets();
         if (receiver == address(0)) revert ZeroAddress();
-        if (_lpTotalShares == 0) {
+        if (_lpTotalShares == DEAD_SHARES) {
             uint256 rawTotal = usdc.balanceOf(address(this)) + totalBorrowed;
             if (rawTotal > 0) revert InvalidFirstDeposit();
             if (assets < minInitialDeposit) revert MinimumDepositRequired();
         }
-        
+
         shares = _convertToLPShares(assets);
         if (shares == 0) revert ZeroShares();
-        
+
         usdc.safeTransferFrom(msg.sender, address(this), assets);
         _lpShares[receiver] += shares;
         _lpTotalShares += shares;
         _lpAssets += assets;
-        
+
         emit Deposit(msg.sender, assets, shares);
     }
-    
+
     function withdraw(
-        uint256 shares, 
-        address receiver, 
+        uint256 shares,
+        address receiver,
         address owner
     ) external nonReentrant whenNotPaused returns (uint256 assets) {
         if (shares == 0) revert ZeroShares();
@@ -222,70 +224,72 @@ contract VaultCore is
         if (_lpShares[owner] < shares) revert InsufficientShares();
         if (_emergencyMode) revert EmergencyModeActive();
         if (owner != msg.sender) revert NotOwner();
-        
-        assets = _convertToLPAssets(shares);
+
+        uint256 assetsInternal = _convertToLPAssets(shares);
+        assets = DataTypes.toUsdcPrecision(assetsInternal);
         if (assets == 0) revert ZeroAssets();
         if (assets > getAvailableLiquidity()) revert InsufficientLiquidity();
-        
+
         _lpShares[owner] -= shares;
         _lpTotalShares -= shares;
-        _lpAssets = _lpAssets > assets ? _lpAssets - assets : 0;
+        _lpAssets = _lpAssets > assetsInternal ? _lpAssets - assetsInternal : 0;
         usdc.safeTransfer(receiver, assets);
-        
+
         emit Withdraw(msg.sender, assets, shares);
     }
-    
-    function queueWithdrawal(
-        uint256 shares, 
-        uint256 minAssets
-    ) external nonReentrant returns (uint256 requestId) {
+
+    function queueWithdrawal(uint256 shares, uint256 minAssets) external nonReentrant returns (uint256 requestId) {
         if (shares == 0) revert ZeroShares();
         if (_lpShares[msg.sender] < shares) revert InsufficientShares();
-        
+
         requestId = _nextRequestId++;
         uint256 expectedAssets = _convertToLPAssets(shares);
         uint256 reservationAmount = (expectedAssets * (BPS + RESERVATION_BUFFER_BPS)) / BPS;
-        
+
         _withdrawalRequests[requestId] = DataTypes.WithdrawalRequest({
-            user: msg.sender, 
-            shares: shares, 
-            requestTime: block.timestamp, 
-            minAssets: minAssets, 
+            user: msg.sender,
+            shares: shares,
+            requestTime: block.timestamp,
+            minAssets: minAssets,
             processed: false
         });
         _userWithdrawalRequests[msg.sender].push(requestId);
         _lpShares[msg.sender] -= shares;
         reservedLiquidity += reservationAmount;
-        
+
         emit WithdrawalQueued(msg.sender, shares, requestId);
     }
-    
+
     function processWithdrawals(uint256[] calldata requestIds) external nonReentrant returns (uint256 processed) {
         uint256 len = requestIds.length;
         if (len > MAX_WITHDRAWAL_BATCH) revert InvalidRequest();
         uint256 gasLimit = gasleft();
-        for (uint256 i = 0; i < len && gasLimit > MIN_GAS_PER_WITHDRAWAL;) {
+        for (uint256 i = 0; i < len && gasLimit > MIN_GAS_PER_WITHDRAWAL; ) {
             uint256 reqId = requestIds[i];
             DataTypes.WithdrawalRequest storage req = _withdrawalRequests[reqId];
             if (!req.processed && req.shares != 0) {
                 _processWithdrawal(reqId);
-                unchecked { ++processed; }
+                unchecked {
+                    ++processed;
+                }
             }
             gasLimit = gasleft();
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
-    
+
     function _processWithdrawal(uint256 requestId) internal {
         DataTypes.WithdrawalRequest storage req = _withdrawalRequests[requestId];
         if (req.processed || req.shares == 0) revert InvalidRequest();
         if (block.timestamp < req.requestTime + withdrawalCooldown) revert WithdrawalNotReady();
-        
+
         uint256 assets = _convertToLPAssets(req.shares);
         address user = req.user;
-        
+
         uint256 originalReservation = (assets * (BPS + RESERVATION_BUFFER_BPS)) / BPS;
-        
+
         if (req.minAssets > 0 && assets < req.minAssets) {
             _lpShares[user] += req.shares;
             _releaseReserved(originalReservation);
@@ -294,7 +298,7 @@ contract VaultCore is
             emit WithdrawalCancelled(requestId, user, "Slippage");
             return;
         }
-        
+
         uint256 available = getAvailableLiquidity();
         if (assets > available) {
             assets = available;
@@ -307,96 +311,103 @@ contract VaultCore is
                 return;
             }
         }
-        
+
         _lpTotalShares -= req.shares;
         _lpAssets = _lpAssets > assets ? _lpAssets - assets : 0;
         _releaseReserved(originalReservation);
         req.processed = true;
-        
+
         _removeUserRequest(user, requestId);
-        
+
         usdc.safeTransfer(user, assets);
         emit WithdrawalProcessed(requestId, user, assets);
     }
-    
+
     function _releaseReserved(uint256 amount) internal {
         reservedLiquidity = reservedLiquidity > amount ? reservedLiquidity - amount : 0;
     }
-    
+
     function _removeUserRequest(address user, uint256 requestId) private {
         uint256[] storage requests = _userWithdrawalRequests[user];
         uint256 len = requests.length;
-        for (uint256 i = 0; i < len;) {
+        for (uint256 i = 0; i < len; ) {
             if (requests[i] == requestId) {
                 requests[i] = requests[len - 1];
                 requests.pop();
                 break;
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
+    /// @notice USDC attributed to the LP pool (vault balance excluding insurance and fee reserves).
+    function _lpBalanceSliceUSDC() private view returns (uint256) {
+        uint256 balance = usdc.balanceOf(address(this));
+        uint256 nonLpAssets = _insAssets + accumulatedFees;
+        return balance > nonLpAssets ? balance - nonLpAssets : 0;
+    }
+
     function borrow(
-        uint256 amount, 
-        address market, 
+        uint256 amount,
+        address market,
         bool isLong
     ) external nonReentrant onlyTradingCore notEmergencyMode returns (bool) {
         uint256 unreserved = getAvailableLiquidity();
         unreserved = unreserved > reservedLiquidity ? unreserved - reservedLiquidity : 0;
         if (amount > unreserved) return false;
-        
+
         uint256 conservativeTotal = getConservativeTotalAssets();
         if (conservativeTotal == 0) return false;
-        
+
+        uint256 lpBal = _lpBalanceSliceUSDC();
         uint256 newBorrowed = totalBorrowed + amount;
-        uint256 newUtil = (newBorrowed * PRECISION) / conservativeTotal;
-        if (newUtil > emergencyThresholdBps * PRECISION / BPS) return false;
-        
+        uint256 denom = lpBal + totalBorrowed;
+        if (denom == 0) return false;
+        uint256 newUtil = (newBorrowed * PRECISION) / denom;
+        if (newUtil > (emergencyThresholdBps * PRECISION) / BPS) return false;
+
         DataTypes.MarketExposure storage exp = _exposures[market];
         uint256 maxExp = (conservativeTotal * _getMaxExposureBps(market)) / BPS;
         uint256 newExp = isLong ? exp.longExposure + amount : exp.shortExposure + amount;
         if (newExp > maxExp) return false;
-        
+
         totalBorrowed = newBorrowed;
-        if (isLong) exp.longExposure += amount; 
+        if (isLong) exp.longExposure += amount;
         else exp.shortExposure += amount;
-        
+
         usdc.safeTransfer(tradingCore, amount);
-        if (newUtil > restrictionThresholdBps * PRECISION / BPS) {
+        if (newUtil > (restrictionThresholdBps * PRECISION) / BPS) {
             emit UtilizationAlert(newUtil, false);
         }
         return true;
     }
-    
-    function repay(
-        uint256 amount, 
-        address market, 
-        bool isLong, 
-        int256 pnl
-    ) external onlyTradingCore nonReentrant {
+
+    function repay(uint256 amount, address market, bool isLong, int256 pnl) external onlyTradingCore nonReentrant {
         totalBorrowed = totalBorrowed > amount ? totalBorrowed - amount : 0;
-        
+
         DataTypes.MarketExposure storage exp = _exposures[market];
         if (isLong) {
             exp.longExposure = exp.longExposure > amount ? exp.longExposure - amount : 0;
         } else {
             exp.shortExposure = exp.shortExposure > amount ? exp.shortExposure - amount : 0;
         }
-        
+
         uint256 loss = pnl < 0 ? uint256(-pnl) : 0;
         uint256 receiveAmount = pnl >= 0 ? amount : (amount > loss ? amount - loss : 0);
         if (usdc.balanceOf(msg.sender) < receiveAmount) revert InsufficientRepayBalance();
-        
+
         emit PnLSettled(market, pnl, pnl >= 0);
         emit ExposureUpdated(market, exp.longExposure, exp.shortExposure);
         usdc.safeTransferFrom(msg.sender, address(this), receiveAmount);
         if (pnl >= 0) usdc.safeTransfer(msg.sender, uint256(pnl));
     }
-    
+
     function updateExposure(address market, int256 sizeDelta, bool isLong) external onlyTradingCore {
         DataTypes.MarketExposure storage exp = _exposures[market];
         if (sizeDelta > 0) {
-            if (isLong) exp.longExposure += uint256(sizeDelta); 
+            if (isLong) exp.longExposure += uint256(sizeDelta);
             else exp.shortExposure += uint256(sizeDelta);
         } else {
             uint256 delta = uint256(-sizeDelta);
@@ -406,96 +417,91 @@ contract VaultCore is
                 exp.shortExposure = exp.shortExposure > delta ? exp.shortExposure - delta : 0;
             }
         }
-        
+
         uint256 newExp = isLong ? exp.longExposure : exp.shortExposure;
         uint256 maxExp = (getConservativeTotalAssets() * _getMaxExposureBps(market)) / BPS;
         if (newExp > maxExp) revert ExceedsExposureCap();
-        
+
         emit ExposureUpdated(market, exp.longExposure, exp.shortExposure);
     }
 
     function stakeInsurance(
-        uint256 assets, 
+        uint256 assets,
         address receiver
     ) external nonReentrant whenNotPaused returns (uint256 shares) {
         if (assets == 0) revert ZeroAssets();
         if (receiver == address(0)) revert ZeroAddress();
-        
+
         shares = _convertToInsShares(assets);
         if (shares == 0) revert ZeroAssets();
-        
+
         usdc.safeTransferFrom(msg.sender, address(this), assets);
-        
+
         _insShares[receiver] += shares;
         _insTotalShares += shares;
         _insAssets += assets;
-        
+
         emit InsuranceStaked(receiver, assets, shares);
     }
-    
-    function unstakeInsurance(
-        uint256 shares, 
-        address receiver
-    ) external nonReentrant returns (uint256 assets) {
+
+    function unstakeInsurance(uint256 shares, address receiver) external nonReentrant returns (uint256 assets) {
         if (shares == 0) revert ZeroAssets();
         if (receiver == address(0)) revert ZeroAddress();
         if (_insShares[msg.sender] < shares) revert InsufficientShares();
-        
+
         if (_unstakeRequestTime[msg.sender] == 0) {
             revert CooldownNotStarted();
         }
         if (block.timestamp < _unstakeRequestTime[msg.sender] + unstakeCooldown) {
             revert CooldownNotComplete();
         }
-        
+
         assets = _convertToInsAssets(shares);
         uint256 newInsAssets = _insAssets > assets ? _insAssets - assets : 0;
-        
+
         if (protocolTVL > 0 && (newInsAssets * BPS) / protocolTVL < minRatioBps) {
             revert UnhealthyRatio();
         }
-        
+
         _insShares[msg.sender] -= shares;
         _insTotalShares -= shares;
         _insAssets = newInsAssets;
         _unstakeRequestTime[msg.sender] = 0;
-        
+
         usdc.safeTransfer(receiver, assets);
         emit InsuranceUnstaked(msg.sender, assets, shares);
     }
-    
-    function requestUnstake() external { 
-        _unstakeRequestTime[msg.sender] = block.timestamp; 
+
+    function requestUnstake() external {
+        _unstakeRequestTime[msg.sender] = block.timestamp;
         emit UnstakeRequested(msg.sender, block.timestamp);
     }
-    
-    function coverBadDebt(
-        uint256 amount, 
-        uint256 positionId
-    ) external onlyTradingCore returns (uint256 covered) {
+
+    function coverBadDebt(uint256 amount, uint256 positionId) external onlyTradingCore returns (uint256 covered) {
         if (insuranceCircuitBreakerActive) revert InsuranceFundCircuitBreakerActive();
-        
+
         if (amount > approvalThreshold) {
             _submitClaimInternal(amount, positionId);
             return 0;
         }
-        
+
+        uint256 available = _insAssets;
+        covered = amount > available ? available : amount;
+
         if (block.timestamp > lastBadDebtResetTime + 24 hours) {
             cumulativeBadDebt24h = 0;
             lastBadDebtResetTime = block.timestamp;
         }
-        uint256 newCumulative = cumulativeBadDebt24h + amount;
+        uint256 newCumulative = cumulativeBadDebt24h + covered;
         uint256 circuitBreakerThreshold = (_insAssets * BAD_DEBT_CIRCUIT_BREAKER_BPS) / BPS;
         if (newCumulative > circuitBreakerThreshold) {
             insuranceCircuitBreakerActive = true;
             emit InsuranceCircuitBreakerTriggered(circuitBreakerThreshold, newCumulative);
             return 0;
         }
-        
+
         _checkClaimRateLimit(amount);
-        
-        uint256 available = _insAssets;
-        covered = amount > available ? available : amount;
+
         if (covered > 0) {
             _insAssets -= covered;
             cumulativeBadDebt24h += covered;
@@ -510,24 +516,17 @@ contract VaultCore is
                 amountPaid: covered
             });
             emit BadDebtCovered(claimId, covered, positionId);
-            if (covered < amount) {
-                totalPendingClaims += (amount - covered);
-                emit ClaimPartialPayment(claimId, covered, amount - covered);
-            }
         }
     }
-    
-    function _submitClaimInternal(
-        uint256 amount,
-        uint256 positionId
-    ) private returns (uint256 claimId) {
+
+    function _submitClaimInternal(uint256 amount, uint256 positionId) private returns (uint256 claimId) {
         claimId = _nextClaimId++;
         bool autoApprove = amount <= approvalThreshold;
-        
+
         if (autoApprove) {
             _checkClaimRateLimit(amount);
         }
-        
+
         _claims[claimId] = DataTypes.BadDebtClaim({
             amount: amount,
             positionId: positionId,
@@ -541,32 +540,31 @@ contract VaultCore is
         if (autoApprove) _processClaim(claimId);
     }
 
-    function submitClaim(
-        uint256 amount,
-        uint256 positionId
-    ) external onlyTradingCore returns (uint256 claimId) {
+    function submitClaim(uint256 amount, uint256 positionId) external onlyTradingCore returns (uint256 claimId) {
         return _submitClaimInternal(amount, positionId);
     }
-    
+
     function approveClaim(uint256 claimId) external onlyGuardian {
         DataTypes.BadDebtClaim storage claim = _claims[claimId];
         if (claim.amount == 0 || claim.paid) revert ClaimInvalidOrPaid();
         claim.approved = true;
     }
-    
-    function processClaim(uint256 claimId) external returns (uint256) { return _processClaim(claimId); }
-    
+
+    function processClaim(uint256 claimId) external returns (uint256) {
+        return _processClaim(claimId);
+    }
+
     function _processClaim(uint256 claimId) internal returns (uint256 paid) {
         DataTypes.BadDebtClaim storage claim = _claims[claimId];
         if (claim.amount == 0 || claim.paid || !claim.approved) revert ClaimNotApproved();
-        
+
         uint256 remaining = claim.amount - claim.amountPaid;
         uint256 available = _insAssets;
         paid = remaining > available ? available : remaining;
         claim.amountPaid += paid;
         totalPendingClaims -= paid;
         _insAssets = _insAssets > paid ? _insAssets - paid : 0;
-        
+
         if (paid > 0) usdc.safeTransfer(tradingCore, paid);
         emit BadDebtCovered(claimId, paid, claim.positionId);
         if (claim.amountPaid < claim.amount) {
@@ -575,19 +573,19 @@ contract VaultCore is
             claim.paid = true;
         }
     }
-    
+
     function _checkClaimRateLimit(uint256 amount) internal {
         if (rateLimitLastUpdate == 0) {
             rateLimitLastUpdate = block.timestamp;
             rateLimitCurrentLevel = amount;
             return;
         }
-        
+
         uint256 timePassed = block.timestamp - rateLimitLastUpdate;
-        
+
         if (timePassed > 0) {
             uint256 leakage = (timePassed * maxClaimsPerWindow) / CLAIM_WINDOW_DURATION;
-            
+
             if (leakage >= rateLimitCurrentLevel) {
                 rateLimitCurrentLevel = 0;
             } else {
@@ -595,29 +593,29 @@ contract VaultCore is
             }
             rateLimitLastUpdate = block.timestamp;
         }
-        
+
         if (rateLimitCurrentLevel + amount > maxClaimsPerWindow) {
             revert ClaimRateLimitExceeded();
         }
-        
+
         rateLimitCurrentLevel += amount;
     }
-    
-    function receiveFees(uint256 amount) external onlyTradingCore { 
+
+    function receiveFees(uint256 amount) external onlyTradingCore {
         if (amount == 0) return;
-        accumulatedFees += amount; 
-        emit FeeReceived(amount, "trading"); 
+        accumulatedFees += amount;
+        emit FeeReceived(amount, "trading");
     }
-    
+
     function distributeSurplus() external nonReentrant whenNotPaused {
         uint256 currentAssets = _insAssets;
         uint256 targetAssets = (protocolTVL * targetRatioBps) / BPS;
         if (currentAssets <= targetAssets) return;
-        
+
         uint256 surplus = currentAssets - targetAssets;
         if (surplus > accumulatedFees) surplus = accumulatedFees;
         if (surplus == 0) return;
-        
+
         uint256 treasuryShare = (surplus * treasurySurplusShareBps) / BPS;
         uint256 stakerShare = surplus - treasuryShare;
 
@@ -626,52 +624,52 @@ contract VaultCore is
             _insAssets -= treasuryShare;
         }
         accumulatedFees -= surplus;
-        
+
         emit SurplusDistributed(surplus, stakerShare, treasuryShare);
     }
 
     function triggerEmergencyMode() external onlyGuardian {
-        if (!_emergencyMode) { 
-            _emergencyMode = true; 
+        if (!_emergencyMode) {
+            _emergencyMode = true;
             emergencyModeActivatedAt = block.timestamp;
-            emit EmergencyModeActivated(block.timestamp); 
+            emit EmergencyModeActivated(block.timestamp);
         }
     }
 
     function stopEmergencyMode() external onlyAdmin {
-        if (_emergencyMode && getUtilization() < restrictionThresholdBps * PRECISION / BPS) {
+        if (_emergencyMode && getUtilization() < (restrictionThresholdBps * PRECISION) / BPS) {
             _emergencyMode = false;
             emergencyModeActivatedAt = 0;
             emit EmergencyModeDeactivated(block.timestamp);
         }
     }
-    
+
     function emergencyEscapeWithdraw(uint256 shares) external nonReentrant {
         if (!_emergencyMode) revert NotEmergencyMode();
         if (block.timestamp < emergencyModeActivatedAt + MAX_EMERGENCY_DURATION) {
             revert EscapeTimelockNotExpired();
         }
-        
+
         uint256 totalShares = _lpTotalShares;
         if (totalShares == 0) revert ZeroShares();
         if (shares == 0) revert ZeroShares();
         if (shares > _lpShares[msg.sender]) revert InsufficientShares();
-        
+
         uint256 requestedAssets = (shares * getConservativeTotalAssets()) / totalShares;
         requestedAssets /= DataTypes.DECIMAL_CONVERSION;
         _lpShares[msg.sender] -= shares;
         _lpTotalShares = totalShares >= shares ? totalShares - shares : 0;
-        
+
         uint256 balance = usdc.balanceOf(address(this));
         uint256 assets = requestedAssets > balance ? balance : requestedAssets;
         if (requestedAssets > balance && requestedAssets > 0) {
             emit EmergencyEscapeWithdrawCapped(msg.sender, requestedAssets, assets, shares);
         }
-        
+
         if (assets > 0) {
             usdc.safeTransfer(msg.sender, assets);
         }
-        
+
         emit Withdraw(msg.sender, assets, shares);
     }
 
@@ -681,30 +679,30 @@ contract VaultCore is
         treasury = _treasury;
         emit TreasuryUpdated(oldTreasury, _treasury);
     }
-    
+
     function setMaxExposure(address market, uint256 maxBps) external onlyOperator {
         uint256 old = _exposures[market].maxExposurePercent;
         _exposures[market].maxExposurePercent = maxBps;
         emit ExposureCapUpdated(market, old, maxBps);
     }
-    
+
     function setThresholds(uint256 _restrictionBps, uint256 _emergencyBps) external onlyAdmin {
         restrictionThresholdBps = _restrictionBps;
         emergencyThresholdBps = _emergencyBps;
         emit ThresholdsUpdated(_restrictionBps, _emergencyBps);
     }
-    
-    function updateProtocolTVL(uint256 _tvl) external onlyOperator { 
+
+    function updateProtocolTVL(uint256 _tvl) external onlyOperator {
         if (_tvl > maxProtocolTVL) revert InvalidTVL();
         uint256 old = protocolTVL;
-        protocolTVL = _tvl; 
+        protocolTVL = _tvl;
         emit ProtocolTVLUpdated(old, _tvl);
     }
-    
+
     function setMaxProtocolTVL(uint256 _maxTVL) external onlyAdmin {
         maxProtocolTVL = _maxTVL;
     }
-    
+
     function resetInsuranceCircuitBreaker() external onlyAdmin {
         insuranceCircuitBreakerActive = false;
         cumulativeBadDebt24h = 0;
@@ -732,23 +730,27 @@ contract VaultCore is
         }
         return total;
     }
-    
+
     function insuranceAssets() public view returns (uint256) {
         return _insAssets;
     }
-    
+
     function lpAssets() public view returns (uint256) {
         return _lpAssets;
     }
-    
-    function lpTotalShares() external view returns (uint256) { return _lpTotalShares; }
-    function insTotalShares() external view returns (uint256) { return _insTotalShares; }
-    
-    function getUtilization() public view returns (uint256) { 
-        uint256 a = totalAssets(); 
-        return a == 0 ? 0 : (totalBorrowed * PRECISION) / a; 
+
+    function lpTotalShares() external view returns (uint256) {
+        return _lpTotalShares;
     }
-    
+    function insTotalShares() external view returns (uint256) {
+        return _insTotalShares;
+    }
+
+    function getUtilization() public view returns (uint256) {
+        uint256 a = totalAssets();
+        return a == 0 ? 0 : (totalBorrowed * PRECISION) / a;
+    }
+
     function getConservativeTotalAssets() public view returns (uint256) {
         uint256 balance = usdc.balanceOf(address(this));
         uint256 nonLpAssets = _insAssets + accumulatedFees;
@@ -767,52 +769,73 @@ contract VaultCore is
         }
         return total;
     }
-    
-    function getConservativeUtilization() public view returns (uint256) { 
-        uint256 a = getConservativeTotalAssets(); 
-        return a == 0 ? 0 : (totalBorrowed * PRECISION) / a; 
+
+    function getConservativeUtilization() public view returns (uint256) {
+        uint256 lpBal = _lpBalanceSliceUSDC();
+        uint256 denom = lpBal + totalBorrowed;
+        return denom == 0 ? 0 : (totalBorrowed * PRECISION) / denom;
     }
-    
-    function getAvailableLiquidity() public view returns (uint256) { 
-        return usdc.balanceOf(address(this)); 
+
+    function getAvailableLiquidity() public view returns (uint256) {
+        return usdc.balanceOf(address(this));
     }
-    
-    function getLPSharePrice() public view returns (uint256) { 
-        return _lpTotalShares == 0 ? PRECISION : (totalAssets() * PRECISION) / _lpTotalShares; 
+
+    function getLPSharePrice() public view returns (uint256) {
+        return _lpTotalShares == 0 ? PRECISION : (totalAssets() * PRECISION) / _lpTotalShares;
     }
-    
-    function getMarketExposure(address market) external view returns (DataTypes.MarketExposure memory) { 
-        return _exposures[market]; 
+
+    function getMarketExposure(address market) external view returns (DataTypes.MarketExposure memory) {
+        return _exposures[market];
     }
-    
-    function isEmergencyMode() external view returns (bool) { return _emergencyMode; }
-    function lpBalanceOf(address user) external view returns (uint256) { return _lpShares[user]; }
-    function insBalanceOf(address user) external view returns (uint256) { return _insShares[user]; }
-    function previewDeposit(uint256 assets) public view returns (uint256) { return _convertToLPShares(assets); }
-    function previewWithdraw(uint256 shares) public view returns (uint256) { return _convertToLPAssets(shares); }
-    
-    function getWithdrawalRequest(uint256 requestId) external view returns (DataTypes.WithdrawalRequest memory) { 
-        return _withdrawalRequests[requestId]; 
+
+    function isEmergencyMode() external view returns (bool) {
+        return _emergencyMode;
     }
-    
-    function getClaim(uint256 claimId) external view returns (DataTypes.BadDebtClaim memory) { 
-        return _claims[claimId]; 
+    function lpBalanceOf(address user) external view returns (uint256) {
+        return _lpShares[user];
     }
-    
-    function getInsuranceHealthRatio() public view returns (uint256) { 
+    function insBalanceOf(address user) external view returns (uint256) {
+        return _insShares[user];
+    }
+    function previewDeposit(uint256 assets) public view returns (uint256) {
+        return _convertToLPShares(assets);
+    }
+    function previewWithdraw(uint256 shares) public view returns (uint256) {
+        return _convertToLPAssets(shares);
+    }
+
+    function getWithdrawalRequest(uint256 requestId) external view returns (DataTypes.WithdrawalRequest memory) {
+        return _withdrawalRequests[requestId];
+    }
+
+    function getClaim(uint256 claimId) external view returns (DataTypes.BadDebtClaim memory) {
+        return _claims[claimId];
+    }
+
+    function getInsuranceHealthRatio() public view returns (uint256) {
         return protocolTVL == 0 ? PRECISION : (_insAssets * BPS) / protocolTVL;
     }
-    
-    function isInsuranceHealthy() external view returns (bool) { 
-        return getInsuranceHealthRatio() >= minRatioBps; 
+
+    function isInsuranceHealthy() external view returns (bool) {
+        return getInsuranceHealthRatio() >= minRatioBps;
     }
-    
-    function asset() external view returns (address) { return address(usdc); }
-    function convertToShares(uint256 assets) external view returns (uint256) { return _convertToLPShares(assets); }
-    function convertToAssets(uint256 shares) external view returns (uint256) { return _convertToLPAssets(shares); }
-    function maxDeposit(address) external pure returns (uint256) { return type(uint256).max; }
-    function maxRedeem(address owner) external view returns (uint256) { return _emergencyMode ? 0 : _lpShares[owner]; }
-    
+
+    function asset() external view returns (address) {
+        return address(usdc);
+    }
+    function convertToShares(uint256 assets) external view returns (uint256) {
+        return _convertToLPShares(assets);
+    }
+    function convertToAssets(uint256 shares) external view returns (uint256) {
+        return _convertToLPAssets(shares);
+    }
+    function maxDeposit(address) external pure returns (uint256) {
+        return type(uint256).max;
+    }
+    function maxRedeem(address owner) external view returns (uint256) {
+        return _emergencyMode ? 0 : _lpShares[owner];
+    }
+
     function _convertToLPShares(uint256 assets) internal view returns (uint256) {
         uint256 total = totalAssets();
         if (_lpTotalShares == 0 || total == 0) {
@@ -828,32 +851,25 @@ contract VaultCore is
             }
             return (assets * _lpTotalShares) / rawTotal;
         }
-        if (_lpTotalShares == DEAD_SHARES && total < minInitialDeposit) {
-            return (assets * _lpTotalShares) / minInitialDeposit;
-        }
         return (assets * _lpTotalShares + total - 1) / total;
     }
-    
+
     function _convertToLPAssets(uint256 shares) internal view returns (uint256) {
         return _lpTotalShares == 0 ? 0 : (shares * totalAssets()) / _lpTotalShares;
     }
-    
+
     function _convertToInsShares(uint256 assets) internal view returns (uint256) {
-        return _insTotalShares == 0 || _insAssets == 0
-            ? assets 
-            : (assets * _insTotalShares) / _insAssets;
+        return _insTotalShares == 0 || _insAssets == 0 ? assets : (assets * _insTotalShares) / _insAssets;
     }
-    
+
     function _convertToInsAssets(uint256 shares) internal view returns (uint256) {
-        return _insTotalShares == 0 || _insAssets == 0
-            ? 0 
-            : (shares * _insAssets) / _insTotalShares;
+        return _insTotalShares == 0 || _insAssets == 0 ? 0 : (shares * _insAssets) / _insTotalShares;
     }
-    
+
     function _getMaxExposureBps(address market) internal view returns (uint256) {
         uint256 custom = _exposures[market].maxExposurePercent;
         return custom > 0 ? custom : defaultMaxExposureBps;
     }
-    
+
     function _authorizeUpgrade(address) internal override onlyAdmin {}
 }

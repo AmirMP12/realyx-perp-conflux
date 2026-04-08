@@ -1,0 +1,476 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_usdc",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_vault",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_oracle",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_positionToken",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_treasury",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "closeSize",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minReceive",
+        "type": "uint256"
+      }
+    ],
+    "name": "close",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "",
+        "type": "int256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "feeConfig",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "makerFeeBps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "takerFeeBps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minFeeUsdc",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "lpShareBps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "insuranceShareBps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "treasuryShareBps",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "insuranceFund",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "markets",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "chainlinkFeed",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxStaleness",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxPriceUncertainty",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint128",
+        "name": "maxPositionSize",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "maxTotalExposure",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint16",
+        "name": "maintenanceMargin",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint16",
+        "name": "initialMargin",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint64",
+        "name": "maxLeverage",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalLongSize",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalShortSize",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalLongCost",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalShortCost",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "isActive",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "isListed",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "oracle",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "positionCollateral",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "tokenAddress",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "positionToken",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "positions",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "size",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "entryPrice",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "liquidationPrice",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "stopLossPrice",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "takeProfitPrice",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint64",
+        "name": "leverage",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint64",
+        "name": "lastFundingTime",
+        "type": "uint64"
+      },
+      {
+        "internalType": "address",
+        "name": "market",
+        "type": "address"
+      },
+      {
+        "internalType": "uint40",
+        "name": "openTimestamp",
+        "type": "uint40"
+      },
+      {
+        "internalType": "uint16",
+        "name": "trailingStopBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint8",
+        "name": "flags",
+        "type": "uint8"
+      },
+      {
+        "internalType": "enum DataTypes.CollateralType",
+        "name": "collateralType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "enum DataTypes.PosStatus",
+        "name": "state",
+        "type": "uint8"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "setCollateral",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "m",
+        "type": "address"
+      },
+      {
+        "internalType": "uint16",
+        "name": "mmBps",
+        "type": "uint16"
+      }
+    ],
+    "name": "setMarket",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "market",
+        "type": "address"
+      },
+      {
+        "internalType": "uint128",
+        "name": "size",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "entryPrice",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint8",
+        "name": "flags",
+        "type": "uint8"
+      },
+      {
+        "internalType": "enum DataTypes.PosStatus",
+        "name": "state",
+        "type": "uint8"
+      }
+    ],
+    "name": "setPosition",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "setUserExposure",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "treasury",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "usdc",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "userExposure",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "vault",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

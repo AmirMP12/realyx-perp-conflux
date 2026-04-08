@@ -5,7 +5,11 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./DataTypes.sol";
 
-/// @notice Library for dust sweep
+/**
+ * @title DustLib
+ * @notice Handles sweeping accumulated dust balances to treasury.
+ * @dev Converts internal precision dust into token precision before transfer.
+ */
 library DustLib {
     using SafeERC20 for IERC20;
 

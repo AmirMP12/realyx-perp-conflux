@@ -10,10 +10,18 @@ import statsRouter from "./routes/stats.js";
 import leaderboardRouter from "./routes/leaderboard.js";
 import insuranceRouter from "./routes/insurance.js";
 import healthRouter from "./routes/health.js";
+import syncRouter from "./routes/sync.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
 import { metricsMiddleware } from "./middleware/metrics.js";
 
-const logger = pino({ level: config.nodeEnv === "development" ? "debug" : "info" });
+const logger = pino({
+  level:
+    config.nodeEnv === "test"
+      ? "silent"
+      : config.nodeEnv === "development"
+        ? "debug"
+        : "info",
+});
 const httpLogger = (pinoHttp as unknown as (opts: { logger: pino.Logger }) => express.RequestHandler)({ logger });
 
 const app = express();
@@ -31,6 +39,7 @@ app.use("/api/user", userRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/leaderboard", leaderboardRouter);
 app.use("/api/insurance", insuranceRouter);
+app.use("/api/sync", syncRouter);
 
 app.use((_req, res) => {
   res.status(404).json({ success: false, error: "Not found" });

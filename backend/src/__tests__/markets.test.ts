@@ -1,36 +1,47 @@
 import request from 'supertest';
-import { app } from '../app';
-import * as activeMarkets from '../services/activeMarkets';
-import * as subServices from '../services/subgraph';
+import { jest } from '@jest/globals';
+import { app } from '../app.js';
+import * as activeMarkets from '../services/activeMarkets.js';
+import * as subServices from '../services/subgraph.js';
 
-jest.mock('../services/activeMarkets');
-jest.mock('../services/subgraph');
+jest.mock('../services/activeMarkets.js');
+jest.mock('../services/subgraph.js');
+jest.mock('../services/coingecko.js', () => ({
+  fetchCoinGeckoPrices: jest.fn().mockResolvedValue({}),
+  getCoinGeckoIdForMarket: jest.fn().mockReturnValue(null)
+}));
+jest.mock('../services/pyth.js', () => ({
+  fetchPythPrices: jest.fn().mockResolvedValue({}),
+  fetchPyth24hChange: jest.fn().mockResolvedValue(0)
+}));
 
 describe('Markets API', () => {
   beforeEach(() => {
-    jest.resetAllMocks();
+    jest.clearAllMocks();
   });
 
-  it('should filter active markets natively and return standard mock output', async () => {
+  it('should filter active markets and return output', async () => {
     const mockMarkets = [
-      { marketAddress: '0x111', totalLongSize: '10', totalShortSize: '5' },
-      { marketAddress: '0x222', totalLongSize: '100', totalShortSize: '50' }
+      { id: '1', marketAddress: '0x986a383f6de4a24dd3f524f0f93546229b58265f', totalLongSize: '10', totalShortSize: '5', totalLongCost: '100', totalShortCost: '50' },
+      { id: '2', marketAddress: '0x222', totalLongSize: '100', totalShortSize: '50', totalLongCost: '1000', totalShortCost: '500' }
     ];
     
-    (activeMarkets.getActiveMarketAddresses as jest.Mock).mockResolvedValue(new Set(['0x111']));
-    (subServices.fetchMarkets as jest.Mock).mockResolvedValue(mockMarkets);
+    (activeMarkets.getActiveMarketAddresses as any).mockResolvedValue(new Set(['0x986a383f6de4a24dd3f524f0f93546229b58265f']));
+    (subServices.fetchMarkets as any).mockResolvedValue(mockMarkets);
+    (subServices.fetchProtocol as any).mockResolvedValue({ totalVolumeUsd: '0' });
 
     const res = await request(app).get('/api/markets');
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    // Since mock Pyth prices aren't loaded in this simple mock context, it will still return the array.
-    expect(res.body.data).toBeInstanceOf(Array);
+    expect(res.body.data.length).toBe(1);
+    expect(res.body.data[0].marketAddress).toBe('0x986a383f6de4a24dd3f524f0f93546229b58265f');
   });
 
-  it('should return 500 on subgraph logic failures natively', async () => {
-    (subServices.fetchMarkets as jest.Mock).mockRejectedValue(new Error('SubGraph Down'));
+  it('should return fallback data on subgraph failures', async () => {
+    (subServices.fetchMarkets as any).mockRejectedValue(new Error('SubGraph Down'));
     const res = await request(app).get('/api/markets');
-    expect(res.status).toBe(500);
-    expect(res.body.success).toBe(false);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.fallback).toBe(true);
   });
 });

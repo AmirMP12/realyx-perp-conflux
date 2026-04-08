@@ -9,6 +9,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  NODE_VERSION: '20'
 
 jobs:
   # Smart Contracts
@@ -21,14 +22,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
       - name: Compile contracts
-        run: npx hardhat compile
+        run: npm run compile
 
       - name: Run tests
         run: npx hardhat test
@@ -55,7 +56,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: backend/package-lock.json
 
@@ -64,6 +65,10 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Test
+        run: npm test
+        continue-on-error: true
 
   # Frontend
   build-frontend:
@@ -78,7 +83,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -90,6 +95,8 @@ jobs:
 
       - name: Build
         run: npm run build
+
+
 
   # Docker Images
   build-images:
@@ -135,9 +142,9 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  # Deploy to Testnet
+  # Deploy Contracts to Conflux eSpace Testnet
   deploy-testnet:
-    name: Deploy to Testnet
+    name: Deploy to Conflux Testnet
     needs: [build-contracts, build-images]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -148,28 +155,40 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Deploy Contracts to Sepolia
-        env:
-          SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
-          PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
-          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
-        run: |
-          npx hardhat run scripts/deploy.ts --network sepolia
+      - name: Compile contracts
+        run: npm run compile
 
-      - name: Verify Contracts
+      - name: Deploy Contracts to Conflux eSpace Testnet
         env:
-          SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
-          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+          PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          CONFLUX_TESTNET_RPC_URL: ${{ secrets.CONFLUX_TESTNET_RPC_URL }}
+          TREASURY_ADDRESS: ${{ secrets.TREASURY_ADDRESS }}
+          GAS_PRICE_GWEI: ${{ secrets.GAS_PRICE_GWEI }}
         run: |
-          # Contract verification would go here
-          echo "Contract verification skipped (add addresses to verify)"
+          npx hardhat run scripts/deploy-testnet.ts --network confluxTestnet
+
+      - name: Verify Contracts on ConfluxScan
+        env:
+          PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          CONFLUX_TESTNET_RPC_URL: ${{ secrets.CONFLUX_TESTNET_RPC_URL }}
+          CONFLUXSCAN_API_KEY: ${{ secrets.CONFLUXSCAN_API_KEY }}
+        run: |
+          npx hardhat run scripts/verify.ts --network confluxTestnet
+        continue-on-error: true
+
+      - name: Upload deployment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-confluxTestnet
+          path: deployment/confluxTestnet.json
 
       - name: Deploy Kubernetes
+        if: ${{ vars.ENABLE_K8S_DEPLOY == 'true' }}
         uses: azure/k8s-deploy@v4
         with:
           namespace: realyx-staging
@@ -178,3 +197,49 @@ jobs:
             infrastructure/kubernetes/configmap.yaml
             infrastructure/kubernetes/backend.yaml
             infrastructure/kubernetes/frontend.yaml
+
+  # Deploy Contracts to Conflux eSpace Mainnet
+  deploy-mainnet:
+    name: Deploy to Conflux Mainnet
+    needs: [build-contracts]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: mainnet
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Compile contracts
+        run: npm run compile
+
+      - name: Deploy Contracts to Conflux eSpace Mainnet
+        env:
+          PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          CONFLUX_RPC_URL: ${{ secrets.CONFLUX_RPC_URL }}
+          TREASURY_ADDRESS: ${{ secrets.TREASURY_ADDRESS }}
+          SKIP_CONFIRMATIONS: 'true'
+          GAS_PRICE_GWEI: ${{ secrets.GAS_PRICE_GWEI }}
+        run: |
+          npx hardhat run scripts/deploy-mainnet.ts --network conflux
+
+      - name: Verify Contracts on ConfluxScan
+        env:
+          PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+          CONFLUX_RPC_URL: ${{ secrets.CONFLUX_RPC_URL }}
+          CONFLUXSCAN_API_KEY: ${{ secrets.CONFLUXSCAN_API_KEY }}
+        run: |
+          npx hardhat run scripts/verify.ts --network conflux
+        continue-on-error: true
+
+      - name: Upload deployment artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-conflux
+          path: deployment/conflux.json

@@ -24,11 +24,14 @@ library CleanupLib {
                 positions[i] = positions[len - 1];
                 positions.pop();
                 len--;
-                unchecked { ++cleaned; }
+                unchecked {
+                    ++cleaned;
+                }
             } else {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
             }
         }
     }
 }
-

@@ -17,6 +17,12 @@ library DividendSettlementLib {
         IDividendManager dividendManager
     ) external returns (int256 divAmount, uint256 newIndex) {
         if (address(dividendManager) == address(0) || bytes(marketId).length == 0) return (0, currentIndex);
-        (divAmount, newIndex) = dividendManager.settleDividends(positionId, marketId, uint256(position.size), DataTypes.isLong(position.flags), currentIndex);
+        (divAmount, newIndex) = dividendManager.settleDividends(
+            positionId,
+            marketId,
+            uint256(position.size),
+            DataTypes.isLong(position.flags),
+            currentIndex
+        );
     }
 }

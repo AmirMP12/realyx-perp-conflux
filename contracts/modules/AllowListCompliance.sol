@@ -10,12 +10,7 @@ import "../interfaces/IComplianceManager.sol";
  * @title AllowListCompliance
  * @notice Basic implementation of compliance verification via Admin-managed Whitelist.
  */
-contract AllowListCompliance is 
-    Initializable, 
-    AccessControlUpgradeable, 
-    UUPSUpgradeable, 
-    IComplianceManager 
-{
+contract AllowListCompliance is Initializable, AccessControlUpgradeable, UUPSUpgradeable, IComplianceManager {
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     mapping(address => bool) public isWhitelisted;
@@ -45,7 +40,7 @@ contract AllowListCompliance is
     }
 
     function batchSetWhitelist(address[] calldata users, bool status) external onlyRole(MANAGER_ROLE) {
-        for(uint256 i = 0; i < users.length; i++) {
+        for (uint256 i = 0; i < users.length; i++) {
             isWhitelisted[users[i]] = status;
             emit UserWhitelisted(users[i], status);
         }
@@ -56,14 +51,9 @@ contract AllowListCompliance is
         emit UserCountryBlockUpdated(user, blocked);
     }
 
-    function isAllowed(
-        address user, 
-        address, 
-        bytes calldata
-    ) external view override returns (bool) {
+    function isAllowed(address user, address, bytes calldata) external view override returns (bool) {
         return isWhitelisted[user] && !userCountryBlocked[user];
     }
 
-    function registerMarket(address) external override onlyRole(MANAGER_ROLE) {
-    }
+    function registerMarket(address) external override onlyRole(MANAGER_ROLE) {}
 }

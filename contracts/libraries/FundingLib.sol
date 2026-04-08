@@ -10,42 +10,40 @@ import "./PositionMath.sol";
  */
 library FundingLib {
     using PositionMath for DataTypes.Position;
-    
+
     uint256 private constant BASE_FUNDING_RATE = 1e14;
-    
+
     event FundingSettled(address indexed market, int256 fundingRate, int256 cumulativeFunding, uint256 timestamp);
     event FundingShortfall(uint256 indexed positionId, uint256 shortfall);
     event PositionUnderwaterAfterFunding(uint256 indexed positionId, uint256 shortfall);
-    
+
     function settleFunding(
         DataTypes.FundingState storage fundingState,
         DataTypes.Market storage m,
         address market
     ) external returns (int256 fundingRate) {
         uint256 intervalsElapsed = PositionMath.calculateFundingIntervals(
-            fundingState.lastSettlement, block.timestamp, DataTypes.FUNDING_INTERVAL
+            fundingState.lastSettlement,
+            block.timestamp,
+            DataTypes.FUNDING_INTERVAL
         );
-        
+
         if (intervalsElapsed == 0) return fundingState.fundingRate;
         if (intervalsElapsed > DataTypes.MAX_FUNDING_INTERVALS) {
             intervalsElapsed = DataTypes.MAX_FUNDING_INTERVALS;
         }
-        
-        fundingRate = PositionMath.calculateFundingRate(
-            m.totalLongSize, 
-            m.totalShortSize, 
-            BASE_FUNDING_RATE
-        );
-        
+
+        fundingRate = PositionMath.calculateFundingRate(m.totalLongSize, m.totalShortSize, BASE_FUNDING_RATE);
+
         fundingState.fundingRate = fundingRate;
         fundingState.cumulativeFunding += fundingRate * int256(intervalsElapsed);
         fundingState.lastSettlement = uint64(block.timestamp);
         fundingState.longOpenInterest = m.totalLongSize;
         fundingState.shortOpenInterest = m.totalShortSize;
-        
+
         emit FundingSettled(market, fundingRate, fundingState.cumulativeFunding, block.timestamp);
     }
-    
+
     function applyFundingToCollateral(
         DataTypes.PositionCollateral storage collateral,
         int256 fundingPaid,
@@ -69,7 +67,7 @@ library FundingLib {
             newCollateral = collateral.amount;
         }
     }
-    
+
     function settlePositionFunding(
         uint256 positionId,
         address oracleAggregator,
@@ -80,26 +78,30 @@ library FundingLib {
     ) external returns (int256 paid) {
         DataTypes.Position storage p = positions[positionId];
         if (p.state != DataTypes.PosStatus.OPEN) revert PositionNotFound();
-        
+
         DataTypes.FundingState storage fs = fundingStates[p.market];
         int256 delta = fs.cumulativeFunding - positionCumulativeFunding[positionId];
-        
+
         paid = PositionMath.calculateFundingOwed(p, delta);
         positionCumulativeFunding[positionId] = fs.cumulativeFunding;
         p.lastFundingTime = uint64(block.timestamp);
-        
+
         DataTypes.PositionCollateral storage col = positionCollateral[positionId];
         applyFundingToCollateral(col, paid, positionId);
 
-        (uint256 price,,) = IFundingOracle(oracleAggregator).getPrice(p.market);
+        (uint256 price, , ) = IFundingOracle(oracleAggregator).getPrice(p.market);
         (bool liq, uint256 healthFactor) = p.isLiquidatable(price, col.amount);
         if (liq) emit PositionUnderwaterAfterFunding(positionId, healthFactor);
     }
-    
+
     error PositionNotFound();
-    
 }
 
+/**
+ * @title IFundingOracle
+ * @notice Minimal oracle interface required by FundingLib.
+ * @dev Returns normalized price, confidence, and timestamp for a market.
+ */
 interface IFundingOracle {
     function getPrice(address collection) external view returns (uint256 price, uint256 confidence, uint256 timestamp);
 }

@@ -1,0 +1,9 @@
+[
+  {
+    "inputs": [],
+    "name": "pause",
+    "outputs": [],
+    "stateMutability": "pure",
+    "type": "function"
+  }
+]

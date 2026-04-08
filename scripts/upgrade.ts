@@ -21,13 +21,23 @@ const libAddr = (name: string) => `contracts/libraries/${name}.sol:${name}`;
 function getLibraryLinks(contractName: string): Record<string, string> {
     if (contractName === "TradingCore") {
         const required = [
-            "CleanupLib", "ConfigLib", "DustLib", "FlashLoanCheck",
-            "FundingLib", "HealthLib", "PositionTriggersLib",
-            "TradingContextLib", "TradingLib", "WithdrawLib",
+            "CleanupLib",
+            "ConfigLib",
+            "DustLib",
+            "FlashLoanCheck",
+            "FundingLib",
+            "HealthLib",
+            "PositionTriggersLib",
+            "TradingContextLib",
+            "TradingLib",
+            "WithdrawLib",
         ];
         const libs: Record<string, string> = {};
         for (const name of required) {
-            const envKey = `LIB_${name.replace(/([A-Z])/g, "_$1").toUpperCase().replace(/^_/, "")}`;
+            const envKey = `LIB_${name
+                .replace(/([A-Z])/g, "_$1")
+                .toUpperCase()
+                .replace(/^_/, "")}`;
             const addr = process.env[envKey]?.trim();
             if (!addr) throw new Error(`Missing env ${envKey} for ${contractName} upgrade`);
             libs[libAddr(name)] = addr;
@@ -39,7 +49,10 @@ function getLibraryLinks(contractName: string): Record<string, string> {
         const required = ["CircuitBreakerLib", "EmergencyPauseLib", "EmergencyPriceLib"];
         const libs: Record<string, string> = {};
         for (const name of required) {
-            const envKey = `LIB_${name.replace(/([A-Z])/g, "_$1").toUpperCase().replace(/^_/, "")}`;
+            const envKey = `LIB_${name
+                .replace(/([A-Z])/g, "_$1")
+                .toUpperCase()
+                .replace(/^_/, "")}`;
             const addr = process.env[envKey]?.trim();
             if (!addr) throw new Error(`Missing env ${envKey} for ${contractName} upgrade`);
             libs[libAddr(name)] = addr;
@@ -65,7 +78,12 @@ async function main() {
 
     console.log(`Upgrading ${contractName} at proxy ${proxyAddress}`);
     if (hasLibs) {
-        console.log("Linked libraries:", Object.entries(libraries).map(([k, v]) => `${k.split(":")[1]} -> ${v}`).join(", "));
+        console.log(
+            "Linked libraries:",
+            Object.entries(libraries)
+                .map(([k, v]) => `${k.split(":")[1]} -> ${v}`)
+                .join(", "),
+        );
     }
 
     const ContractFactory = await ethers.getContractFactory(contractName, hasLibs ? { libraries } : {});

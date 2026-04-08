@@ -1,18 +1,26 @@
-# API References
+# 📡 Realyx API Reference
 
-The Realyx Backend provides a robust REST API and WebSocket interface for developers.
-
-### Base URLs
-- **REST**: `http://localhost:3001/api` (Development)
-- **WebSocket**: `ws://localhost:3002`
+Welcome to the **Realyx API Setup**. The Realyx backend provides a robust REST API and a low-latency WebSocket interface. These endpoints abstract away complex database indexer interactions and off-chain routing, providing seamless access to perpetual futures data on **Conflux eSpace**.
 
 ---
 
-## REST API Endpoints
+## 🔗 Base URLs
+
+| Environment | Protocol | URL | Description |
+|---|---|---|---|
+| **Local (REST)** | HTTP | `http://localhost:3001/api` | Base URL for all REST API endpoints. |
+| **Local (WebSocket)** | WS | `ws://localhost:3002` | Real-time event streaming and price feeds. |
+
+*Note: For production, replace `localhost` with your actual deployment domain.*
+
+---
+
+## 🛠️ REST API Endpoints
 
 ### 1. Markets
-`GET /markets`
-- **Description**: Returns all active and listed trading pairs.
+Retrieve all active and listed trading pairs, including collateral requirements and leverage limits.
+
+- **Endpoint**: `GET /markets`
 - **Response**:
 ```json
 {
@@ -22,15 +30,19 @@ The Realyx Backend provides a robust REST API and WebSocket interface for develo
       "id": "BTC/USD",
       "address": "0x...",
       "maxLeverage": 10,
-      "isActive": true
+      "isActive": true,
+      "assetClass": "crypto"
     }
   ]
 }
 ```
 
 ### 2. User Positions
-`GET /user/:address/positions`
-- **Description**: Returns all currently open positions for a specific wallet.
+Fetch all currently open positions for a specific wallet address, including unrealized PnL.
+
+- **Endpoint**: `GET /user/:address/positions`
+- **Parameters**: 
+  - `address` (path): The EVM address of the user.
 - **Response**:
 ```json
 {
@@ -41,15 +53,17 @@ The Realyx Backend provides a robust REST API and WebSocket interface for develo
       "market": "BTC/USD",
       "size": 1500,
       "leverage": 5,
-      "pnl": 45.2
+      "pnl": 45.2,
+      "entryPrice": 62000.00
     }
   ]
 }
 ```
 
-### 3. Protocol Stats
-`GET /stats`
-- **Description**: High-level protocol metrics including volume and TVL.
+### 3. Protocol Statistics
+Retrieve high-level protocol metrics, useful for dashboards and leaderboards.
+
+- **Endpoint**: `GET /stats`
 - **Response**:
 ```json
 {
@@ -57,26 +71,29 @@ The Realyx Backend provides a robust REST API and WebSocket interface for develo
   "data": {
     "totalVolumeUSD": 12500000,
     "totalFeesUSD": 6250,
-    "tvl": 500000
+    "tvl": 500000,
+    "openInterestUSD": 250000
   }
 }
 ```
 
 ---
 
-## WebSocket Stream
+## ⚡ WebSocket Stream
 
-Connect to `ws://localhost:3002` to receive real-time updates.
+Connect to `ws://localhost:3002` to receive real-time updates without polling the REST API.
 
 ### Subscription Message
+Send a JSON payload to subscribe to specific telemetry channels:
 ```json
 {
   "type": "subscribe",
-  "channels": ["prices", "stats"]
+  "channels": ["prices", "stats", "liquidations"]
 }
 ```
 
 ### Price Update Event
+Once subscribed, your client will receive asynchronous events:
 ```json
 {
   "channel": "prices",
@@ -90,11 +107,13 @@ Connect to `ws://localhost:3002` to receive real-time updates.
 
 ---
 
-## Error Handling
-All API responses that are not successful will return a `4xx` or `5xx` status code with the following body:
+## 🛡️ Error Handling
+
+All failed API responses return standard HTTP status codes (`4xx` or `5xx`) along with a consistent JSON body outlining the failure:
+
 ```json
 {
   "success": false,
-  "error": "Error message description"
+  "error": "Detailed error message describing the failure."
 }
 ```

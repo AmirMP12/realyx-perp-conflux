@@ -1,0 +1,42 @@
+[
+  {
+    "inputs": [],
+    "name": "DivisionByZero",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FundingDeltaTooLarge",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "FundingOverflow",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidLeverage",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidPositionSize",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidPrice",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "OverflowRisk",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PositionSizeTooLarge",
+    "type": "error"
+  }
+]

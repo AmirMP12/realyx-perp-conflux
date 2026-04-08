@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+/**
+ * @title IMarketCalendar
+ * @notice Interface for market trading-hour and holiday scheduling checks.
+ * @dev Used by trading logic to determine whether a market is currently open.
+ */
 interface IMarketCalendar {
     struct TradingSession {
         uint16 openTime;

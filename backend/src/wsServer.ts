@@ -11,7 +11,8 @@ import { getActiveMarketAddresses } from "./services/activeMarkets.js";
 import { fetchProtocol } from "./services/subgraph.js";
 import { toDecimal } from "./utils/format.js";
 
-const POLL_MS = 15_000; // 15s — reduce subgraph 429 rate limits
+const POLL_MS = process.env.NODE_ENV === "test" ? 500 : 15_000; // fast polling for tests
+const isTestEnv = process.env.NODE_ENV === "test";
 const MARKET_META: Record<string, { name: string; symbol: string }> = {
   "0x986a383f6de4a24dd3f524f0f93546229b58265f": { name: "Bitcoin", symbol: "BTC-USD" },
   "0x886a383f6de4a24dd3f524f0f93546229b58265f": { name: "Ethereum", symbol: "ETH-USD" },
@@ -37,7 +38,7 @@ export function startWsServer() {
   wss.on("connection", (ws, req) => {
     clients.add(ws);
     const ip = req.socket.remoteAddress ?? "unknown";
-    console.info(`[ws] Client connected, total: ${clients.size}, ip: ${ip}`);
+    if (!isTestEnv) console.info(`[ws] Client connected, total: ${clients.size}, ip: ${ip}`);
     ws.on("message", (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
@@ -50,7 +51,7 @@ export function startWsServer() {
     });
     ws.on("close", () => {
       clients.delete(ws);
-      console.info(`[ws] Client disconnected, total: ${clients.size}`);
+      if (!isTestEnv) console.info(`[ws] Client disconnected, total: ${clients.size}`);
     });
     ws.on("error", () => clients.delete(ws));
   });
@@ -83,7 +84,7 @@ export function startWsServer() {
       lastProtocol = protocol;
       broadcastData(pythPrices, markets, protocol);
     } catch (err) {
-      console.error("[ws] poll error:", err);
+      if (!isTestEnv) console.error("[ws] poll error:", err);
       if (lastMarkets.length > 0 || lastProtocol) {
         broadcastData(lastPythPrices, lastMarkets, lastProtocol).catch(() => {});
       }
@@ -129,7 +130,7 @@ export function startWsServer() {
   const interval = setInterval(poll, POLL_MS);
   poll();
 
-  console.info(`[ws] Server listening on port ${config.wsPort}`);
+  if (!isTestEnv) console.info(`[ws] Server listening on port ${config.wsPort}`);
   return () => {
     clearInterval(interval);
     wss.close();

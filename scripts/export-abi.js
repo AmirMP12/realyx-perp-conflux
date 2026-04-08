@@ -7,8 +7,8 @@ const __dirname = path.dirname(__filename);
 
 const ARTIFACTS_DIR = path.join(__dirname, "..", "artifacts", "contracts");
 const ABI_OUT_DIRS = [
-    path.join(__dirname, "..", "abi"),
-    path.join(__dirname, "..", "subgraph", "abis"),
+    path.join(__dirname, "..", "backend", "abi"),
+    path.join(__dirname, "..", "frontend", "src", "abi"),
 ];
 
 function walkDir(dir, fileList = []) {

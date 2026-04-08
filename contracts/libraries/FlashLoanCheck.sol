@@ -35,14 +35,18 @@ library FlashLoanCheck {
             newGlobalBlockInteractions = 1;
         } else {
             newLastGlobalInteractionBlock = lastGlobalInteractionBlock;
-            unchecked { newGlobalBlockInteractions = globalBlockInteractions + 1; }
+            unchecked {
+                newGlobalBlockInteractions = globalBlockInteractions + 1;
+            }
             if (maxActionsPerBlock > 0 && newGlobalBlockInteractions > maxActionsPerBlock) {
                 revert RateLimitExceeded();
             }
         }
 
         uint256 codeSize;
-        assembly { codeSize := extcodesize(sender) }
+        assembly {
+            codeSize := extcodesize(sender)
+        }
         if (codeSize > 0 && !isOperator) {
             revert FlashLoanDetected();
         }

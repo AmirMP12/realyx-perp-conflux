@@ -6,11 +6,11 @@ app.listen(config.port, () => {
   const rpcSet = Boolean(process.env.RPC_URL?.trim());
   const tradingCoreSet = Boolean((process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE)?.trim());
   logger.info(
-    { port: config.port, subgraphUrl: config.subgraphUrl, activeMarketsFilter: rpcSet && tradingCoreSet },
+    { port: config.port, activeMarketsFilter: rpcSet && tradingCoreSet },
     "Backend listening"
   );
   if (!rpcSet || !tradingCoreSet) {
-    logger.warn("RPC_URL or TRADING_CORE_ADDRESS not set — /api/markets will return all subgraph markets (no on-chain filter)");
+    logger.warn("RPC_URL or TRADING_CORE_ADDRESS not set — /api/markets will return all fallback markets (no on-chain filter)");
   }
 });
 

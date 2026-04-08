@@ -65,8 +65,8 @@ temp/
 temp_*.json
 build_*.txt
 
-# Subgraph
-subgraph/abis/
+# Subgraph (auto-generated)
+subgraph/src/generated/
 subgraph/tests/.bin/
 
 # Docker

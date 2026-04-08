@@ -38,7 +38,13 @@ library PositionTriggersLib {
         DataTypes.Position storage p = positions[id];
         if (p.state != DataTypes.PosStatus.OPEN) revert PositionNotFound();
         if (IPositionToken(positionTokenAddr).ownerOf(id) != msg.sender) revert NotPositionOwner();
-        if (!validateStopLoss(sl, IOracleAggregator(oracleAggregatorAddr).getPriceWithConfidence(p.market, maxOracleUncertainty), DataTypes.isLong(p.flags))) revert InvalidStopLoss();
+        if (
+            !validateStopLoss(
+                sl,
+                IOracleAggregator(oracleAggregatorAddr).getPriceWithConfidence(p.market, maxOracleUncertainty),
+                DataTypes.isLong(p.flags)
+            )
+        ) revert InvalidStopLoss();
         p.stopLossPrice = uint128(sl);
         emit ITradingCore.PositionModified(id, uint256(p.size), uint256(p.leverage), sl, p.takeProfitPrice);
     }
@@ -54,7 +60,13 @@ library PositionTriggersLib {
         DataTypes.Position storage p = positions[id];
         if (p.state != DataTypes.PosStatus.OPEN) revert PositionNotFound();
         if (IPositionToken(positionTokenAddr).ownerOf(id) != msg.sender) revert NotPositionOwner();
-        if (!validateTakeProfit(tp, IOracleAggregator(oracleAggregatorAddr).getPriceWithConfidence(p.market, maxOracleUncertainty), DataTypes.isLong(p.flags))) revert InvalidTakeProfit();
+        if (
+            !validateTakeProfit(
+                tp,
+                IOracleAggregator(oracleAggregatorAddr).getPriceWithConfidence(p.market, maxOracleUncertainty),
+                DataTypes.isLong(p.flags)
+            )
+        ) revert InvalidTakeProfit();
         p.takeProfitPrice = uint128(tp);
         emit ITradingCore.PositionModified(id, uint256(p.size), uint256(p.leverage), p.stopLossPrice, tp);
     }
@@ -71,6 +83,12 @@ library PositionTriggersLib {
         if (p.state != DataTypes.PosStatus.OPEN) revert PositionNotFound();
         if (IPositionToken(positionTokenAddr).ownerOf(id) != msg.sender) revert NotPositionOwner();
         p.trailingStopBps = uint16(bps);
-        emit ITradingCore.PositionModified(id, uint256(p.size), uint256(p.leverage), p.stopLossPrice, p.takeProfitPrice);
+        emit ITradingCore.PositionModified(
+            id,
+            uint256(p.size),
+            uint256(p.leverage),
+            p.stopLossPrice,
+            p.takeProfitPrice
+        );
     }
 }

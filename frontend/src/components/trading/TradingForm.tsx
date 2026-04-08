@@ -210,6 +210,7 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                     {(['market', 'limit'] as const).map(type => (
                         <button
                             key={type}
+                            data-testid={`order-type-${type}`}
                             onClick={() => setOrderType(type)}
                             className={clsx(
                                 "capitalize transition-colors hover:text-text-primary",
@@ -368,6 +369,7 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                             <input
                                 type="number"
                                 inputMode="decimal"
+                                data-testid="trigger-price"
                                 value={triggerPrice}
                                 onChange={e => setTriggerPrice(e.target.value)}
                                 placeholder="0.00"
@@ -391,6 +393,7 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                         <input
                             type="number"
                             inputMode="decimal"
+                            data-testid="margin-input"
                             value={size}
                             onChange={e => setSize(e.target.value)}
                             placeholder="0.00"
@@ -530,7 +533,8 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                 {isConnected ? (
                     <button
                         onClick={handleOpenPosition}
-                        disabled={isPositionLoading || !sizeNum}
+                        disabled={isPositionLoading}
+                        data-testid="trade-button"
                         className={clsx(
                             "w-full py-3.5 rounded-xl text-sm font-bold uppercase transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.01] active:scale-[0.99] disabled:hover:scale-100",
                             side === 'long'
@@ -565,7 +569,7 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                             exit={{ opacity: 0, scale: 0.95 }}
                             className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg p-6 max-w-sm w-full shadow-2xl relative"
                         >
-                            <h2 id="confirm-trade-title" className="text-lg font-bold mb-4 text-text-primary">Confirm Trade</h2>
+                            <h2 id="confirm-trade-title" data-testid="confirm-modal-title" className="text-lg font-bold mb-4 text-text-primary">Confirm Trade</h2>
                             <div className="space-y-3 text-sm mb-6">
                                 <SummaryRow label="Market" value={market.symbol} />
                                 <SummaryRow label="Side" value={side.toUpperCase()} valueClass={side === 'long' ? 'text-[var(--long)]' : 'text-[var(--short)]'} />

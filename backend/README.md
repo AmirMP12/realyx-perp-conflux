@@ -1,10 +1,10 @@
 # Realyx — Backend
 
-REST API and (optional) WebSocket backend that reads from the **subgraph** and serves the frontend (`useBackend.ts`, `api.ts`).
+REST API and (optional) WebSocket backend that reads from the **database indexer** and serves the frontend (`useBackend.ts`, `api.ts`).
 
-## Contract / subgraph context
+## Contract / database indexer context
 
-See [../docs/CONTRACT_ANALYSIS.md](../docs/CONTRACT_ANALYSIS.md) and [../subgraph/README.md](../subgraph/README.md).
+See [../docs/CONTRACT_ANALYSIS.md](../docs/CONTRACT_ANALYSIS.md) and [../database indexer/README.md](../database indexer/README.md).
 
 ## Setup
 
@@ -12,7 +12,7 @@ See [../docs/CONTRACT_ANALYSIS.md](../docs/CONTRACT_ANALYSIS.md) and [../subgrap
 cd backend
 npm install
 cp .env.example .env
-# Edit .env: SUBGRAPH_URL (Graph Node endpoint), PORT, CHAIN_ID
+# Edit .env: POSTGRES_URL (Graph Node endpoint), PORT, CHAIN_ID
 ```
 
 ## Run
@@ -27,7 +27,7 @@ npm run build && npm start
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/markets` | List markets (from subgraph) |
+| GET | `/api/markets` | List markets (from database indexer) |
 | GET | `/api/user/:address/positions` | User open positions |
 | GET | `/api/user/:address/trades?limit=20` | User trade history |
 | GET | `/api/stats` | Protocol stats (totalMarkets, volume24h, totalOpenInterest) |
@@ -46,7 +46,7 @@ All JSON responses follow `{ success: boolean, data?: T, error?: string }`.
 |----------|---------|-------------|
 | PORT | 3001 | HTTP server port |
 | WS_PORT | 3002 | WebSocket server port (reserved) |
-| SUBGRAPH_URL | local Graph Node | Subgraph GraphQL endpoint |
+| POSTGRES_URL | local Graph Node | database indexer GraphQL endpoint |
 | CHAIN_ID | 71 | Chain ID (Conflux Testnet) |
 | NODE_ENV | development | Environment |
 | METRICS_PORT | 9090 | Metrics port (for Prometheus) |
@@ -60,7 +60,7 @@ backend/
 │   ├── config.ts        # Env config
 │   ├── types/           # API types (align with frontend)
 │   ├── routes/          # markets, user, stats, leaderboard
-│   └── services/        # subgraph.ts (GraphQL client)
+│   └── services/        # database indexer.ts (GraphQL client)
 ├── package.json
 ├── tsconfig.json
 ├── .env.example
@@ -72,7 +72,7 @@ backend/
 ```bash
 cd backend
 docker build -t realyx/backend:latest .
-docker run -p 3001:3001 -e SUBGRAPH_URL=https://api.thegraph.com/subgraphs/name/... realyx/backend:latest
+docker run -p 3001:3001 -e POSTGRES_URL=https://api.thegraph.com/database indexers/name/... realyx/backend:latest
 ```
 
 Override env with `-e` or an env file. The image exposes port 3001.

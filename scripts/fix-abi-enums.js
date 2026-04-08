@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const ARTIFACTS_DIR = path.join(__dirname, "..", "artifacts", "contracts");
+const ARTIFACTS_DIR = path.join(__dirname, "..", "backend", "abi");
 
 const ENUM_REPLACEMENTS = [
     ['"type": "DataTypes.CollateralType"', '"type": "uint8"'],

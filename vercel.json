@@ -17,6 +17,16 @@
     {
       "source": "/health",
       "destination": "/api"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/sync",
+      "schedule": "* * * * *"
     }
   ]
 }

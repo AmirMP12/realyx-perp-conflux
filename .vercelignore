@@ -8,6 +8,15 @@ deployment
 infrastructure
 docs
 *.sol
-subgraph/tests
-subgraph/abis
-subgraph/scripts
+# Build artifacts
+cache
+artifacts
+coverage
+coverage.json
+typechain
+branch-coverage-report.txt
+result.txt
+last_fail.txt
+
+# Docker
+docker-compose*.yml

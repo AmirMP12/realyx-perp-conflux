@@ -104,8 +104,8 @@ const config: HardhatUserConfig = {
             url: process.env.CONFLUX_TESTNET_RPC_URL || "https://evmtestnet.confluxrpc.com",
             accounts: getAccounts() as string[],
             chainId: 71,
-            timeout: 60000,
-            gasPrice: process.env.GAS_PRICE_GWEI ? parseInt(process.env.GAS_PRICE_GWEI, 10) * 1e9 : undefined,
+            timeout: 120000,
+            gasPrice: process.env.GAS_PRICE_GWEI ? parseInt(process.env.GAS_PRICE_GWEI, 10) * 1e9 : 30e9,
         },
     },
 

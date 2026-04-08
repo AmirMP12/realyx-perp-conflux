@@ -15,18 +15,20 @@ library GlobalPnLLib {
         address oracleAggregator
     ) external view returns (int256 totalPnL) {
         uint256 len = activeMarkets.length;
-        for (uint256 i = 0; i < len;) {
+        for (uint256 i = 0; i < len; ) {
             address m = activeMarkets[i];
             DataTypes.Market storage market = markets[m];
             if (market.isActive && (market.totalLongSize > 0 || market.totalShortSize > 0)) {
-                (uint256 price,,) = IOracleAggregator(oracleAggregator).getPrice(m);
+                (uint256 price, , ) = IOracleAggregator(oracleAggregator).getPrice(m);
                 if (price > 0) {
                     int256 longPnL = int256((market.totalLongSize * price) / 1e18) - int256(market.totalLongCost);
                     int256 shortPnL = int256(market.totalShortCost) - int256((market.totalShortSize * price) / 1e18);
                     totalPnL += longPnL + shortPnL;
                 }
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 }

@@ -17,16 +17,16 @@ import "./FeeCalculator.sol";
 library PositionCloseLib {
     using SafeERC20 for IERC20;
     using PositionMath for DataTypes.Position;
-    
+
     uint256 private constant PRECISION = 1e18;
-    
+
     event BadDebtCoverageFailed(uint256 indexed positionId, uint256 amount);
     error ZeroCloseSize();
     error CloseSizeExceedsPosition();
     error SlippageExceeded();
     error PositionNotFound();
     error InsufficientLiquidityForRepayment();
-    
+
     struct ClosePositionContext {
         address usdc;
         address liquidityVault;
@@ -36,7 +36,7 @@ library PositionCloseLib {
         address insuranceFund;
         DataTypes.FeeConfig feeConfig;
     }
-    
+
     function closePosition(
         uint256 positionId,
         uint256 closeSize,
@@ -52,7 +52,7 @@ library PositionCloseLib {
         if (closeSize > uint256(position.size)) revert CloseSizeExceedsPosition();
 
         bool isLong = DataTypes.isLong(position.flags);
-        (uint256 currentPrice,,) = IOracleAggregator(ctx.oracleAggregator).getPrice(position.market);
+        (uint256 currentPrice, , ) = IOracleAggregator(ctx.oracleAggregator).getPrice(position.market);
         uint256 closingFee = FeeCalculator.calculateClosingFee(closeSize, ctx.feeConfig, true);
         realizedPnL = PositionMath.calculateRealizedPnL(
             PositionMath.calculateUnrealizedPnL(closeSize, uint256(position.entryPrice), currentPrice, isLong),
@@ -62,13 +62,19 @@ library PositionCloseLib {
 
         uint256 totalSize = uint256(position.size);
         uint256 totalCollateral = positionCollateral[positionId].amount;
-        uint256 collateralPortion = closeSize >= totalSize ? totalCollateral : (totalCollateral * closeSize) / totalSize;
-        uint256 borrowedPortion = totalSize > totalCollateral ? ((totalSize - totalCollateral) * closeSize) / totalSize : 0;
+        uint256 collateralPortion = closeSize >= totalSize
+            ? totalCollateral
+            : (totalCollateral * closeSize) / totalSize;
+        uint256 borrowedPortion = totalSize > totalCollateral
+            ? ((totalSize - totalCollateral) * closeSize) / totalSize
+            : 0;
         uint256 repayAmountUsdc = DataTypes.toUsdcPrecisionCeil(borrowedPortion);
-        uint256 receiveAmount = realizedPnL >= 0 ? repayAmountUsdc : repayAmountUsdc + DataTypes.toUsdcPrecisionCeil(uint256(-realizedPnL));
+        uint256 receiveAmount = realizedPnL >= 0
+            ? repayAmountUsdc
+            : repayAmountUsdc + DataTypes.toUsdcPrecisionCeil(uint256(-realizedPnL));
         uint256 collateralUsdc = DataTypes.toUsdcPrecision(collateralPortion);
         int256 payout = int256(collateralPortion) + realizedPnL - int256(closingFee);
-        
+
         uint256 closingFeeUsdc = DataTypes.toUsdcPrecision(closingFee);
         uint256 availableUsdc = collateralUsdc + repayAmountUsdc;
         uint256 totalRequired = receiveAmount + closingFeeUsdc;
@@ -96,17 +102,19 @@ library PositionCloseLib {
             : -int256(DataTypes.toUsdcPrecisionCeil(uint256(-realizedPnL)));
 
         IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, type(uint256).max);
-        IVaultCore(ctx.liquidityVault).repay(
-            repayAmountUsdc,
-            position.market,
-            isLong,
-            pnlUsdc
-        );
+        IVaultCore(ctx.liquidityVault).repay(repayAmountUsdc, position.market, isLong, pnlUsdc);
 
         // Convert exactly the required closing fee back to internal precision for distribution
         uint256 distributedFee = DataTypes.toInternalPrecision(closingFeeUsdc);
         if (distributedFee > 0) {
-            _distributeFees(distributedFee, ctx.usdc, ctx.treasury, ctx.liquidityVault, ctx.insuranceFund, ctx.feeConfig);
+            _distributeFees(
+                distributedFee,
+                ctx.usdc,
+                ctx.treasury,
+                ctx.liquidityVault,
+                ctx.insuranceFund,
+                ctx.feeConfig
+            );
         }
         address posOwner = IPositionToken(ctx.positionToken).ownerOf(positionId);
         if (payout > 0) {
@@ -115,9 +123,22 @@ library PositionCloseLib {
             IERC20(ctx.usdc).safeTransfer(posOwner, userPayoutUsdc);
         }
 
-        _updateMarketAndFinalize(positionId, closeSize, totalSize, totalCollateral, collateralPortion, position, positionCollateral, markets, userExposure, ctx.positionToken, posOwner, isLong);
+        _updateMarketAndFinalize(
+            positionId,
+            closeSize,
+            totalSize,
+            totalCollateral,
+            collateralPortion,
+            position,
+            positionCollateral,
+            markets,
+            userExposure,
+            ctx.positionToken,
+            posOwner,
+            isLong
+        );
     }
-    
+
     function _updateMarketAndFinalize(
         uint256 positionId,
         uint256 closeSize,
@@ -147,7 +168,9 @@ library PositionCloseLib {
         if (closeSize >= totalSize) {
             position.state = DataTypes.PosStatus.CLOSED;
             unchecked {
-                userExposure[posOwner] = userExposure[posOwner] > DataTypes.toUsdcPrecision(closeSize) ? userExposure[posOwner] - DataTypes.toUsdcPrecision(closeSize) : 0;
+                userExposure[posOwner] = userExposure[posOwner] > DataTypes.toUsdcPrecision(closeSize)
+                    ? userExposure[posOwner] - DataTypes.toUsdcPrecision(closeSize)
+                    : 0;
             }
             IPositionToken(positionToken).burn(positionId);
             positionCollateral[positionId].amount = 0;
@@ -155,19 +178,28 @@ library PositionCloseLib {
             unchecked {
                 position.size = uint128(totalSize - closeSize);
                 positionCollateral[positionId].amount = totalCollateral - collateralPortion;
-                userExposure[posOwner] = userExposure[posOwner] > DataTypes.toUsdcPrecision(closeSize) ? userExposure[posOwner] - DataTypes.toUsdcPrecision(closeSize) : 0;
+                userExposure[posOwner] = userExposure[posOwner] > DataTypes.toUsdcPrecision(closeSize)
+                    ? userExposure[posOwner] - DataTypes.toUsdcPrecision(closeSize)
+                    : 0;
             }
             uint256 newLeverage = _calculateNewLeverage(uint256(position.size), positionCollateral[positionId].amount);
             position.leverage = uint64(newLeverage);
-            position.liquidationPrice = uint128(PositionMath.calculateLiquidationPrice(uint256(position.entryPrice), newLeverage, m.maintenanceMargin, isLong));
+            position.liquidationPrice = uint128(
+                PositionMath.calculateLiquidationPrice(
+                    uint256(position.entryPrice),
+                    newLeverage,
+                    m.maintenanceMargin,
+                    isLong
+                )
+            );
         }
     }
-    
+
     function _calculateNewLeverage(uint256 size, uint256 collateral) private pure returns (uint256) {
         if (collateral == 0) return 0;
         return (size * PRECISION) / collateral;
     }
-    
+
     function _distributeFees(
         uint256 closingFee,
         address usdc,
@@ -176,12 +208,15 @@ library PositionCloseLib {
         address insuranceFund,
         DataTypes.FeeConfig memory feeConfig
     ) private {
-        (uint256 lpShare, uint256 insuranceShare, uint256 treasuryShare) = FeeCalculator.splitFees(closingFee, feeConfig);
-        
+        (uint256 lpShare, uint256 insuranceShare, uint256 treasuryShare) = FeeCalculator.splitFees(
+            closingFee,
+            feeConfig
+        );
+
         uint256 lpShareUsdc = DataTypes.toUsdcPrecision(lpShare);
         uint256 insuranceShareUsdc = DataTypes.toUsdcPrecision(insuranceShare);
         uint256 treasuryShareUsdc = DataTypes.toUsdcPrecision(treasuryShare);
-        
+
         if (lpShareUsdc > 0) {
             IERC20(usdc).safeTransfer(liquidityVault, lpShareUsdc);
         }

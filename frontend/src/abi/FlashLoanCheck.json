@@ -1,0 +1,12 @@
+[
+  {
+    "inputs": [],
+    "name": "FlashLoanDetected",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RateLimitExceeded",
+    "type": "error"
+  }
+]

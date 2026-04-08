@@ -16,9 +16,7 @@ contract MockPyth is AbstractPyth {
         validTimePeriod = _validTimePeriod;
     }
 
-    function queryPriceFeed(
-        bytes32 id
-    ) public view override returns (PythStructs.PriceFeed memory priceFeed) {
+    function queryPriceFeed(bytes32 id) public view override returns (PythStructs.PriceFeed memory priceFeed) {
         if (priceFeeds[id].id == 0) revert PythErrors.PriceFeedNotFound();
         return priceFeeds[id];
     }
@@ -31,17 +29,12 @@ contract MockPyth is AbstractPyth {
         return validTimePeriod;
     }
 
-    function updatePriceFeeds(
-        bytes[] calldata updateData
-    ) public payable override {
+    function updatePriceFeeds(bytes[] calldata updateData) public payable override {
         uint requiredFee = getUpdateFee(updateData);
         if (msg.value < requiredFee) revert PythErrors.InsufficientFee();
 
         for (uint i = 0; i < updateData.length; i++) {
-            PythStructs.PriceFeed memory priceFeed = abi.decode(
-                updateData[i],
-                (PythStructs.PriceFeed)
-            );
+            PythStructs.PriceFeed memory priceFeed = abi.decode(updateData[i], (PythStructs.PriceFeed));
 
             uint lastPublishTime = priceFeeds[priceFeed.id].price.publishTime;
 
@@ -57,15 +50,11 @@ contract MockPyth is AbstractPyth {
         }
     }
 
-    function getUpdateFee(
-        bytes[] calldata updateData
-    ) public view override returns (uint feeAmount) {
+    function getUpdateFee(bytes[] calldata updateData) public view override returns (uint feeAmount) {
         return singleUpdateFeeInWei * updateData.length;
     }
 
-    function getTwapUpdateFee(
-        bytes[] calldata updateData
-    ) public view override returns (uint feeAmount) {
+    function getTwapUpdateFee(bytes[] calldata updateData) public view override returns (uint feeAmount) {
         return singleUpdateFeeInWei * updateData.length;
     }
 
@@ -77,11 +66,7 @@ contract MockPyth is AbstractPyth {
         bool checkUniqueness,
         bool,
         bool
-    )
-        public
-        payable
-        returns (PythStructs.PriceFeed[] memory feeds, uint64[] memory slots)
-    {
+    ) public payable returns (PythStructs.PriceFeed[] memory feeds, uint64[] memory slots) {
         uint requiredFee = getUpdateFee(updateData);
         if (msg.value < requiredFee) revert PythErrors.InsufficientFee();
 
@@ -91,29 +76,20 @@ contract MockPyth is AbstractPyth {
         for (uint i = 0; i < priceIds.length; i++) {
             for (uint j = 0; j < updateData.length; j++) {
                 uint64 prevPublishTime;
-                (feeds[i], prevPublishTime) = abi.decode(
-                    updateData[j],
-                    (PythStructs.PriceFeed, uint64)
-                );
+                (feeds[i], prevPublishTime) = abi.decode(updateData[j], (PythStructs.PriceFeed, uint64));
 
                 uint publishTime = feeds[i].price.publishTime;
                 slots[i] = uint64(publishTime);
                 if (priceFeeds[feeds[i].id].price.publishTime < publishTime) {
                     priceFeeds[feeds[i].id] = feeds[i];
-                    emit PriceFeedUpdate(
-                        feeds[i].id,
-                        uint64(publishTime),
-                        feeds[i].price.price,
-                        feeds[i].price.conf
-                    );
+                    emit PriceFeedUpdate(feeds[i].id, uint64(publishTime), feeds[i].price.price, feeds[i].price.conf);
                 }
 
                 if (feeds[i].id == priceIds[i]) {
                     if (
                         minAllowedPublishTime <= publishTime &&
                         publishTime <= maxAllowedPublishTime &&
-                        (!checkUniqueness ||
-                            prevPublishTime < minAllowedPublishTime)
+                        (!checkUniqueness || prevPublishTime < minAllowedPublishTime)
                     ) {
                         break;
                     } else {
@@ -122,8 +98,7 @@ contract MockPyth is AbstractPyth {
                 }
             }
 
-            if (feeds[i].id != priceIds[i])
-                revert PythErrors.PriceFeedNotFoundWithinRange();
+            if (feeds[i].id != priceIds[i]) revert PythErrors.PriceFeedNotFoundWithinRange();
         }
     }
 
@@ -164,12 +139,7 @@ contract MockPyth is AbstractPyth {
     function parseTwapPriceFeedUpdates(
         bytes[] calldata updateData,
         bytes32[] calldata priceIds
-    )
-        external
-        payable
-        override
-        returns (PythStructs.TwapPriceFeed[] memory twapPriceFeeds)
-    {
+    ) external payable override returns (PythStructs.TwapPriceFeed[] memory twapPriceFeeds) {
         uint requiredFee = getUpdateFee(updateData);
         if (msg.value < requiredFee) revert PythErrors.InsufficientFee();
 
@@ -188,13 +158,9 @@ contract MockPyth is AbstractPyth {
         uint index,
         PythStructs.TwapPriceFeed[] memory twapPriceFeeds
     ) private {
-        PythStructs.TwapPriceFeed memory twapFeed = abi.decode(
-            updateData[0],
-            (PythStructs.TwapPriceFeed)
-        );
+        PythStructs.TwapPriceFeed memory twapFeed = abi.decode(updateData[0], (PythStructs.TwapPriceFeed));
 
-        if (twapFeed.id != priceId)
-            revert PythErrors.InvalidTwapUpdateDataSet();
+        if (twapFeed.id != priceId) revert PythErrors.InvalidTwapUpdateDataSet();
 
         twapPriceFeeds[index] = twapFeed;
 
@@ -275,7 +241,8 @@ contract MockPyth is AbstractPyth {
 }
 
 contract MockPythWrapper is MockPyth {
-    constructor(uint256 validTimePeriod, uint256 singleUpdateFeeInWei) 
-        MockPyth(validTimePeriod, singleUpdateFeeInWei) 
-    {}
+    constructor(
+        uint256 validTimePeriod,
+        uint256 singleUpdateFeeInWei
+    ) MockPyth(validTimePeriod, singleUpdateFeeInWei) {}
 }

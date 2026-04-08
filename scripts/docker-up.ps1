@@ -1,5 +1,16 @@
-# Run Realyx via Docker (minimal: backend + frontend)
-# Prerequisite: Docker Desktop must be running
+# Realyx — Docker Compose launcher
+# Usage:
+#   .\scripts\docker-up.ps1             # minimal (backend + frontend)
+#   .\scripts\docker-up.ps1 -Full       # full stack (postgres, redis, monitoring)
+#   .\scripts\docker-up.ps1 -Graph      # graph node (postgres, ipfs, graph-node)
+#
+# Prerequisites: Docker Desktop must be running
+
+param(
+    [switch]$Full,
+    [switch]$Graph,
+    [switch]$Down
+)
 
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -7,17 +18,48 @@ $rootDir = Split-Path -Parent $scriptDir
 
 Push-Location $rootDir
 try {
-    Write-Host "Building and starting containers..." -ForegroundColor Cyan
-    docker compose -f docker-compose.minimal.yml up -d --build
+    if ($Graph) {
+        $composeFile = "docker-compose.graph.yml"
+    } elseif ($Full) {
+        $composeFile = "docker-compose.yml"
+    } else {
+        $composeFile = "docker-compose.minimal.yml"
+    }
+
+    if ($Down) {
+        Write-Host "Stopping containers ($composeFile)..." -ForegroundColor Yellow
+        docker compose -f $composeFile down
+        exit 0
+    }
+
+    Write-Host "Building and starting containers ($composeFile)..." -ForegroundColor Cyan
+    docker compose -f $composeFile up -d --build
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
     Write-Host ""
-    Write-Host "Realyx is running:" -ForegroundColor Green
-    Write-Host "  Frontend:  http://localhost:3010"
-    Write-Host "  Backend:   http://localhost:3011"
-    Write-Host "  WebSocket: ws://localhost:3012"
+    if ($Graph) {
+        Write-Host "Graph Node stack is running:" -ForegroundColor Green
+        Write-Host "  GraphQL HTTP:  http://localhost:8000"
+        Write-Host "  GraphQL WS:    ws://localhost:8001"
+        Write-Host "  Admin (RPC):   http://localhost:8020"
+        Write-Host "  IPFS:          http://localhost:5001"
+        Write-Host "  Postgres:      localhost:5433"
+    } elseif ($Full) {
+        Write-Host "Realyx full stack is running:" -ForegroundColor Green
+        Write-Host "  Frontend:    http://localhost:3000"
+        Write-Host "  Backend:     http://localhost:3001"
+        Write-Host "  WebSocket:   ws://localhost:3002"
+        Write-Host "  Prometheus:  http://localhost:9090"
+        Write-Host "  Grafana:     http://localhost:3003"
+    } else {
+        Write-Host "Realyx is running:" -ForegroundColor Green
+        Write-Host "  Frontend:  http://localhost:3010"
+        Write-Host "  Backend:   http://localhost:3011"
+        Write-Host "  WebSocket: ws://localhost:3012"
+    }
     Write-Host ""
-    Write-Host "Logs: docker compose -f docker-compose.minimal.yml logs -f"
-    Write-Host "Stop: docker compose -f docker-compose.minimal.yml down"
+    Write-Host "Logs: docker compose -f $composeFile logs -f" -ForegroundColor DarkGray
+    Write-Host "Stop: .\scripts\docker-up.ps1 $(if ($Graph) {'-Graph'} elseif ($Full) {'-Full'}) -Down" -ForegroundColor DarkGray
 } finally {
     Pop-Location
 }

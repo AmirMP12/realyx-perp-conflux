@@ -25,25 +25,27 @@ library OracleAggregatorLib {
      * @return Weighted average
      */
     function calculateWeightedAverage(
-        uint256[] memory values, 
+        uint256[] memory values,
         uint256[] memory weights
     ) internal pure returns (uint256) {
         uint256 len = values.length;
         if (len == 0) return 0;
         if (len == 1) return values[0];
-        
+
         uint256 weightedSum;
         uint256 totalWeight;
-        for (uint256 i = 0; i < len;) {
-            if (values[i] > 0) { 
-                weightedSum += values[i] * weights[i]; 
+        for (uint256 i = 0; i < len; ) {
+            if (values[i] > 0) {
+                weightedSum += values[i] * weights[i];
                 totalWeight += weights[i];
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         return totalWeight > 0 ? weightedSum / totalWeight : 0;
     }
-    
+
     /**
      * @notice Calculate deviation between two values in basis points
      * @param a First value
@@ -54,7 +56,7 @@ library OracleAggregatorLib {
         if (b == 0) return BPS;
         return a > b ? ((a - b) * BPS) / b : ((b - a) * BPS) / b;
     }
-    
+
     /**
      * @notice Compute aggregated price from multiple sources with deviation filtering
      * @param prices Array of prices from different sources
@@ -65,25 +67,29 @@ library OracleAggregatorLib {
      * @return totalWeight Total weight of valid sources
      */
     function computeAggregatedPrice(
-        uint256[] calldata prices, 
+        uint256[] calldata prices,
         uint256[] calldata weights,
         uint256 maxDeviationBps
     ) internal pure returns (uint256 aggregatedPrice, uint256 validCount, uint256 totalWeight) {
         uint256 avgPrice = _calculateSimpleWeightedAverage(prices, weights);
         uint256 weightedSum;
-        
-        for (uint256 i = 0; i < prices.length;) {
+
+        for (uint256 i = 0; i < prices.length; ) {
             if (prices[i] > 0 && calculateDeviation(prices[i], avgPrice) <= maxDeviationBps) {
                 weightedSum += prices[i] * weights[i];
                 totalWeight += weights[i];
-                unchecked { ++validCount; }
+                unchecked {
+                    ++validCount;
+                }
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
-        
+
         aggregatedPrice = totalWeight > 0 ? weightedSum / totalWeight : 0;
     }
-    
+
     /**
      * @notice Calculate time-weighted average price (TWAP) from price points buffer.
      * @dev Uses time within the window as weight: more recent points have higher weight.
@@ -102,34 +108,38 @@ library OracleAggregatorLib {
         uint256 currentTimestamp
     ) internal view returns (uint256 twapPrice) {
         if (count == 0) revert NoValidPrice();
-        
+
         uint256 cutoffTime = currentTimestamp > windowSeconds ? currentTimestamp - windowSeconds : 0;
         uint256 totalWeight;
         uint256 weightedSum;
         uint256 maxSafePrice = type(uint128).max;
-        
-        for (uint256 i = 0; i < count;) {
+
+        for (uint256 i = 0; i < count; ) {
             uint256 idx = (head + TWAP_BUFFER_SIZE - 1 - i) % TWAP_BUFFER_SIZE;
             DataTypes.PricePoint storage point = points[idx];
             if (point.timestamp < cutoffTime) break;
-            
+
             uint256 price = uint256(point.price);
-            uint256 timeWeight = point.timestamp > cutoffTime ? (point.timestamp - cutoffTime) * PRECISION / windowSeconds : 0;
+            uint256 timeWeight = point.timestamp > cutoffTime
+                ? ((point.timestamp - cutoffTime) * PRECISION) / windowSeconds
+                : 0;
             uint256 weight = timeWeight;
-            
+
             if (price > maxSafePrice) price = maxSafePrice;
-            
+
             uint256 contribution = price * weight;
             if (weightedSum + contribution < weightedSum) revert TWAPOverflow();
             weightedSum += contribution;
             totalWeight += weight;
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
-        
+
         if (totalWeight == 0) revert NoValidPrice();
         twapPrice = weightedSum / totalWeight;
     }
-    
+
     /**
      * @notice Calculate confidence-weighted average price from buffer; returns data point count for validation.
      * @dev Uses point.confidence as weight (not time). Use when minimum data points matter (e.g. TWAP validity checks).
@@ -144,40 +154,40 @@ library OracleAggregatorLib {
         uint256 currentTimestamp
     ) internal view returns (uint256 twapPrice, uint256 dataPointCount) {
         if (count == 0) revert NoValidPrice();
-        
+
         uint256 cutoffTime = currentTimestamp > windowSeconds ? currentTimestamp - windowSeconds : 0;
         uint256 totalWeight;
         uint256 weightedSum;
         uint256 maxSafePrice = type(uint128).max;
-        
-        for (uint256 i = 0; i < count;) {
+
+        for (uint256 i = 0; i < count; ) {
             uint256 idx = (head + TWAP_BUFFER_SIZE - 1 - i) % TWAP_BUFFER_SIZE;
             DataTypes.PricePoint storage point = points[idx];
             if (point.timestamp < cutoffTime) break;
-            
+
             uint256 price = uint256(point.price);
-            
+
             // Inverse variance weighting: lower uncertainty gets exponentially higher weight
             // Scaled by PRECISION * PRECISION to prevent integer underflow with high prices
             uint256 uncertainty = uint256(point.confidence);
             uint256 weight = (PRECISION * PRECISION) / (uncertainty + 1);
-            
+
             if (price > maxSafePrice) price = maxSafePrice;
-            
+
             uint256 contribution = price * weight;
             if (weightedSum + contribution < weightedSum) revert TWAPOverflow();
             weightedSum += contribution;
             totalWeight += weight;
-            unchecked { 
+            unchecked {
                 ++i;
                 ++dataPointCount;
             }
         }
-        
+
         if (totalWeight == 0) revert NoValidPrice();
         twapPrice = weightedSum / totalWeight;
     }
-    
+
     /**
      * @notice Check if price drop breaker should trigger
      * @param currentPrice Current price
@@ -192,11 +202,11 @@ library OracleAggregatorLib {
         uint256 threshold
     ) internal pure returns (bool triggered, uint256 dropBps) {
         if (pastPrice == 0 || currentPrice >= pastPrice) return (false, 0);
-        
+
         dropBps = ((pastPrice - currentPrice) * BPS) / pastPrice;
         triggered = dropBps >= threshold;
     }
-    
+
     /**
      * @notice Check if volume spike breaker should trigger
      * @param volume24h Current 24h volume
@@ -211,11 +221,11 @@ library OracleAggregatorLib {
         uint256 threshold
     ) internal pure returns (bool triggered, uint256 multiplier) {
         if (avgVolume == 0) return (false, 0);
-        
+
         multiplier = (volume24h * 100) / avgVolume;
         triggered = multiplier >= threshold;
     }
-    
+
     /**
      * @notice Check if TWAP deviation breaker should trigger
      * @param currentPrice Current price
@@ -230,13 +240,13 @@ library OracleAggregatorLib {
         uint256 threshold
     ) internal pure returns (bool triggered, uint256 deviation) {
         if (twapPrice == 0) return (false, 0);
-        
-        deviation = currentPrice > twapPrice 
-            ? ((currentPrice - twapPrice) * BPS) / twapPrice 
+
+        deviation = currentPrice > twapPrice
+            ? ((currentPrice - twapPrice) * BPS) / twapPrice
             : ((twapPrice - currentPrice) * BPS) / twapPrice;
         triggered = deviation >= threshold;
     }
-    
+
     /**
      * @notice Normalize Chainlink price to 18 decimals
      * @param answer Raw price from Chainlink
@@ -245,7 +255,7 @@ library OracleAggregatorLib {
      */
     function normalizeChainlinkPrice(int256 answer, uint8 feedDecimals) internal pure returns (uint256) {
         if (answer <= 0) return 0;
-        
+
         if (feedDecimals < 18) {
             return uint256(answer) * (10 ** (18 - feedDecimals));
         } else if (feedDecimals > 18) {
@@ -254,7 +264,7 @@ library OracleAggregatorLib {
             return uint256(answer);
         }
     }
-    
+
     /**
      * @notice Calculate simple TWAP from buffer (no weights)
      */
@@ -265,28 +275,32 @@ library OracleAggregatorLib {
     ) internal view returns (uint256) {
         if (count == 0) return 0;
         uint256 sum;
-        for (uint256 i = 0; i < count;) {
+        for (uint256 i = 0; i < count; ) {
             sum += uint256(points[(head + TWAP_BUFFER_SIZE - 1 - i) % TWAP_BUFFER_SIZE].price);
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         return sum / count;
     }
 
     function _calculateSimpleWeightedAverage(
-        uint256[] calldata values, 
+        uint256[] calldata values,
         uint256[] calldata weights
     ) private pure returns (uint256) {
         uint256 len = values.length;
         if (len == 0) return 0;
-        
+
         uint256 weightedSum;
         uint256 totalWeight;
-        for (uint256 i = 0; i < len;) {
-            if (values[i] > 0) { 
-                weightedSum += values[i] * weights[i]; 
+        for (uint256 i = 0; i < len; ) {
+            if (values[i] > 0) {
+                weightedSum += values[i] * weights[i];
                 totalWeight += weights[i];
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         return totalWeight > 0 ? weightedSum / totalWeight : 0;
     }

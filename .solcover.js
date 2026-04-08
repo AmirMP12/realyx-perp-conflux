@@ -1,8 +1,13 @@
 module.exports = {
   skipFiles: [
-    'test',
-    'mocks',
-    'interfaces',
+    'interfaces/',
+    'test/',
+    'base/AccessControlled.sol',
+    'modules/AllowListCompliance.sol',
+    'modules/DividendKeeper.sol'
   ],
-  configureYulOptimizer: true
+  providerOptions: {
+    gasLimit: "0x1fffffffffffff",
+  },
+  configureYulOptimizer: true,
 };

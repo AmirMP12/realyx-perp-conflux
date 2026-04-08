@@ -17,7 +17,7 @@ library EmergencyPriceLib {
         bool executed;
         mapping(address => bool) hasConfirmed;
     }
-    
+
     struct PendingPriceOverride {
         uint256 price;
         uint256 validUntil;
@@ -27,19 +27,23 @@ library EmergencyPriceLib {
     uint256 private constant PROPOSAL_EXPIRY = 1 hours;
     uint256 private constant MAX_EMERGENCY_PRICE_DEVIATION_BPS = 3000;
     uint256 private constant MAX_EMERGENCY_PRICE_ABSOLUTE = 1e24;
-    
+
     error EmergencyPriceProposalNotFound();
     error EmergencyPriceAlreadyConfirmed();
     error EmergencyPriceProposalExpired();
     error AlreadyConfirmed();
     error EmergencyPriceDeviationTooHigh();
     error ProposalAlreadyExists();
-    
-    event EmergencyPriceProposed(bytes32 indexed proposalId, address indexed collection, uint256 price, address indexed proposer);
+
+    event EmergencyPriceProposed(
+        bytes32 indexed proposalId,
+        address indexed collection,
+        uint256 price,
+        address indexed proposer
+    );
     event PriceOverrideExecuted(address indexed collection, uint256 price);
     event EmergencyPriceApplied(address indexed collection, uint256 price, uint256 refPrice);
-    
-    
+
     function proposeEmergencyPrice(
         address collection,
         uint256 price,
@@ -47,7 +51,9 @@ library EmergencyPriceLib {
         uint256 nonce,
         mapping(bytes32 => EmergencyPriceProposal) storage emergencyPriceProposals
     ) external returns (bytes32 proposalId) {
-        proposalId = keccak256(abi.encode(collection, price, validUntil, block.timestamp, block.number, msg.sender, nonce));
+        proposalId = keccak256(
+            abi.encode(collection, price, validUntil, block.timestamp, block.number, msg.sender, nonce)
+        );
 
         EmergencyPriceProposal storage proposal = emergencyPriceProposals[proposalId];
         if (proposal.collection != address(0)) revert ProposalAlreadyExists();
@@ -62,7 +68,7 @@ library EmergencyPriceLib {
 
         emit EmergencyPriceProposed(proposalId, collection, price, msg.sender);
     }
-    
+
     function confirmEmergencyPrice(
         bytes32 proposalId,
         uint256 emergencyPriceQuorum,
@@ -77,12 +83,14 @@ library EmergencyPriceLib {
         if (proposal.executed) revert EmergencyPriceAlreadyConfirmed();
         if (block.timestamp > proposal.timestamp + PROPOSAL_EXPIRY) revert EmergencyPriceProposalExpired();
         if (proposal.hasConfirmed[msg.sender]) revert AlreadyConfirmed();
-        
+
         proposal.hasConfirmed[msg.sender] = true;
-        unchecked { ++proposal.confirmations; }
-        
+        unchecked {
+            ++proposal.confirmations;
+        }
+
         emit EmergencyPriceProposed(proposalId, proposal.collection, proposal.price, msg.sender);
-        
+
         if (proposal.confirmations >= emergencyPriceQuorum) {
             _executeEmergencyPrice(
                 proposalId,
@@ -95,7 +103,7 @@ library EmergencyPriceLib {
             );
         }
     }
-    
+
     function _executeEmergencyPrice(
         bytes32,
         EmergencyPriceLib.EmergencyPriceProposal storage proposal,
@@ -109,19 +117,17 @@ library EmergencyPriceLib {
 
         uint256 refPrice = 0;
         bool hasRefPrice = false;
-        
+
         (bool success, bytes memory data) = oracleAggregator.staticcall(
             abi.encodeWithSignature("getPrice(address)", proposal.collection)
         );
         if (success) {
-            (refPrice,,) = abi.decode(data, (uint256, uint256, uint256));
+            (refPrice, , ) = abi.decode(data, (uint256, uint256, uint256));
             hasRefPrice = refPrice > 0;
         }
 
         if (hasRefPrice) {
-            uint256 delta = proposal.price > refPrice
-                ? proposal.price - refPrice
-                : refPrice - proposal.price;
+            uint256 delta = proposal.price > refPrice ? proposal.price - refPrice : refPrice - proposal.price;
             uint256 devBps = (delta * BPS) / refPrice;
             if (devBps > MAX_EMERGENCY_PRICE_DEVIATION_BPS) {
                 revert EmergencyPriceDeviationTooHigh();
@@ -137,13 +143,13 @@ library EmergencyPriceLib {
 
         manualPrices[proposal.collection] = proposal.price;
         manualPriceExpiry[proposal.collection] = proposal.validUntil;
-        
+
         pendingManualPrices[proposal.collection] = PendingPriceOverride({
             price: proposal.price,
             validUntil: proposal.validUntil,
             effectiveTime: block.timestamp
         });
-        
+
         emit PriceOverrideExecuted(proposal.collection, proposal.price);
         emit EmergencyPriceApplied(proposal.collection, proposal.price, refPrice);
     }

@@ -10,8 +10,8 @@ import {
 
 /** Per-network gas config: max gas limit for heavy deploys (under chain cap), min gas price (gwei). */
 const NETWORK_GAS: Record<number, { maxDeployGas: number; minGasPriceGwei: number }> = {
-    1030: { maxDeployGas: 20_000_000, minGasPriceGwei: 2 },         // Conflux
-    71: { maxDeployGas: 20_000_000, minGasPriceGwei: 2 },            // Conflux Testnet
+    1030: { maxDeployGas: 20_000_000, minGasPriceGwei: 2 }, // Conflux
+    71: { maxDeployGas: 20_000_000, minGasPriceGwei: 2 }, // Conflux Testnet
 };
 const DEFAULT_NETWORK_GAS = { maxDeployGas: 16_000_000, minGasPriceGwei: 5 };
 
@@ -40,7 +40,12 @@ async function getDeployGasOptions(): Promise<DeployGasOptions> {
     if (envGwei) {
         gasPrice = BigInt(Math.floor(parseFloat(envGwei) * 1e9));
         if (gasPrice <= 0n) return { normal: undefined, heavy: undefined };
-        console.log("Using gas price from GAS_PRICE_GWEI:", envGwei, "gwei (network:", network.chainId.toString() + ")");
+        console.log(
+            "Using gas price from GAS_PRICE_GWEI:",
+            envGwei,
+            "gwei (network:",
+            network.chainId.toString() + ")",
+        );
     } else {
         const minWei = BigInt(Math.ceil(config.minGasPriceGwei * 1e9));
         try {
@@ -58,7 +63,7 @@ async function getDeployGasOptions(): Promise<DeployGasOptions> {
             config.minGasPriceGwei,
             "), heavy limit:",
             config.maxDeployGas,
-            "only for TradingCore/TradingCoreViews"
+            "only for TradingCore/TradingCoreViews",
         );
     }
 
@@ -76,7 +81,7 @@ function isUnderpriced(e: unknown): boolean {
 async function withRetryUnderpriced<T>(
     overrides: GasOverrides | undefined,
     fn: (o: GasOverrides | undefined) => Promise<T>,
-    label?: string
+    label?: string,
 ): Promise<T> {
     let current = overrides ? { ...overrides } : undefined;
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -88,7 +93,7 @@ async function withRetryUnderpriced<T>(
                 console.log(
                     "Retrying (replacement transaction underpriced) with gas",
                     Number(current.gasPrice) / 1e9,
-                    "gwei" + (label ? `: ${label}` : "")
+                    "gwei" + (label ? `: ${label}` : ""),
                 );
             } else throw e;
         }
@@ -227,11 +232,11 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     console.log("OracleAggregator (proxy):", oracleAggregator);
 
     const VaultCore = await ethers.getContractFactory("VaultCore");
-    const vaultProxy = await upgrades.deployProxy(
-        VaultCore,
-        [admin, usdcAddress, treasury],
-        { kind: "uups", initializer: "initialize", ...txOverrides }
-    );
+    const vaultProxy = await upgrades.deployProxy(VaultCore, [admin, usdcAddress, treasury], {
+        kind: "uups",
+        initializer: "initialize",
+        ...txOverrides,
+    });
     await vaultProxy.waitForDeployment();
     const vaultCore = await vaultProxy.getAddress();
     console.log("VaultCore (proxy):", vaultCore);
@@ -245,7 +250,7 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
             initializer: "initialize",
             unsafeAllow: ["constructor"],
             ...txOverrides,
-        }
+        },
     );
     await positionTokenProxy.waitForDeployment();
     const positionToken = await positionTokenProxy.getAddress();
@@ -288,8 +293,8 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     const dustLib = await deployLib("DustLib");
     const flashLoanCheck = await deployLib("FlashLoanCheck");
     const healthLib = await deployLib("HealthLib");
-    const positionMath = await deployLib("PositionMath");
     const positionTriggersLib = await deployLib("PositionTriggersLib");
+    const rateLimitLib = await deployLib("RateLimitLib");
     const tradingContextLib = await deployLib("TradingContextLib");
     const withdrawLib = await deployLib("WithdrawLib");
 
@@ -301,6 +306,7 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
         [libAddr("FundingLib")]: fundingLib,
         [libAddr("HealthLib")]: healthLib,
         [libAddr("PositionTriggersLib")]: positionTriggersLib,
+        [libAddr("RateLimitLib")]: rateLimitLib,
         [libAddr("TradingContextLib")]: tradingContextLib,
         [libAddr("TradingLib")]: tradingLibAddress,
         [libAddr("WithdrawLib")]: withdrawLib,
@@ -309,28 +315,22 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     const TradingCore = await ethers.getContractFactory("TradingCore", {
         libraries: tradingCoreLibraries,
     });
-    const tradingProxy = await upgrades.deployProxy(
-        TradingCore,
-        [admin, usdcAddress, treasury],
-        {
-            kind: "uups",
-            initializer: "initialize",
-            unsafeAllowLinkedLibraries: true,
-            ...heavyTxOverrides,
-        }
-    );
+    const tradingProxy = await upgrades.deployProxy(TradingCore, [admin, usdcAddress, treasury], {
+        kind: "uups",
+        initializer: "initialize",
+        unsafeAllowLinkedLibraries: true,
+        ...heavyTxOverrides,
+    });
     await tradingProxy.waitForDeployment();
     const tradingCore = await tradingProxy.getAddress();
     console.log("TradingCore (proxy):", tradingCore);
 
-    const TradingCoreViews = await ethers.getContractFactory("TradingCoreViews", {
-        libraries: { [libAddr("PositionMath")]: positionMath },
-    });
+    const TradingCoreViews = await ethers.getContractFactory("TradingCoreViews");
     const tradingViews = await TradingCoreViews.deploy(...(heavyOverrides ? [heavyOverrides] : []));
     await tradingViews.waitForDeployment();
     const tradingCoreViews = await tradingViews.getAddress();
     await withRetryUnderpriced(normalOverrides, (o) =>
-        tradingViews.initialize(tradingCore, vaultCore, oracleAggregator, o ?? {})
+        tradingViews.initialize(tradingCore, vaultCore, oracleAggregator, o ?? {}),
     );
     console.log("TradingCoreViews:", tradingCoreViews);
 
@@ -343,7 +343,7 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
                 initializer: "initialize",
                 ...(o ? { txOverrides: o } : {}),
             }),
-        "DividendKeeper"
+        "DividendKeeper",
     );
     await dividendKeeperProxy.waitForDeployment();
     const dividendKeeper = await dividendKeeperProxy.getAddress();
@@ -360,9 +360,13 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     console.log("PositionToken.setTradingCore ok");
 
     const tc = await ethers.getContractAt("TradingCore", tradingCore);
-    await withRetryUnderpriced(normalOverrides, (o) => tc.setContracts(vaultCore, oracleAggregator, positionToken, o ?? {}));
+    await withRetryUnderpriced(normalOverrides, (o) =>
+        tc.setContracts(vaultCore, oracleAggregator, positionToken, o ?? {}),
+    );
     console.log("TradingCore.setContracts ok");
-    await withRetryUnderpriced(normalOverrides, (o) => tc.setRWAContracts(marketCalendar, dividendManager, complianceManager, o ?? {}));
+    await withRetryUnderpriced(normalOverrides, (o) =>
+        tc.setRWAContracts(marketCalendar, dividendManager, complianceManager, o ?? {}),
+    );
     console.log("TradingCore.setRWAContracts ok");
     await withRetryUnderpriced(normalOverrides, (o) => tc.setTradingViews(tradingCoreViews, o ?? {}));
     console.log("TradingCore.setTradingViews ok");

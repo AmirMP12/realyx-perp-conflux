@@ -1,38 +1,67 @@
-# Architecture Overview
+# 🏗️ Architecture Overview
 
-Realyx is a decentralized Perpetual DEX on **Conflux eSpace**, optimized for Real-World Asset (RWA) futures with high leverage and low latency.
-
-## Core Components
-
-### 1. Smart Contracts (Solidity)
-The protocol uses a modular design to ensure scalability and maintainability:
-
-- **`TradingCore`**: The main entry point for all user interactions. It handles order creation, execution (via keepers), and position management.
-- **`VaultCore`**: Manages the protocol's liquidity. It serves as the counterparty to all trades, handles LP deposits/withdrawals, and maintains the Insurance Fund.
-- **`OracleAggregator`**: Centralized price routing. Integrates with **Pyth Network** to provide low-latency, confidence-weighted price feeds.
-- **`PositionToken` (ERC722)**: A soul-bound NFT representation of each open position, enabling future composability and secondary market features.
-
-### 2. Backend Services (Node.js/Express)
-The backend provides a high-performance REST and WebSocket API for the frontend. It abstracts the complexity of the Subgraph and facilitates real-time data streaming.
-
-### 3. Indexing Layer (The Graph)
-A specialized subgraph indexes all protocol events from Conflux eSpace. This allows for complex historical queries, trade history, and leaderboard calculations that are not possible directly via RPC.
-
-## System Flow
-
-### Trade Execution Lifecycle
-1. **Order Creation**: User submits `createOrder` to `TradingCore` with CFX collateral.
-2. **Keeper Detection**: Off-chain keepers monitor `OrderCreated` events.
-3. **Execution**: Keepers call `executeOrder` with valid Pyth price updates and signatures.
-4. **Settlement**: `TradingCore` updates position state and adjusts `VaultCore` exposure.
-
-### Oracle Integration
-Realyx leverages **Pyth Network's pull-based oracle model**. Prices are only updated on-chain when needed for trade execution or liquidations, significantly reducing gas costs on Conflux eSpace.
-
-## Security Features
-- **Circuit Breaker**: `OracleAggregator` can pause markets if Pyth prices become stale or confidence intervals widen too far.
-- **Insurance Fund**: A dedicated buffer within `VaultCore` to cover protocol insolvency during extreme volatility.
-- **Guardian Quorum**: Critical system parameters require a multi-signature quorum for updates.
+Realyx is fundamentally designed as a scalable, decentralized **Perpetual DEX** operating natively on **Conflux eSpace**. It is heavily optimized for Real-World Asset (RWA) and Crypto futures, delivering robust leverage trading with institutional-grade latency.
 
 ---
-*For more details, see [../README.md](../README.md).*
+
+## 🧩 Core On-Chain Components (Solidity)
+
+The protocol implements a highly modular smart contract architecture to ensure maximum scalability, upgradeability, and security:
+
+### 1. `TradingCore`
+The central nervous system for traders. 
+- Handles the creation, validation, and execution of limit and market orders.
+- Interfaces with keepers to execute asynchronous trades natively on-chain.
+- Manages the lifecycle of user positions including collateral checks.
+
+### 2. `VaultCore`
+The protocol's liquidity engine. 
+- Serves as the universal counterparty to all trader PnL.
+- Manages Liquidity Provider (LP) deposits, share issuance, and withdrawal queues.
+- Contains the **Insurance Fund**, a dedicated subset of liquidity designed to backstop extreme systemic risk.
+
+### 3. `OracleAggregator`
+The deterministic pricing router.
+- Integrates seamlessly with the **Pyth Network** via a pull-based oracle mechanism.
+- Validates price freshness, confidence intervals, and circuit breakers.
+
+### 4. `PositionToken` (ERC-721)
+A unique NFT representation of leveraged positions.
+- Each open trade mints a soul-bound `PositionToken`.
+- Enables future capabilities like secondary markets for paper trading or composable DeFi integrations.
+
+---
+
+## ⚙️ Off-Chain Infrastructure
+
+### 1. Backend Services (Node.js & Express)
+The backend layer serves as the high-throughput bridge connecting the UI to Conflux.
+- Exposes robust REST and WebSocket endpoints.
+- Abstract the deep graph queries and Pyth interactions, enabling hyper-fast frontend rendering.
+
+### 2. Indexing Layer (The Graph)
+PostgreSQL event indexers meticulously index execution events emitted by the contracts. 
+- Powers granular historic queries.
+- Computes advanced leaderboard metrics, cumulative user volume, and protocol TVL—computations too expensive to execute natively via RPC.
+
+---
+
+## 🔄 System Flow
+
+### Trade Execution Lifecycle
+Realyx executes orders atomically while isolating risk via asynchronous keepers:
+1. **Order Creation**: User submits a `createOrder` payload to `TradingCore` with attached CFX/USDC collateral.
+2. **Keeper Detection**: Decentralized keeper nodes detect the emitted `OrderCreated` event.
+3. **Execution**: Keepers validate off-chain state and execute the order via `executeOrder`, injecting the latest Pyth oracle blob.
+4. **Settlement**: `TradingCore` verifies the oracle blob, updates the position token, and realizes exposure against `VaultCore`.
+
+### Oracle Integration
+By utilizing **Pyth Network's pull-based logic**, Realyx eliminates continuous on-chain gas costs. Prices are updated deterministically only at the exact block they are required for execution or liquidation.
+
+---
+
+## 🔒 Security Posture
+
+- **Circuit Breakers**: `OracleAggregator` halts market execution automatically if oracle freshness or confidence intervals deteriorate.
+- **Insurance Fund Provisioning**: A mandatory slice of Vault TVL explicitly siloed to cover bad debt during flash crashes.
+- **Guardian Quorum**: Protocol parameters are strictly governed by a multi-signature logic layer.

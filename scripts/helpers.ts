@@ -1,8 +1,4 @@
-export type NetworkName =
-    | "hardhat"
-    | "localhost"
-    | "conflux"
-    | "confluxTestnet";
+export type NetworkName = "hardhat" | "localhost" | "conflux" | "confluxTestnet";
 
 export interface NetworkAddresses {
     pyth: string;

@@ -18,15 +18,15 @@ import "./FeeCalculator.sol";
 library LiquidationLib {
     using SafeERC20 for IERC20;
     using PositionMath for DataTypes.Position;
-    
+
     uint256 private constant PRECISION = 1e18;
     uint256 private constant BPS = 10000;
     uint256 private constant TWAP_WINDOW_SECONDS = 15 minutes;
     uint256 private constant MIN_LIQUIDATOR_REWARD_BPS = 2500;
     uint256 private constant MAX_LIQUIDATION_PRICE_DEVIATION_BPS = 1000;
-    
+
     event InsufficientBalanceForLiquidation(uint256 indexed positionId, uint256 needed, uint256 available);
-    
+
     struct LiquidatePositionContext {
         address usdc;
         address liquidityVault;
@@ -37,14 +37,14 @@ library LiquidationLib {
         DataTypes.LiquidationFeeTiers liquidationTiers;
         uint256 liquidationDeviationBps;
     }
-    
+
     error PositionNotFound();
     error PositionNotLiquidatable();
     error LiquidationPriceDeviation();
     error InsufficientLiquidatorReward();
     error InsufficientLiquidityForRepayment();
     error RepayFailed();
-    
+
     function liquidatePosition(
         uint256 positionId,
         LiquidatePositionContext memory ctx,
@@ -55,44 +55,46 @@ library LiquidationLib {
     ) external returns (uint256 liquidatorReward) {
         DataTypes.Position storage position = positions[positionId];
         if (position.state != DataTypes.PosStatus.OPEN) revert PositionNotFound();
-        
-        (uint256 currentPrice,,) = IOracleAggregator(ctx.oracleAggregator).getPrice(position.market);
+
+        (uint256 currentPrice, , ) = IOracleAggregator(ctx.oracleAggregator).getPrice(position.market);
         uint256 collateralValue = positionCollateral[positionId].amount;
-        
+
         (bool canLiq, uint256 healthFactor) = position.isLiquidatable(currentPrice, collateralValue);
         if (!canLiq) revert PositionNotLiquidatable();
-        
+
         uint256 twapPrice = IOracleAggregator(ctx.oracleAggregator).getTWAP(position.market, TWAP_WINDOW_SECONDS);
         if (twapPrice > 0) {
-            uint256 deviation = currentPrice > twapPrice 
+            uint256 deviation = currentPrice > twapPrice
                 ? ((currentPrice - twapPrice) * BPS) / twapPrice
                 : ((twapPrice - currentPrice) * BPS) / twapPrice;
-            uint256 maxDeviation = ctx.liquidationDeviationBps > 0 
-                ? ctx.liquidationDeviationBps 
+            uint256 maxDeviation = ctx.liquidationDeviationBps > 0
+                ? ctx.liquidationDeviationBps
                 : MAX_LIQUIDATION_PRICE_DEVIATION_BPS;
             if (deviation > maxDeviation) revert LiquidationPriceDeviation();
         }
-        
+
         (uint256 totalFee, uint256 liqFee, uint256 insFee) = FeeCalculator.calculateLiquidationFee(
-            uint256(position.size), 
-            healthFactor, 
+            uint256(position.size),
+            healthFactor,
             ctx.liquidationTiers
         );
         uint256 liqFeeUsdc = DataTypes.toUsdcPrecision(liqFee);
         uint256 insFeeUsdc = DataTypes.toUsdcPrecision(insFee);
         uint256 totalNeededUsdc = liqFeeUsdc + insFeeUsdc;
-        
+
         bool isLong = DataTypes.isLong(position.flags);
         int256 pnl = PositionMath.calculateUnrealizedPnL(
-            uint256(position.size), 
-            uint256(position.entryPrice), 
-            currentPrice, 
+            uint256(position.size),
+            uint256(position.entryPrice),
+            currentPrice,
             isLong
         );
-        
+
         uint256 borrowedAmount = uint256(position.size) - collateralValue;
         uint256 repayAmountUsdc = DataTypes.toUsdcPrecisionCeil(borrowedAmount);
-        uint256 receiveAmount = pnl >= 0 ? repayAmountUsdc : repayAmountUsdc + DataTypes.toUsdcPrecisionCeil(uint256(-pnl));
+        uint256 receiveAmount = pnl >= 0
+            ? repayAmountUsdc
+            : repayAmountUsdc + DataTypes.toUsdcPrecisionCeil(uint256(-pnl));
         uint256 collateralUsdc = DataTypes.toUsdcPrecision(collateralValue);
 
         uint256 availableUsdc = collateralUsdc + repayAmountUsdc;
@@ -102,11 +104,11 @@ library LiquidationLib {
         if (availableUsdc < totalRequired) {
             uint256 shortfall = totalRequired - availableUsdc;
             uint256 covered = IVaultCore(ctx.insuranceFund).coverBadDebt(shortfall, positionId);
-            
+
             if (covered < shortfall) {
                 uint256 actualAvailable = availableUsdc + covered;
                 if (actualAvailable < receiveAmount) revert InsufficientLiquidityForRepayment();
-                
+
                 uint256 remainingForFees = actualAvailable - receiveAmount;
                 if (remainingForFees >= liqFeeUsdc) {
                     liquidatorReward = liqFeeUsdc;
@@ -134,8 +136,7 @@ library LiquidationLib {
 
         IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
         IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, receiveAmount);
-        try IVaultCore(ctx.liquidityVault).repay(repayAmountUsdc, position.market, isLong, pnlUsdc) {
-        } catch {
+        try IVaultCore(ctx.liquidityVault).repay(repayAmountUsdc, position.market, isLong, pnlUsdc) {} catch {
             IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
             revert RepayFailed();
         }
@@ -157,16 +158,14 @@ library LiquidationLib {
 
         address owner = IPositionToken(ctx.positionToken).ownerOf(positionId);
         uint256 exposureDecrease = DataTypes.toUsdcPrecision(uint256(position.size));
-        userExposure[owner] = userExposure[owner] > exposureDecrease
-            ? userExposure[owner] - exposureDecrease
-            : 0;
+        userExposure[owner] = userExposure[owner] > exposureDecrease ? userExposure[owner] - exposureDecrease : 0;
 
         position.state = DataTypes.PosStatus.LIQUIDATED;
         IPositionToken(ctx.positionToken).burn(positionId);
 
         emit ITradingCore.PositionLiquidated(positionId, msg.sender, currentPrice, DataTypes.toUsdcPrecision(totalFee));
     }
-    
+
     function canLiquidate(
         DataTypes.Position storage position,
         DataTypes.PositionCollateral storage collateral,
@@ -175,7 +174,7 @@ library LiquidationLib {
         if (position.state != DataTypes.PosStatus.OPEN) return (false, type(uint256).max);
         return position.isLiquidatable(currentPrice, collateral.amount);
     }
-    
+
     function checkLiquidatableBatch(
         uint256[] memory positionIds,
         mapping(uint256 => DataTypes.Position) storage positions,
@@ -185,16 +184,21 @@ library LiquidationLib {
     ) public view returns (bool[] memory liquidatable, uint256[] memory healthFactors) {
         liquidatable = new bool[](positionIds.length);
         healthFactors = new uint256[](positionIds.length);
-        
-        for (uint256 i = 0; i < positionIds.length;) {
+
+        for (uint256 i = 0; i < positionIds.length; ) {
             DataTypes.Position storage pos = positions[positionIds[i]];
             if (pos.state == DataTypes.PosStatus.OPEN) {
-                (uint256 price,,) = IOracleAggregator(oracleAggregator).getPrice(pos.market);
-                (liquidatable[i], healthFactors[i]) = pos.isLiquidatable(price, positionCollateral[positionIds[i]].amount);
+                (uint256 price, , ) = IOracleAggregator(oracleAggregator).getPrice(pos.market);
+                (liquidatable[i], healthFactors[i]) = pos.isLiquidatable(
+                    price,
+                    positionCollateral[positionIds[i]].amount
+                );
             } else {
                 healthFactors[i] = type(uint256).max;
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 }

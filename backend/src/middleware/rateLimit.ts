@@ -23,7 +23,7 @@ function cleanup() {
     if (v.resetAt < now) apiCount.delete(key);
   }
 }
-setInterval(cleanup, 30_000);
+setInterval(cleanup, 30_000).unref();
 
 export function apiRateLimit(
   req: { ip?: string; headers?: Record<string, string | string[] | undefined> },

@@ -12,10 +12,10 @@ function getTradingCoreAbi(): any[] {
   const artifactPaths = [
     // If run from root
     path.join(cwd, "artifacts/contracts/TradingCore.sol/TradingCore.json"),
-    path.join(cwd, "abi/TradingCore.json"),
+    path.join(cwd, "backend/abi/TradingCore.json"),
     // If run from backend/
     path.join(cwd, "../artifacts/contracts/TradingCore.sol/TradingCore.json"),
-    path.join(cwd, "../abi/TradingCore.json"),
+    path.join(cwd, "abi/TradingCore.json"),
   ];
 
   for (const p of artifactPaths) {

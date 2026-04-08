@@ -13,11 +13,7 @@ interface IComplianceManager {
      * @param data Additional context data (e.g., function signature, amount)
      * @return allowed True if interaction is permitted
      */
-    function isAllowed(
-        address user, 
-        address market, 
-        bytes calldata data
-    ) external view returns (bool allowed);
+    function isAllowed(address user, address market, bytes calldata data) external view returns (bool allowed);
 
     /**
      * @notice Register a new market for compliance tracking

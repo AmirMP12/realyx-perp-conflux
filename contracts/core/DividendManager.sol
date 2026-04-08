@@ -11,12 +11,7 @@ import "../interfaces/IDividendManager.sol";
  * @notice Manages corporate actions (dividends) for RWA markets using a cumulative index model.
  * @dev Longs receive dividends, Shorts pay dividends.
  */
-contract DividendManager is 
-    Initializable, 
-    AccessControlUpgradeable, 
-    UUPSUpgradeable, 
-    IDividendManager 
-{
+contract DividendManager is Initializable, AccessControlUpgradeable, UUPSUpgradeable, IDividendManager {
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
     bytes32 public constant TRADING_CORE_ROLE = keccak256("TRADING_CORE_ROLE");
 
@@ -24,7 +19,7 @@ contract DividendManager is
     error IndexDeltaTooLarge();
     error DividendOverflow();
     error DividendTooLarge();
-    
+
     uint256 private constant PRECISION = 1e18;
 
     mapping(string => uint256) public dividendIndices;
@@ -63,14 +58,14 @@ contract DividendManager is
     }
 
     function settleDividends(
-        uint256 positionId, 
-        string calldata marketId, 
-        uint256 positionSize, 
-        bool isLong, 
+        uint256 positionId,
+        string calldata marketId,
+        uint256 positionSize,
+        bool isLong,
         uint256 lastIndex
     ) external override onlyRole(TRADING_CORE_ROLE) returns (int256 dividendAmount, uint256 newIndex) {
         uint256 currentIndex = dividendIndices[marketId];
-        
+
         if (currentIndex == lastIndex) {
             return (0, currentIndex);
         }
@@ -79,7 +74,7 @@ contract DividendManager is
         if (indexDelta > type(uint128).max) revert IndexDeltaTooLarge();
         if (positionSize > 0 && indexDelta > type(uint256).max / positionSize) revert DividendOverflow();
         uint256 value = (positionSize * indexDelta) / PRECISION;
-        
+
         if (value > 0) {
             if (isLong) {
                 dividendAmount = int256(value);
@@ -88,14 +83,14 @@ contract DividendManager is
             }
             emit DividendSettled(positionId, dividendAmount, currentIndex);
         }
-        
+
         return (dividendAmount, currentIndex);
     }
 
     function getUnsettledDividends(
-        string calldata marketId, 
-        uint256 positionSize, 
-        bool isLong, 
+        string calldata marketId,
+        uint256 positionSize,
+        bool isLong,
         uint256 lastIndex
     ) external view override returns (int256) {
         uint256 currentIndex = dividendIndices[marketId];

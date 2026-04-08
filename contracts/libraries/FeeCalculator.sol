@@ -29,35 +29,32 @@ library FeeCalculator {
         uint256 referralDiscountBps
     ) internal pure returns (uint256 fee) {
         if (size == 0) return 0;
-        
+
         uint256 feeBps = isMaker ? config.makerFeeBps : config.takerFeeBps;
-        
+
         if (referralDiscountBps > 0 && referralDiscountBps < feeBps) {
             feeBps -= referralDiscountBps;
         } else if (referralDiscountBps >= feeBps) {
             feeBps = 0;
         }
-        
+
         fee = (size * feeBps) / BPS;
-        
+
         uint256 minFee = DataTypes.toInternalPrecision(config.minFeeUsdc);
         if (fee < minFee) {
             fee = minFee;
         }
     }
-    
-    function calculateOpeningFee(
-        uint256 size,
-        DataTypes.FeeConfig memory config
-    ) internal pure returns (uint256 fee) {
+
+    function calculateOpeningFee(uint256 size, DataTypes.FeeConfig memory config) internal pure returns (uint256 fee) {
         fee = (size * config.takerFeeBps) / BPS;
-        
+
         uint256 minFee = DataTypes.toInternalPrecision(config.minFeeUsdc);
         if (fee < minFee) {
             fee = minFee;
         }
     }
-    
+
     function calculateClosingFee(
         uint256 size,
         DataTypes.FeeConfig memory config,
@@ -65,7 +62,7 @@ library FeeCalculator {
     ) internal pure returns (uint256 fee) {
         uint256 feeBps = isMarketOrder ? config.takerFeeBps : config.makerFeeBps;
         fee = (size * feeBps) / BPS;
-        
+
         uint256 minFee = DataTypes.toInternalPrecision(config.minFeeUsdc);
         if (fee < minFee) {
             fee = minFee;
@@ -76,13 +73,9 @@ library FeeCalculator {
         uint256 size,
         uint256 healthFactor,
         DataTypes.LiquidationFeeTiers memory tiers
-    ) internal pure returns (
-        uint256 totalFee,
-        uint256 liquidatorFee,
-        uint256 insuranceFee
-    ) {
+    ) internal pure returns (uint256 totalFee, uint256 liquidatorFee, uint256 insuranceFee) {
         uint256 feeBps;
-        
+
         if (healthFactor >= 8e17) {
             feeBps = tiers.nearThresholdBps;
         } else if (healthFactor >= 5e17) {
@@ -90,24 +83,20 @@ library FeeCalculator {
         } else {
             feeBps = tiers.deeplyUnderwaterBps;
         }
-        
+
         totalFee = (size * feeBps) / BPS;
-        
+
         uint256 remainingCollateral = (size * healthFactor) / PRECISION;
         uint256 maxFee = remainingCollateral / 2;
         if (totalFee > maxFee && maxFee > 0) {
             totalFee = maxFee;
         }
-        
+
         liquidatorFee = (totalFee * tiers.liquidatorShareBps) / BPS;
         insuranceFee = totalFee - liquidatorFee;
     }
-    
-    function getDefaultLiquidationTiers() 
-        internal 
-        pure 
-        returns (DataTypes.LiquidationFeeTiers memory tiers) 
-    {
+
+    function getDefaultLiquidationTiers() internal pure returns (DataTypes.LiquidationFeeTiers memory tiers) {
         tiers = DataTypes.LiquidationFeeTiers({
             nearThresholdBps: 250,
             mediumRiskBps: 500,
@@ -119,25 +108,17 @@ library FeeCalculator {
     function splitFees(
         uint256 totalFee,
         DataTypes.FeeConfig memory config
-    ) internal pure returns (
-        uint256 lpShare,
-        uint256 insuranceShare,
-        uint256 treasuryShare
-    ) {
+    ) internal pure returns (uint256 lpShare, uint256 insuranceShare, uint256 treasuryShare) {
         if (config.lpShareBps + config.insuranceShareBps + config.treasuryShareBps != BPS) {
             revert InvalidFeeConfig();
         }
-        
+
         lpShare = (totalFee * config.lpShareBps) / BPS;
         insuranceShare = (totalFee * config.insuranceShareBps) / BPS;
         treasuryShare = totalFee - lpShare - insuranceShare;
     }
-    
-    function getDefaultFeeConfig() 
-        internal 
-        pure 
-        returns (DataTypes.FeeConfig memory config) 
-    {
+
+    function getDefaultFeeConfig() internal pure returns (DataTypes.FeeConfig memory config) {
         config = DataTypes.FeeConfig({
             makerFeeBps: DEFAULT_MAKER_FEE_BPS,
             takerFeeBps: DEFAULT_TAKER_FEE_BPS,
@@ -159,7 +140,7 @@ library FeeCalculator {
         uint256 rewardInternal = (gasCostUsd * rewardMultiplierBps) / BPS;
         rewardUsdc = DataTypes.toUsdcPrecision(rewardInternal);
     }
-    
+
     function calculateGasRefund(
         uint256 gasUsed,
         uint256 gasPrice,
@@ -169,18 +150,15 @@ library FeeCalculator {
         uint256 gasCostWei = gasUsed * gasPrice;
         uint256 gasCostUsd = (gasCostWei * ethUsdPrice) / 1e18;
         refundUsdc = DataTypes.toUsdcPrecision(gasCostUsd);
-        
+
         if (refundUsdc > maxRefundUsdc) {
             refundUsdc = maxRefundUsdc;
         }
     }
 
-    function calculateConditionalOrderFee(
-        uint256 size,
-        uint8 executionType
-    ) internal pure returns (uint256 fee) {
+    function calculateConditionalOrderFee(uint256 size, uint8 executionType) internal pure returns (uint256 fee) {
         uint256 feeBps;
-        
+
         if (executionType == 0) {
             feeBps = 3;
         } else if (executionType == 1) {
@@ -188,47 +166,41 @@ library FeeCalculator {
         } else {
             feeBps = 5;
         }
-        
+
         fee = (size * feeBps) / BPS;
     }
-    
+
     function calculatePositionTransferFee(
         uint256 positionValue,
         uint256 transferFeeBps
     ) internal pure returns (uint256 fee) {
         fee = (positionValue * transferFeeBps) / BPS;
     }
-    
-    function calculateCrossMarginConversionFee(
-        uint256 collateralValue
-    ) internal pure returns (uint256 fee) {
+
+    function calculateCrossMarginConversionFee(uint256 collateralValue) internal pure returns (uint256 fee) {
         fee = (collateralValue * 1) / BPS;
     }
 
-    function validateFeeConfig(
-        DataTypes.FeeConfig memory config
-    ) internal pure returns (bool valid) {
+    function validateFeeConfig(DataTypes.FeeConfig memory config) internal pure returns (bool valid) {
         if (config.makerFeeBps > MAX_FEE_BPS) return false;
         if (config.takerFeeBps > MAX_FEE_BPS) return false;
-        
+
         if (config.lpShareBps + config.insuranceShareBps + config.treasuryShareBps != BPS) {
             return false;
         }
-        
+
         if (config.takerFeeBps < config.makerFeeBps) return false;
-        
+
         return true;
     }
-    
+
     function calculateEffectiveFeeRate(
         uint256 baseFee,
         uint256 referralDiscountBps,
         uint256 maxDiscountBps
     ) internal pure returns (uint256 effectiveFee) {
-        uint256 discount = referralDiscountBps > maxDiscountBps 
-            ? maxDiscountBps 
-            : referralDiscountBps;
-        
+        uint256 discount = referralDiscountBps > maxDiscountBps ? maxDiscountBps : referralDiscountBps;
+
         effectiveFee = baseFee > discount ? baseFee - discount : 0;
     }
 }

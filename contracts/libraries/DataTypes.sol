@@ -32,14 +32,14 @@ library DataTypes {
     enum CollateralType {
         USDC
     }
-    
+
     enum PosStatus {
         NONE,
         OPEN,
         CLOSED,
         LIQUIDATED
     }
-    
+
     enum BreakerType {
         PRICE_DROP,
         VOLUME_SPIKE,
@@ -48,7 +48,7 @@ library DataTypes {
         UTILIZATION,
         EMERGENCY
     }
-    
+
     enum BreakerState {
         INACTIVE,
         TRIGGERED,
@@ -70,12 +70,12 @@ library DataTypes {
         CollateralType collateralType;
         PosStatus state;
     }
-    
+
     struct PositionCollateral {
         uint256 amount;
         address tokenAddress;
     }
-    
+
     struct OpenPositionParams {
         address market;
         uint256 size;
@@ -90,14 +90,14 @@ library DataTypes {
         uint256 deadline;
         CollateralType collateralType;
     }
-    
+
     struct ClosePositionParams {
         uint256 positionId;
         uint256 closeSize;
         uint256 minReceive;
         uint256 deadline;
     }
-    
+
     enum OrderType {
         MARKET_INCREASE,
         MARKET_DECREASE,
@@ -136,7 +136,7 @@ library DataTypes {
         bool isActive;
         bool isListed;
     }
-    
+
     struct PricePoint {
         uint128 price;
         uint64 timestamp;
@@ -150,13 +150,13 @@ library DataTypes {
         uint256 pendingPnL;
         uint256 lastUpdateTime;
     }
-    
+
     struct MarketExposure {
         uint256 longExposure;
         uint256 shortExposure;
         uint256 maxExposurePercent;
     }
-    
+
     struct WithdrawalRequest {
         address user;
         uint256 shares;
@@ -173,7 +173,7 @@ library DataTypes {
         uint256 insuranceShareBps;
         uint256 treasuryShareBps;
     }
-    
+
     struct LiquidationFeeTiers {
         uint256 nearThresholdBps;
         uint256 mediumRiskBps;
@@ -196,7 +196,7 @@ library DataTypes {
         uint256 minRatio;
         uint256 pendingClaims;
     }
-    
+
     struct BadDebtClaim {
         uint256 amount;
         uint256 positionId;
@@ -213,7 +213,7 @@ library DataTypes {
         uint256 cooldownSeconds;
         bool enabled;
     }
-    
+
     struct BreakerStatus {
         BreakerState state;
         uint256 triggeredAt;
@@ -241,22 +241,22 @@ library DataTypes {
     function isLong(uint8 flags) internal pure returns (bool) {
         return (flags & 0x01) != 0;
     }
-    
+
     function isCrossMargin(uint8 flags) internal pure returns (bool) {
         return (flags & 0x02) != 0;
     }
-    
+
     function packFlags(bool _isLong, bool _isCrossMargin) internal pure returns (uint8) {
         uint8 flags;
         if (_isLong) flags |= 0x01;
         if (_isCrossMargin) flags |= 0x02;
         return flags;
     }
-    
+
     function toInternalPrecision(uint256 usdcAmount) internal pure returns (uint256) {
         return usdcAmount * DECIMAL_CONVERSION;
     }
-    
+
     function toUsdcPrecision(uint256 internalAmount) internal pure returns (uint256) {
         return internalAmount / DECIMAL_CONVERSION;
     }
@@ -265,13 +265,13 @@ library DataTypes {
         if (internalAmount == 0) return 0;
         return (internalAmount + DECIMAL_CONVERSION - 1) / DECIMAL_CONVERSION;
     }
-    
+
     struct DustAccumulator {
         uint256 totalDust;
         uint256 lastSweepTimestamp;
         uint256 sweepThreshold;
     }
-    
+
     struct ProtocolHealthState {
         uint256 totalBadDebt;
         uint64 lastHealthCheck;

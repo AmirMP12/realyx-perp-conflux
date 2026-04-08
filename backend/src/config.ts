@@ -19,7 +19,7 @@ for (const p of paths) {
 export const config = {
   port: parseInt(process.env.PORT ?? "3001", 10),
   wsPort: parseInt(process.env.WS_PORT ?? "3002", 10),
-  subgraphUrl: process.env.SUBGRAPH_URL ?? "https://api.studio.thegraph.com/query/1741472/realyx/1.0.0",
+  postgresUrl: process.env.POSTGRES_URL,
   chainId: parseInt(process.env.CHAIN_ID ?? "71", 10),
   nodeEnv: process.env.NODE_ENV ?? "development",
   metricsPort: parseInt(process.env.METRICS_PORT ?? "9090", 10),

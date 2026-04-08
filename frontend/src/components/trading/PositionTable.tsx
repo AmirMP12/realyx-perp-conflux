@@ -84,6 +84,7 @@ export function PositionTable({
                     <button
                         key={sub}
                         type="button"
+                        data-testid={`${sub}-tab`}
                         onClick={() => setActiveTab(sub)}
                         className={clsx(
                             "py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
@@ -424,7 +425,7 @@ function PositionRow({ pos, markets, settings, cellPad, setActiveCollateralPos, 
     const trBps = (pos as any).trailingStopBps ? parseFloat((pos as any).trailingStopBps.toString()) : 0;
 
     return (
-        <tr className="hover:bg-[var(--bg-tertiary)]/40 transition-colors duration-150">
+        <tr data-testid="position-row" className="hover:bg-[var(--bg-tertiary)]/40 transition-colors duration-150">
             <td className="px-4 py-3 font-medium text-text-primary">
                 <div className="flex items-center gap-2">
                     {market && <img src={market.image} className="w-5 h-5 rounded-full" alt="" />}
@@ -493,6 +494,7 @@ function PositionRow({ pos, markets, settings, cellPad, setActiveCollateralPos, 
                             }}
                             className="p-1 hover:bg-[var(--bg-tertiary)] rounded text-text-secondary hover:text-text-primary transition-colors"
                             title="Edit Trigger Orders"
+                            data-testid="trigger-btn"
                         >
                             <Shield className="w-4 h-4" />
                         </button>
@@ -521,7 +523,7 @@ function MobilePositionCard({ pos, markets, setActiveCollateralPos, setActiveClo
     const trBps = (pos as any).trailingStopBps ? parseFloat((pos as any).trailingStopBps.toString()) : 0;
 
     return (
-        <div className="p-4 bg-[var(--bg-tertiary)]/50 rounded-xl border border-[var(--border-color)]/50">
+        <div data-testid="position-card" className="p-4 bg-[var(--bg-tertiary)]/50 rounded-xl border border-[var(--border-color)]/50">
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">

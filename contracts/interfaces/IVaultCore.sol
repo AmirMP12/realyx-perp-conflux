@@ -25,67 +25,35 @@ interface IVaultCore {
     event SurplusDistributed(uint256 total, uint256 stakerShare, uint256 treasuryShare);
 
     function deposit(uint256 assets, address receiver) external returns (uint256 shares);
-    
-    function withdraw(
-        uint256 shares, 
-        address receiver, 
-        address owner
-    ) external returns (uint256 assets);
-    
-    function queueWithdrawal(
-        uint256 shares, 
-        uint256 minAssets
-    ) external returns (uint256 requestId);
+
+    function withdraw(uint256 shares, address receiver, address owner) external returns (uint256 assets);
+
+    function queueWithdrawal(uint256 shares, uint256 minAssets) external returns (uint256 requestId);
 
     function processWithdrawals(uint256[] calldata requestIds) external returns (uint256 processed);
 
-    function borrow(
-        uint256 amount, 
-        address market, 
-        bool isLong
-    ) external returns (bool success);
-    
-    function repay(
-        uint256 amount, 
-        address market, 
-        bool isLong, 
-        int256 pnl
-    ) external;
-    
-    function updateExposure(
-        address market, 
-        int256 sizeDelta, 
-        bool isLong
-    ) external;
+    function borrow(uint256 amount, address market, bool isLong) external returns (bool success);
 
-    function stakeInsurance(
-        uint256 assets, 
-        address receiver
-    ) external returns (uint256 shares);
-    
-    function unstakeInsurance(
-        uint256 shares, 
-        address receiver
-    ) external returns (uint256 assets);
-    
+    function repay(uint256 amount, address market, bool isLong, int256 pnl) external;
+
+    function updateExposure(address market, int256 sizeDelta, bool isLong) external;
+
+    function stakeInsurance(uint256 assets, address receiver) external returns (uint256 shares);
+
+    function unstakeInsurance(uint256 shares, address receiver) external returns (uint256 assets);
+
     function requestUnstake() external;
-    
-    function coverBadDebt(
-        uint256 amount, 
-        uint256 positionId
-    ) external returns (uint256 covered);
-    
-    function submitClaim(
-        uint256 amount, 
-        uint256 positionId
-    ) external returns (uint256 claimId);
-    
+
+    function coverBadDebt(uint256 amount, uint256 positionId) external returns (uint256 covered);
+
+    function submitClaim(uint256 amount, uint256 positionId) external returns (uint256 claimId);
+
     function approveClaim(uint256 claimId) external;
-    
+
     function processClaim(uint256 claimId) external returns (uint256 paid);
-    
+
     function receiveFees(uint256 amount) external;
-    
+
     function distributeSurplus() external;
 
     function triggerEmergencyMode() external;

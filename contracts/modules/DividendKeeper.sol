@@ -10,11 +10,7 @@ import "../interfaces/IDividendManager.sol";
  * @title DividendKeeper
  * @notice Trusted keeper contract to trigger dividend distributions from off-chain sources.
  */
-contract DividendKeeper is 
-    Initializable, 
-    AccessControlUpgradeable, 
-    UUPSUpgradeable 
-{
+contract DividendKeeper is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
     bytes32 public constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
     IDividendManager public dividendManager;
 
