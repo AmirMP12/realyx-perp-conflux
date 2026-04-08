@@ -180,6 +180,66 @@
       "address": "0xFf1E1980E6c45F8a84f25059113097F41CDAcCBA",
       "txHash": "0x24cefee798b2f7b2691e485e992b8dfc79ca8b390995cebad5c52090ab733da5",
       "kind": "uups"
+    },
+    {
+      "address": "0xb988Ed1488c88D59F40669426f9b313Ed467E5Ff",
+      "txHash": "0xee15e1fd88c79623a744fc7f8b8746f6a94e3cb594530d1cab67f708044048d8",
+      "kind": "uups"
+    },
+    {
+      "address": "0x4Fad26D978B8c57884b6F7AA48848A8a1425c974",
+      "txHash": "0xd4b9e584e191cfac5558bfa1c8e536b401a3c9b8ad4c14eb4763f89f6f58809a",
+      "kind": "uups"
+    },
+    {
+      "address": "0xB8A901534Bfe37A26841319b6C301aA6aaEaAa07",
+      "txHash": "0xb8399f73dfc0c726e464b3aeb2cbe8c650bcd27cb78d9a939df70bc2bf1ddf05",
+      "kind": "uups"
+    },
+    {
+      "address": "0xC7Db936f02289195494330F33436278FFf2c5563",
+      "txHash": "0xd984931a73bd7c81bb35f55b687df3af8654e774e3f3233f6362a29c27dc6556",
+      "kind": "uups"
+    },
+    {
+      "address": "0xC62DD1CD9b23d1f3b50BF1E48581Fd4694e796C0",
+      "txHash": "0xd1c1bfd30f372e2cd7f99e0a941008a83ac0f86afdbdf66321635f306007164f",
+      "kind": "uups"
+    },
+    {
+      "address": "0x80d2A9305C0e6eBe33218B44d4406F84EE88aDac",
+      "txHash": "0x1d51f15d0fab7ff6f7b03668301f849e8313d8321803fdf0e1c3dd0cb7441176",
+      "kind": "uups"
+    },
+    {
+      "address": "0xC472b35e4d5E3f096620498ABd1A21ddE57d50aA",
+      "txHash": "0x834df6bf3879910f4638335fb2c9ca766a34ea72a101b5ce2db7a15a88343c68",
+      "kind": "uups"
+    },
+    {
+      "address": "0xeE366B1205d138b872213203A318448966Ffa576",
+      "txHash": "0x6bb7bcde06d4736dc905d2aa31acc7fed2cc2c182d6807916ff811bbaeadeaf4",
+      "kind": "uups"
+    },
+    {
+      "address": "0x8385bE592B27042414f932e2AD5DAe1766a0FDDA",
+      "txHash": "0xf46489df316c880e87571012b1346c1b9c6a99c828ad145f6703c734db2f7cd3",
+      "kind": "uups"
+    },
+    {
+      "address": "0xd4E7aDf3d4eAEC420cBBBa867d2cE6F73BC57FFB",
+      "txHash": "0xb96c4c807dd96a31863620bc4ae771b1ed2625b28693ffd32a3a5f31c5c8dcaa",
+      "kind": "uups"
+    },
+    {
+      "address": "0x5c805FabFCf8f8369874FAD129D1eEA391Cd80E2",
+      "txHash": "0x6f03c45acb29404aeb16cf5c9fc6a85d7fc7cf0ed560ae6d025e0733a3022a37",
+      "kind": "uups"
+    },
+    {
+      "address": "0x25D91AF91E2743f522530ec529F61dE5F1570b9e",
+      "txHash": "0xedc85c4e1b924d121303bc4b56b2b43275dc2e6c028f32c3b55eefd609cd54aa",
+      "kind": "uups"
     }
   ],
   "impls": {
@@ -6826,6 +6886,1694 @@
     "71f94533cc4c32eb264bd952912cebce0e3590f7086ac077d184ee9ff69a58f5": {
       "address": "0xD664a7595975Bd95c0036865398897150303f56c",
       "txHash": "0xcbbda5fca8e41684ebe5ca94a9ac73cd8bb875699cb8cff44ee37213b9da9285",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "circuitBreakerHub",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "AccessControlled",
+            "src": "contracts\\base\\AccessControlled.sol:34"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "AccessControlled",
+            "src": "contracts\\base\\AccessControlled.sol:36"
+          },
+          {
+            "label": "_configs",
+            "offset": 0,
+            "slot": "51",
+            "type": "t_mapping(t_address,t_struct(OracleConfig)12277_storage)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:117"
+          },
+          {
+            "label": "_prices",
+            "offset": 0,
+            "slot": "52",
+            "type": "t_mapping(t_address,t_struct(GeneratedPrice)12284_storage)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:118"
+          },
+          {
+            "label": "_twapBuffers",
+            "offset": 0,
+            "slot": "53",
+            "type": "t_mapping(t_address,t_struct(TWAPBuffer)12294_storage)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:119"
+          },
+          {
+            "label": "_supportedAssets",
+            "offset": 0,
+            "slot": "54",
+            "type": "t_array(t_address)dyn_storage",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:121"
+          },
+          {
+            "label": "pyth",
+            "offset": 0,
+            "slot": "55",
+            "type": "t_contract(IPyth)10304",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:123"
+          },
+          {
+            "label": "_manualPrices",
+            "offset": 0,
+            "slot": "56",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:125"
+          },
+          {
+            "label": "_manualPriceExpiry",
+            "offset": 0,
+            "slot": "57",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:126"
+          },
+          {
+            "label": "_pendingManualPrices",
+            "offset": 0,
+            "slot": "58",
+            "type": "t_mapping(t_address,t_struct(PendingPriceOverride)25342_storage)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:127"
+          },
+          {
+            "label": "sequencerGracePeriod",
+            "offset": 0,
+            "slot": "59",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:129"
+          },
+          {
+            "label": "defaultMaxStaleness",
+            "offset": 0,
+            "slot": "60",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:130"
+          },
+          {
+            "label": "defaultMaxDeviationBps",
+            "offset": 0,
+            "slot": "61",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:131"
+          },
+          {
+            "label": "sequencerUptimeFeed",
+            "offset": 0,
+            "slot": "62",
+            "type": "t_address",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:132"
+          },
+          {
+            "label": "sequencerCheckEnabled",
+            "offset": 20,
+            "slot": "62",
+            "type": "t_bool",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:133"
+          },
+          {
+            "label": "maxEthStaleness",
+            "offset": 0,
+            "slot": "63",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:134"
+          },
+          {
+            "label": "emergencyPriceQuorum",
+            "offset": 0,
+            "slot": "64",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:135"
+          },
+          {
+            "label": "ethFeedId",
+            "offset": 0,
+            "slot": "65",
+            "type": "t_bytes32",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:136"
+          },
+          {
+            "label": "_breakerConfigs",
+            "offset": 0,
+            "slot": "66",
+            "type": "t_mapping(t_address,t_mapping(t_enum(BreakerType)24429,t_struct(BreakerConfig)24667_storage))",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:138"
+          },
+          {
+            "label": "_breakerStatuses",
+            "offset": 0,
+            "slot": "67",
+            "type": "t_mapping(t_address,t_mapping(t_enum(BreakerType)24429,t_struct(BreakerStatus)24677_storage))",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:139"
+          },
+          {
+            "label": "_historicalPrices",
+            "offset": 0,
+            "slot": "68",
+            "type": "t_mapping(t_address,t_mapping(t_uint256,t_uint256))",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:140"
+          },
+          {
+            "label": "_lastPriceTime",
+            "offset": 0,
+            "slot": "69",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:141"
+          },
+          {
+            "label": "_globalPause",
+            "offset": 0,
+            "slot": "70",
+            "type": "t_bool",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:143"
+          },
+          {
+            "label": "guardianQuorum",
+            "offset": 0,
+            "slot": "71",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:144"
+          },
+          {
+            "label": "_pauseProposals",
+            "offset": 0,
+            "slot": "72",
+            "type": "t_mapping(t_bytes32,t_struct(PauseProposal)24990_storage)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:145"
+          },
+          {
+            "label": "_pausables",
+            "offset": 0,
+            "slot": "73",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:146"
+          },
+          {
+            "label": "_pausableList",
+            "offset": 0,
+            "slot": "74",
+            "type": "t_array(t_address)dyn_storage",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:147"
+          },
+          {
+            "label": "failedPauses",
+            "offset": 0,
+            "slot": "75",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:148"
+          },
+          {
+            "label": "_failedPauseList",
+            "offset": 0,
+            "slot": "76",
+            "type": "t_array(t_address)dyn_storage",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:149"
+          },
+          {
+            "label": "failedPauseCount",
+            "offset": 0,
+            "slot": "77",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:150"
+          },
+          {
+            "label": "_emergencyPriceProposals",
+            "offset": 0,
+            "slot": "78",
+            "type": "t_mapping(t_bytes32,t_struct(EmergencyPriceProposal)25335_storage)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:152"
+          },
+          {
+            "label": "_emergencyPriceProposalNonce",
+            "offset": 0,
+            "slot": "79",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:153"
+          },
+          {
+            "label": "marketCalendar",
+            "offset": 0,
+            "slot": "80",
+            "type": "t_contract(IMarketCalendar)21701",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:155"
+          },
+          {
+            "label": "marketIds",
+            "offset": 0,
+            "slot": "81",
+            "type": "t_mapping(t_address,t_string_storage)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:156"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "82",
+            "type": "t_array(t_uint256)21_storage",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:158"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_bytes32": {
+            "label": "bytes32",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_bool)": {
+            "label": "mapping(address => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes32,t_struct(RoleData)26_storage)": {
+            "label": "mapping(bytes32 => struct AccessControlUpgradeable.RoleData)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(AccessControlStorage)36_storage": {
+            "label": "struct AccessControlUpgradeable.AccessControlStorage",
+            "members": [
+              {
+                "label": "_roles",
+                "type": "t_mapping(t_bytes32,t_struct(RoleData)26_storage)",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(InitializableStorage)147_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(PausableStorage)633_storage": {
+            "label": "struct PausableUpgradeable.PausableStorage",
+            "members": [
+              {
+                "label": "_paused",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)697_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(RoleData)26_storage": {
+            "label": "struct AccessControlUpgradeable.RoleData",
+            "members": [
+              {
+                "label": "hasRole",
+                "type": "t_mapping(t_address,t_bool)",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "adminRole",
+                "type": "t_bytes32",
+                "offset": 0,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_address)dyn_storage": {
+            "label": "address[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(PricePoint)24569_storage)48_storage": {
+            "label": "struct DataTypes.PricePoint[48]",
+            "numberOfBytes": "1536"
+          },
+          "t_array(t_uint256)21_storage": {
+            "label": "uint256[21]",
+            "numberOfBytes": "672"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_contract(IMarketCalendar)21701": {
+            "label": "contract IMarketCalendar",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IPyth)10304": {
+            "label": "contract IPyth",
+            "numberOfBytes": "20"
+          },
+          "t_enum(BreakerState)24433": {
+            "label": "enum DataTypes.BreakerState",
+            "members": [
+              "INACTIVE",
+              "TRIGGERED",
+              "COOLDOWN"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(BreakerType)24429": {
+            "label": "enum DataTypes.BreakerType",
+            "members": [
+              "PRICE_DROP",
+              "VOLUME_SPIKE",
+              "TWAP_DEVIATION",
+              "ORACLE_FAILURE",
+              "UTILIZATION",
+              "EMERGENCY"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_mapping(t_address,t_mapping(t_enum(BreakerType)24429,t_struct(BreakerConfig)24667_storage))": {
+            "label": "mapping(address => mapping(enum DataTypes.BreakerType => struct DataTypes.BreakerConfig))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_mapping(t_enum(BreakerType)24429,t_struct(BreakerStatus)24677_storage))": {
+            "label": "mapping(address => mapping(enum DataTypes.BreakerType => struct DataTypes.BreakerStatus))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_mapping(t_uint256,t_uint256))": {
+            "label": "mapping(address => mapping(uint256 => uint256))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_string_storage)": {
+            "label": "mapping(address => string)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_struct(GeneratedPrice)12284_storage)": {
+            "label": "mapping(address => struct OracleAggregator.GeneratedPrice)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_struct(OracleConfig)12277_storage)": {
+            "label": "mapping(address => struct OracleAggregator.OracleConfig)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_struct(PendingPriceOverride)25342_storage)": {
+            "label": "mapping(address => struct EmergencyPriceLib.PendingPriceOverride)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_struct(TWAPBuffer)12294_storage)": {
+            "label": "mapping(address => struct OracleAggregator.TWAPBuffer)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes32,t_struct(EmergencyPriceProposal)25335_storage)": {
+            "label": "mapping(bytes32 => struct EmergencyPriceLib.EmergencyPriceProposal)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes32,t_struct(PauseProposal)24990_storage)": {
+            "label": "mapping(bytes32 => struct EmergencyPauseLib.PauseProposal)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_enum(BreakerType)24429,t_struct(BreakerConfig)24667_storage)": {
+            "label": "mapping(enum DataTypes.BreakerType => struct DataTypes.BreakerConfig)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_enum(BreakerType)24429,t_struct(BreakerStatus)24677_storage)": {
+            "label": "mapping(enum DataTypes.BreakerType => struct DataTypes.BreakerStatus)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_uint256)": {
+            "label": "mapping(uint256 => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_string_storage": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_struct(BreakerConfig)24667_storage": {
+            "label": "struct DataTypes.BreakerConfig",
+            "members": [
+              {
+                "label": "breakerType",
+                "type": "t_enum(BreakerType)24429",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "threshold",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "windowSeconds",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "cooldownSeconds",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "enabled",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "4"
+              }
+            ],
+            "numberOfBytes": "160"
+          },
+          "t_struct(BreakerStatus)24677_storage": {
+            "label": "struct DataTypes.BreakerStatus",
+            "members": [
+              {
+                "label": "state",
+                "type": "t_enum(BreakerState)24433",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "triggeredAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "resetAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "triggeredBy",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(EmergencyPriceProposal)25335_storage": {
+            "label": "struct EmergencyPriceLib.EmergencyPriceProposal",
+            "members": [
+              {
+                "label": "collection",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "price",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "validUntil",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "confirmations",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "timestamp",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "executed",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "hasConfirmed",
+                "type": "t_mapping(t_address,t_bool)",
+                "offset": 0,
+                "slot": "6"
+              }
+            ],
+            "numberOfBytes": "224"
+          },
+          "t_struct(GeneratedPrice)12284_storage": {
+            "label": "struct OracleAggregator.GeneratedPrice",
+            "members": [
+              {
+                "label": "price",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "confidence",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "timestamp",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_struct(OracleConfig)12277_storage": {
+            "label": "struct OracleAggregator.OracleConfig",
+            "members": [
+              {
+                "label": "feedId",
+                "type": "t_bytes32",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "maxStaleness",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "minPrice",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "maxPrice",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "allowSingleSource",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "maxConfidence",
+                "type": "t_uint64",
+                "offset": 1,
+                "slot": "4"
+              }
+            ],
+            "numberOfBytes": "160"
+          },
+          "t_struct(PauseProposal)24990_storage": {
+            "label": "struct EmergencyPauseLib.PauseProposal",
+            "members": [
+              {
+                "label": "proposer",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "targets",
+                "type": "t_array(t_address)dyn_storage",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "confirmations",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "timestamp",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "executed",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "hasConfirmed",
+                "type": "t_mapping(t_address,t_bool)",
+                "offset": 0,
+                "slot": "5"
+              }
+            ],
+            "numberOfBytes": "192"
+          },
+          "t_struct(PendingPriceOverride)25342_storage": {
+            "label": "struct EmergencyPriceLib.PendingPriceOverride",
+            "members": [
+              {
+                "label": "price",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "validUntil",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "effectiveTime",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_struct(PricePoint)24569_storage": {
+            "label": "struct DataTypes.PricePoint",
+            "members": [
+              {
+                "label": "price",
+                "type": "t_uint128",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "timestamp",
+                "type": "t_uint64",
+                "offset": 16,
+                "slot": "0"
+              },
+              {
+                "label": "confidence",
+                "type": "t_uint64",
+                "offset": 24,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(TWAPBuffer)12294_storage": {
+            "label": "struct OracleAggregator.TWAPBuffer",
+            "members": [
+              {
+                "label": "points",
+                "type": "t_array(t_struct(PricePoint)24569_storage)48_storage",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "head",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "48"
+              },
+              {
+                "label": "count",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "49"
+              }
+            ],
+            "numberOfBytes": "1600"
+          },
+          "t_uint128": {
+            "label": "uint128",
+            "numberOfBytes": "16"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Pausable": [
+            {
+              "contract": "PausableUpgradeable",
+              "label": "_paused",
+              "type": "t_bool",
+              "src": "@openzeppelin\\contracts-upgradeable\\utils\\PausableUpgradeable.sol:21",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.AccessControl": [
+            {
+              "contract": "AccessControlUpgradeable",
+              "label": "_roles",
+              "type": "t_mapping(t_bytes32,t_struct(RoleData)26_storage)",
+              "src": "@openzeppelin\\contracts-upgradeable\\access\\AccessControlUpgradeable.sol:62",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin\\contracts-upgradeable\\utils\\ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin\\contracts-upgradeable\\proxy\\utils\\Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin\\contracts-upgradeable\\proxy\\utils\\Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "3df4a29c99091bdf465dd119ecb36830408aecb1c46a2fc6137917c279cde98e": {
+      "address": "0x01e27BEBAde79048f6Ee9Db2C98fD73a3d208DE9",
+      "txHash": "0xde7a6e39e27f254419a750c654355fe912078d59ba00cb46475bca4970ad80a1",
+      "layout": {
+        "solcVersion": "0.8.24",
+        "storage": [
+          {
+            "label": "circuitBreakerHub",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address",
+            "contract": "AccessControlled",
+            "src": "contracts\\base\\AccessControlled.sol:34"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "AccessControlled",
+            "src": "contracts\\base\\AccessControlled.sol:36"
+          },
+          {
+            "label": "_configs",
+            "offset": 0,
+            "slot": "51",
+            "type": "t_mapping(t_address,t_struct(OracleConfig)12277_storage)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:117"
+          },
+          {
+            "label": "_prices",
+            "offset": 0,
+            "slot": "52",
+            "type": "t_mapping(t_address,t_struct(GeneratedPrice)12284_storage)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:118"
+          },
+          {
+            "label": "_twapBuffers",
+            "offset": 0,
+            "slot": "53",
+            "type": "t_mapping(t_address,t_struct(TWAPBuffer)12294_storage)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:119"
+          },
+          {
+            "label": "_supportedAssets",
+            "offset": 0,
+            "slot": "54",
+            "type": "t_array(t_address)dyn_storage",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:121"
+          },
+          {
+            "label": "pyth",
+            "offset": 0,
+            "slot": "55",
+            "type": "t_contract(IPyth)10304",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:123"
+          },
+          {
+            "label": "_manualPrices",
+            "offset": 0,
+            "slot": "56",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:125"
+          },
+          {
+            "label": "_manualPriceExpiry",
+            "offset": 0,
+            "slot": "57",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:126"
+          },
+          {
+            "label": "_pendingManualPrices",
+            "offset": 0,
+            "slot": "58",
+            "type": "t_mapping(t_address,t_struct(PendingPriceOverride)25342_storage)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:127"
+          },
+          {
+            "label": "sequencerGracePeriod",
+            "offset": 0,
+            "slot": "59",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:129"
+          },
+          {
+            "label": "defaultMaxStaleness",
+            "offset": 0,
+            "slot": "60",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:130"
+          },
+          {
+            "label": "defaultMaxDeviationBps",
+            "offset": 0,
+            "slot": "61",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:131"
+          },
+          {
+            "label": "sequencerUptimeFeed",
+            "offset": 0,
+            "slot": "62",
+            "type": "t_address",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:132"
+          },
+          {
+            "label": "sequencerCheckEnabled",
+            "offset": 20,
+            "slot": "62",
+            "type": "t_bool",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:133"
+          },
+          {
+            "label": "maxEthStaleness",
+            "offset": 0,
+            "slot": "63",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:134"
+          },
+          {
+            "label": "emergencyPriceQuorum",
+            "offset": 0,
+            "slot": "64",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:135"
+          },
+          {
+            "label": "ethFeedId",
+            "offset": 0,
+            "slot": "65",
+            "type": "t_bytes32",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:136"
+          },
+          {
+            "label": "_breakerConfigs",
+            "offset": 0,
+            "slot": "66",
+            "type": "t_mapping(t_address,t_mapping(t_enum(BreakerType)24429,t_struct(BreakerConfig)24667_storage))",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:138"
+          },
+          {
+            "label": "_breakerStatuses",
+            "offset": 0,
+            "slot": "67",
+            "type": "t_mapping(t_address,t_mapping(t_enum(BreakerType)24429,t_struct(BreakerStatus)24677_storage))",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:139"
+          },
+          {
+            "label": "_historicalPrices",
+            "offset": 0,
+            "slot": "68",
+            "type": "t_mapping(t_address,t_mapping(t_uint256,t_uint256))",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:140"
+          },
+          {
+            "label": "_lastPriceTime",
+            "offset": 0,
+            "slot": "69",
+            "type": "t_mapping(t_address,t_uint256)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:141"
+          },
+          {
+            "label": "_globalPause",
+            "offset": 0,
+            "slot": "70",
+            "type": "t_bool",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:143"
+          },
+          {
+            "label": "guardianQuorum",
+            "offset": 0,
+            "slot": "71",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:144"
+          },
+          {
+            "label": "_pauseProposals",
+            "offset": 0,
+            "slot": "72",
+            "type": "t_mapping(t_bytes32,t_struct(PauseProposal)24990_storage)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:145"
+          },
+          {
+            "label": "_pausables",
+            "offset": 0,
+            "slot": "73",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:146"
+          },
+          {
+            "label": "_pausableList",
+            "offset": 0,
+            "slot": "74",
+            "type": "t_array(t_address)dyn_storage",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:147"
+          },
+          {
+            "label": "failedPauses",
+            "offset": 0,
+            "slot": "75",
+            "type": "t_mapping(t_address,t_bool)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:148"
+          },
+          {
+            "label": "_failedPauseList",
+            "offset": 0,
+            "slot": "76",
+            "type": "t_array(t_address)dyn_storage",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:149"
+          },
+          {
+            "label": "failedPauseCount",
+            "offset": 0,
+            "slot": "77",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:150"
+          },
+          {
+            "label": "_emergencyPriceProposals",
+            "offset": 0,
+            "slot": "78",
+            "type": "t_mapping(t_bytes32,t_struct(EmergencyPriceProposal)25335_storage)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:152"
+          },
+          {
+            "label": "_emergencyPriceProposalNonce",
+            "offset": 0,
+            "slot": "79",
+            "type": "t_uint256",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:153"
+          },
+          {
+            "label": "marketCalendar",
+            "offset": 0,
+            "slot": "80",
+            "type": "t_contract(IMarketCalendar)21701",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:155"
+          },
+          {
+            "label": "marketIds",
+            "offset": 0,
+            "slot": "81",
+            "type": "t_mapping(t_address,t_string_storage)",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:156"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "82",
+            "type": "t_array(t_uint256)21_storage",
+            "contract": "OracleAggregator",
+            "src": "contracts\\core\\OracleAggregator.sol:158"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_bytes32": {
+            "label": "bytes32",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_bool)": {
+            "label": "mapping(address => bool)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes32,t_struct(RoleData)26_storage)": {
+            "label": "mapping(bytes32 => struct AccessControlUpgradeable.RoleData)",
+            "numberOfBytes": "32"
+          },
+          "t_struct(AccessControlStorage)36_storage": {
+            "label": "struct AccessControlUpgradeable.AccessControlStorage",
+            "members": [
+              {
+                "label": "_roles",
+                "type": "t_mapping(t_bytes32,t_struct(RoleData)26_storage)",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(InitializableStorage)147_storage": {
+            "label": "struct Initializable.InitializableStorage",
+            "members": [
+              {
+                "label": "_initialized",
+                "type": "t_uint64",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "_initializing",
+                "type": "t_bool",
+                "offset": 8,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(PausableStorage)633_storage": {
+            "label": "struct PausableUpgradeable.PausableStorage",
+            "members": [
+              {
+                "label": "_paused",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(ReentrancyGuardStorage)697_storage": {
+            "label": "struct ReentrancyGuardUpgradeable.ReentrancyGuardStorage",
+            "members": [
+              {
+                "label": "_status",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(RoleData)26_storage": {
+            "label": "struct AccessControlUpgradeable.RoleData",
+            "members": [
+              {
+                "label": "hasRole",
+                "type": "t_mapping(t_address,t_bool)",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "adminRole",
+                "type": "t_bytes32",
+                "offset": 0,
+                "slot": "1"
+              }
+            ],
+            "numberOfBytes": "64"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          },
+          "t_uint64": {
+            "label": "uint64",
+            "numberOfBytes": "8"
+          },
+          "t_array(t_address)dyn_storage": {
+            "label": "address[]",
+            "numberOfBytes": "32"
+          },
+          "t_array(t_struct(PricePoint)24569_storage)48_storage": {
+            "label": "struct DataTypes.PricePoint[48]",
+            "numberOfBytes": "1536"
+          },
+          "t_array(t_uint256)21_storage": {
+            "label": "uint256[21]",
+            "numberOfBytes": "672"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_contract(IMarketCalendar)21701": {
+            "label": "contract IMarketCalendar",
+            "numberOfBytes": "20"
+          },
+          "t_contract(IPyth)10304": {
+            "label": "contract IPyth",
+            "numberOfBytes": "20"
+          },
+          "t_enum(BreakerState)24433": {
+            "label": "enum DataTypes.BreakerState",
+            "members": [
+              "INACTIVE",
+              "TRIGGERED",
+              "COOLDOWN"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_enum(BreakerType)24429": {
+            "label": "enum DataTypes.BreakerType",
+            "members": [
+              "PRICE_DROP",
+              "VOLUME_SPIKE",
+              "TWAP_DEVIATION",
+              "ORACLE_FAILURE",
+              "UTILIZATION",
+              "EMERGENCY"
+            ],
+            "numberOfBytes": "1"
+          },
+          "t_mapping(t_address,t_mapping(t_enum(BreakerType)24429,t_struct(BreakerConfig)24667_storage))": {
+            "label": "mapping(address => mapping(enum DataTypes.BreakerType => struct DataTypes.BreakerConfig))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_mapping(t_enum(BreakerType)24429,t_struct(BreakerStatus)24677_storage))": {
+            "label": "mapping(address => mapping(enum DataTypes.BreakerType => struct DataTypes.BreakerStatus))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_mapping(t_uint256,t_uint256))": {
+            "label": "mapping(address => mapping(uint256 => uint256))",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_string_storage)": {
+            "label": "mapping(address => string)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_struct(GeneratedPrice)12284_storage)": {
+            "label": "mapping(address => struct OracleAggregator.GeneratedPrice)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_struct(OracleConfig)12277_storage)": {
+            "label": "mapping(address => struct OracleAggregator.OracleConfig)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_struct(PendingPriceOverride)25342_storage)": {
+            "label": "mapping(address => struct EmergencyPriceLib.PendingPriceOverride)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_struct(TWAPBuffer)12294_storage)": {
+            "label": "mapping(address => struct OracleAggregator.TWAPBuffer)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_address,t_uint256)": {
+            "label": "mapping(address => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes32,t_struct(EmergencyPriceProposal)25335_storage)": {
+            "label": "mapping(bytes32 => struct EmergencyPriceLib.EmergencyPriceProposal)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_bytes32,t_struct(PauseProposal)24990_storage)": {
+            "label": "mapping(bytes32 => struct EmergencyPauseLib.PauseProposal)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_enum(BreakerType)24429,t_struct(BreakerConfig)24667_storage)": {
+            "label": "mapping(enum DataTypes.BreakerType => struct DataTypes.BreakerConfig)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_enum(BreakerType)24429,t_struct(BreakerStatus)24677_storage)": {
+            "label": "mapping(enum DataTypes.BreakerType => struct DataTypes.BreakerStatus)",
+            "numberOfBytes": "32"
+          },
+          "t_mapping(t_uint256,t_uint256)": {
+            "label": "mapping(uint256 => uint256)",
+            "numberOfBytes": "32"
+          },
+          "t_string_storage": {
+            "label": "string",
+            "numberOfBytes": "32"
+          },
+          "t_struct(BreakerConfig)24667_storage": {
+            "label": "struct DataTypes.BreakerConfig",
+            "members": [
+              {
+                "label": "breakerType",
+                "type": "t_enum(BreakerType)24429",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "threshold",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "windowSeconds",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "cooldownSeconds",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "enabled",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "4"
+              }
+            ],
+            "numberOfBytes": "160"
+          },
+          "t_struct(BreakerStatus)24677_storage": {
+            "label": "struct DataTypes.BreakerStatus",
+            "members": [
+              {
+                "label": "state",
+                "type": "t_enum(BreakerState)24433",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "triggeredAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "resetAt",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "triggeredBy",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "3"
+              }
+            ],
+            "numberOfBytes": "128"
+          },
+          "t_struct(EmergencyPriceProposal)25335_storage": {
+            "label": "struct EmergencyPriceLib.EmergencyPriceProposal",
+            "members": [
+              {
+                "label": "collection",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "price",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "validUntil",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "confirmations",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "timestamp",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "executed",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "5"
+              },
+              {
+                "label": "hasConfirmed",
+                "type": "t_mapping(t_address,t_bool)",
+                "offset": 0,
+                "slot": "6"
+              }
+            ],
+            "numberOfBytes": "224"
+          },
+          "t_struct(GeneratedPrice)12284_storage": {
+            "label": "struct OracleAggregator.GeneratedPrice",
+            "members": [
+              {
+                "label": "price",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "confidence",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "timestamp",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_struct(OracleConfig)12277_storage": {
+            "label": "struct OracleAggregator.OracleConfig",
+            "members": [
+              {
+                "label": "feedId",
+                "type": "t_bytes32",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "maxStaleness",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "minPrice",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "maxPrice",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "allowSingleSource",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "maxConfidence",
+                "type": "t_uint64",
+                "offset": 1,
+                "slot": "4"
+              }
+            ],
+            "numberOfBytes": "160"
+          },
+          "t_struct(PauseProposal)24990_storage": {
+            "label": "struct EmergencyPauseLib.PauseProposal",
+            "members": [
+              {
+                "label": "proposer",
+                "type": "t_address",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "targets",
+                "type": "t_array(t_address)dyn_storage",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "confirmations",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              },
+              {
+                "label": "timestamp",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "3"
+              },
+              {
+                "label": "executed",
+                "type": "t_bool",
+                "offset": 0,
+                "slot": "4"
+              },
+              {
+                "label": "hasConfirmed",
+                "type": "t_mapping(t_address,t_bool)",
+                "offset": 0,
+                "slot": "5"
+              }
+            ],
+            "numberOfBytes": "192"
+          },
+          "t_struct(PendingPriceOverride)25342_storage": {
+            "label": "struct EmergencyPriceLib.PendingPriceOverride",
+            "members": [
+              {
+                "label": "price",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "validUntil",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "1"
+              },
+              {
+                "label": "effectiveTime",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "2"
+              }
+            ],
+            "numberOfBytes": "96"
+          },
+          "t_struct(PricePoint)24569_storage": {
+            "label": "struct DataTypes.PricePoint",
+            "members": [
+              {
+                "label": "price",
+                "type": "t_uint128",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "timestamp",
+                "type": "t_uint64",
+                "offset": 16,
+                "slot": "0"
+              },
+              {
+                "label": "confidence",
+                "type": "t_uint64",
+                "offset": 24,
+                "slot": "0"
+              }
+            ],
+            "numberOfBytes": "32"
+          },
+          "t_struct(TWAPBuffer)12294_storage": {
+            "label": "struct OracleAggregator.TWAPBuffer",
+            "members": [
+              {
+                "label": "points",
+                "type": "t_array(t_struct(PricePoint)24569_storage)48_storage",
+                "offset": 0,
+                "slot": "0"
+              },
+              {
+                "label": "head",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "48"
+              },
+              {
+                "label": "count",
+                "type": "t_uint256",
+                "offset": 0,
+                "slot": "49"
+              }
+            ],
+            "numberOfBytes": "1600"
+          },
+          "t_uint128": {
+            "label": "uint128",
+            "numberOfBytes": "16"
+          }
+        },
+        "namespaces": {
+          "erc7201:openzeppelin.storage.Pausable": [
+            {
+              "contract": "PausableUpgradeable",
+              "label": "_paused",
+              "type": "t_bool",
+              "src": "@openzeppelin\\contracts-upgradeable\\utils\\PausableUpgradeable.sol:21",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.AccessControl": [
+            {
+              "contract": "AccessControlUpgradeable",
+              "label": "_roles",
+              "type": "t_mapping(t_bytes32,t_struct(RoleData)26_storage)",
+              "src": "@openzeppelin\\contracts-upgradeable\\access\\AccessControlUpgradeable.sol:62",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.ReentrancyGuard": [
+            {
+              "contract": "ReentrancyGuardUpgradeable",
+              "label": "_status",
+              "type": "t_uint256",
+              "src": "@openzeppelin\\contracts-upgradeable\\utils\\ReentrancyGuardUpgradeable.sol:43",
+              "offset": 0,
+              "slot": "0"
+            }
+          ],
+          "erc7201:openzeppelin.storage.Initializable": [
+            {
+              "contract": "Initializable",
+              "label": "_initialized",
+              "type": "t_uint64",
+              "src": "@openzeppelin\\contracts-upgradeable\\proxy\\utils\\Initializable.sol:69",
+              "offset": 0,
+              "slot": "0"
+            },
+            {
+              "contract": "Initializable",
+              "label": "_initializing",
+              "type": "t_bool",
+              "src": "@openzeppelin\\contracts-upgradeable\\proxy\\utils\\Initializable.sol:73",
+              "offset": 8,
+              "slot": "0"
+            }
+          ]
+        }
+      }
+    },
+    "a408044feb982e0a9d60a937bcad725cad21d8d8a3bbd82c7772040e58bd3773": {
+      "address": "0xCBcD9739f676213d436842f45050A37553E20093",
+      "txHash": "0x1085e00bc7c02e75d684317218c1e5c088d9b947787586103b4931b9a5f79e9a",
       "layout": {
         "solcVersion": "0.8.24",
         "storage": [

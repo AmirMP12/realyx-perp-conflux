@@ -2,13 +2,11 @@
 # Usage:
 #   .\scripts\docker-up.ps1             # minimal (backend + frontend)
 #   .\scripts\docker-up.ps1 -Full       # full stack (postgres, redis, monitoring)
-#   .\scripts\docker-up.ps1 -Graph      # graph node (postgres, ipfs, graph-node)
 #
 # Prerequisites: Docker Desktop must be running
 
 param(
     [switch]$Full,
-    [switch]$Graph,
     [switch]$Down
 )
 
@@ -18,9 +16,7 @@ $rootDir = Split-Path -Parent $scriptDir
 
 Push-Location $rootDir
 try {
-    if ($Graph) {
-        $composeFile = "docker-compose.graph.yml"
-    } elseif ($Full) {
+    if ($Full) {
         $composeFile = "docker-compose.yml"
     } else {
         $composeFile = "docker-compose.minimal.yml"
@@ -37,14 +33,7 @@ try {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Write-Host ""
-    if ($Graph) {
-        Write-Host "Graph Node stack is running:" -ForegroundColor Green
-        Write-Host "  GraphQL HTTP:  http://localhost:8000"
-        Write-Host "  GraphQL WS:    ws://localhost:8001"
-        Write-Host "  Admin (RPC):   http://localhost:8020"
-        Write-Host "  IPFS:          http://localhost:5001"
-        Write-Host "  Postgres:      localhost:5433"
-    } elseif ($Full) {
+    if ($Full) {
         Write-Host "Realyx full stack is running:" -ForegroundColor Green
         Write-Host "  Frontend:    http://localhost:3000"
         Write-Host "  Backend:     http://localhost:3001"
@@ -59,7 +48,7 @@ try {
     }
     Write-Host ""
     Write-Host "Logs: docker compose -f $composeFile logs -f" -ForegroundColor DarkGray
-    Write-Host "Stop: .\scripts\docker-up.ps1 $(if ($Graph) {'-Graph'} elseif ($Full) {'-Full'}) -Down" -ForegroundColor DarkGray
+    Write-Host "Stop: .\scripts\docker-up.ps1 $(if ($Full) {'-Full'}) -Down" -ForegroundColor DarkGray
 } finally {
     Pop-Location
 }

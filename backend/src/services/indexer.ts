@@ -6,7 +6,7 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined
 });
 
-export interface SubgraphProtocol {
+export interface Protocol {
   totalPositionsOpened: string;
   totalPositionsClosed: string;
   totalTrades: string;
@@ -16,7 +16,7 @@ export interface SubgraphProtocol {
   tvl: string;
 }
 
-export interface SubgraphMarket {
+export interface Market {
   id: string;
   marketAddress: string;
   maxLeverage: string;
@@ -36,7 +36,7 @@ export interface SubgraphMarket {
   updatedAt: string;
 }
 
-export interface SubgraphPosition {
+export interface Position {
   id: string;
   positionId: string;
   tokenId: string;
@@ -57,7 +57,7 @@ export interface SubgraphPosition {
   txHash: string;
 }
 
-export interface SubgraphTrade {
+export interface Trade {
   id: string;
   position: { positionId: string };
   trader: { id: string };
@@ -74,7 +74,7 @@ export interface SubgraphTrade {
   txHash: string;
 }
 
-export interface SubgraphUser {
+export interface User {
   id: string;
   address: string;
   totalTrades: string;
@@ -82,7 +82,7 @@ export interface SubgraphUser {
   totalRealizedPnl: string;
 }
 
-export interface SubgraphBadDebtClaim {
+export interface BadDebtClaim {
   id: string;
   claimId: string;
   positionId: string;
@@ -93,7 +93,7 @@ export interface SubgraphBadDebtClaim {
   txHash: string;
 }
 
-export interface SubgraphProtocolMetric {
+export interface ProtocolMetric {
   id: string;
   period: string;
   periodType: string;
@@ -111,7 +111,7 @@ export interface SubgraphProtocolMetric {
 // PG Database Implementations (Replaces GraphQL)
 // ----------------------------------------------------
 
-export async function fetchProtocol(): Promise<SubgraphProtocol | null> {
+export async function fetchProtocol(): Promise<Protocol | null> {
   if (!process.env.POSTGRES_URL) {
     if (process.env.NODE_ENV === 'test') return { totalVolumeUsd: "5000", totalFeesUsd: "100", tvl: "1000", totalTrades: "10", totalPositionsOpened: "5", totalPositionsClosed: "4", totalLiquidations: "1" };
     return null;
@@ -140,12 +140,12 @@ export async function fetchProtocol(): Promise<SubgraphProtocol | null> {
   }
 }
 
-export async function fetchMarkets(): Promise<SubgraphMarket[]> {
+export async function fetchMarkets(): Promise<Market[]> {
   // Let the backend route gracefully fallback to RPC/CoinGecko which gives identical functionality seamlessly
   return [];
 }
 
-export async function fetchUserPositions(traderAddress: string): Promise<SubgraphPosition[]> {
+export async function fetchUserPositions(traderAddress: string): Promise<Position[]> {
   const trader = traderAddress.toLowerCase();
   if (!trader.startsWith("0x") || !process.env.POSTGRES_URL) return [];
   try {
@@ -194,7 +194,7 @@ export async function fetchUserPositions(traderAddress: string): Promise<Subgrap
   }
 }
 
-export async function fetchUserTrades(traderAddress: string, limit: number): Promise<SubgraphTrade[]> {
+export async function fetchUserTrades(traderAddress: string, limit: number): Promise<Trade[]> {
   const trader = traderAddress.toLowerCase();
   if (!trader.startsWith("0x") || !process.env.POSTGRES_URL) return [];
   try {
@@ -246,7 +246,7 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
   }
 }
 
-export async function fetchLeaderboard(limit: number): Promise<SubgraphUser[]> {
+export async function fetchLeaderboard(limit: number): Promise<User[]> {
   if (!process.env.POSTGRES_URL) return [];
   try {
     // Generate leaderboard based on count of position events (proxy for trades volume)
@@ -267,10 +267,10 @@ export async function fetchLeaderboard(limit: number): Promise<SubgraphUser[]> {
   }
 }
 
-export async function fetchBadDebtClaims(limit: number): Promise<SubgraphBadDebtClaim[]> {
+export async function fetchBadDebtClaims(limit: number): Promise<BadDebtClaim[]> {
   return []; // Not synced yet
 }
 
-export async function fetchProtocolMetrics(limit: number, periodType: string = "day"): Promise<SubgraphProtocolMetric[]> {
+export async function fetchProtocolMetrics(limit: number, periodType: string = "day"): Promise<ProtocolMetric[]> {
   return []; // Can be computed historically from Postgres in the future
 }

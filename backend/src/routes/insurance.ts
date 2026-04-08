@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { fetchBadDebtClaims } from "../services/subgraph.js";
+import { fetchBadDebtClaims } from "../services/indexer.js";
 import type { ApiResponse, InsuranceClaim } from "../types/index.js";
 
 const router = Router();

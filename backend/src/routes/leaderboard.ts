@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { fetchLeaderboard } from "../services/subgraph.js";
+import { fetchLeaderboard } from "../services/indexer.js";
 import type { LeaderboardEntry, ApiResponse } from "../types/index.js";
 import { toDecimal } from "../utils/format.js";
 

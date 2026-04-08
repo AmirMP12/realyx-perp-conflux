@@ -9,8 +9,6 @@ build/
 out/
 backend/dist/
 frontend/dist/
-subgraph/build/
-subgraph/generated/
 *.tsbuildinfo
 *.map
 
@@ -22,6 +20,7 @@ typechain/
 typechain-types/
 deployments/localhost/
 deployments/hardhat/
+.openzeppelin/
 
 # Environment
 .env
@@ -64,10 +63,6 @@ temp/
 .turbo/
 temp_*.json
 build_*.txt
-
-# Subgraph (auto-generated)
-subgraph/src/generated/
-subgraph/tests/.bin/
 
 # Docker
 postgres_data/

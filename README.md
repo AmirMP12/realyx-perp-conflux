@@ -1,6 +1,6 @@
 # Realyx — RWA Perpetual Futures DEX
 
-Trade perpetual futures on Real World Assets (RWA) with up to 10x leverage. Built with **Solidity** (Hardhat), **React + TypeScript** (Vite), **Express** backend, and **The Graph** database indexer for indexing.
+Trade perpetual futures on Real World Assets (RWA) with up to 10x leverage. Built with **Solidity** (Hardhat), **React + TypeScript** (Vite), **Express** backend, and a **native PostgreSQL** database indexer for indexing.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Conflux](https://img.shields.io/badge/built%20on-Conflux-blue)](https://confluxnetwork.org)
@@ -77,8 +77,8 @@ Realyx provides a decentralized perpetual futures DEX on Conflux eSpace.
 ### Backend
 - **Runtime**: Node.js
 - **Framework**: Express, TypeScript
-- **Database**: PostgreSQL & Redis (via Docker for The Graph)
-- **APIs**: REST API, WebSocket, GraphQL (database indexer integration)
+- **Database**: PostgreSQL & Redis
+- **APIs**: REST API, WebSocket, SQL Indexer integration
 
 ### Blockchain
 - **Network**: Conflux eSpace Testnet
@@ -103,12 +103,12 @@ Realyx provides a decentralized perpetual futures DEX on Conflux eSpace.
 │                              BACKEND (Express)                               │
 │  /api/markets | /api/user | /api/stats | /api/leaderboard | /api/insurance   │
 └────────────────────────────────────────┬────────────────────────────────────┘
-                                         │ GraphQL + Pyth + CoinGecko
+                                         │ SQL + Pyth + CoinGecko
          ┌───────────────────────────────┼───────────────────────────────┐
          ▼                               ▼                               ▼
 ┌─────────────────┐           ┌─────────────────┐           ┌─────────────────┐
-│    database indexer     │           │  PYTH NETWORK   │           │   COINGECKO     │
-│  (The Graph)    │           │ (Hermes/Bench)  │           │   (fallback)    │
+│  DATABASE INDEXER │           │  PYTH NETWORK   │           │   COINGECKO     │
+│  (PostgreSQL)   │           │ (Hermes/Bench)  │           │   (fallback)    │
 │ Markets, Stats  │           │ Price feeds     │           │ Prices, 24h chg │
 └────────┬────────┘           └─────────────────┘           └─────────────────┘
          │
@@ -335,11 +335,6 @@ docker compose -f docker-compose.minimal.yml up -d
 - Backend API: http://localhost:3001
 - WebSocket: ws://localhost:3002
 
-#### Graph Node (for database indexer Indexing)
-To run a local Graph Node optimized for Conflux eSpace:
-```bash
-docker compose -f docker-compose.graph.yml up -d
-```
 
 ### Deploy on Vercel
 You can run the full app (frontend + API) on a single Vercel project. The backend runs as serverless functions; **WebSocket is not supported** on Vercel, so live price/stat updates are disabled unless you host a separate WebSocket server.

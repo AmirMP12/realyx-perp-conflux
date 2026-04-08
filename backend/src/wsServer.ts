@@ -6,9 +6,8 @@
 import { WebSocketServer } from "ws";
 import { config } from "./config.js";
 import { fetchPythPrices } from "./services/pyth.js";
-import { fetchMarkets } from "./services/subgraph.js";
+import { fetchMarkets, fetchProtocol } from "./services/indexer.js";
 import { getActiveMarketAddresses } from "./services/activeMarkets.js";
-import { fetchProtocol } from "./services/subgraph.js";
 import { toDecimal } from "./utils/format.js";
 
 const POLL_MS = process.env.NODE_ENV === "test" ? 500 : 15_000; // fast polling for tests

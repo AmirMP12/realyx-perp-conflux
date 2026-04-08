@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { fetchMarkets, fetchProtocol } from "../services/subgraph.js";
+import { fetchMarkets, fetchProtocol } from "../services/indexer.js";
 import { getActiveMarketAddresses } from "../services/activeMarkets.js";
 import { fetchCoinGeckoPrices, getCoinGeckoIdForMarket, fetchPriceHistory } from "../services/coingecko.js";
 import { fetchPythPrices, fetchPyth24hChange, getPythTvSymbol, fetchPythPriceHistory, fetchPythPriceHistoryHermes, getPythFeedId } from "../services/pyth.js";

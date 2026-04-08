@@ -11,7 +11,7 @@ services:
       PORT: 3001
       WS_PORT: 3002
       NODE_ENV: production
-      POSTGRES_URL: ${POSTGRES_URL:-https://api.studio.thegraph.com/query/1741472/realyx/1.0.0}
+      POSTGRES_URL: ${POSTGRES_URL:-postgres://realyx:realyx_secret@postgres:5432/realyx}
       CHAIN_ID: ${CHAIN_ID:-71}
       RPC_URL: ${RPC_URL:-https://evmtestnet.confluxrpc.com}
       TRADING_CORE_ADDRESS: ${TRADING_CORE_ADDRESS:-0xDDe4D077C617C1B84dA369fB8fD391BE6530C40E}

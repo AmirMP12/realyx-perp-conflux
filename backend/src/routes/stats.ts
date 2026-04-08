@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { fetchProtocol, fetchMarkets, fetchProtocolMetrics } from "../services/subgraph.js";
+import { fetchProtocol, fetchMarkets, fetchProtocolMetrics } from "../services/indexer.js";
 import { getActiveMarketAddresses } from "../services/activeMarkets.js";
 import type { ProtocolStats, DailyStat, ApiResponse } from "../types/index.js";
 import { toDecimal } from "../utils/format.js";

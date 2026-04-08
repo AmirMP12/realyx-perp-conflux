@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { config } from "../config.js";
 import { fetchPythPrices } from "../services/pyth.js";
-import { fetchProtocol } from "../services/subgraph.js";
+import { fetchProtocol } from "../services/indexer.js";
 import { getActiveMarketAddresses } from "../services/activeMarkets.js";
 
 const router = Router();
@@ -19,9 +19,9 @@ router.get("/detailed", async (_req: Request, res: Response) => {
   try {
     const t0 = Date.now();
     await fetchProtocol();
-    checks.subgraph = { ok: true, latencyMs: Date.now() - t0 };
+    checks.indexer = { ok: true, latencyMs: Date.now() - t0 };
   } catch (e) {
-    checks.subgraph = { ok: false, error: e instanceof Error ? e.message : String(e) };
+    checks.indexer = { ok: false, error: e instanceof Error ? e.message : String(e) };
   }
 
   try {
@@ -49,7 +49,7 @@ router.get("/detailed", async (_req: Request, res: Response) => {
     latencyMs: Date.now() - start,
     checks,
     config: {
-      subgraphUrl: config.subgraphUrl ? `${config.subgraphUrl.slice(0, 40)}...` : "not set",
+      indexerSet: Boolean(config.postgresUrl),
       rpcSet: Boolean(process.env.RPC_URL?.trim()),
       tradingCoreSet: Boolean((process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE)?.trim()),
     },

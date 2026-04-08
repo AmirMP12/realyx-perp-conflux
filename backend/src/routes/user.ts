@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { fetchUserPositions, fetchUserTrades } from "../services/subgraph.js";
+import { fetchUserPositions, fetchUserTrades } from "../services/indexer.js";
 import type { BackendPosition, TradeHistoryItem, ApiResponse } from "../types/index.js";
 import { toDecimal } from "../utils/format.js";
 
