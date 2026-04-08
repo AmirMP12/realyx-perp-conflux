@@ -15,7 +15,7 @@
   "scripts": {
     "build:backend": "cd backend && npm install --include=dev && npm run build",
     "build:frontend": "cd frontend && npm install --include=dev && npm run build",
-    "build": "npm run build:backend && npm run build:frontend",
+    "build": "bash ./build.sh",
     "compile": "hardhat compile && node scripts/fix-abi-enums.js",
     "compile:force": "hardhat compile --force && node scripts/fix-abi-enums.js",
     "clean": "hardhat clean",
