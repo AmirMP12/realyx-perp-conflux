@@ -12,10 +12,14 @@
     "solidity",
     "hardhat"
   ],
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
   "scripts": {
-    "build:backend": "cd backend && npm install --include=dev && npm run build",
-    "build:frontend": "cd frontend && npm install --include=dev && npm run build",
-    "build": "bash ./build.sh",
+    "build:backend": "npm run build --workspace=realyx-backend",
+    "build:frontend": "npm run build --workspace=realyx-frontend",
+    "build": "npm run build:backend && npm run build:frontend",
     "compile": "hardhat compile && node scripts/fix-abi-enums.js",
     "compile:force": "hardhat compile --force && node scripts/fix-abi-enums.js",
     "clean": "hardhat clean",
