@@ -12,13 +12,9 @@
     "solidity",
     "hardhat"
   ],
-  "workspaces": [
-    "backend",
-    "frontend"
-  ],
   "scripts": {
-    "build:backend": "tsc -p backend",
-    "build:frontend": "tsc -p frontend && cd frontend && vite build",
+    "build:backend": "npx tsc -p backend",
+    "build:frontend": "npx tsc -p frontend && cd frontend && npx vite build",
     "build": "npm run build:backend && npm run build:frontend",
     "compile": "hardhat compile && node scripts/fix-abi-enums.js",
     "compile:force": "hardhat compile --force && node scripts/fix-abi-enums.js",
@@ -70,7 +66,11 @@
     "pino": "^9.4.0",
     "pino-http": "^10.2.0",
     "uuid": "^10.0.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.8",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.2"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
@@ -95,9 +95,7 @@
     "solidity-coverage": "^0.8.17",
     "ts-mocha": "^10.0.0",
     "ts-node": "^10.9.2",
-    "typechain": "^8.3.2",
-    "typescript": "^5.3.3",
-    "vite": "^5.0.8"
+    "typechain": "^8.3.2"
   },
   "engines": {
     "node": ">=18.0.0"
