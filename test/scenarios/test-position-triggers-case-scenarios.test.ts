@@ -53,7 +53,7 @@ describe("PositionTriggers Branch Wave", function () {
             0,
             market,
             ethers.parseUnits("500", 6),
-            ethers.parseEther("100"),
+            ethers.parseUnits("100", 6),
             0,
             true,
             0,

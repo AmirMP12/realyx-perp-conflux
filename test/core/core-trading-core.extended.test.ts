@@ -16,7 +16,7 @@ describe("TradingCore - Extended Coverage", function () {
         await env.oracle.connect(env.admin).setPythFeed(marketAddress, feedId, 3600, 0);
         await env.trading.connect(env.admin).setMarket(
             marketAddress, marketAddress,
-            100n, ethers.parseUnits("1000000", 18), ethers.parseUnits("5000000", 18), 500, 1000, 3600
+            100n, ethers.parseUnits("1000000", 6), ethers.parseUnits("5000000", 6), 500, 1000, 3600
         );
 
         await env.usdc.connect(env.admin).mintTo(env.alice.address, ethers.parseUnits("100000", 6));
@@ -39,7 +39,7 @@ describe("TradingCore - Extended Coverage", function () {
         
         await env.trading.connect(env.admin).setMarket(
             newMarket, newMarket,
-            100n, ethers.parseUnits("500000", 18), ethers.parseUnits("2000000", 18), 300, 800, 1800
+            100n, ethers.parseUnits("500000", 6), ethers.parseUnits("2000000", 6), 300, 800, 1800
         );
     });
 
@@ -65,7 +65,7 @@ describe("TradingCore - Extended Coverage", function () {
         const fakeMarket = ethers.Wallet.createRandom().address;
         await expect(
             env.trading.connect(env.alice).createOrder(
-                1, fakeMarket, ethers.parseUnits("5000", 18), ethers.parseUnits("1000", 6),
+                1, fakeMarket, ethers.parseUnits("5000", 6), ethers.parseUnits("1000", 6),
                 0, true, 0, 0, { value: ethers.parseEther("0.001") }
             )
         ).to.be.reverted;

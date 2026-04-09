@@ -8108,7 +8108,7 @@ export function useOpenPosition() {
                 sizeDelta: sizeDelta6.toString(),
                 collateralDelta: collateralDelta6.toString(),
                 isLong: params.isLong,
-                maxSlippage: String(params.maxSlippageBps ?? 100),
+                maxSlippage: String(params.maxSlippageBps ?? 300),
                 positionId: 0,
                 orderType,
                 triggerPriceWei,

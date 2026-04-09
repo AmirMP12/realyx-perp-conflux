@@ -16,7 +16,7 @@ describe("TradingCore - Position Math & Flow", function () {
         
         await env.trading.connect(env.admin).setMarket(
             marketAddress, marketAddress,
-            100n, ethers.parseUnits("1000000", 18), ethers.parseUnits("5000000", 18), 500, 1000, 3600
+            100n, ethers.parseUnits("1000000", 6), ethers.parseUnits("5000000", 6), 500, 1000, 3600
         );
 
         await env.usdc.connect(env.admin).mintTo(env.alice.address, ethers.parseUnits("100000", 6));
@@ -30,7 +30,7 @@ describe("TradingCore - Position Math & Flow", function () {
     it("should revert order creation with zero collateral", async function () {
         await expect(
             env.trading.connect(env.alice).createOrder(
-                1, marketAddress, ethers.parseUnits("5000", 18), 0, 0, true, 0, 0,
+                1, marketAddress, ethers.parseUnits("5000", 6), 0, 0, true, 0, 0,
                 { value: ethers.parseEther("0.001") }
             )
         ).to.be.reverted;
@@ -40,7 +40,7 @@ describe("TradingCore - Position Math & Flow", function () {
         const unlistedMarket = ethers.Wallet.createRandom().address;
         await expect(
             env.trading.connect(env.alice).createOrder(
-                1, unlistedMarket, ethers.parseUnits("5000", 18), ethers.parseUnits("1000", 6), 0, true, 0, 0,
+                1, unlistedMarket, ethers.parseUnits("5000", 6), ethers.parseUnits("1000", 6), 0, true, 0, 0,
                 { value: ethers.parseEther("0.001") }
             )
         ).to.be.reverted;

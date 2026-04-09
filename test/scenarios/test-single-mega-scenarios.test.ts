@@ -308,7 +308,7 @@ describe("Single Mega 80 Wave", function () {
         await env.trading.connect(env.keeper).executeOrder(2, []);
 
         // Mild drop: still not liquidatable for this position (35 would be liquidatable and succeed once core is solvent).
-        await pushPrice(env, feedId, 92n * 10n ** 8n, 1n);
+        await pushPrice(env, feedId, 96n * 10n ** 8n, 1n);
         await expect(env.trading.connect(env.liquidator).liquidatePosition(2)).to.be.reverted;
     });
 

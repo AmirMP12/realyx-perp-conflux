@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type Theme = 'dark' | 'light';
-export type Currency = 'USD' | 'ETH';
+export type Currency = 'USD' | 'CFX';
 
 interface SettingsState {
     // Theme

@@ -592,7 +592,7 @@ function DisplaySettings({ settings }: { settings: SettingsState }) {
             <div className="space-y-3 pt-4 border-t border-[var(--border-color)]">
                 <label className="text-sm font-medium text-text-primary block">Display Currency</label>
                 <div className="flex gap-4">
-                    {(['USD', 'ETH'] as Currency[]).map((currency) => (
+                    {(['USD', 'CFX'] as Currency[]).map((currency) => (
                         <button
                             key={currency}
                             onClick={() => onSelect('currency', currency)}

@@ -7,7 +7,7 @@ export const CATEGORY_CONFIG: Record<string, { label: string; className: string 
 };
 
 export const MARKET_DISPLAY_FALLBACK: Record<string, { name: string; symbol: string; image: string }> = {
-    "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c": { name: "Conflux", symbol: "CFX-USD", image: "https://coin-images.coingecko.com/coins/images/13043/large/conflux-logo.png" },
+    "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c": { name: "Conflux", symbol: "CFX-USD", image: "https://assets.coingecko.com/coins/images/13079/small/3vuYMbjN.png" },
     "0x986a383f6de4a24dd3f524f0f93546229b58265f": { name: "Bitcoin", symbol: "BTC-USD", image: "https://coin-images.coingecko.com/coins/images/1/small/bitcoin.png" },
     "0x886a383f6de4a24dd3f524f0f93546229b58265f": { name: "Ethereum", symbol: "ETH-USD", image: "https://coin-images.coingecko.com/coins/images/279/small/ethereum.png" },
     "0x286a383f6de4a24dd3f524f0f93546229b58265f": { name: "Tether Gold", symbol: "XAUT-USD", image: "https://coin-images.coingecko.com/coins/images/10481/small/Tether_Gold.png" },

@@ -17,8 +17,8 @@ describe("TradingCore - Liquidation Repay Failure", function () {
             market,
             market,
             50, // maxLev
-            ethers.parseUnits("100000", 18),
-            ethers.parseUnits("1000000", 18),
+            ethers.parseUnits("100000", 6),
+            ethers.parseUnits("1000000", 6),
             500,
             1000,
             3600

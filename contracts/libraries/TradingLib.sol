@@ -440,7 +440,7 @@ library TradingLib {
         orderId = nextOrderId;
         if (orderType == DataTypes.OrderType.MARKET_INCREASE || orderType == DataTypes.OrderType.LIMIT_INCREASE) {
             if (!IOracleAggregator(oracleAggregatorAddr).isActionAllowed(market, 0)) revert BreakerActive();
-            uint256 totalRequired = DataTypes.toUsdcPrecision(collateralDelta);
+            uint256 totalRequired = collateralDelta;
             if (totalRequired > 0) IERC20(usdcAddr).safeTransferFrom(msgSender, address(this), totalRequired);
         }
         orders[orderId] = DataTypes.Order({

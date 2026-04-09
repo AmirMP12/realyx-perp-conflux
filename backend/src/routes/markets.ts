@@ -12,7 +12,7 @@ const MARKET_META: Record<string, { name: string; symbol: string; image: string 
   "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c": {
     name: "Conflux",
     symbol: "CFX-USD",
-    image: "https://coin-images.coingecko.com/coins/images/13043/large/conflux-logo.png",
+    image: "https://assets.coingecko.com/coins/images/13079/small/3vuYMbjN.png",
   },
   "0x986a383f6de4a24dd3f524f0f93546229b58265f": {
     name: "Bitcoin",

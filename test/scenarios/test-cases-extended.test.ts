@@ -212,8 +212,8 @@ describe("Branch coverage push toward 80%+ per instrumented contract", function 
             market,
             market,
             100,
-            ethers.parseEther("1000000"),
-            ethers.parseEther("10000000"),
+            ethers.parseUnits("1000000", 6),
+            ethers.parseUnits("10000000", 6),
             500,
             1000,
             86400
@@ -279,9 +279,8 @@ describe("Branch coverage push toward 80%+ per instrumented contract", function 
         const S = BigInt(pos.size);
         const minUsdc = await env.trading.minPositionSize();
         const minInt = minUsdc * 10n ** 12n;
-        const rem = minInt > 2n ? minInt - 1n : 1n;
-        if (rem < S) {
-            const sz = S - rem;
+        if (minInt < S) {
+            const sz = S - (minInt / 2n);
             const pct = (sz * 10n ** 18n) / S;
             await expect(
                 env.trading.connect(env.alice).partialClose(1n, pct, 0n, BigInt(blk!.timestamp + 600))

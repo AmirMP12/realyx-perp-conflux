@@ -30,7 +30,7 @@ describe("Coverage Maximizer", function () {
         await env.marketCalendar.connect(env.admin).setMarketConfig(MARKET_ID, 0, 1439, 0, true);
         await env.trading.connect(env.admin).setMarket(
             MARKET, MARKET, 50,
-            ethers.parseUnits("1000000", 18), ethers.parseUnits("100000000", 18),
+            ethers.parseUnits("1000000", 6), ethers.parseUnits("100000000", 6),
             500, 1000, 3600
         );
         await env.trading.connect(env.admin).setMarketId(MARKET, MARKET_ID);
