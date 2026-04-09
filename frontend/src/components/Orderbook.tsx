@@ -135,7 +135,7 @@ export function OrderBook({ marketId, currentPrice = 50, maxDisplayRows = 12 }: 
                     </div>
                     <select
                         value={precision}
-                        onChange={(e) => setPrecision(Number(e.target.value))}
+                        onChange={(e: any) => setPrecision(Number(e.target.value))}
                         className="bg-[var(--bg-tertiary)] text-text-primary text-[10px] sm:text-xs px-1.5 py-1 rounded border-0 cursor-pointer"
                         aria-label="Price precision"
                     >
