@@ -94,9 +94,9 @@ router.get("/", async (req: any, res: any) => {
     // Define the event signatures you care about
     // Update these strings to exactly match your Solidity event signatures if needed!
     const targetTopics = [
-      "PositionOpened(address,bytes32,bool,uint256,uint256,uint256)",
-      "PositionClosed(address,bytes32,uint256,int256)",
-      "PositionLiquidated(address,bytes32,address,uint256)"
+      "PositionOpened(uint256,address,address,bool,uint256,uint256,uint256)",
+      "PositionClosed(uint256,address,int256,uint256,uint256)",
+      "PositionLiquidated(uint256,address,uint256,uint256)"
     ].map(sig => ethers.id(sig));
 
     // Fetch logs

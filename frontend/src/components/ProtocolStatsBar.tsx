@@ -11,10 +11,10 @@ export function ProtocolStatsBar() {
     const oi = backendStats ? parseFloat(backendStats.totalOpenInterest) : 0;
 
     return (
-        <div className="hidden lg:flex items-center gap-6 text-xs text-text-muted">
-            <span className="tabular-nums">24h Vol: <span className="text-text-primary font-medium">{formatCompact(volume24h)}</span></span>
-            <span className="tabular-nums">OI: <span className="text-text-primary font-medium">{formatCompact(oi)}</span></span>
-            <span className="tabular-nums">TVL: <span className="text-text-primary font-medium">{formatCompact(tvl)}</span></span>
+        <div className="hidden lg:flex items-center gap-4 xl:gap-6 text-xs text-text-muted">
+            <span className="tabular-nums">Vol: <span className="text-text-primary font-medium">{formatCompact(volume24h)}</span></span>
+            <span className="hidden 2xl:inline-block tabular-nums">OI: <span className="text-text-primary font-medium">{formatCompact(oi)}</span></span>
+            <span className="hidden 2xl:inline-block tabular-nums">TVL: <span className="text-text-primary font-medium">{formatCompact(tvl)}</span></span>
         </div>
     );
 }

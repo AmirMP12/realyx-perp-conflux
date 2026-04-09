@@ -1,11 +1,12 @@
 import pg from "pg";
+const { Pool } = pg;
 
-let poolInstance: pg.Pool | null = null;
-function getPool(): pg.Pool | null {
+let poolInstance: any = null;
+function getPool(): any {
   if (poolInstance) return poolInstance;
   if (!process.env.POSTGRES_URL) return null;
   
-  poolInstance = new pg.Pool({
+  poolInstance = new Pool({
     connectionString: process.env.POSTGRES_URL,
     ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined
   });
@@ -174,10 +175,16 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
       let margin = "0";
       try {
         const args = JSON.parse(row.data || "[]");
-        isLong = String(args[2]) === "true";
-        size = args[3] || "0";
-        entryPrice = args[4] || "0";
-        margin = args[5] || "0";
+        // PositionOpened(uint256 positionId, address trader, address market, bool isLong, uint256 size, uint256 leverage, uint256 entryPrice)
+        isLong = String(args[3]) === "true";
+        size = args[4] || "0";
+        const leverage = args[5] || "1";
+        entryPrice = args[6] || "0";
+        
+        // Calculate margin (collateral) from size and leverage: margin = size / leverage
+        if (BigInt(leverage) > 0n) {
+          margin = (BigInt(size) / BigInt(leverage)).toString();
+        }
       } catch (e) {}
 
       return {
@@ -192,7 +199,7 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
         liquidationPrice: "0", // Could be computed dynamically, left 0 for fallback
         stopLossPrice: "0",
         takeProfitPrice: "0",
-        leverage: margin !== "0" ? String(Math.round(Number(size) / Number(margin))) : "10",
+        leverage: leverage,
         collateralAmount: margin,
         state: "OPEN",
         openTimestamp: Math.floor(new Date(row.created_at).getTime() / 1000).toString(),
@@ -225,12 +232,17 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
       try {
         const args = JSON.parse(row.data || "[]");
         if (row.event_type === "PositionOpened") {
-          isLong = String(args[2]) === "true";
-          size = args[3] || "0";
-          price = args[4] || "0";
+          // PositionOpened(uint256 positionId, address trader, address market, bool isLong, uint256 size, uint256 leverage, uint256 entryPrice)
+          isLong = String(args[3]) === "true";
+          size = args[4] || "0";
+          price = args[6] || "0";
         } else if (row.event_type === "PositionClosed") {
-          size = args[2] || "0";
-          pnl = args[3] || "0";
+          // PositionClosed(uint256 positionId, address trader, int256 realizedPnL, uint256 exitPrice, uint256 closingFee)
+          // Note: In PositionClosed, size is the realizedPnL index is 2, exitPrice is 3
+          pnl = args[2] || "0";
+          price = args[3] || "0";
+          // We don't have size in PositionClosed event, but we can return 0 or fetch from DB if needed
+          size = "0"; 
         }
       } catch (e) {}
 

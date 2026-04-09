@@ -7,10 +7,7 @@ import { useEffect, useRef, memo } from 'react';
 const TV_SYMBOL_MAP: Record<string, string> = {
     'BTC-USD': 'BINANCE:BTCUSDT',
     'ETH-USD': 'BINANCE:ETHUSDT',
-    'LINK-USD': 'BINANCE:LINKUSDT',
-    'SNX-USD': 'BINANCE:SNXUSDT',
-    'PENDLE-USD': 'BINANCE:PENDLEUSDT',
-    'ONDO-USD': 'BINANCE:ONDOUSDT',
+    'CFX-USD': 'BINANCE:CFXUSDT',
     'XAU-USD': 'TVC:GOLD',
     'XAUT-USD': 'TVC:GOLD',
     'TSLA-USD': 'NASDAQ:TSLA',
@@ -37,8 +34,6 @@ const TV_SYMBOL_MAP: Record<string, string> = {
     'CRCLX-USD': 'NYSE:CRCL',
     'SPY-USD': 'AMEX:SPY',
     'SPYX-USD': 'AMEX:SPY',
-    'QQQ-USD': 'NASDAQ:QQQ',
-    'QQQX-USD': 'NASDAQ:QQQ',
 };
 
 /** Map our interval labels to TradingView interval strings */

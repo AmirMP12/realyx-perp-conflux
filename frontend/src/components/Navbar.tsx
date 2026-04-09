@@ -43,17 +43,19 @@ export function Navbar() {
         <nav className="h-14 lg:h-16 border-b border-[var(--border-color)] bg-[var(--bg-secondary)] sticky top-0 z-50">
             <div className="h-full max-w-[1920px] mx-auto flex items-center justify-between gap-2 sm:gap-4 lg:gap-6 px-3 sm:px-4 lg:px-6 min-w-0">
                 {/* Left: Logo */}
-                <Link to="/" className="flex items-center gap-2 shrink-0 group">
-                    <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-lg overflow-hidden border border-[var(--border-color)]">
-                        <img src="/tr.png" alt="Realyx" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-                    </div>
-                    <span className="font-display font-bold text-lg lg:text-xl tracking-tight group-hover:opacity-90 transition-opacity">
-                        <span className="text-white">Real</span><span className="text-[var(--primary)]">yx</span>
-                    </span>
-                </Link>
+                <div className="flex-1 flex items-center justify-start min-w-0">
+                    <Link to="/" className="flex items-center gap-2 shrink-0 group">
+                        <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-lg overflow-hidden border border-[var(--border-color)]">
+                            <img src="/tr.png" alt="Realyx" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                        </div>
+                        <span className="hidden xl:inline-block font-display font-bold text-lg lg:text-md tracking-tight group-hover:opacity-90 transition-opacity">
+                            <span className="text-white">Real</span><span className="text-[var(--primary)]">yx</span>
+                        </span>
+                    </Link>
+                </div>
 
                 {/* Center: Desktop Nav - separated from logo and actions */}
-                <div className="hidden lg:flex items-center min-w-0 flex-1 justify-center">
+                <div className="hidden lg:flex items-center shrink-0">
                     <div className="flex items-center rounded-lg bg-[var(--bg-tertiary)]/50 border border-[var(--border-color)]/50 p-1 gap-0.5">
                         {PRIMARY_LINKS.map((link) => {
                             const active = isLinkActive(link.path, location.pathname);
@@ -62,7 +64,7 @@ export function Navbar() {
                                     key={link.path}
                                     to={link.path}
                                     className={clsx(
-                                        'px-4 py-2 rounded-md text-sm font-medium transition-all duration-200',
+                                        'px-3 xl:px-4 py-2 rounded-md text-sm font-medium transition-all duration-200',
                                         active
                                             ? 'text-white bg-[var(--primary)]/20'
                                             : 'text-text-secondary hover:text-white hover:bg-white/5'
@@ -76,7 +78,7 @@ export function Navbar() {
                             <button
                                 onClick={() => setMoreOpen(!moreOpen)}
                                 className={clsx(
-                                    'flex items-center gap-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200',
+                                    'flex items-center gap-1 px-3 xl:px-4 py-2 rounded-md text-sm font-medium transition-all duration-200',
                                     MORE_LINKS.some(l => isLinkActive(l.path, location.pathname))
                                         ? 'text-white bg-[var(--primary)]/20'
                                         : 'text-text-secondary hover:text-white hover:bg-white/5'
@@ -110,20 +112,20 @@ export function Navbar() {
                 </div>
 
                 {/* Right: Actions - distinct from nav */}
-                <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0 overflow-hidden">
+                <div className="flex-1 flex items-center justify-end gap-2 xl:gap-3 min-w-0">
                     <ProtocolStatsBar />
-                    <div className="hidden xl:block h-6 w-px bg-[var(--border-color)]" aria-hidden />
+                    <div className="hidden 2xl:block h-6 w-px bg-[var(--border-color)]" aria-hidden />
                     <NetworkIndicator />
                     <a
                         href="https://efaucet.confluxnetwork.org/"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] hover:border-[var(--border-color-hover)] transition-colors"
+                        className="hidden 2xl:flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] hover:border-[var(--border-color-hover)] transition-colors"
                     >
                         <span className="text-xs font-medium text-text-secondary">Faucet</span>
                         <ExternalLink className="w-3 h-3 text-text-secondary" />
                     </a>
-                    <div className="[&_button]:!text-xs [&_button]:!py-1.5 [&_button]:!px-3 sm:[&_button]:!text-sm sm:[&_button]:!py-2 sm:[&_button]:!px-4">
+                    <div className="[&_button]:!text-xs [&_button]:!py-1.5 [&_button]:!px-3 sm:[&_button]:!text-sm sm:[&_button]:!py-2 sm:[&_button]:!px-4 shrink-0">
                         <WalletConnectButton />
                     </div>
                 </div>

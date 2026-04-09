@@ -7944,6 +7944,20 @@ export function useUSDCBalance() {
     return { balance, balanceWei, loading: isLoading };
 }
 
+/** Check current allowance for TradingCore. */
+export function useAllowance() {
+    const { address: userAddress } = useAccount();
+    const { address: usdcAddress } = useUSDC();
+    const { data: allowance, refetch, isLoading } = useReadContract({
+        address: usdcAddress,
+        abi: ERC20_ABI,
+        functionName: 'allowance',
+        args: userAddress ? [userAddress, TRADING_CORE_ADDRESS] : undefined,
+        query: { enabled: !!usdcAddress && !!userAddress },
+    });
+    return { allowance: allowance as bigint | undefined, refetch, loading: isLoading };
+}
+
 /** Submit an order via TradingCore.createOrder. Execution is performed by a keeper (executeOrder). */
 export function useCreateOrder() {
     const { address, chainId } = useAccount();
@@ -8001,6 +8015,8 @@ export function useOpenPosition() {
     const { address, chainId } = useAccount();
     const { writeContractAsync } = useWriteContract();
     const { createOrder } = useCreateOrder();
+    const publicClient = usePublicClient();
+    const { allowance, refetch: refetchAllowance } = useAllowance();
 
     const [isLoading, setIsLoading] = useState(false);
     const [step, setStep] = useState<'IDLE' | 'APPROVING' | 'COMMITTING' | 'WAITING' | 'REVEALING'>('IDLE');
@@ -8020,12 +8036,25 @@ export function useOpenPosition() {
         setStep('IDLE');
         try {
             if (!address) throw new Error("Wallet not connected");
+            if (!publicClient) throw new Error("Public client not available");
 
             const orderType = params.orderType ?? OrderType.MARKET_INCREASE;
             const isLimit = orderType === OrderType.LIMIT_INCREASE || orderType === OrderType.LIMIT_DECREASE;
             const triggerPriceStr = params.triggerPrice?.trim();
             if (isLimit && (!triggerPriceStr || parseFloat(triggerPriceStr) <= 0)) {
                 throw new Error('Limit and stop orders require a trigger price');
+            }
+
+            // 1. Check if market is listed
+            const marketInfo = await publicClient.readContract({
+                address: TRADING_CORE_ADDRESS,
+                abi: TRADING_CORE_ABI,
+                functionName: 'getMarketInfo',
+                args: [params.market as Address]
+            }) as any;
+
+            if (!marketInfo || !marketInfo.isListed) {
+                throw new Error(`Market ${params.market} is not registered in the protocol.`);
             }
 
             const sizeNum = parseFloat(params.size);
@@ -8035,33 +8064,48 @@ export function useOpenPosition() {
             const notionalValue = sizeNum;
 
             // The smart contract assesses an opening fee (0.05% taker + min $0.10).
-            // If the collateral doesn't cover this fee, `totalCollateralInternal <= openingFee` reverts!
             const baseMargin = leverageNum > 0 ? notionalValue / leverageNum : sizeNum;
             const estimatedOpeningFee = Math.max(0.10, notionalValue * 0.0005);
             const marginUSDC = baseMargin + estimatedOpeningFee;
 
-            const sizeDelta6 = parseUnits(sizeNum.toFixed(6), 6);
+            const sizeDelta18 = parseUnits(sizeNum.toFixed(18), 18);
             const collateralDelta18 = parseUnits(marginUSDC.toFixed(18), 18); // internal precision
             const triggerPriceWei = isLimit && triggerPriceStr
                 ? parseUnits(triggerPriceStr, 18).toString()
                 : undefined;
 
+            // 2. Allowance check
             if (usdcAddress) {
-                setStep('APPROVING');
-                await writeContractAsync({
-                    chainId,
-                    address: usdcAddress,
-                    abi: ERC20_ABI,
-                    functionName: 'approve',
-                    args: [TRADING_CORE_ADDRESS, (2n ** 256n) - 1n]
-                });
-                toast.success("Approved USDC");
+                const requiredCollateral = collateralDelta18 / BigInt(1e12); // Internal (18) to USDC (6)
+                
+                // Fetch fresh allowance if not available or insufficient
+                let currentAllowance = allowance;
+                if (currentAllowance === undefined) {
+                    const { data } = await refetchAllowance();
+                    currentAllowance = data as bigint | undefined;
+                }
+
+                if (!currentAllowance || currentAllowance < requiredCollateral) {
+                    setStep('APPROVING');
+                    const hash = await writeContractAsync({
+                        chainId,
+                        address: usdcAddress,
+                        abi: ERC20_ABI,
+                        functionName: 'approve',
+                        args: [TRADING_CORE_ADDRESS, (2n ** 256n) - 1n]
+                    });
+                    
+                    toast.loading("Waiting for approval confirmation...");
+                    await publicClient.waitForTransactionReceipt({ hash });
+                    toast.success("USDC approved successfully");
+                    await refetchAllowance();
+                }
             }
 
             setStep('REVEALING');
             await createOrder({
                 market: params.market as Address,
-                sizeDelta: sizeDelta6.toString(),
+                sizeDelta: sizeDelta18.toString(),
                 collateralDelta: collateralDelta18.toString(),
                 isLong: params.isLong,
                 maxSlippage: String(params.maxSlippageBps ?? 100),
@@ -8196,23 +8240,45 @@ export function useClosePosition() {
 }
 
 export function useModifyMargin() {
-    const { chainId } = useAccount();
-    const { writeContractAsync, isPending } = useWriteContract();
+    const { chainId, address } = useAccount();
+    const { writeContractAsync } = useWriteContract();
     const { address: usdcAddress } = useUSDC();
+    const publicClient = usePublicClient();
+    const { allowance, refetch: refetchAllowance } = useAllowance();
+    const [isPending, setIsPending] = useState(false);
 
     const modifyMargin = async (id: any, delta: number) => {
+        setIsPending(true);
         const amountWei = parseUnits(Math.abs(delta).toFixed(6), 6);
         try {
+            if (!address) throw new Error("Wallet not connected");
+            if (!publicClient) throw new Error("Public client not available");
+
             if (delta > 0) {
+                // ADDING COLLATERAL
                 if (usdcAddress) {
-                    await writeContractAsync({
-                        chainId,
-                        address: usdcAddress,
-                        abi: ERC20_ABI,
-                        functionName: 'approve',
-                        args: [TRADING_CORE_ADDRESS, amountWei]
-                    });
+                    // Check allowance
+                    let currentAllowance = allowance;
+                    if (currentAllowance === undefined) {
+                        const { data } = await refetchAllowance();
+                        currentAllowance = data as bigint | undefined;
+                    }
+
+                    if (!currentAllowance || currentAllowance < amountWei) {
+                        const hash = await writeContractAsync({
+                            chainId,
+                            address: usdcAddress,
+                            abi: ERC20_ABI,
+                            functionName: 'approve',
+                            args: [TRADING_CORE_ADDRESS, amountWei]
+                        });
+                        toast.loading("Waiting for approval confirmation...");
+                        await publicClient.waitForTransactionReceipt({ hash });
+                        toast.success("USDC approved");
+                        await refetchAllowance();
+                    }
                 }
+                
                 await writeContractAsync({
                     chainId,
                     address: TRADING_CORE_ADDRESS,
@@ -8220,8 +8286,9 @@ export function useModifyMargin() {
                     functionName: 'addCollateral',
                     args: [BigInt(id), amountWei, BigInt(0), false]
                 });
-                toast.success("Collateral added");
+                toast.success("Collateral added. It will reflect shortly.");
             } else {
+                // REMOVING COLLATERAL
                 await writeContractAsync({
                     chainId,
                     address: TRADING_CORE_ADDRESS,
@@ -8233,7 +8300,9 @@ export function useModifyMargin() {
             }
         } catch (e: any) {
             console.error(e);
-            toast.error(e.shortMessage || "Modify failed");
+            toast.error(e.shortMessage || e.message || "Modify failed");
+        } finally {
+            setIsPending(false);
         }
     };
     return { modifyMargin, loading: isPending };
