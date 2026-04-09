@@ -31,7 +31,7 @@ export default function App() {
 
     useEffect(() => {
         if (backendMarkets.length > 0) {
-            const formattedMarkets = backendMarkets.map(m => ({
+            const formattedMarkets = backendMarkets.map((m: any) => ({
                 id: m.id,
                 symbol: m.symbol,
                 name: m.name,

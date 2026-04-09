@@ -52,7 +52,16 @@
     "frontend:dev": "cd frontend && npm run dev",
     "frontend:build": "cd frontend && npm run build"
   },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
   "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "lucide-react": "^0.363.0",
     "@chainlink/contracts": "^1.2.0",
     "@openzeppelin/contracts": "^5.4.0",
     "@openzeppelin/contracts-upgradeable": "^5.4.0",

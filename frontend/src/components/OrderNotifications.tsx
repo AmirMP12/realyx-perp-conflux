@@ -102,7 +102,7 @@ export function useOrderNotifications() {
             const notification = parseNotification(data.data);
             if (notification && shouldShowNotification(notification, settings)) {
                 showNotification(notification);
-                setNotifications(prev => [notification, ...prev].slice(0, 50));
+                setNotifications((prev: any) => [notification, ...prev].slice(0, 50));
             }
         }
     }, [settings]);
@@ -251,7 +251,7 @@ export function useOrderNotifications() {
     };
 
     const updateSettings = (newSettings: Partial<NotificationSettings>) => {
-        setSettings(prev => ({ ...prev, ...newSettings }));
+        setSettings((prev: any) => ({ ...prev, ...newSettings }));
     };
 
     const clearNotifications = () => {
@@ -259,7 +259,7 @@ export function useOrderNotifications() {
     };
 
     const markAsRead = (id: string) => {
-        setNotifications(prev => prev.filter(n => n.id !== id));
+        setNotifications((prev: any) => prev.filter((n: any) => n.id !== id));
     };
 
     return {
@@ -327,7 +327,7 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
                         </div>
                     ) : (
                         <div className="divide-y divide-dark-300">
-                            {notifications.map(notification => (
+                            {notifications.map((notification: any) => (
                                 <div
                                     key={notification.id}
                                     className="p-3 hover:bg-dark-200 cursor-pointer transition-colors"
