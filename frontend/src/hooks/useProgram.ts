@@ -8068,15 +8068,15 @@ export function useOpenPosition() {
             const estimatedOpeningFee = Math.max(0.10, notionalValue * 0.0005);
             const marginUSDC = baseMargin + estimatedOpeningFee;
 
-            const sizeDelta18 = parseUnits(sizeNum.toFixed(18), 18);
-            const collateralDelta18 = parseUnits(marginUSDC.toFixed(18), 18); // internal precision
+            const sizeDelta6 = parseUnits(sizeNum.toFixed(6), 6);
+            const collateralDelta6 = parseUnits(marginUSDC.toFixed(6), 6); // USDC precision
             const triggerPriceWei = isLimit && triggerPriceStr
                 ? parseUnits(triggerPriceStr, 18).toString()
                 : undefined;
 
             // 2. Allowance check
             if (usdcAddress) {
-                const requiredCollateral = collateralDelta18 / BigInt(1e12); // Internal (18) to USDC (6)
+                const requiredCollateral = collateralDelta6; // Already in USDC precision (6)
                 
                 // Fetch fresh allowance if not available or insufficient
                 let currentAllowance = allowance;
@@ -8105,8 +8105,8 @@ export function useOpenPosition() {
             setStep('REVEALING');
             await createOrder({
                 market: params.market as Address,
-                sizeDelta: sizeDelta18.toString(),
-                collateralDelta: collateralDelta18.toString(),
+                sizeDelta: sizeDelta6.toString(),
+                collateralDelta: collateralDelta6.toString(),
                 isLong: params.isLong,
                 maxSlippage: String(params.maxSlippageBps ?? 100),
                 positionId: 0,
