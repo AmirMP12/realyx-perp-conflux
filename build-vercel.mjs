@@ -31,7 +31,7 @@ try {
   if (process.platform === 'win32') {
     run('xcopy /E /I /Y frontend\\dist public', 'Copying assets to root public folder (Windows)');
   } else {
-    run('cp -rn frontend/dist/* public/ && cp frontend/dist/index.html public/ || cp -r frontend/dist public', 'Copying assets to root public folder (Linux)');
+    run('mkdir -p public && cp -rf frontend/dist/. public/', 'Copying assets to root public folder (Linux)');
   }
 
   console.log('\n--- Build Output Audit ---');
