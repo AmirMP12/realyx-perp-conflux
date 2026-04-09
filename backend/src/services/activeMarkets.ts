@@ -1,6 +1,5 @@
 import { ethers } from "ethers";
-import fs from "fs";
-import path from "path";
+import TradingCoreABI from "../abi/TradingCore.js";
 
 const TRADING_CORE_ABI_FALLBACK = [
   "function activeMarketCount() view returns (uint256)",
@@ -8,28 +7,7 @@ const TRADING_CORE_ABI_FALLBACK = [
 ] as const;
 
 function getTradingCoreAbi(): any[] {
-  const cwd = process.cwd();
-  const artifactPaths = [
-    // If run from root
-    path.join(cwd, "artifacts/contracts/TradingCore.sol/TradingCore.json"),
-    path.join(cwd, "backend/src/abi/TradingCore.json"),
-    // If run from backend/
-    path.join(cwd, "../artifacts/contracts/TradingCore.sol/TradingCore.json"),
-    path.join(cwd, "src/abi/TradingCore.json"),
-    path.join(cwd, "abi/TradingCore.json"),
-  ];
-
-  for (const p of artifactPaths) {
-    try {
-      if (fs.existsSync(p)) {
-        const json = JSON.parse(fs.readFileSync(p, "utf8"));
-        return json.abi ?? json;
-      }
-    } catch (e) {
-      /* ignore */
-    }
-  }
-  return [...TRADING_CORE_ABI_FALLBACK];
+  return (TradingCoreABI as any).abi ?? TradingCoreABI;
 }
 
 const CONFLUX_FALLBACK_RPCS = [

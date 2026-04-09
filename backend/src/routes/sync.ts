@@ -2,8 +2,8 @@ import express from "express";
 import { ethers } from "ethers";
 import pg from "pg";
 import { config } from "../config.js";
-import TradingCoreABI from "../abi/TradingCore.json";
-import VaultCoreABI from "../abi/VaultCore.json";
+import TradingCoreABI from "../abi/TradingCore.js";
+import VaultCoreABI from "../abi/VaultCore.js";
 
 const router = express.Router();
 const { Pool } = pg;
