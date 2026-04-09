@@ -173,12 +173,13 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
       let size = "0";
       let entryPrice = "0";
       let margin = "0";
+      let leverage = "1";
       try {
         const args = JSON.parse(row.data || "[]");
         // PositionOpened(uint256 positionId, address trader, address market, bool isLong, uint256 size, uint256 leverage, uint256 entryPrice)
         isLong = String(args[3]) === "true";
         size = args[4] || "0";
-        const leverage = args[5] || "1";
+        leverage = args[5] || "1";
         entryPrice = args[6] || "0";
         
         // Calculate margin (collateral) from size and leverage: margin = size / leverage
