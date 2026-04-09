@@ -1,27 +1,15 @@
 {
-    "compilerOptions": {
-        "types": [
-            "mocha",
-            "chai"
-        ],
-        "typeRoots": [
-            "./node_modules/@types"
-        ],
-        "lib": [
-            "es2015"
-        ],
-        "module": "commonjs",
-        "target": "es2020",
-        "esModuleInterop": true,
-        "resolveJsonModule": true,
-        "skipLibCheck": true,
-        "strict": true,
-        "outDir": "./dist"
-    },
-    "include": [
-        "test/**/*",
-        "scripts/**/*",
-        "contracts/**/*",
-        "hardhat.config.ts"
-    ]
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "strict": false
+  },
+  "exclude": ["node_modules", "frontend", "backend"]
 }
