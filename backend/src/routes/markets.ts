@@ -9,6 +9,11 @@ import { toDecimal, PRECISION_1E18 } from "../utils/format.js";
 const router = Router();
 
 const MARKET_META: Record<string, { name: string; symbol: string; image: string }> = {
+  "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c": {
+    name: "Conflux",
+    symbol: "CFX-USD",
+    image: "https://coin-images.coingecko.com/coins/images/13043/large/conflux-logo.png",
+  },
   "0x986a383f6de4a24dd3f524f0f93546229b58265f": {
     name: "Bitcoin",
     symbol: "BTC-USD",
@@ -18,26 +23,6 @@ const MARKET_META: Record<string, { name: string; symbol: string; image: string 
     name: "Ethereum",
     symbol: "ETH-USD",
     image: "https://coin-images.coingecko.com/coins/images/279/small/ethereum.png",
-  },
-  "0x906a383f6de4a24dd3f524f0f93546229b58265f": {
-    name: "Chainlink",
-    symbol: "LINK-USD",
-    image: "https://coin-images.coingecko.com/coins/images/877/small/chainlink-new-logo.png",
-  },
-  "0x926a383f6de4a24dd3f524f0f93546229b58265f": {
-    name: "Synthetix",
-    symbol: "SNX-USD",
-    image: "https://coin-images.coingecko.com/coins/images/3406/small/SNX.png",
-  },
-  "0x936a383f6de4a24dd3f524f0f93546229b58265f": {
-    name: "Pendle",
-    symbol: "PENDLE-USD",
-    image: "https://coin-images.coingecko.com/coins/images/15069/small/Pendle_Logo_Normal-03.png",
-  },
-  "0x086a383f6de4a24dd3f524f0f93546229b58265f": {
-    name: "Ondo Finance",
-    symbol: "ONDO-USD",
-    image: "https://coin-images.coingecko.com/coins/images/26580/small/ONDO.png",
   },
   "0x286a383f6de4a24dd3f524f0f93546229b58265f": {
     name: "Tether Gold",
@@ -89,11 +74,6 @@ const MARKET_META: Record<string, { name: string; symbol: string; image: string 
     symbol: "MCDX-USD",
     image: "https://coin-images.coingecko.com/coins/images/55625/large/Ticker_MCD__Company_Name_McDonalds__size_200x200_2x.png",
   },
-  "0x996a383f6de4a24dd3f524f0f93546229b58265f": {
-    name: "Nasdaq",
-    symbol: "QQQX-USD",
-    image: "https://coin-images.coingecko.com/coins/images/66696/large/QQQx.png",
-  },
   "0x006a383f6de4a24dd3f524f0f93546229b58265f": {
     name: "Robinhood",
     symbol: "HOODX-USD",
@@ -111,14 +91,12 @@ const MARKET_META: Record<string, { name: string; symbol: string; image: string 
   },
 };
 
+
 export type MarketCategory = "CRYPTO" | "STOCK" | "COMMODITY" | "FOREX";
 const MARKET_CATEGORY: Record<string, MarketCategory> = {
+  "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c": "CRYPTO",
   "0x986a383f6de4a24dd3f524f0f93546229b58265f": "CRYPTO",
   "0x886a383f6de4a24dd3f524f0f93546229b58265f": "CRYPTO",
-  "0x906a383f6de4a24dd3f524f0f93546229b58265f": "CRYPTO",
-  "0x926a383f6de4a24dd3f524f0f93546229b58265f": "CRYPTO",
-  "0x936a383f6de4a24dd3f524f0f93546229b58265f": "CRYPTO",
-  "0x086a383f6de4a24dd3f524f0f93546229b58265f": "CRYPTO",
   "0x286a383f6de4a24dd3f524f0f93546229b58265f": "COMMODITY",
   "0x786a383f6de4a24dd3f524f0f93546229b58265f": "STOCK",
   "0x686a383f6de4a24dd3f524f0f93546229b58265f": "STOCK",
@@ -129,11 +107,11 @@ const MARKET_CATEGORY: Record<string, MarketCategory> = {
   "0x956a383f6de4a24dd3f524f0f93546229b58265f": "STOCK",
   "0x966a383f6de4a24dd3f524f0f93546229b58265f": "CRYPTO",
   "0x976a383f6de4a24dd3f524f0f93546229b58265f": "STOCK",
-  "0x996a383f6de4a24dd3f524f0f93546229b58265f": "STOCK",
   "0x006a383f6de4a24dd3f524f0f93546229b58265f": "STOCK",
   "0x116a383f6de4a24dd3f524f0f93546229b58265f": "STOCK",
   "0x706a383f6de4a24dd3f524f0f93546229b58265f": "STOCK",
 };
+
 
 function getMarketCategory(marketAddress: string): MarketCategory {
   return MARKET_CATEGORY[marketAddress.toLowerCase()] ?? "CRYPTO";

@@ -26,18 +26,18 @@ export interface BackendMarket {
 }
 
 const FALLBACK_CATEGORY: Record<string, 'CRYPTO' | 'STOCK' | 'COMMODITY' | 'FOREX'> = {
+  '0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c': 'CRYPTO',
   '0x986a383f6de4a24dd3f524f0f93546229b58265f': 'CRYPTO', '0x886a383f6de4a24dd3f524f0f93546229b58265f': 'CRYPTO',
-  '0x906a383f6de4a24dd3f524f0f93546229b58265f': 'CRYPTO', '0x926a383f6de4a24dd3f524f0f93546229b58265f': 'CRYPTO',
-  '0x936a383f6de4a24dd3f524f0f93546229b58265f': 'CRYPTO', '0x086a383f6de4a24dd3f524f0f93546229b58265f': 'CRYPTO',
   '0x286a383f6de4a24dd3f524f0f93546229b58265f': 'COMMODITY',
   '0x786a383f6de4a24dd3f524f0f93546229b58265f': 'STOCK', '0x686a383f6de4a24dd3f524f0f93546229b58265f': 'STOCK',
   '0x586a383f6de4a24dd3f524f0f93546229b58265f': 'STOCK', '0x486a383f6de4a24dd3f524f0f93546229b58265f': 'CRYPTO',
   '0x386a383f6de4a24dd3f524f0f93546229b58265f': 'STOCK', '0x946a383f6de4a24dd3f524f0f93546229b58265f': 'STOCK',
   '0x956a383f6de4a24dd3f524f0f93546229b58265f': 'STOCK', '0x966a383f6de4a24dd3f524f0f93546229b58265f': 'CRYPTO',
-  '0x976a383f6de4a24dd3f524f0f93546229b58265f': 'STOCK', '0x996a383f6de4a24dd3f524f0f93546229b58265f': 'STOCK',
+  '0x976a383f6de4a24dd3f524f0f93546229b58265f': 'STOCK',
   '0x006a383f6de4a24dd3f524f0f93546229b58265f': 'STOCK', '0x116a383f6de4a24dd3f524f0f93546229b58265f': 'STOCK',
   '0x706a383f6de4a24dd3f524f0f93546229b58265f': 'STOCK',
 };
+
 
 const PLACEHOLDER_MARKETS: BackendMarket[] = Object.entries(MARKET_DISPLAY_FALLBACK).map(([addr, meta]) => ({
   id: addr.toLowerCase(),
@@ -279,7 +279,12 @@ export function useMarkets() {
             const data = await response.json().catch(() => ({ success: false, data: [] }));
             if (!response.ok) throw new Error(data.error || 'Failed to fetch markets');
             if (!Array.isArray(data.data) || data.data.length === 0) return PLACEHOLDER_MARKETS;
-            return data.data;
+            return (data.data as BackendMarket[]).sort((a, b) => {
+                if (a.symbol === 'CFX-USD') return -1;
+                if (b.symbol === 'CFX-USD') return 1;
+                return 0;
+            });
+
         },
         placeholderData: PLACEHOLDER_MARKETS,
         staleTime: 500,

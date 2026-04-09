@@ -79,7 +79,12 @@ export function MarketsPage() {
             image: display.image,
             category: (m as any).category || 'CRYPTO',
         };
+    }).sort((a, b) => {
+        if (a.symbol === 'CFX-USD') return -1;
+        if (b.symbol === 'CFX-USD') return 1;
+        return 0;
     });
+
 
     const filteredMarkets = displayMarkets.filter(m => {
         const matchesFilter = filter === 'favorites' ? favorites.includes(m.id) : true;

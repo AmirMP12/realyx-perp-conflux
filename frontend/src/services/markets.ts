@@ -52,7 +52,12 @@ export async function fetchMarkets(): Promise<Market[]> {
         longOI: parseFloat(m.longOI),
         shortOI: parseFloat(m.shortOI),
         fundingRate: parseFloat(m.fundingRate),
-    }));
+    })).sort((a: Market, b: Market) => {
+        if (a.symbol === 'CFX-USD') return -1;
+        if (b.symbol === 'CFX-USD') return 1;
+        return 0;
+    });
+
 }
 
 export async function getMarket(idOrSlug: string): Promise<Market | undefined> {

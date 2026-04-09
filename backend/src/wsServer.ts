@@ -14,17 +14,18 @@ import { toDecimal } from "./utils/format.js";
 const POLL_MS = process.env.NODE_ENV === "test" ? 500 : 15_000; // fast polling for tests
 const isTestEnv = process.env.NODE_ENV === "test";
 const MARKET_META: Record<string, { name: string; symbol: string }> = {
+  "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c": { name: "Conflux", symbol: "CFX-USD" },
   "0x986a383f6de4a24dd3f524f0f93546229b58265f": { name: "Bitcoin", symbol: "BTC-USD" },
   "0x886a383f6de4a24dd3f524f0f93546229b58265f": { name: "Ethereum", symbol: "ETH-USD" },
-  "0x906a383f6de4a24dd3f524f0f93546229b58265f": { name: "Chainlink", symbol: "LINK-USD" },
-  "0x926a383f6de4a24dd3f524f0f93546229b58265f": { name: "Synthetix", symbol: "SNX-USD" },
-  "0x936a383f6de4a24dd3f524f0f93546229b58265f": { name: "Pendle", symbol: "PENDLE-USD" },
-  "0x086a383f6de4a24dd3f524f0f93546229b58265f": { name: "Ondo", symbol: "ONDO-USD" },
+  "0x286a383f6de4a24dd3f524f0f93546229b58265f": { name: "Tether Gold", symbol: "XAUT-USD" },
   "0x786a383f6de4a24dd3f524f0f93546229b58265f": { name: "NVIDIA", symbol: "NVDAX-USD" },
   "0x686a383f6de4a24dd3f524f0f93546229b58265f": { name: "Tesla", symbol: "TSLAX-USD" },
   "0x586a383f6de4a24dd3f524f0f93546229b58265f": { name: "Meta", symbol: "METAX-USD" },
-  "0x956a383f6de4a24dd3f524f0f93546229b58265f": { name: "Apple", symbol: "AAPLX-USD" },
+  "0x486a383f6de4a24dd3f524f0f93546229b58265f": { name: "Circle", symbol: "CRCLX-USD" },
+  "0x386a383f6de4a24dd3f524f0f93546229b58265f": { name: "Alphabet", symbol: "GOOGLX-USD" },
+  "0x116a383f6de4a24dd3f524f0f93546229b58265f": { name: "MicroStrategy", symbol: "MSTRX-USD" },
 };
+
 
 function _getMeta(addr: string) {
   const key = addr.toLowerCase();

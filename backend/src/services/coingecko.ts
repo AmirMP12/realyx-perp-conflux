@@ -8,12 +8,9 @@ const CACHE_MS = 60_000; // 1 min
 
 // Map market address (lowercase) to CoinGecko API id
 export const MARKET_TO_COINGECKO_ID: Record<string, string> = {
+  "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c": "conflux-token",
   "0x986a383f6de4a24dd3f524f0f93546229b58265f": "bitcoin",
   "0x886a383f6de4a24dd3f524f0f93546229b58265f": "ethereum",
-  "0x906a383f6de4a24dd3f524f0f93546229b58265f": "chainlink",
-  "0x926a383f6de4a24dd3f524f0f93546229b58265f": "synthetix-network-token",
-  "0x936a383f6de4a24dd3f524f0f93546229b58265f": "pendle",
-  "0x086a383f6de4a24dd3f524f0f93546229b58265f": "ondo-finance",
   "0x286a383f6de4a24dd3f524f0f93546229b58265f": "tether-gold",
   "0x786a383f6de4a24dd3f524f0f93546229b58265f": "nvidia-xstock",
   "0x686a383f6de4a24dd3f524f0f93546229b58265f": "tesla-xstock",
@@ -24,11 +21,11 @@ export const MARKET_TO_COINGECKO_ID: Record<string, string> = {
   "0x956a383f6de4a24dd3f524f0f93546229b58265f": "apple-xstock",
   "0x966a383f6de4a24dd3f524f0f93546229b58265f": "coinbase-xstock",
   "0x976a383f6de4a24dd3f524f0f93546229b58265f": "mcdonald-s-xstock",
-  "0x996a383f6de4a24dd3f524f0f93546229b58265f": "nasdaq-xstock",
   "0x006a383f6de4a24dd3f524f0f93546229b58265f": "robinhood-xstock",
   "0x116a383f6de4a24dd3f524f0f93546229b58265f": "microstrategy-xstock",
   "0x706a383f6de4a24dd3f524f0f93546229b58265f": "spdr-s-p-500-etf-ondo-tokenized-etf",
 };
+
 
 export interface CoinGeckoMarketItem {
   id: string;

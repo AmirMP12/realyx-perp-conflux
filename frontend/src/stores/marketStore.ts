@@ -33,7 +33,8 @@ export const useMarketStore = create<MarketsState>()(
             isLoading: false,
             error: null,
             lastUpdated: null,
-            selectedMarketId: 'ETH-USD',
+            selectedMarketId: 'CFX-USD',
+
 
             setMarkets: (markets) => set({ markets, lastUpdated: Date.now() }),
 
