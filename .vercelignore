@@ -1,22 +1,13 @@
-# Not needed for Vercel (frontend + api + backend dist)
-contracts
-scripts
-test
-hardhat.config.ts
-abi
-deployment
-infrastructure
-docs
-*.sol
-# Build artifacts
-cache
-artifacts
-coverage
-coverage.json
-typechain
-branch-coverage-report.txt
-result.txt
-last_fail.txt
+# Ensure backend ABIs are NOT ignored
+!backend/src/abi/*.ts
+!backend/src/abi/*.json
 
-# Docker
-docker-compose*.yml
+# Standard ignore patterns
+node_modules
+dist
+.env
+.git
+artifacts/
+cache/
+typechain/
+typechain-types/
