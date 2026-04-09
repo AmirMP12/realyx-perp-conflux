@@ -27,8 +27,15 @@ try {
   run('npx tsc -p frontend', '[2/3] Type-checking Frontend');
   run('npx vite build frontend', '[3/3] Building Frontend Assets (Vite)');
   
+  console.log('\n--- Standardizing Output ---');
+  if (process.platform === 'win32') {
+    run('xcopy /E /I /Y frontend\\dist public', 'Copying assets to root public folder (Windows)');
+  } else {
+    run('cp -rn frontend/dist/* public/ && cp frontend/dist/index.html public/ || cp -r frontend/dist public', 'Copying assets to root public folder (Linux)');
+  }
+
   console.log('\n--- Build Output Audit ---');
-  run('ls -R frontend/dist', 'Verifying frontend/dist contents');
+  run('ls -R public', 'Verifying root public contents');
 
   console.log('\n✨ Build successfully finished!');
 } catch (error) {

@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "outputDirectory": "frontend/dist",
   "cleanUrls": true,
+  "trailingSlash": false,
   "rewrites": [
     {
       "source": "/api/:path*",
