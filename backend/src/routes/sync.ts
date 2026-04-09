@@ -8,14 +8,21 @@ import VaultCoreABI from "../abi/VaultCore.js";
 const router = express.Router();
 const { Pool } = pg;
 
-// Use Vercel Postgres URL or any standard DB string
-const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined
-});
+let poolInstance: pg.Pool | null = null;
+function getPool(): pg.Pool | null {
+  if (poolInstance) return poolInstance;
+  if (!process.env.POSTGRES_URL) return null;
+  poolInstance = new pg.Pool({
+    connectionString: process.env.POSTGRES_URL,
+    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined
+  });
+  return poolInstance;
+}
 
 // Initialize schema (best-effort locally, usually you'd run a migration)
 async function initDB() {
+  const pool = getPool();
+  if (!pool) return;
   try {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS position_events (
@@ -38,20 +45,23 @@ async function initDB() {
   }
 }
 
-// Call on boot
-initDB();
+
+
 
 router.get("/", async (req: any, res: any) => {
   try {
-    if (!process.env.POSTGRES_URL) {
-      return res.status(500).json({ success: false, error: "POSTGRES_URL not configured. Add it to Vercel Environment Variables." });
+    const pool = getPool();
+    if (!pool) {
+      return res.status(500).json({ success: false, error: "Database not configured" });
     }
-    
+    await initDB();
+
     // Vercel Cron sends a secret header. If configured, enforce it.
     const authHeader = req.headers.authorization;
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return res.status(401).json({ success: false, error: "Unauthorized cron request" });
     }
+
 
     const provider = new ethers.JsonRpcProvider(
       config.chainId === 1030 
@@ -112,6 +122,7 @@ router.get("/", async (req: any, res: any) => {
         // Serialize the rest of the arguments to JSONB for frontend consumption
         const eventData = JSON.stringify(parsed.args.map(arg => typeof arg === 'bigint' ? arg.toString() : arg));
 
+        const pool = getPool()!;
         await pool.query(
           `INSERT INTO position_events (account, market_id, event_type, block_number, tx_hash, data) 
            VALUES ($1, $2, $3, $4, $5, $6)`,
@@ -124,7 +135,8 @@ router.get("/", async (req: any, res: any) => {
     }
 
     // Save our place so the next minute's cron picks up exactly where we left off
-    await pool.query(
+    const poolFinal = getPool()!;
+    await poolFinal.query(
       `INSERT INTO indexer_state (key, last_synced_block) VALUES ('trading_core', $1)
        ON CONFLICT (key) DO UPDATE SET last_synced_block = EXCLUDED.last_synced_block`,
       [toBlock]

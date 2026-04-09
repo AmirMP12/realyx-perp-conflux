@@ -1,10 +1,17 @@
 import pg from "pg";
 
-const { Pool } = pg;
-const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined
-});
+let poolInstance: pg.Pool | null = null;
+function getPool(): pg.Pool | null {
+  if (poolInstance) return poolInstance;
+  if (!process.env.POSTGRES_URL) return null;
+  
+  poolInstance = new pg.Pool({
+    connectionString: process.env.POSTGRES_URL,
+    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined
+  });
+  return poolInstance;
+}
+
 
 export interface Protocol {
   totalPositionsOpened: string;
@@ -117,6 +124,8 @@ export async function fetchProtocol(): Promise<Protocol | null> {
     return null;
   }
   try {
+    const pool = getPool();
+    if (!pool) return null;
     const res = await pool.query(`SELECT event_type, COUNT(*) as count FROM position_events GROUP BY event_type`);
     let opened = 0;
     let closed = 0;
@@ -140,6 +149,7 @@ export async function fetchProtocol(): Promise<Protocol | null> {
   }
 }
 
+
 export async function fetchMarkets(): Promise<Market[]> {
   // Let the backend route gracefully fallback to RPC/CoinGecko which gives identical functionality seamlessly
   return [];
@@ -149,6 +159,8 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
   const trader = traderAddress.toLowerCase();
   if (!trader.startsWith("0x") || !process.env.POSTGRES_URL) return [];
   try {
+    const pool = getPool();
+    if (!pool) return [];
     // Only fetch opened positions (In an ideal indexer you'd prune closed ones, here we just return history as opened for mockup efficiency)
     const res = await pool.query(
       `SELECT * FROM position_events WHERE lower(account) = $1 AND event_type = 'PositionOpened' ORDER BY id DESC LIMIT 50`,
@@ -198,6 +210,8 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
   const trader = traderAddress.toLowerCase();
   if (!trader.startsWith("0x") || !process.env.POSTGRES_URL) return [];
   try {
+    const pool = getPool();
+    if (!pool) return [];
     const res = await pool.query(
       `SELECT * FROM position_events WHERE lower(account) = $1 ORDER BY id DESC LIMIT $2`,
       [trader, Math.min(limit, 200)]
@@ -249,6 +263,8 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
 export async function fetchLeaderboard(limit: number): Promise<User[]> {
   if (!process.env.POSTGRES_URL) return [];
   try {
+    const pool = getPool();
+    if (!pool) return [];
     // Generate leaderboard based on count of position events (proxy for trades volume)
     const res = await pool.query(
       `SELECT account, COUNT(*) as trades FROM position_events GROUP BY account ORDER BY trades DESC LIMIT $1`,
