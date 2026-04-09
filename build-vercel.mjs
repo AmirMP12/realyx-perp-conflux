@@ -3,11 +3,12 @@ import path from 'path';
 
 const root = process.cwd();
 
-function run(cmd, desc) {
+function run(cmd, desc, options = {}) {
+  const cwd = options.cwd ?? root;
   console.log(`\n--- ${desc} ---`);
   try {
     // Capture output so we can see it even if the process fails
-    const output = execSync(cmd, { stdio: 'pipe', encoding: 'utf-8', cwd: root });
+    const output = execSync(cmd, { stdio: 'pipe', encoding: 'utf-8', cwd });
     console.log(output);
     console.log(`✅ ${desc} successful.`);
   } catch (error) {
@@ -25,7 +26,9 @@ try {
 
   run('npx tsc -p backend', '[1/3] Building Backend');
   run('npx tsc -p frontend', '[2/3] Type-checking Frontend');
-  run('npx vite build frontend', '[3/3] Building Frontend Assets (Vite)');
+  run('npx vite build', '[3/3] Building Frontend Assets (Vite)', {
+    cwd: path.join(root, 'frontend'),
+  });
   
   console.log('\n--- Standardizing Output ---');
   if (process.platform === 'win32') {

@@ -4,7 +4,7 @@
   "framework": null,
   "buildCommand": "npm run build",
   "outputDirectory": "public",
-  "cleanUrls": true,
+  "cleanUrls": false,
   "trailingSlash": false,
   "rewrites": [
     {
@@ -12,8 +12,8 @@
       "destination": "/api/index.ts"
     },
     {
-      "source": "/(.*)",
-      "destination": "/index"
+      "source": "/((?!assets/)(?!.*\\.[a-zA-Z0-9]{2,8}$).*)",
+      "destination": "/index.html"
     }
   ]
 }

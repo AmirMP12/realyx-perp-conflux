@@ -119,7 +119,7 @@ const config: HardhatUserConfig = {
                 network: "conflux",
                 chainId: 1030,
                 urls: {
-                    apiURL: "https://evmapi.confluxscan.org/api",
+                    apiURL: "https://evmapi.confluxscan.org/api?chainid=1030",
                     browserURL: "https://evm.confluxscan.org",
                 },
             },
@@ -127,7 +127,7 @@ const config: HardhatUserConfig = {
                 network: "confluxTestnet",
                 chainId: 71,
                 urls: {
-                    apiURL: "https://evmapi-testnet.confluxscan.org/api",
+                    apiURL: "https://evmapi-testnet.confluxscan.org/api?chainid=71",
                     browserURL: "https://evmtestnet.confluxscan.org",
                 },
             },
