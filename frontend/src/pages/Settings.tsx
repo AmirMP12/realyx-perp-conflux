@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useAccount, useWriteContract, useChainId, useReadContract } from 'wagmi';
-import { confluxESpace, confluxESpaceTestnet } from 'wagmi/chains';
 import type { Address } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -14,12 +13,13 @@ import clsx from 'clsx';
 import toast from 'react-hot-toast';
 import { useSettingsStore, SettingsState, Currency } from '../stores/settingsStore';
 import { MOCK_USDC_ADDRESS } from '../hooks/useProgram';
+import { realyxChains } from '../config/wagmi';
 
 const TESTNET_FAUCET_URL = 'https://efaucet.confluxnetwork.org/';
 
 const CHAIN_NAMES: Record<number, string> = {
-    [confluxESpace.id]: 'Conflux eSpace',
-    [confluxESpaceTestnet.id]: 'Conflux Testnet',
+    [realyxChains[0].id]: realyxChains[0].name,
+    [realyxChains[1].id]: realyxChains[1].name,
 };
 
 interface SettingsSection {
@@ -163,7 +163,7 @@ export function SettingsPage() {
                     </AnimatePresence>
 
                     {/* Testnet Tools (Only visible on testnets) */}
-                    {(chainId === confluxESpaceTestnet.id || !isConnected) && (
+                    {(chainId === realyxChains[1].id || !isConnected) && (
                         <TestnetSettings />
                     )}
                 </div>
@@ -181,7 +181,7 @@ const MOCK_USDC_ABI = [
 
 function getMockUsdcAddress(chainId: number, usdcFromCore: Address | undefined): Address | undefined {
     if (usdcFromCore) return usdcFromCore;
-    if (chainId === confluxESpaceTestnet.id) return MOCK_USDC_ADDRESS;
+    if (chainId === realyxChains[1].id) return MOCK_USDC_ADDRESS;
     return undefined;
 }
 
@@ -306,12 +306,12 @@ const TestnetSettings = () => {
                     <span>{buttonLabel}</span>
                 </button>
                 <a
-                    href={chainId === confluxESpaceTestnet.id && mintUsdcAddress ? `https://evmtestnet.confluxscan.net/address/${mintUsdcAddress}#writeContract` : '#'}
+                    href={chainId === realyxChains[1].id && mintUsdcAddress ? `https://evmtestnet.confluxscan.net/address/${mintUsdcAddress}#writeContract` : '#'}
                     target="_blank"
                     rel="noopener noreferrer"
                     className={clsx(
                         "btn-secondary py-2 px-4 flex items-center gap-2 text-sm",
-                        (!mintUsdcAddress || chainId !== confluxESpaceTestnet.id) && "pointer-events-none opacity-50"
+                        (!mintUsdcAddress || chainId !== realyxChains[1].id) && "pointer-events-none opacity-50"
                     )}
                 >
                     <ExternalLink className="w-4 h-4" />

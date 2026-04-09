@@ -111,15 +111,19 @@ const config: HardhatUserConfig = {
         },
     },
 
-    // Block explorer verification (Configured for ConfluxScan via hardhat-verify)
+    // Block explorer verification
     etherscan: {
-        apiKey: process.env.CONFLUXSCAN_API_KEY || "",
+        apiKey: {
+            conflux: process.env.CONFLUXSCAN_API_KEY || "confluxscan",
+            confluxTestnet: process.env.CONFLUXSCAN_API_KEY || "confluxscan",
+        },
         customChains: [
             {
                 network: "conflux",
                 chainId: 1030,
                 urls: {
-                    apiURL: "https://evmapi.confluxscan.org/api?chainid=1030",
+                    // Base API URL
+                    apiURL: "https://evmapi.confluxscan.org/api",
                     browserURL: "https://evm.confluxscan.org",
                 },
             },
@@ -127,7 +131,7 @@ const config: HardhatUserConfig = {
                 network: "confluxTestnet",
                 chainId: 71,
                 urls: {
-                    apiURL: "https://evmapi-testnet.confluxscan.org/api?chainid=71",
+                    apiURL: "https://evmapi-testnet.confluxscan.org/api",
                     browserURL: "https://evmtestnet.confluxscan.org",
                 },
             },

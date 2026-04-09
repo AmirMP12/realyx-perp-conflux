@@ -1,15 +1,15 @@
 import { useChainId } from 'wagmi';
-import { confluxESpace, confluxESpaceTestnet } from 'wagmi/chains';
+import { realyxChains } from '../config/wagmi';
 
 const CHAIN_NAMES: Record<number, string> = {
-    [confluxESpace.id]: 'Conflux eSpace',
-    [confluxESpaceTestnet.id]: 'Conflux Testnet',
+    [realyxChains[0].id]: realyxChains[0].name,
+    [realyxChains[1].id]: realyxChains[1].name,
 };
 
 export function NetworkIndicator() {
     const chainId = useChainId();
     const chainName = CHAIN_NAMES[chainId] ?? `Chain ${chainId}`;
-    const isTestnet = chainId === confluxESpaceTestnet.id;
+    const isTestnet = chainId === realyxChains[1].id;
 
     return (
         <div className="hidden sm:flex items-center gap-2 px-2 py-1 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)]">

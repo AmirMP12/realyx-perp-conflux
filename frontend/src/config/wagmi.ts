@@ -72,9 +72,21 @@ const connectors = connectorsForWallets(
     }
 );
 
+// RainbowKit's "Switch Networks" modal uses `chain.name` for display.
+export const realyxChains = [
+    {
+        ...confluxESpace,
+        name: 'eSpace',
+    },
+    {
+        ...confluxESpaceTestnet,
+        name: 'eSpace Testnet',
+    },
+] as const;
+
 export const config = createConfig({
     connectors,
-    chains: [confluxESpace, confluxESpaceTestnet],
+    chains: realyxChains,
     transports: {
         [confluxESpace.id]: http(undefined, {
             // Keep mainnet reads resilient against temporary provider slowness.
