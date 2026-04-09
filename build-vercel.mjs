@@ -26,6 +26,9 @@ try {
   run('npx tsc -p backend', '[1/3] Building Backend');
   run('npx tsc -p frontend', '[2/3] Type-checking Frontend');
   run('npx vite build frontend', '[3/3] Building Frontend Assets (Vite)');
+  
+  console.log('\n--- Build Output Audit ---');
+  run('ls -R frontend/dist', 'Verifying frontend/dist contents');
 
   console.log('\n✨ Build successfully finished!');
 } catch (error) {
