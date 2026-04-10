@@ -13,7 +13,11 @@ export function NetworkIndicator() {
 
     return (
         <div className="hidden sm:flex items-center gap-2 px-2 py-1 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)]">
-            <span className={`w-2 h-2 rounded-full ${isTestnet ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+            <img 
+                src="https://raw.githubusercontent.com/Conflux-Chain/design-resource-lab/master/0.%20CONFLUX%20LOGO/Logo%20Symbol/no%20space/Logo%20Symbol_no%20space_PNG/Logo%20Mark/White.png" 
+                alt="Conflux" 
+                className={`w-3.5 h-3.5 object-contain ${isTestnet ? 'animate-pulse' : ''}`} 
+            />
             <span className="text-xs font-mono font-medium text-text-primary">{isTestnet ? 'conflux' : chainName}</span>
             {isTestnet && <span className="text-[10px] text-amber-400 font-medium">testnet</span>}
         </div>

@@ -1,21 +1,21 @@
 {
   "network": "confluxTestnet",
   "chainId": 71,
-  "timestamp": "2026-04-08T19:01:56.430Z",
+  "timestamp": "2026-04-10T00:08:46.036Z",
   "deployer": null,
   "contracts": {
-    "oracleAggregator": "0xBb9B26F89624a505Fc4318463CC5a7325E5A106E",
-    "vaultCore": "0xe934aB1736a7924c1B9A290d57a73a0340092e24",
-    "positionToken": "0x0e7110ED111add8Ac5EB148567f4504569aC749f",
-    "tradingCore": "0x49493c04Df243FDD73a26E0AB10d9Fd89d82a92e",
-    "tradingCoreViews": "0x5AEA00500f4b7519DeA151bC1590496ABAAb4B15",
-    "marketCalendar": "0xAce65988553110839a3aa06E5b6ac9292A88dC2e",
-    "dividendManager": "0xCDb1F9204Bd797d26974517a324CBc31E7BBEB32",
-    "complianceManager": "0x3a3D6b28a8212865dbF9ccA458DD320A2AF6E8e8",
-    "dividendKeeper": "0xE88C8A83eA963837D8C3Af5F98169515C070e51f",
-    "usdc": "0x4d0874577f1E6326E75EbBAf2F73C548B3ec32F1",
+    "oracleAggregator": "0x6b171f2c2d6451FE08BAe917156d8135959A43fE",
+    "vaultCore": "0x6F77340d67f34ca1Ec818A127Fc2b67579292226",
+    "positionToken": "0xd4cA0C044Ce7c998a6620B1C7689C21F7e3bb701",
+    "tradingCore": "0x13AF25ED5aF5b7B8b605E301C82D0B7dCe9a5B3E",
+    "tradingCoreViews": "0x326bbef947773dee37611e127e4d204A9a0cC970",
+    "marketCalendar": "0x48483e13DAd39CFD809b70ab77A907E3d58a5Dd2",
+    "dividendManager": "0x71101DC34Aa6Ed2420cA26F5F19c8Ff6F897b2FE",
+    "complianceManager": "0xd3f3C567c33ccBB22D287eD2D278868a4719b98C",
+    "dividendKeeper": "0x4C0f7a564eB9027d9C3fcC97c02212775EA0B7ce",
+    "usdc": "0xC568871Fac297651B370573864D47bA702c6f9e3",
     "pyth": "0xDd24F84d36BF92C65F92307595335bdFab5Bbd21",
-    "mockUsdc": "0x4d0874577f1E6326E75EbBAf2F73C548B3ec32F1"
+    "mockUsdc": "0xC568871Fac297651B370573864D47bA702c6f9e3"
   },
   "flags": {
     "usdcIsMock": true,
