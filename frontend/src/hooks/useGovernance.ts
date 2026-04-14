@@ -2,9 +2,6 @@ import { useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import toast from 'react-hot-toast';
 
-// Governance Contract Address - Placeholder
-// const GOVERNANCE_ADDRESS = '0xMockGovernanceAddress';
-
 // Market parameters for adding new markets
 export interface MarketParams {
     collectionId: string;
@@ -60,7 +57,6 @@ export function useGovernance() {
         try {
             toast.loading('Creating proposal...', { id: 'create-proposal' });
 
-            // Simulation
             await new Promise(resolve => setTimeout(resolve, 1000));
 
             toast.success('Proposal created successfully!', { id: 'create-proposal' });

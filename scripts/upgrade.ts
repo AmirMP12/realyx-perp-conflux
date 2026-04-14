@@ -2,19 +2,9 @@ import { ethers, upgrades } from "hardhat";
 import { requireEnv } from "./helpers";
 
 /**
- * Generic UUPS upgrade script.
- * Supports linked-library contracts (TradingCore, OracleAggregator, TradingCoreViews).
- *
- * Required env:
- *   CONTRACT_TO_UPGRADE  – Factory name, e.g. "TradingCore"
- *   PROXY_ADDRESS         – The proxy to upgrade
- *
- * For linked-library contracts, also set the deployed library addresses:
- *   LIB_TRADING_LIB, LIB_CLEANUP_LIB, LIB_CONFIG_LIB, LIB_DUST_LIB,
- *   LIB_FLASH_LOAN_CHECK, LIB_FUNDING_LIB, LIB_HEALTH_LIB,
- *   LIB_POSITION_TRIGGERS_LIB, LIB_TRADING_CONTEXT_LIB, LIB_WITHDRAW_LIB,
- *   LIB_CIRCUIT_BREAKER_LIB, LIB_EMERGENCY_PAUSE_LIB, LIB_EMERGENCY_PRICE_LIB,
- *   LIB_POSITION_MATH
+ * UUPS upgrade: CONTRACT_TO_UPGRADE, PROXY_ADDRESS.
+ * TradingCore also needs LIB_* for each linked library (see .env.example).
+ * TradingCoreViews is not upgraded here (non-proxy in deploy.ts); use setTradingViews after redeploy.
  */
 const libAddr = (name: string) => `contracts/libraries/${name}.sol:${name}`;
 
@@ -28,6 +18,7 @@ function getLibraryLinks(contractName: string): Record<string, string> {
             "FundingLib",
             "HealthLib",
             "PositionTriggersLib",
+            "RateLimitLib",
             "TradingContextLib",
             "TradingLib",
             "WithdrawLib",
@@ -43,27 +34,6 @@ function getLibraryLinks(contractName: string): Record<string, string> {
             libs[libAddr(name)] = addr;
         }
         return libs;
-    }
-
-    if (contractName === "OracleAggregator") {
-        const required = ["CircuitBreakerLib", "EmergencyPauseLib", "EmergencyPriceLib"];
-        const libs: Record<string, string> = {};
-        for (const name of required) {
-            const envKey = `LIB_${name
-                .replace(/([A-Z])/g, "_$1")
-                .toUpperCase()
-                .replace(/^_/, "")}`;
-            const addr = process.env[envKey]?.trim();
-            if (!addr) throw new Error(`Missing env ${envKey} for ${contractName} upgrade`);
-            libs[libAddr(name)] = addr;
-        }
-        return libs;
-    }
-
-    if (contractName === "TradingCoreViews") {
-        const addr = process.env.LIB_POSITION_MATH?.trim();
-        if (!addr) throw new Error("Missing env LIB_POSITION_MATH for TradingCoreViews upgrade");
-        return { [libAddr("PositionMath")]: addr };
     }
 
     return {};

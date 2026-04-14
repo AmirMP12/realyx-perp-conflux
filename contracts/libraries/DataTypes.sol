@@ -74,6 +74,7 @@ library DataTypes {
     struct PositionCollateral {
         uint256 amount;
         address tokenAddress;
+        uint256 borrowedAmount;
     }
 
     struct OpenPositionParams {

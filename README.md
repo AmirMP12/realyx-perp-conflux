@@ -235,11 +235,18 @@ cd frontend && npm run lint
 #### Testnet
 | Contract | Address |
 |----------|---------|
-| TradingCore | `0x49493c04Df243FDD73a26E0AB10d9Fd89d82a92e` |
-| VaultCore | `0xe934aB1736a7924c1B9A290d57a73a0340092e24` |
-| OracleAggregator | `0xBb9B26F89624a505Fc4318463CC5a7325E5A106E` |
-| PositionToken | `0x0e7110ED111add8Ac5EB148567f4504569aC749f` |
-| MockUSDC | `0x4d0874577f1E6326E75EbBAf2F73C548B3ec32F1` |
+| TradingCore | `0x64f277f73bfc81Ad80286a4266c0E0613d867Df3` |
+| VaultCore | `0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714` |
+| OracleAggregator | `0x89cC8eAbF2e967d81FD04D1023298A3bDcE67450` |
+| PositionToken | `0x4368b5741A105c1ACE50ad98581fDa050685fa8B` |
+| MockUSDC | `0xa56Ba38f3c820D6cf31a68CBBD0d25c0F5644d35` |
+
+Same deploy (`deployment/confluxTestnet.json`): TradingCoreViews `0x944d4030CEc4Bf552d8E46dC684B70B100Eb0b86`, MarketCalendar `0xD3c20cca25Dd8189ed6115A1b65192d831ca732F`, Pyth `0xDd24F84d36BF92C65F92307595335bdFab5Bbd21`.
+
+### Operator & integration docs
+
+- [Error catalog](docs/ERROR_CATALOG.md) — custom errors: meaning, typical cause, suggested fix for integrators.
+- [Deployment & ops runbook](docs/DEPLOYMENT_AND_OPS.md) — versioned addresses, roles, upgrades, pause/breaker playbooks, stale-oracle triage.
 
 ### REST Endpoints
 Base URL: `http://localhost:3001` (or your backend host)
@@ -303,6 +310,7 @@ Base URL: `http://localhost:3001` (or your backend host)
 |----------|---------|-------------|
 | PORT | 3001 | HTTP server port |
 | WS_PORT | 3002 | WebSocket server port |
+| ENABLE_WS | true | Set `false` on Vercel (polling mode) |
 | POSTGRES_URL | (see .env.example) | PostgreSQL connection URL |
 | CHAIN_ID | 71 | Chain ID |
 | RPC_URL | - | For on-chain market filter |
@@ -314,7 +322,7 @@ Base URL: `http://localhost:3001` (or your backend host)
 | Variable | Default | Description |
 |----------|---------|-------------|
 | VITE_API_URL | http://localhost:3001/api | Backend API base |
-| VITE_WS_URL | ws://localhost:3002 | WebSocket URL |
+| VITE_WS_URL | (empty) | Optional; keep empty on Vercel |
 | VITE_WALLET_CONNECT_PROJECT_ID | - | **Required** for WalletConnect |
 | VITE_TRADING_CORE_ADDRESS | - | **Required** for trading |
 | VITE_VAULT_CORE_ADDRESS | - | **Required** for vault |
@@ -337,11 +345,15 @@ docker compose -f docker-compose.minimal.yml up -d
 
 
 ### Deploy on Vercel
-You can run the full app (frontend + API) on a single Vercel project. The backend runs as serverless functions; **WebSocket is not supported** on Vercel, so live price/stat updates are disabled unless you host a separate WebSocket server.
+You can run the full app (frontend + API) on a single Vercel project in **REST polling mode**. The backend runs as serverless functions; native Node WebSocket server is disabled in this mode.
 
 1. Import your Git repository via Vercel.
 2. Leave **Root Directory** empty.
-3. Add Environment Variables via Settings. Set `VITE_API_URL=/api` and leave `VITE_WS_URL` empty.
+3. Add Environment Variables via Settings:
+   - `VITE_API_URL=/api`
+   - `VITE_WS_URL=` (empty)
+   - `ENABLE_WS=false`
+   - `POSTGRES_URL=<your neon pooled url with sslmode=require>`
 4. Deploy! Vercel handles backend (`backend/dist`) and frontend (`frontend/dist`) compilation automatically.
 
 ### Troubleshooting

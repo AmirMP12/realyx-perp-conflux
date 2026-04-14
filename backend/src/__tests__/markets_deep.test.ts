@@ -37,14 +37,10 @@ describe('Markets Route Deep Coverage', () => {
   });
 
   it('should handle indexPrice calculation branches', async () => {
-     // This will hit the cost / size logic in markets.map
      await request(app).get('/api/markets');
   });
 
   it('should handle fallback mode if subgraph fails', async () => {
-    // In global setup, we can trigger a failure if we want, 
-    // but the app already handles partial failures.
-    // Let's just hit the route many times to ensure stability.
     const res = await request(app).get('/api/markets');
     expect(res.status).toBe(200);
   });

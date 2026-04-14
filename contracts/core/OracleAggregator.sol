@@ -19,8 +19,8 @@ import "../interfaces/IOracleAggregator.sol";
 
 /**
  * @title OracleAggregator
- * @notice Unified price oracle and circuit breaker system using Pyth Network
- * @dev Consolidates OracleAggregator + CircuitBreakerHub into single contract
+ * @notice Pyth-backed prices per market address, TWAP ring buffer, circuit breakers, emergency pause/price governance, and trading gating hooks.
+ * @dev Implements `IOracleAggregator`; parameter names use `collection` internally as the keyed market address.
  */
 contract OracleAggregator is
     Initializable,
@@ -159,9 +159,10 @@ contract OracleAggregator is
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-        /* _disableInitializers(); */
+        _disableInitializers();
     }
 
+    /// @notice Initialize oracle, access control, and default staleness/quorum parameters.
     function initialize(address admin, address _pyth) external initializer {
         if (address(pyth) != address(0)) revert AlreadyInitialized();
         __ReentrancyGuard_init();
@@ -177,6 +178,7 @@ contract OracleAggregator is
         guardianQuorum = 2;
     }
 
+    /// @custom:oz-upgrades From `UUPSUpgradeable`: only admin may authorize implementation upgrades.
     function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
 
     function _getPriceView(
@@ -224,16 +226,19 @@ contract OracleAggregator is
         }
     }
 
+    /// @inheritdoc IOracleAggregator
     function getPrice(address collection) public view returns (uint256 price, uint256 confidence, uint256 timestamp) {
         return _getPriceView(collection);
     }
 
+    /// @inheritdoc IOracleAggregator
     function getPriceWithConfidence(address collection, uint256 maxUncertainty) external view returns (uint256 price) {
         uint256 confidence;
         (price, confidence, ) = _getPriceView(collection);
         if (confidence > maxUncertainty) revert InsufficientConfidence();
     }
 
+    /// @inheritdoc IOracleAggregator
     function getTWAP(address collection, uint256 windowSeconds) public view returns (uint256 twapPrice) {
         TWAPBuffer storage buffer = _twapBuffers[collection];
         if (buffer.count == 0) {
@@ -244,6 +249,7 @@ contract OracleAggregator is
             OracleAggregatorLib.calculateTWAP(buffer.points, buffer.head, buffer.count, windowSeconds, block.timestamp);
     }
 
+    /// @inheritdoc IOracleAggregator
     function getTWAPWithValidation(
         address collection,
         uint256 windowSeconds,
@@ -265,6 +271,7 @@ contract OracleAggregator is
         isValid = dataPointCount >= minDataPoints;
     }
 
+    /// @inheritdoc IOracleAggregator
     function getEthUsdPrice() external view returns (uint256 price) {
         if (ethFeedId == bytes32(0)) revert NoEthUsdFeed();
 
@@ -278,16 +285,19 @@ contract OracleAggregator is
         }
     }
 
+    /// @notice Configure the Pyth feed id used for ETH/USD conversions.
     function setEthFeedId(bytes32 _feedId) external onlyOperator {
         ethFeedId = _feedId;
     }
 
+    /// @inheritdoc IOracleAggregator
     function getValidSourceCount(address collection) external view returns (uint256) {
         if (_configs[collection].feedId == bytes32(0)) return 0;
         (bool healthy, ) = isOracleHealthy(collection);
         return healthy ? 1 : 0;
     }
 
+    /// @inheritdoc IOracleAggregator
     function recordPricePoint(address collection, uint256) external onlyOracleOrKeeper {
         (uint256 currentPrice, uint256 conf, ) = _getPriceView(collection);
 
@@ -316,10 +326,11 @@ contract OracleAggregator is
         emit TWAPUpdated(collection, getTWAP(collection, DEFAULT_TWAP_WINDOW), DEFAULT_TWAP_WINDOW);
     }
 
+    /// @inheritdoc IOracleAggregator
     function checkBreakers(
         address collection,
         uint256 currentPrice,
-        uint256
+        uint256 /* volume24h */
     ) external nonReentrant returns (bool triggered) {
         _recordPrice(collection, currentPrice);
         DataTypes.BreakerConfig memory priceDropConfig = _breakerConfigs[collection][DataTypes.BreakerType.PRICE_DROP];
@@ -363,20 +374,24 @@ contract OracleAggregator is
         }
     }
 
+    /// @inheritdoc IOracleAggregator
     function triggerBreaker(address collection, DataTypes.BreakerType breakerType) external onlyGuardian {
         CircuitBreakerLib.triggerBreaker(collection, breakerType, _breakerConfigs, _breakerStatuses);
     }
 
+    /// @inheritdoc IOracleAggregator
     function resetBreaker(address collection, DataTypes.BreakerType breakerType) external onlyAdminOrGuardian {
         CircuitBreakerLib.resetBreaker(collection, breakerType, hasRole(ADMIN_ROLE, msg.sender), _breakerStatuses);
     }
 
+    /// @inheritdoc IOracleAggregator
     function autoResetBreakers(address collection) external whenNotPaused {
         (bool healthy, ) = isOracleHealthy(collection);
         if (!healthy) return;
         CircuitBreakerLib.autoResetBreakers(collection, _breakerStatuses);
     }
 
+    /// @inheritdoc IOracleAggregator
     function isOracleHealthy(address collection) public view returns (bool healthy, string memory reason) {
         OracleConfig memory config = _configs[collection];
         if (config.feedId == bytes32(0)) return (false, "Not configured");
@@ -391,17 +406,21 @@ contract OracleAggregator is
         }
     }
 
+    /// @inheritdoc IOracleAggregator
     function isActionAllowed(address collection, uint8 actionType) external view returns (bool) {
         return CircuitBreakerLib.isActionAllowed(collection, actionType, _globalPause, _breakerStatuses);
     }
 
+    /// @inheritdoc IOracleAggregator
+    /// @dev Second argument matches interface `reason` but is unnamed here to avoid an unused-parameter warning; it is not passed into `EmergencyPauseLib` (see interface @param reason).
     function proposeEmergencyPause(
         address[] calldata targets,
-        string calldata
+        string calldata /* reason */
     ) external onlyGuardian returns (bytes32 pauseId) {
         return EmergencyPauseLib.proposeEmergencyPause(targets, _pauseProposals);
     }
 
+    /// @inheritdoc IOracleAggregator
     function confirmEmergencyPause(bytes32 pauseId) external onlyGuardian {
         EmergencyPauseLib.confirmEmergencyPause(
             pauseId,
@@ -414,6 +433,7 @@ contract OracleAggregator is
         failedPauseCount = _failedPauseList.length;
     }
 
+    /// @inheritdoc IOracleAggregator
     function activateGlobalPause() external onlyGuardian {
         if (!_globalPause) {
             _globalPause = true;
@@ -421,6 +441,7 @@ contract OracleAggregator is
         }
     }
 
+    /// @inheritdoc IOracleAggregator
     function deactivateGlobalPause() external onlyAdmin {
         if (_globalPause) {
             _globalPause = false;
@@ -428,10 +449,12 @@ contract OracleAggregator is
         }
     }
 
+    /// @inheritdoc IOracleAggregator
     function isGloballyPaused() external view returns (bool) {
         return _globalPause;
     }
 
+    /// @inheritdoc IOracleAggregator
     function setPythFeed(
         address collection,
         bytes32 feedId,
@@ -444,15 +467,18 @@ contract OracleAggregator is
         emit PythFeedSet(collection, feedId);
     }
 
+    /// @notice Attach `IMarketCalendar` for session-aware staleness widening when markets are closed.
     function setMarketCalendar(address _calendar) external onlyAdmin {
         if (_calendar == address(0)) revert ZeroAddress();
         marketCalendar = IMarketCalendar(_calendar);
     }
 
+    /// @notice Map a collection address to a calendar `marketId` string.
     function setMarketId(address collection, string memory marketId) external onlyOperator {
         marketIds[collection] = marketId;
     }
 
+    /// @inheritdoc IOracleAggregator
     function configureBreaker(
         address collection,
         DataTypes.BreakerType breakerType,
@@ -470,6 +496,7 @@ contract OracleAggregator is
         );
     }
 
+    /// @inheritdoc IOracleAggregator
     function setBreakerEnabled(
         address collection,
         DataTypes.BreakerType breakerType,
@@ -479,6 +506,7 @@ contract OracleAggregator is
         emit BreakerEnabledUpdated(collection, breakerType, enabled);
     }
 
+    /// @inheritdoc IOracleAggregator
     function registerPausable(address target) external onlyAdmin {
         if (!_pausables[target]) {
             _pausables[target] = true;
@@ -486,18 +514,22 @@ contract OracleAggregator is
         }
     }
 
+    /// @inheritdoc IOracleAggregator
     function setGuardianQuorum(uint256 quorum) external onlyAdmin {
         guardianQuorum = quorum;
     }
 
+    /// @inheritdoc IOracleAggregator
     function setEmergencyPriceQuorum(uint256 quorum) external onlyAdmin {
         emergencyPriceQuorum = quorum;
     }
 
+    /// @inheritdoc IOracleAggregator
     function addSupportedMarket(address collection) external onlyAdmin {
         _supportedAssets.push(collection);
     }
 
+    /// @inheritdoc IOracleAggregator
     function proposeEmergencyPrice(
         address collection,
         uint256 price,
@@ -516,6 +548,7 @@ contract OracleAggregator is
             );
     }
 
+    /// @inheritdoc IOracleAggregator
     function confirmEmergencyPrice(bytes32 proposalId) external onlyGuardian {
         EmergencyPriceLib.confirmEmergencyPrice(
             proposalId,
@@ -528,6 +561,7 @@ contract OracleAggregator is
         );
     }
 
+    /// @inheritdoc IOracleAggregator
     function getBreakerStatus(
         address collection,
         DataTypes.BreakerType breakerType
@@ -535,6 +569,7 @@ contract OracleAggregator is
         return _breakerStatuses[collection][breakerType];
     }
 
+    /// @inheritdoc IOracleAggregator
     function getBreakerConfig(
         address collection,
         DataTypes.BreakerType breakerType
@@ -542,6 +577,7 @@ contract OracleAggregator is
         return _breakerConfigs[collection][breakerType];
     }
 
+    /// @inheritdoc IOracleAggregator
     function isMarketRestricted(address collection) external view returns (bool isRestricted, uint256 activeBreakers) {
         if (_globalPause) {
             isRestricted = true;
@@ -564,6 +600,7 @@ contract OracleAggregator is
         }
     }
 
+    /// @inheritdoc IOracleAggregator
     function getHistoricalPrice(address collection, uint256 hoursAgo) external view returns (uint256) {
         uint256 timestamp = block.timestamp - (hoursAgo * 1 hours);
         uint256 price = _historicalPrices[collection][timestamp / 5 minutes];
@@ -571,19 +608,23 @@ contract OracleAggregator is
         return price;
     }
 
+    /// @inheritdoc IOracleAggregator
     function getOracleConfig(address collection) external view returns (bytes32, uint256, uint256, uint256) {
         OracleConfig memory c = _configs[collection];
         return (c.feedId, c.maxStaleness, c.minPrice, c.maxPrice);
     }
 
+    /// @inheritdoc IOracleAggregator
     function getPausableList() external view returns (address[] memory) {
         return _pausableList;
     }
 
+    /// @inheritdoc IOracleAggregator
     function getSupportedMarkets() external view returns (address[] memory) {
         return _supportedAssets;
     }
 
+    /// @inheritdoc IOracleAggregator
     function getGuardianQuorum() external view override returns (uint256) {
         return guardianQuorum;
     }

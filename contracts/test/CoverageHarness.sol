@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../libraries/MonitoringLib.sol";
 import "../libraries/RateLimitLib.sol";
 import "../libraries/GlobalPnLLib.sol";
@@ -10,6 +11,7 @@ import "../libraries/TradingLib.sol";
 import "../libraries/DataTypes.sol";
 import "../interfaces/IVaultCore.sol";
 import "../interfaces/IOracleAggregator.sol";
+import "../interfaces/IDividendManager.sol";
 import "../libraries/WithdrawLib.sol";
 import "../libraries/CleanupLib.sol";
 import "../libraries/DustLib.sol";
@@ -151,10 +153,10 @@ contract CoverageHarness {
     function boostCalculateLiquidationPrice(
         uint256 entry,
         uint256 leverage,
-        uint256 mmBps,
+        uint256 size,
         bool isLong
     ) external pure returns (uint256) {
-        return PositionMath.calculateLiquidationPrice(entry, leverage, mmBps, isLong);
+        return PositionMath.calculateLiquidationPrice(entry, leverage, size, isLong);
     }
 
     function boostCalculateNewLeverage(uint256 size, uint256 collateral) external pure returns (uint256) {
@@ -269,6 +271,26 @@ contract CoverageHarness {
     DataTypes.ProtocolHealthState private _harnessHealth;
     mapping(uint256 => DataTypes.FailedRepayment) private _harnessFailedRepayments;
 
+    function setFailedRepayment(uint256 id, DataTypes.FailedRepayment calldata fr) external {
+        _harnessFailedRepayments[id] = fr;
+    }
+
+    function testResolveFailedRepayment(
+        uint256 positionId,
+        address msgSender,
+        address usdcAddr,
+        address vaultAddr
+    ) external {
+        TradingLib.resolveFailedRepayment(
+            positionId,
+            msgSender,
+            address(this),
+            IERC20(usdcAddr),
+            IVaultCore(vaultAddr),
+            _harnessFailedRepayments
+        );
+    }
+
     // --- VaultCore Deep Boosters ---
     function boostProcessWithdrawal(
         uint256 requestId,
@@ -311,6 +333,7 @@ contract CoverageHarness {
     mapping(uint256 => uint256) public globalDailyVolume;
     uint256[] public allPositionIds;
     mapping(address => uint256) public userExposure;
+    mapping(uint256 => uint256) public harnessPositionDividendIndex;
 
     function testGetProtocolHealth(
         IVaultCore vaultCore,
@@ -470,7 +493,8 @@ contract CoverageHarness {
     function setCollateral(uint256 id, uint256 amount) external {
         DataTypes.PositionCollateral memory c = DataTypes.PositionCollateral({
             amount: amount,
-            tokenAddress: address(0)
+            tokenAddress: address(0),
+            borrowedAmount: 0
         });
         positionCollateral = c;
         positionCollaterals[id] = c;
@@ -765,10 +789,10 @@ contract CoverageHarness {
     function testCalculateLiquidationPrice(
         uint256 entry,
         uint256 leverage,
-        uint256 mm,
+        uint256 size,
         bool isLong
     ) external pure returns (uint256) {
-        return PositionMath.calculateLiquidationPrice(entry, leverage, mm, isLong);
+        return PositionMath.calculateLiquidationPrice(entry, leverage, size, isLong);
     }
 
     function testShouldTriggerSL(uint256 id, uint256 currentPrice) external view returns (bool) {
@@ -1027,6 +1051,64 @@ contract CoverageHarness {
 
     function setOrderCollateralRefundBalance(address user, uint256 amount) external {
         orderCollateralRefundBalance[user] = amount;
+    }
+
+    function testSeedUserExposure(address user, uint256 amount) external {
+        userExposure[user] = amount;
+    }
+
+    function testTradingLibSettlePositionFundingWithDividends(
+        uint256 positionId,
+        address oracleAggregator,
+        address dividendManagerAddr
+    ) external returns (int256 paid) {
+        paid = TradingLib.settlePositionFundingWithDividends(
+            positionId,
+            oracleAggregator,
+            positions,
+            positionCollaterals,
+            fundingStates,
+            positionCumulativeFunding,
+            IDividendManager(dividendManagerAddr),
+            marketIds,
+            harnessPositionDividendIndex
+        );
+    }
+
+    function testTradingLibCreateOrder(
+        uint256 nextOrderId,
+        uint8 orderTypeRaw,
+        address market,
+        uint256 sizeDelta,
+        uint256 collateralDelta,
+        uint256 triggerPrice,
+        bool isLong,
+        uint256 maxSlippage,
+        uint256 positionId,
+        uint256 executionFee,
+        address msgSenderAddr,
+        uint256 minExecutionFee,
+        address oracleAggregatorAddr,
+        address usdcAddr
+    ) external returns (uint256 orderId) {
+        return
+            TradingLib.createOrder(
+                nextOrderId,
+                DataTypes.OrderType(orderTypeRaw),
+                market,
+                sizeDelta,
+                collateralDelta,
+                triggerPrice,
+                isLong,
+                maxSlippage,
+                positionId,
+                executionFee,
+                msgSenderAddr,
+                minExecutionFee,
+                oracleAggregatorAddr,
+                usdcAddr,
+                _harnessOrders
+            );
     }
 
     receive() external payable {}

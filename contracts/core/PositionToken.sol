@@ -60,7 +60,7 @@ contract PositionToken is ERC721Upgradeable, AccessControlUpgradeable, UUPSUpgra
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-        /* _disableInitializers(); */
+        _disableInitializers();
     }
 
     function initialize(string memory name_, string memory symbol_, string memory baseURI_) public initializer {

@@ -164,8 +164,8 @@ contract FeeCalculatorPositionMathHarness {
         return PositionMath.calculateDynamicMaintenanceMargin(size, leverage);
     }
 
-    function calcLiqPrice(uint256 entry, uint256 leverage, uint256 mmBps, bool isLong) external pure returns (uint256) {
-        return PositionMath.calculateLiquidationPrice(entry, leverage, mmBps, isLong);
+    function calcLiqPrice(uint256 entry, uint256 leverage, uint256 size, bool isLong) external pure returns (uint256) {
+        return PositionMath.calculateLiquidationPrice(entry, leverage, size, isLong);
     }
 
     function calcFundingRate(uint256 longSize, uint256 shortSize, uint256 baseRate) external pure returns (int256) {

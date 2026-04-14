@@ -2,6 +2,7 @@ import '@rainbow-me/rainbowkit/styles.css';
 import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import { RainbowKitWalletConnectParameters } from '@rainbow-me/rainbowkit';
 import { createConfig, http } from 'wagmi';
+import { fallback } from 'viem';
 import { confluxESpace, confluxESpaceTestnet } from 'wagmi/chains';
 
 import {
@@ -26,10 +27,11 @@ if (import.meta.env.DEV && !import.meta.env.VITE_WALLET_CONNECT_PROJECT_ID) {
     );
 }
 
-const testnetRpc =
+const testnetRpcPrimary =
     import.meta.env.VITE_CONFLUX_TESTNET_RPC_URL ||
     import.meta.env.VITE_RPC_URL ||
     'https://evmtestnet.confluxrpc.com';
+const testnetRpcFallback = 'https://evmtestnet.confluxrpc.org';
 
 const appUrl =
     (import.meta.env.VITE_APP_URL as string | undefined) ||
@@ -94,13 +96,20 @@ export const config = createConfig({
             retryCount: 5,
             retryDelay: 1_000,
         }),
-        [confluxESpaceTestnet.id]: http(testnetRpc, {
-            batch: false,
-            // Increase timeout significantly to reduce RPC timeout failures.
-            timeout: 180_000,
-            retryCount: 8,
-            retryDelay: 1_500,
-        }),
+        [confluxESpaceTestnet.id]: fallback([
+            http(testnetRpcPrimary, {
+                batch: false,
+                timeout: 180_000,
+                retryCount: 8,
+                retryDelay: 1_500,
+            }),
+            http(testnetRpcFallback, {
+                batch: false,
+                timeout: 180_000,
+                retryCount: 4,
+                retryDelay: 1_500,
+            }),
+        ]),
     },
     ssr: false,
 });

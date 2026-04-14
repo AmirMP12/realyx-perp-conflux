@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { deployTestEnvironment } from "../helpers";
 
@@ -152,19 +152,22 @@ describe("VaultCore Branch Wave", function () {
 
         await env.vault.connect(env.admin).grantRole(TRADING_CORE_ROLE, env.admin.address);
 
-        await env.usdc.mintTo(env.admin.address, 200_000e6);
+        await env.usdc.mintTo(env.admin.address, 500_000e6);
         await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), ethers.MaxUint256);
-        await env.vault.connect(env.admin).stakeInsurance(50_000e6, env.admin.address);
+        // Need insurance >> first sync cover so 10% CB headroom stays above ~$10k (approvalThreshold + 1).
+        await env.vault.connect(env.admin).stakeInsurance(120_000e6, env.admin.address);
 
         await env.vault.connect(env.admin).resetInsuranceCircuitBreaker();
 
-        // Large claim path goes through _submitClaimInternal and returns 0.
         const approvalThreshold = await env.vault.approvalThreshold();
-        const covered = await env.vault.connect(env.admin).coverBadDebt.staticCall(approvalThreshold + 1n, 42n);
-        expect(covered).to.equal(0n);
-        await env.vault.connect(env.admin).coverBadDebt(approvalThreshold + 1n, 42n);
+        const largeAmount = approvalThreshold + 1n;
+        const insBefore = await env.vault.insuranceAssets();
+        const expectedFirstCover = largeAmount > insBefore ? insBefore : largeAmount;
+        const covered = await env.vault.connect(env.admin).coverBadDebt.staticCall(largeAmount, 42n);
+        expect(covered).to.equal(expectedFirstCover);
+        await env.vault.connect(env.admin).coverBadDebt(largeAmount, 42n);
 
-        // Trip circuit: cumulativeBadDebt24h + covered exceeds 10% of current _insAssets (50k → 5k).
+        // Trip circuit: cumulativeBadDebt24h + covered exceeds 10% of current _insAssets after first payment.
         await env.vault.connect(env.admin).coverBadDebt(5020e6, 44n);
         expect(await env.vault.insuranceCircuitBreakerActive()).to.be.true;
 
@@ -298,8 +301,11 @@ describe("VaultCore Branch Wave", function () {
         const MockUSDC = await ethers.getContractFactory("MockUSDC");
         const usdc = await MockUSDC.deploy();
         const VaultCore = await ethers.getContractFactory("VaultCore");
-        const vault = await VaultCore.deploy();
-        await vault.initialize(admin.address, await usdc.getAddress(), treasury.address);
+        const vault = await upgrades.deployProxy(VaultCore, [admin.address, await usdc.getAddress(), treasury.address], {
+            kind: "uups",
+            initializer: "initialize",
+        });
+        await vault.waitForDeployment();
 
         const amt = 1_000_000n;
         await usdc.mintTo(await vault.getAddress(), amt);
@@ -636,9 +642,10 @@ describe("VaultCore Branch Wave", function () {
         await env.vault.connect(env.admin).deposit(2_000_000_000n, env.admin.address);
         await env.vault.connect(env.admin).borrow(500_000_000n, env.alice.address, true);
 
-        const repayAmt = 400_000n;
-        const pnl = -500_000n;
-        await env.usdc.mintTo(env.bob.address, 1n);
+        const repayAmt = 400_000_000n;
+        const pnl = -500_000_000n;
+        const need = repayAmt + 500_000_000n;
+        await env.usdc.mintTo(env.bob.address, need);
         await env.usdc.connect(env.bob).approve(await env.vault.getAddress(), ethers.MaxUint256);
         await env.vault.connect(env.bob).repay(repayAmt, env.alice.address, true, pnl);
     });
@@ -797,5 +804,304 @@ describe("VaultCore Branch Wave", function () {
 
         const shares = await env.vault.lpBalanceOf(env.admin.address);
         await env.vault.connect(env.admin).emergencyEscapeWithdraw(shares);
+    });
+
+    it("covers getConservativeTotalAssets positive-PnL subtraction, zeroing, try/catch, and totalAssets negative PnL", async function () {
+        const { env } = await loadFixture(fixture);
+        const MockTradingCorePnl = await ethers.getContractFactory("MockTradingCorePnl");
+        const mockPnl = await MockTradingCorePnl.deploy();
+
+        await env.usdc.mintTo(env.admin.address, 5_000_000_000n);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        await env.vault.connect(env.admin).deposit(2_000_000_000n, env.admin.address);
+
+        await env.vault.connect(env.admin).setTradingCore(await mockPnl.getAddress());
+
+        const baseline = await env.vault.getConservativeTotalAssets();
+        expect(baseline).to.be.gt(0n);
+
+        const liability = 10n ** 21n;
+        await mockPnl.setPnl(liability);
+        const afterSmall = await env.vault.getConservativeTotalAssets();
+        expect(afterSmall).to.equal(baseline > liability ? baseline - liability : 0n);
+
+        await mockPnl.setPnl(baseline);
+        expect(await env.vault.getConservativeTotalAssets()).to.equal(0n);
+
+        await mockPnl.setShouldRevert(true);
+        expect(await env.vault.getConservativeTotalAssets()).to.equal(baseline);
+
+        await mockPnl.setShouldRevert(false);
+        await mockPnl.setPnl(0n);
+        const taBase = await env.vault.totalAssets();
+        const loss = 5n * 10n ** 20n;
+        await mockPnl.setPnl(-loss);
+        expect(await env.vault.totalAssets()).to.equal(taBase + loss);
+    });
+
+    it("covers borrow utilization alert and repay when amount exceeds recorded borrow", async function () {
+        const { env } = await loadFixture(fixture);
+        const TRADING_CORE_ROLE = await env.vault.TRADING_CORE_ROLE();
+        await env.vault.connect(env.admin).grantRole(TRADING_CORE_ROLE, env.admin.address);
+
+        await env.usdc.mintTo(env.admin.address, 20_000_000_000n);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        await env.vault.connect(env.admin).deposit(10_000_000_000n, env.admin.address);
+
+        await env.vault.connect(env.admin).setThresholds(1000, 9500);
+        const bigBorrow = 8_000_000_000n;
+        await expect(env.vault.connect(env.admin).borrow(bigBorrow, env.alice.address, true)).to.emit(
+            env.vault,
+            "UtilizationAlert"
+        );
+
+        await env.usdc.mintTo(env.admin.address, 20_000_000_000n);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        const tb = await env.vault.totalBorrowed();
+        await env.vault.connect(env.admin).repay(tb + 1_000_000n, env.alice.address, true, 0n);
+        expect(await env.vault.totalBorrowed()).to.equal(0n);
+    });
+
+    it("covers processWithdrawals when gas runs low before second request", async function () {
+        const { env } = await loadFixture(fixture);
+        const GUARDIAN_ROLE = ethers.keccak256(ethers.toUtf8Bytes("GUARDIAN_ROLE"));
+        await env.vault.connect(env.admin).grantRole(GUARDIAN_ROLE, env.admin.address);
+
+        await env.usdc.mintTo(env.admin.address, 20_000_000_000n);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        await env.vault.connect(env.admin).deposit(10_000_000_000n, env.admin.address);
+
+        const half = (await env.vault.lpBalanceOf(env.admin.address)) / 2n;
+        await env.vault.connect(env.admin).queueWithdrawal(half, 0n);
+        await env.vault.connect(env.admin).queueWithdrawal(half, 0n);
+
+        await time.increase(86400 + 5);
+
+        await env.vault.connect(env.admin).processWithdrawals([1n, 2n], { gasLimit: 450_000n });
+    });
+
+    it("covers updateExposure ExceedsExposureCap on large increase", async function () {
+        const { env } = await loadFixture(fixture);
+        const TRADING_CORE_ROLE = await env.vault.TRADING_CORE_ROLE();
+        const OPERATOR_ROLE = await env.vault.OPERATOR_ROLE();
+        await env.vault.connect(env.admin).grantRole(TRADING_CORE_ROLE, env.admin.address);
+        await env.vault.connect(env.admin).grantRole(OPERATOR_ROLE, env.admin.address);
+
+        await env.usdc.mintTo(env.admin.address, 5_000_000_000n);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        await env.vault.connect(env.admin).deposit(2_000_000_000n, env.admin.address);
+        await env.vault.connect(env.admin).setMaxProtocolTVL(50_000_000_000_000n);
+        await env.vault.connect(env.admin).updateProtocolTVL(1_000_000_000n);
+
+        const market = env.bob.address;
+        await env.vault.connect(env.admin).setMaxExposure(market, 1n);
+        const cons = await env.vault.getConservativeTotalAssets();
+        const maxExp = (cons * 1n) / 10_000n;
+        await expect(
+            env.vault.connect(env.admin).updateExposure(market, maxExp + 1n, true)
+        ).to.be.revertedWithCustomError(env.vault, "ExceedsExposureCap");
+    });
+
+    it("covers withdraw NotOwner when msg.sender is not the share owner", async function () {
+        const { env } = await loadFixture(fixture);
+        await env.usdc.mintTo(env.bob.address, 5_000_000_000n);
+        await env.usdc.connect(env.bob).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        await env.vault.connect(env.bob).deposit(1_000_000_000n, env.bob.address);
+        const sh = await env.vault.lpBalanceOf(env.bob.address);
+        await expect(
+            env.vault.connect(env.admin).withdraw(sh / 10n, env.bob.address, env.bob.address)
+        ).to.be.revertedWithCustomError(env.vault, "NotOwner");
+    });
+
+    it("covers borrow false when new exposure would exceed market cap", async function () {
+        const { env } = await loadFixture(fixture);
+        const TRADING_CORE_ROLE = await env.vault.TRADING_CORE_ROLE();
+        const OPERATOR_ROLE = await env.vault.OPERATOR_ROLE();
+        await env.vault.connect(env.admin).grantRole(TRADING_CORE_ROLE, env.admin.address);
+        await env.vault.connect(env.admin).grantRole(OPERATOR_ROLE, env.admin.address);
+
+        await env.usdc.mintTo(env.admin.address, 20_000_000_000n);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        await env.vault.connect(env.admin).deposit(10_000_000_000n, env.admin.address);
+
+        const market = env.alice.address;
+        await env.vault.connect(env.admin).setMaxExposure(market, 5n);
+        expect(await env.vault.connect(env.admin).borrow.staticCall(50_000_000_000n, market, true)).to.equal(false);
+    });
+
+    it("covers borrow false when utilization would exceed emergency threshold", async function () {
+        const { env } = await loadFixture(fixture);
+        const TRADING_CORE_ROLE = await env.vault.TRADING_CORE_ROLE();
+        await env.vault.connect(env.admin).grantRole(TRADING_CORE_ROLE, env.admin.address);
+
+        await env.usdc.mintTo(env.admin.address, 20_000_000_000n);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        await env.vault.connect(env.admin).deposit(10_000_000_000n, env.admin.address);
+
+        const market = env.alice.address;
+        const greedy = 9_600_000_000n;
+        expect(await env.vault.connect(env.admin).borrow.staticCall(greedy, market, true)).to.equal(false);
+    });
+
+    it("covers borrow false when amount exceeds unreserved liquidity", async function () {
+        const { env } = await loadFixture(fixture);
+        const TRADING_CORE_ROLE = await env.vault.TRADING_CORE_ROLE();
+        await env.vault.connect(env.admin).grantRole(TRADING_CORE_ROLE, env.admin.address);
+
+        await env.usdc.mintTo(env.admin.address, 20_000_000_000n);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        await env.vault.connect(env.admin).deposit(10_000_000_000n, env.admin.address);
+
+        const market = env.alice.address;
+        const liq = await env.vault.getAvailableLiquidity();
+        expect(await env.vault.connect(env.admin).borrow.staticCall(liq + 1n, market, true)).to.equal(false);
+    });
+
+    it("covers repay when pnl is zero (no profit transfer)", async function () {
+        const { env } = await loadFixture(fixture);
+        const TRADING_CORE_ROLE = await env.vault.TRADING_CORE_ROLE();
+        await env.vault.connect(env.admin).grantRole(TRADING_CORE_ROLE, env.admin.address);
+
+        await env.usdc.mintTo(env.admin.address, 20_000_000_000n);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        await env.vault.connect(env.admin).deposit(10_000_000_000n, env.admin.address);
+        const market = env.alice.address;
+        const b = 2_000_000_000n;
+        await env.vault.connect(env.admin).borrow(b, market, true);
+
+        await env.usdc.mintTo(env.admin.address, b);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), b);
+        await env.vault.connect(env.admin).repay(b, market, true, 0n);
+    });
+
+    it("covers borrow repay and updateExposure short exposure paths", async function () {
+        const { env } = await loadFixture(fixture);
+        const TRADING_CORE_ROLE = await env.vault.TRADING_CORE_ROLE();
+        const OPERATOR_ROLE = await env.vault.OPERATOR_ROLE();
+        await env.vault.connect(env.admin).grantRole(TRADING_CORE_ROLE, env.admin.address);
+        await env.vault.connect(env.admin).grantRole(OPERATOR_ROLE, env.admin.address);
+
+        await env.usdc.mintTo(env.admin.address, 25_000_000_000n);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        await env.vault.connect(env.admin).deposit(12_000_000_000n, env.admin.address);
+        const m = env.alice.address;
+        const amt = 600_000_000n;
+        expect(await env.vault.connect(env.admin).borrow.staticCall(amt, m, false)).to.be.true;
+        await env.vault.connect(env.admin).borrow(amt, m, false);
+
+        await env.vault.connect(env.admin).updateExposure(m, 200_000_000n, false);
+        await env.vault.connect(env.admin).updateExposure(m, -500_000_000n, false);
+
+        await env.usdc.mintTo(env.admin.address, amt);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), amt);
+        await env.vault.connect(env.admin).repay(amt, m, false, 0n);
+    });
+
+    it("covers receiveFees(0) early return", async function () {
+        const { env } = await loadFixture(fixture);
+        const TRADING_CORE_ROLE = await env.vault.TRADING_CORE_ROLE();
+        await env.vault.connect(env.admin).grantRole(TRADING_CORE_ROLE, env.admin.address);
+        const feesBefore = await env.vault.accumulatedFees();
+        await env.vault.connect(env.admin).receiveFees(0n);
+        expect(await env.vault.accumulatedFees()).to.equal(feesBefore);
+    });
+
+    it("covers setTreasury and TreasuryUpdated", async function () {
+        const { env } = await loadFixture(fixture);
+        const prev = await env.vault.treasury();
+        const next = env.keeper.address;
+        await expect(env.vault.connect(env.admin).setTreasury(next))
+            .to.emit(env.vault, "TreasuryUpdated")
+            .withArgs(prev, next);
+    });
+
+    it("covers triggerEmergencyMode when already active", async function () {
+        const { env } = await loadFixture(fixture);
+        const GUARDIAN_ROLE = ethers.keccak256(ethers.toUtf8Bytes("GUARDIAN_ROLE"));
+        await env.vault.connect(env.admin).grantRole(GUARDIAN_ROLE, env.admin.address);
+        await env.vault.connect(env.admin).triggerEmergencyMode();
+        await env.vault.connect(env.admin).triggerEmergencyMode();
+        expect(await env.vault.isEmergencyMode()).to.equal(true);
+    });
+
+    it("covers stopEmergencyMode when emergency inactive", async function () {
+        const { env } = await loadFixture(fixture);
+        expect(await env.vault.isEmergencyMode()).to.equal(false);
+        await env.vault.connect(env.admin).stopEmergencyMode();
+    });
+
+    it("covers maxRedeem zero under emergency mode", async function () {
+        const { env } = await loadFixture(fixture);
+        const GUARDIAN_ROLE = ethers.keccak256(ethers.toUtf8Bytes("GUARDIAN_ROLE"));
+        await env.usdc.mintTo(env.alice.address, 5_000_000_000n);
+        await env.usdc.connect(env.alice).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        await env.vault.connect(env.alice).deposit(2_000_000_000n, env.alice.address);
+        await env.vault.connect(env.admin).grantRole(GUARDIAN_ROLE, env.admin.address);
+        await env.vault.connect(env.admin).triggerEmergencyMode();
+        expect(await env.vault.maxRedeem(env.alice.address)).to.equal(0n);
+    });
+
+    it("covers coverBadDebt zero amount no-op", async function () {
+        const { env } = await loadFixture(fixture);
+        const TRADING_CORE_ROLE = await env.vault.TRADING_CORE_ROLE();
+        await env.vault.connect(env.admin).grantRole(TRADING_CORE_ROLE, env.admin.address);
+        await env.vault.connect(env.admin).coverBadDebt(0n, 0n);
+    });
+
+    it("covers repay principal over recorded borrow clamps to zero", async function () {
+        const { env } = await loadFixture(fixture);
+        const TRADING_CORE_ROLE = await env.vault.TRADING_CORE_ROLE();
+        await env.vault.connect(env.admin).grantRole(TRADING_CORE_ROLE, env.admin.address);
+        const m = env.bob.address;
+        await env.usdc.mintTo(env.admin.address, 20_000_000_000n);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        await env.vault.connect(env.admin).deposit(10_000_000_000n, env.admin.address);
+        const b = 100_000_000n;
+        await env.vault.connect(env.admin).borrow(b, m, true);
+        const over = b * 3n;
+        await env.usdc.mintTo(env.admin.address, over);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), over);
+        await env.vault.connect(env.admin).repay(over, m, true, 0n);
+        expect(await env.vault.totalBorrowed()).to.equal(0n);
+    });
+
+    it("covers repay short side with positive pnl payout", async function () {
+        const { env } = await loadFixture(fixture);
+        const TRADING_CORE_ROLE = await env.vault.TRADING_CORE_ROLE();
+        await env.vault.connect(env.admin).grantRole(TRADING_CORE_ROLE, env.admin.address);
+        const m = env.alice.address;
+        await env.usdc.mintTo(env.admin.address, 30_000_000_000n);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        await env.vault.connect(env.admin).deposit(15_000_000_000n, env.admin.address);
+        const b = 1_000_000_000n;
+        await env.vault.connect(env.admin).borrow(b, m, false);
+        const profit = 50_000_000n;
+        await env.usdc.mintTo(env.admin.address, b);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), b + profit);
+        await env.vault.connect(env.admin).repay(b, m, false, profit);
+    });
+
+    it("covers setTradingCore rebinding revokes prior role", async function () {
+        const { env } = await loadFixture(fixture);
+        const Mock = await ethers.getContractFactory("MockTradingCorePnl");
+        const mock1 = await Mock.deploy();
+        const mock2 = await Mock.deploy();
+        await env.vault.connect(env.admin).setTradingCore(await mock1.getAddress());
+        expect(await env.vault.hasRole(await env.vault.TRADING_CORE_ROLE(), await mock1.getAddress())).to.equal(true);
+        await env.vault.connect(env.admin).setTradingCore(await mock2.getAddress());
+        expect(await env.vault.hasRole(await env.vault.TRADING_CORE_ROLE(), await mock1.getAddress())).to.equal(false);
+        expect(await env.vault.hasRole(await env.vault.TRADING_CORE_ROLE(), await mock2.getAddress())).to.equal(true);
+    });
+
+    it("covers borrow utilization alert above restriction threshold", async function () {
+        const { env } = await loadFixture(fixture);
+        const TRADING_CORE_ROLE = await env.vault.TRADING_CORE_ROLE();
+        await env.vault.connect(env.admin).grantRole(TRADING_CORE_ROLE, env.admin.address);
+        await env.usdc.mintTo(env.admin.address, 100_000_000_000n);
+        await env.usdc.connect(env.admin).approve(await env.vault.getAddress(), ethers.MaxUint256);
+        await env.vault.connect(env.admin).deposit(10_000_000_000n, env.admin.address);
+        const m = env.alice.address;
+        const borrow = 8_000_000_000n;
+        await expect(env.vault.connect(env.admin).borrow(borrow, m, true)).to.emit(env.vault, "UtilizationAlert");
     });
 });

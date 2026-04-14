@@ -48,6 +48,16 @@
   },
   {
     "inputs": [],
+    "name": "AlreadyConfirmed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "AlreadyConfirmed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "AlreadyInitialized",
     "type": "error"
   },
@@ -63,12 +73,32 @@
   },
   {
     "inputs": [],
+    "name": "BreakerAlreadyTriggered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BreakerNotConfigured",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "BreakerNotConfigured",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "BreakerNotTriggered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BreakerNotTriggered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CooldownActive",
     "type": "error"
   },
   {
@@ -114,12 +144,32 @@
   },
   {
     "inputs": [],
+    "name": "EmergencyPriceAlreadyConfirmed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EmergencyPriceDeviationTooHigh",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "EmergencyPriceDeviationTooHigh",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "EmergencyPriceProposalExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EmergencyPriceProposalExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "EmergencyPriceProposalNotFound",
     "type": "error"
   },
   {
@@ -169,12 +219,22 @@
   },
   {
     "inputs": [],
+    "name": "InvalidCooldownSeconds",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInitialization",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "InvalidSource",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidWindowSeconds",
     "type": "error"
   },
   {
@@ -249,7 +309,22 @@
   },
   {
     "inputs": [],
+    "name": "ProposalAlreadyExists",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ProposalExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalExpired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ProposalNotFound",
     "type": "error"
   },
   {
@@ -369,6 +444,56 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum DataTypes.BreakerType",
+        "name": "breakerType",
+        "type": "uint8"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "resetBy",
+        "type": "address"
+      }
+    ],
+    "name": "BreakerReset",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum DataTypes.BreakerType",
+        "name": "breakerType",
+        "type": "uint8"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "resetBy",
+        "type": "address"
+      }
+    ],
+    "name": "BreakerResetByAdmin",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "market",
         "type": "address"
       },
@@ -388,6 +513,37 @@
         "indexed": false,
         "internalType": "uint256",
         "name": "actualValue",
+        "type": "uint256"
+      }
+    ],
+    "name": "BreakerTriggered",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum DataTypes.BreakerType",
+        "name": "breakerType",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "threshold",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "price",
         "type": "uint256"
       }
     ],
@@ -467,6 +623,25 @@
         "type": "bytes32"
       },
       {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "targets",
+        "type": "address[]"
+      }
+    ],
+    "name": "EmergencyPauseExecuted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "pauseId",
+        "type": "bytes32"
+      },
+      {
         "indexed": true,
         "internalType": "address",
         "name": "proposer",
@@ -480,6 +655,106 @@
       }
     ],
     "name": "EmergencyPauseProposed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "pauseId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "proposer",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "targets",
+        "type": "address[]"
+      }
+    ],
+    "name": "EmergencyPauseProposed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "pauseId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      }
+    ],
+    "name": "EmergencyPauseTargetFailed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "refPrice",
+        "type": "uint256"
+      }
+    ],
+    "name": "EmergencyPriceApplied",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "proposalId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "proposer",
+        "type": "address"
+      }
+    ],
+    "name": "EmergencyPriceProposed",
     "type": "event"
   },
   {
@@ -594,6 +869,25 @@
       }
     ],
     "name": "PriceDeviation",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      }
+    ],
+    "name": "PriceOverrideExecuted",
     "type": "event"
   },
   {

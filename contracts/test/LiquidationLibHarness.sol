@@ -36,7 +36,11 @@ contract LiquidationLibHarness {
     }
 
     function setCollateral(uint256 id, uint256 amount) external {
-        _positionCollateral[id] = DataTypes.PositionCollateral({amount: amount, tokenAddress: address(0)});
+        _positionCollateral[id] = DataTypes.PositionCollateral({
+            amount: amount,
+            tokenAddress: address(0),
+            borrowedAmount: 0
+        });
     }
 
     function checkBatch(

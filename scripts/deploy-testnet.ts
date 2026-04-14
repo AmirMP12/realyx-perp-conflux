@@ -39,6 +39,7 @@ async function main() {
     console.log(`DEPLOYED_DIVIDEND_KEEPER=${result.dividendKeeper}`);
     console.log(`DEPLOYED_TRADING_CORE_VIEWS=${result.tradingCoreViews}`);
     if (result.mockUsdc) console.log(`DEPLOYED_MOCK_USDC=${result.mockUsdc}`);
+    if (result.mockPyth) console.log(`DEPLOYED_MOCK_PYTH=${result.mockPyth}`);
 }
 
 main().catch((e) => {

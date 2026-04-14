@@ -5,26 +5,33 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const USE_PROGRAM_PATH = path.join(__dirname, "..", "frontend", "src", "hooks", "useProgram.ts");
+/**
+ * Copies core contract ABIs from backend into `frontend/src/abi`.
+ * The app imports these via `frontend/src/contracts/index.ts`.
+ *
+ * For a full ABI export from compiled artifacts, prefer: `npm run export-abi`.
+ */
+const CORE = ["TradingCore", "VaultCore", "OracleAggregator"];
+
+const backendAbiDir = path.join(__dirname, "..", "backend", "src", "abi");
 const frontendAbiDir = path.join(__dirname, "..", "frontend", "src", "abi");
 
-function updateAbi(contractName, constantName) {
-    const abiPath = path.join(__dirname, "..", "backend", "abi", `${contractName}.json`);
-    const targetPath = path.join(frontendAbiDir, `${contractName}.json`);
-    const abiRaw = fs.readFileSync(abiPath, "utf8");
-    const jsonStr = JSON.stringify(JSON.parse(abiRaw), null, 4);
-
-    let content = fs.readFileSync(USE_PROGRAM_PATH, "utf8");
-    const regex = new RegExp(`export const ${constantName} = \\[.*?\\] as const;`, "s");
-    content = content.replace(regex, `export const ${constantName} = ${jsonStr} as const;`);
-    fs.writeFileSync(USE_PROGRAM_PATH, content);
-    console.log(`Updated ${constantName} in useProgram.ts`);
+if (!fs.existsSync(backendAbiDir)) {
+    console.error("Missing backend/src/abi. Run: npx hardhat compile && npm run export-abi");
+    process.exit(1);
 }
 
-try {
-    updateAbi("TradingCore", "TRADING_CORE_ABI");
-    updateAbi("VaultCore", "VAULT_ABI");
-    updateAbi("OracleAggregator", "ORACLE_ABI");
-} catch (e) {
-    console.error(e);
+if (!fs.existsSync(frontendAbiDir)) fs.mkdirSync(frontendAbiDir, { recursive: true });
+
+for (const name of CORE) {
+    const src = path.join(backendAbiDir, `${name}.json`);
+    if (!fs.existsSync(src)) {
+        console.error(`Missing ${src}`);
+        process.exit(1);
+    }
+    const dst = path.join(frontendAbiDir, `${name}.json`);
+    fs.copyFileSync(src, dst);
+    console.log(`Copied ${name}.json -> ${path.relative(path.join(__dirname, ".."), dst)}`);
 }
+
+console.log("Done.");

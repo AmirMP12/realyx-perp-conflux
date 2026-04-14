@@ -27,7 +27,7 @@ describe("TradingLib funding wrappers via CoverageHarness", function () {
       },
     });
     const harness = await CoverageHarness.deploy();
-    return { harness };
+    return { harness, env };
   }
 
   it("covers settleFunding and settlePositionFunding wrapper paths", async function () {
@@ -70,5 +70,76 @@ describe("TradingLib funding wrappers via CoverageHarness", function () {
   it("covers executeOrder invalid order type revert", async function () {
     const { harness } = await loadFixture(deployHarnessFixture);
     await expect(harness.testTradingLibExecuteOrderInvalidType(99)).to.be.reverted;
+  });
+
+  it("covers TradingLib settlePositionFundingWithDividends when dividend manager is zero", async function () {
+    const { harness } = await loadFixture(deployHarnessFixture);
+    const oracle = await ethers.deployContract("MockOracleSimple");
+    const market = ethers.Wallet.createRandom().address;
+    await harness.testSetMarket(
+      market,
+      ethers.Wallet.createRandom().address,
+      20,
+      1_000_000,
+      1_000_000,
+      500,
+      1000,
+      3600,
+      200
+    );
+    const id = 902n;
+    await harness.setPosition(id, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
+    await harness.setCollateral(id, 1_000_000n);
+    await oracle.setPrice(market, 100n * 10n ** 18n);
+    await harness.setPositionCumulativeFunding(id, 0);
+    await harness.setFundingState(market, 0, 1_000, 1, 1_000_000_000_000_000_000n, 1_000_000_000_000_000_000n);
+    await harness.testTradingLibSettlePositionFundingWithDividends(id, await oracle.getAddress(), ethers.ZeroAddress);
+  });
+
+  it("covers TradingLib createOrder increase paths (zero collateral and breaker)", async function () {
+    const { harness, env } = await loadFixture(deployHarnessFixture);
+    const tl = await ethers.getContractAt("TradingLib", ethers.ZeroAddress);
+    const mockOracle = await ethers.deployContract("MockOracleConfigurable");
+    const market = ethers.Wallet.createRandom().address;
+    const usdc = await env.usdc.getAddress();
+    await mockOracle.setPrice(market, 1n, 0n, 1n);
+
+    await mockOracle.setActionAllowed(true);
+    await harness.testTradingLibCreateOrder(
+      1n,
+      0,
+      market,
+      1_000_000n,
+      0,
+      0,
+      true,
+      0,
+      0,
+      0n,
+      env.admin.address,
+      0n,
+      await mockOracle.getAddress(),
+      usdc
+    );
+
+    await mockOracle.setActionAllowed(false);
+    await expect(
+      harness.testTradingLibCreateOrder(
+        2n,
+        0,
+        market,
+        1_000_000n,
+        0,
+        0,
+        true,
+        0,
+        0,
+        0n,
+        env.admin.address,
+        0n,
+        await mockOracle.getAddress(),
+        usdc
+      )
+    ).to.be.revertedWithCustomError({ interface: tl.interface }, "BreakerActive");
   });
 });

@@ -16,11 +16,19 @@ for (const p of paths) {
   }
 }
 
+function defaultRpcUrl(): string {
+  const id = parseInt(process.env.CHAIN_ID ?? "71", 10);
+  if (id === 1030) return "https://evm.confluxrpc.com";
+  return "https://evmtestnet.confluxrpc.com";
+}
+
 export const config = {
   port: parseInt(process.env.PORT ?? "3001", 10),
   wsPort: parseInt(process.env.WS_PORT ?? "3002", 10),
   postgresUrl: process.env.POSTGRES_URL,
   chainId: parseInt(process.env.CHAIN_ID ?? "71", 10),
+  /** Conflux eSpace JSON-RPC; default matches hardhat `confluxTestnet` when unset. */
+  rpcUrl: (process.env.RPC_URL ?? "").trim() || defaultRpcUrl(),
   nodeEnv: process.env.NODE_ENV ?? "development",
   metricsPort: parseInt(process.env.METRICS_PORT ?? "9090", 10),
 } as const;

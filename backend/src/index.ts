@@ -14,4 +14,13 @@ app.listen(config.port, () => {
   }
 });
 
-startWsServer();
+const enableWs =
+  process.env.ENABLE_WS != null
+    ? /^(1|true|yes)$/i.test(process.env.ENABLE_WS)
+    : !process.env.VERCEL;
+
+if (enableWs) {
+  startWsServer();
+} else {
+  logger.info("WebSocket server disabled (ENABLE_WS=false or Vercel runtime); frontend should use polling mode.");
+}

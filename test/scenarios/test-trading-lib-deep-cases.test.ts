@@ -51,7 +51,7 @@ describe("Deep Branch Coverage - TradingLib Explosion", function () {
         // orderTypes: 0=MARKET_INCREASE
         await harness.boostCancelOrder(orderId, admin.address, admin.address, 1000n, 0, 500n);
         expect(await harness.orderRefundBalance(admin.address)).to.equal(500n);
-        expect(await harness.orderCollateralRefundBalance(admin.address)).to.equal(1000n / 10n**12n); // USDC decimals
+        expect(await harness.orderCollateralRefundBalance(admin.address)).to.equal(1000n);
 
         // 4. Success - Market Decrease (no collateral refund branch)
         // 1=MARKET_DECREASE

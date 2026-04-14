@@ -9,9 +9,7 @@ import {
 } from './useProgram';
 import { Address } from 'viem';
 
-// Simplified hook to fetch global protocol stats (TVL)
 export function useMarketData() {
-    // Let's implement TVL fetching
     const { data: tvlData } = useReadContracts({
         contracts: [{
             address: VAULT_CORE_ADDRESS,
@@ -71,9 +69,11 @@ export function useSingleMarketData(marketAddress?: Address) {
     });
 
     const coreLoading = !coreData || !coreData[0] || !coreData[1];
-    const marketInfo = coreData?.[0]?.result;
-    const fundingState = coreData?.[1]?.result;
-    const priceData = priceDataResult?.[0]?.result;
+    const marketInfo = coreData?.[0]?.result as
+        | { totalLongSize: bigint; totalShortSize: bigint; maxLeverage: bigint }
+        | undefined;
+    const fundingState = coreData?.[1]?.result as { fundingRate: bigint } | undefined;
+    const priceData = priceDataResult?.[0]?.result as readonly [bigint, bigint] | undefined;
 
     if (coreLoading) return { isLoading: true };
 

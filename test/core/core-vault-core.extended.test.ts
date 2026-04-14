@@ -37,25 +37,9 @@ describe("VaultCore Extended Coverage", function () {
 
     describe("Emergency Mode", function () {
         it("should allow guardian to activate emergency mode", async function () {
-            console.log("DEBUG: Calling triggerEmergencyMode...");
-            try {
-                const tx = await env.vault.connect(guardian).triggerEmergencyMode();
-                console.log("DEBUG: TX hash:", tx.hash);
-                await tx.wait();
-            } catch (e: any) {
-                console.log("DEBUG: ERROR in triggerEmergencyMode:", e.code, e.message);
-                throw e;
-            }
-            
-            console.log("DEBUG: Checking isEmergencyMode...");
-            try {
-                const isEM = await env.vault.isEmergencyMode();
-                console.log("DEBUG: isEmergencyMode result:", isEM);
-                expect(isEM).to.be.true;
-            } catch (e: any) {
-                console.log("DEBUG: ERROR in isEmergencyMode:", e.code, e.message);
-                throw e;
-            }
+            const tx = await env.vault.connect(guardian).triggerEmergencyMode();
+            await tx.wait();
+            expect(await env.vault.isEmergencyMode()).to.be.true;
         });
 
         it("should prevent deposits/withdrawals/borrows in emergency mode", async function () {

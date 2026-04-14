@@ -52,7 +52,6 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
     persist(
         (set) => ({
-            // Theme - default dark
             theme: 'dark',
             setTheme: (theme) => {
                 set({ theme });
@@ -64,7 +63,6 @@ export const useSettingsStore = create<SettingsState>()(
                 return { theme: newTheme };
             }),
 
-            // Trading
             defaultLeverage: 5,
             setDefaultLeverage: (defaultLeverage) => set({ defaultLeverage }),
             maxSlippage: 0.5,
@@ -76,7 +74,6 @@ export const useSettingsStore = create<SettingsState>()(
             defaultOrderType: 'market',
             setDefaultOrderType: (defaultOrderType) => set({ defaultOrderType }),
 
-            // Notifications
             positionAlerts: true,
             setPositionAlerts: (positionAlerts) => set({ positionAlerts }),
             priceAlerts: true,
@@ -86,7 +83,6 @@ export const useSettingsStore = create<SettingsState>()(
             fundingReminders: true,
             setFundingReminders: (fundingReminders) => set({ fundingReminders }),
 
-            // Security
             requireConfirmation: true,
             setRequireConfirmation: (requireConfirmation) => set({ requireConfirmation }),
             twoFactorEnabled: false,
@@ -94,7 +90,6 @@ export const useSettingsStore = create<SettingsState>()(
             whitelistAddresses: false,
             setWhitelistAddresses: (whitelistAddresses) => set({ whitelistAddresses }),
 
-            // Display
             compactMode: false,
             setCompactMode: (compactMode) => set({ compactMode }),
             showPnlPercent: true,
@@ -108,7 +103,6 @@ export const useSettingsStore = create<SettingsState>()(
     )
 );
 
-// Apply theme to document
 function applyTheme(theme: Theme) {
     if (theme === 'light') {
         document.documentElement.classList.add('light-theme');
@@ -119,7 +113,6 @@ function applyTheme(theme: Theme) {
     }
 }
 
-// Initialize theme on load
 export function initializeTheme() {
     const stored = localStorage.getItem('realyx-settings');
     if (stored) {
@@ -134,7 +127,6 @@ export function initializeTheme() {
     }
 }
 
-// Referral Store
 interface ReferralStats {
     totalPoints: number;
     tradingVolume: number;
@@ -160,15 +152,12 @@ interface ReferralState {
     addReferralEarning: (amount: number) => void;
 }
 
-// Generate a unique referral code from wallet address
 function generateCodeFromWallet(wallet: string): string {
-    // Take first 4 and last 4 characters, uppercase
     const prefix = wallet.slice(0, 4).toUpperCase();
     const suffix = wallet.slice(-4).toUpperCase();
     return `${prefix}${suffix}`;
 }
 
-// Calculate tier based on points
 function calculateTier(points: number): ReferralStats['tier'] {
     if (points >= 100000) return 'diamond';
     if (points >= 50000) return 'platinum';
@@ -198,9 +187,7 @@ export const useReferralStore = create<ReferralState>()(
 
             applyReferralCode: (code) => {
                 const currentCode = get().referralCode;
-                // Can't use own code
                 if (code === currentCode) return false;
-                // Already applied a code
                 if (get().usedReferralCode) return false;
 
                 set({ usedReferralCode: code });
@@ -240,5 +227,4 @@ export const useReferralStore = create<ReferralState>()(
     )
 );
 
-// Export types
 export type { SettingsState, ReferralState, ReferralStats };

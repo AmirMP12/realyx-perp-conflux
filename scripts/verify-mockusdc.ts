@@ -13,8 +13,14 @@ async function main() {
     if (!address) {
         const p = path.join(process.cwd(), "deployment", `${network}.json`);
         if (fs.existsSync(p)) {
-            const j = JSON.parse(fs.readFileSync(p, "utf-8"));
+            const j = JSON.parse(fs.readFileSync(p, "utf-8")) as {
+                contracts?: { mockUsdc?: string; usdc?: string };
+                flags?: { usdcIsMock?: boolean };
+            };
             address = j?.contracts?.mockUsdc;
+            if (!address && j?.flags?.usdcIsMock && j?.contracts?.usdc) {
+                address = j.contracts.usdc;
+            }
         }
     }
 

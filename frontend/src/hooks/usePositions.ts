@@ -33,15 +33,17 @@ export function usePositions() {
         }
     });
 
+    const ids = positionIds as readonly bigint[] | undefined;
+
     const positionContracts = useMemo(() => {
-        if (!positionIds || positionIds.length === 0) return [];
-        return positionIds.map(id => ({
+        if (!ids?.length) return [];
+        return ids.map((id) => ({
             address: TRADING_CORE_ADDRESS,
             abi: TRADING_CORE_ABI,
             functionName: 'getPosition',
             args: [id]
         }));
-    }, [positionIds]);
+    }, [ids]);
 
     const { data: positionsData, isLoading: isLoadingPositions } = useReadContracts({
         contracts: positionContracts as any,
@@ -52,14 +54,14 @@ export function usePositions() {
     });
 
     const pnlContracts = useMemo(() => {
-        if (!positionIds || positionIds.length === 0) return [];
-        return positionIds.map(id => ({
+        if (!ids?.length) return [];
+        return ids.map((id) => ({
             address: TRADING_CORE_ADDRESS,
             abi: TRADING_CORE_ABI,
             functionName: 'getPositionPnL',
             args: [id]
         }));
-    }, [positionIds]);
+    }, [ids]);
 
     const { data: pnlData, isLoading: isLoadingPnL } = useReadContracts({
         contracts: pnlContracts as any,
@@ -70,9 +72,9 @@ export function usePositions() {
     });
 
     const formattedPositions: Position[] = useMemo(() => {
-        if (!positionIds || !positionsData) return [];
+        if (!ids || !positionsData) return [];
 
-        return positionIds.map((id, index) => {
+        return ids.map((id, index) => {
             const posResult = positionsData[index];
             const pnlResult = pnlData?.[index];
 
@@ -113,7 +115,7 @@ export function usePositions() {
                 takeProfitPrice,
             };
         }).filter(Boolean) as Position[];
-    }, [positionIds, positionsData, pnlData]);
+    }, [ids, positionsData, pnlData]);
 
     return {
         positions: formattedPositions,

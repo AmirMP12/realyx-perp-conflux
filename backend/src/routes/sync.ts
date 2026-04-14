@@ -3,10 +3,8 @@ import { ethers } from "ethers";
 import pg from "pg";
 import { config } from "../config.js";
 import TradingCoreABI from "../abi/TradingCore.js";
-import VaultCoreABI from "../abi/VaultCore.js";
 
 const router = express.Router();
-const { Pool } = pg;
 
 let poolInstance: pg.Pool | null = null;
 function getPool(): pg.Pool | null {
@@ -19,7 +17,6 @@ function getPool(): pg.Pool | null {
   return poolInstance;
 }
 
-// Initialize schema (best-effort locally, usually you'd run a migration)
 async function initDB() {
   const pool = getPool();
   if (!pool) return;
@@ -45,9 +42,6 @@ async function initDB() {
   }
 }
 
-
-
-
 router.get("/", async (req: any, res: any) => {
   try {
     const pool = getPool();
@@ -56,28 +50,28 @@ router.get("/", async (req: any, res: any) => {
     }
     await initDB();
 
-    // Vercel Cron sends a secret header. If configured, enforce it.
     const authHeader = req.headers.authorization;
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
       return res.status(401).json({ success: false, error: "Unauthorized cron request" });
     }
 
 
-    const provider = new ethers.JsonRpcProvider(
-      config.chainId === 1030 
-        ? "https://evm.confluxrpc.com" 
-        : "https://evmtestnet.confluxrpc.com"
-    );
+    const provider = new ethers.JsonRpcProvider(config.rpcUrl, config.chainId);
 
-    const tradingCoreAddress = process.env.TRADING_CORE_ADDRESS;
+    const tradingCoreAddress = (process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE ?? "").trim();
     if (!tradingCoreAddress) {
-      return res.status(500).json({ success: false, error: "TRADING_CORE_ADDRESS not set in .env" });
+      return res.status(500).json({
+        success: false,
+        error: "TRADING_CORE_ADDRESS or DEPLOYED_TRADING_CORE not set in .env",
+      });
     }
 
-    const iface = new ethers.Interface((TradingCoreABI as any).abi || TradingCoreABI);
+    const rawAbi = Array.isArray(TradingCoreABI)
+      ? TradingCoreABI
+      : (TradingCoreABI as { abi: ethers.InterfaceAbi }).abi;
+    const iface = new ethers.Interface(rawAbi);
 
-    // Track state
-    let startBlock = 160000000; // sensible default for Conflux eSpace testnet
+    let startBlock = 160000000;
     const stateResult = await pool.query(`SELECT last_synced_block FROM indexer_state WHERE key = 'trading_core'`);
     if (stateResult.rows.length > 0) {
       startBlock = Number(stateResult.rows[0].last_synced_block) + 1;
@@ -88,23 +82,18 @@ router.get("/", async (req: any, res: any) => {
       return res.json({ success: true, message: "Already up to date", latestBlock });
     }
 
-    // Process blocks in batches of 2000 to prevent RPC rate limits/timeouts
     const toBlock = Math.min(startBlock + 2000, latestBlock);
 
-    // Define the event signatures you care about
-    // Update these strings to exactly match your Solidity event signatures if needed!
     const targetTopics = [
       "PositionOpened(uint256,address,address,bool,uint256,uint256,uint256)",
       "PositionClosed(uint256,address,int256,uint256,uint256)",
       "PositionLiquidated(uint256,address,uint256,uint256)"
     ].map(sig => ethers.id(sig));
 
-    // Fetch logs
     const logs = await provider.getLogs({
       address: tradingCoreAddress,
       fromBlock: startBlock,
       toBlock: toBlock,
-      // Filtering for ANY of the target event topics in the first position
       topics: [targetTopics]
     });
 
@@ -114,12 +103,17 @@ router.get("/", async (req: any, res: any) => {
         const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
         if (!parsed) continue;
 
-        // Extract raw args. Position usually has the User address as the first param (index 0).
-        // Safely extract whatever arguments match the event signature.
-        const account = parsed.args[0] ?? log.address;
-        const marketId = parsed.args[1] ? String(parsed.args[1]) : "0x";
-        
-        // Serialize the rest of the arguments to JSONB for frontend consumption
+        let account = log.address;
+        let marketId = "0x";
+        if (parsed.name === "PositionOpened") {
+          account = String(parsed.args[1]);
+          marketId = String(parsed.args[2]);
+        } else if (parsed.name === "PositionClosed") {
+          account = String(parsed.args[1]);
+        } else if (parsed.name === "PositionLiquidated") {
+          account = String(parsed.args[1]);
+        }
+
         const eventData = JSON.stringify(parsed.args.map(arg => typeof arg === 'bigint' ? arg.toString() : arg));
 
         const pool = getPool()!;
@@ -134,7 +128,6 @@ router.get("/", async (req: any, res: any) => {
       }
     }
 
-    // Save our place so the next minute's cron picks up exactly where we left off
     const poolFinal = getPool()!;
     await poolFinal.query(
       `INSERT INTO indexer_state (key, last_synced_block) VALUES ('trading_core', $1)

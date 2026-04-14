@@ -115,10 +115,6 @@ export interface ProtocolMetric {
   timestamp: string;
 }
 
-// ----------------------------------------------------
-// PG Database Implementations (Replaces GraphQL)
-// ----------------------------------------------------
-
 export async function fetchProtocol(): Promise<Protocol | null> {
   if (!process.env.POSTGRES_URL) {
     if (process.env.NODE_ENV === 'test') return { totalVolumeUsd: "5000", totalFeesUsd: "100", tvl: "1000", totalTrades: "10", totalPositionsOpened: "5", totalPositionsClosed: "4", totalLiquidations: "1" };
@@ -152,7 +148,6 @@ export async function fetchProtocol(): Promise<Protocol | null> {
 
 
 export async function fetchMarkets(): Promise<Market[]> {
-  // Let the backend route gracefully fallback to RPC/CoinGecko which gives identical functionality seamlessly
   return [];
 }
 
@@ -162,7 +157,6 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
   try {
     const pool = getPool();
     if (!pool) return [];
-    // Only fetch opened positions (In an ideal indexer you'd prune closed ones, here we just return history as opened for mockup efficiency)
     const res = await pool.query(
       `SELECT * FROM position_events WHERE lower(account) = $1 AND event_type = 'PositionOpened' ORDER BY id DESC LIMIT 50`,
       [trader]
@@ -176,17 +170,17 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
       let leverage = "1";
       try {
         const args = JSON.parse(row.data || "[]");
-        // PositionOpened(uint256 positionId, address trader, address market, bool isLong, uint256 size, uint256 leverage, uint256 entryPrice)
         isLong = String(args[3]) === "true";
         size = args[4] || "0";
         leverage = args[5] || "1";
         entryPrice = args[6] || "0";
         
-        // Calculate margin (collateral) from size and leverage: margin = size / leverage
         if (BigInt(leverage) > 0n) {
           margin = (BigInt(size) / BigInt(leverage)).toString();
         }
-      } catch (e) {}
+      } catch {
+        /* ignore malformed JSON in position_events.data */
+      }
 
       return {
         id: String(row.id),
@@ -197,7 +191,7 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
         isLong,
         size,
         entryPrice,
-        liquidationPrice: "0", // Could be computed dynamically, left 0 for fallback
+        liquidationPrice: "0",
         stopLossPrice: "0",
         takeProfitPrice: "0",
         leverage: leverage,
@@ -233,19 +227,17 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
       try {
         const args = JSON.parse(row.data || "[]");
         if (row.event_type === "PositionOpened") {
-          // PositionOpened(uint256 positionId, address trader, address market, bool isLong, uint256 size, uint256 leverage, uint256 entryPrice)
           isLong = String(args[3]) === "true";
           size = args[4] || "0";
           price = args[6] || "0";
         } else if (row.event_type === "PositionClosed") {
-          // PositionClosed(uint256 positionId, address trader, int256 realizedPnL, uint256 exitPrice, uint256 closingFee)
-          // Note: In PositionClosed, size is the realizedPnL index is 2, exitPrice is 3
           pnl = args[2] || "0";
           price = args[3] || "0";
-          // We don't have size in PositionClosed event, but we can return 0 or fetch from DB if needed
-          size = "0"; 
+          size = "0";
         }
-      } catch (e) {}
+      } catch {
+        /* ignore malformed JSON */
+      }
 
       let type = "OPEN";
       if (row.event_type === "PositionClosed") type = "CLOSE";
@@ -278,7 +270,6 @@ export async function fetchLeaderboard(limit: number): Promise<User[]> {
   try {
     const pool = getPool();
     if (!pool) return [];
-    // Generate leaderboard based on count of position events (proxy for trades volume)
     const res = await pool.query(
       `SELECT account, COUNT(*) as trades FROM position_events GROUP BY account ORDER BY trades DESC LIMIT $1`,
       [Math.min(limit, 100)]
@@ -296,10 +287,13 @@ export async function fetchLeaderboard(limit: number): Promise<User[]> {
   }
 }
 
-export async function fetchBadDebtClaims(limit: number): Promise<BadDebtClaim[]> {
-  return []; // Not synced yet
+export async function fetchBadDebtClaims(_limit: number): Promise<BadDebtClaim[]> {
+  return [];
 }
 
-export async function fetchProtocolMetrics(limit: number, periodType: string = "day"): Promise<ProtocolMetric[]> {
-  return []; // Can be computed historically from Postgres in the future
+export async function fetchProtocolMetrics(
+  _limit: number,
+  _periodType: string = "day",
+): Promise<ProtocolMetric[]> {
+  return [];
 }

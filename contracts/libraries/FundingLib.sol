@@ -37,7 +37,7 @@ library FundingLib {
 
         fundingState.fundingRate = fundingRate;
         fundingState.cumulativeFunding += fundingRate * int256(intervalsElapsed);
-        fundingState.lastSettlement = uint64(block.timestamp);
+        fundingState.lastSettlement += uint64(intervalsElapsed * DataTypes.FUNDING_INTERVAL);
         fundingState.longOpenInterest = m.totalLongSize;
         fundingState.shortOpenInterest = m.totalShortSize;
 

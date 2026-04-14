@@ -219,6 +219,11 @@
         "internalType": "address",
         "name": "tokenAddress",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "borrowedAmount",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -303,12 +308,12 @@
         "type": "uint8"
       },
       {
-        "internalType": "enum DataTypes.CollateralType",
+        "internalType": "uint8",
         "name": "collateralType",
         "type": "uint8"
       },
       {
-        "internalType": "enum DataTypes.PosStatus",
+        "internalType": "uint8",
         "name": "state",
         "type": "uint8"
       }
@@ -330,6 +335,29 @@
       }
     ],
     "name": "setCollateral",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "borrowed",
+        "type": "uint256"
+      }
+    ],
+    "name": "setCollateralWithBorrow",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -402,7 +430,7 @@
         "type": "uint8"
       },
       {
-        "internalType": "enum DataTypes.PosStatus",
+        "internalType": "uint8",
         "name": "state",
         "type": "uint8"
       }

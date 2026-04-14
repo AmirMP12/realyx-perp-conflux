@@ -88,7 +88,7 @@ library FeeCalculator {
 
         uint256 remainingCollateral = (size * healthFactor) / PRECISION;
         uint256 maxFee = remainingCollateral / 2;
-        if (totalFee > maxFee && maxFee > 0) {
+        if (totalFee > maxFee) {
             totalFee = maxFee;
         }
 

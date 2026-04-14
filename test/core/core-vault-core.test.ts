@@ -133,10 +133,9 @@ describe("VaultCore Coverage Booster", function () {
 
         it("should test borrow and repay with loss", async function () {
             await vault.connect(admin).borrow(1000e6, ethers.ZeroAddress, true);
-            
-            // Repay with 100 loss (only 900 returned)
-            await usdc.mintTo(admin.address, 900e6);
-            await usdc.connect(admin).approve(await vault.getAddress(), 900e6);
+            // Loss is settled in USDC (6 decimals): vault pulls principal + |pnl| (see VaultCore.repay).
+            await usdc.mintTo(admin.address, 1100e6);
+            await usdc.connect(admin).approve(await vault.getAddress(), 1100e6);
             await vault.connect(admin).repay(1000e6, ethers.ZeroAddress, true, -100000000n);
             
             expect(await vault.totalBorrowed()).to.equal(0);

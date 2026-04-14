@@ -269,14 +269,14 @@ library TradingLib {
         positionCollateral[positionId].amount += DataTypes.toInternalPrecision(amount);
 
         uint256 lev = calculateNewLeverage(uint256(p.size), positionCollateral[positionId].amount);
-        if (maxLeverage > 0 && lev > maxLeverage * PRECISION) revert SlippageExceeded();
+        if (maxLeverage > 0 && lev > maxLeverage * PRECISION) revert ExceedsMaxLeverage();
 
         p.leverage = uint64(lev);
         p.liquidationPrice = uint128(
             PositionMath.calculateLiquidationPrice(
                 uint256(p.entryPrice),
                 lev,
-                m.maintenanceMargin,
+                uint256(p.size),
                 DataTypes.isLong(p.flags)
             )
         );
@@ -313,7 +313,7 @@ library TradingLib {
             PositionMath.calculateLiquidationPrice(
                 uint256(p.entryPrice),
                 lev,
-                m.maintenanceMargin,
+                uint256(p.size),
                 DataTypes.isLong(p.flags)
             )
         );
@@ -635,11 +635,7 @@ library TradingLib {
             if (twapDeviation > MAX_OPEN_PRICE_DEVIATION_BPS) revert OpenPriceDeviation();
         }
 
-        if (
-            order.triggerPrice > 0 &&
-            (order.orderType == DataTypes.OrderType.MARKET_INCREASE ||
-                order.orderType == DataTypes.OrderType.MARKET_DECREASE)
-        ) {
+        if (order.triggerPrice > 0 && order.orderType == DataTypes.OrderType.MARKET_INCREASE) {
             uint256 deviation = currentPrice > order.triggerPrice
                 ? ((currentPrice - order.triggerPrice) * BPS) / order.triggerPrice
                 : ((order.triggerPrice - currentPrice) * BPS) / order.triggerPrice;
@@ -672,7 +668,7 @@ library TradingLib {
             size: uint128(internalSize),
             entryPrice: uint128(currentPrice),
             liquidationPrice: uint128(
-                PositionMath.calculateLiquidationPrice(currentPrice, leverage, m.maintenanceMargin, order.isLong)
+                PositionMath.calculateLiquidationPrice(currentPrice, leverage, internalSize, order.isLong)
             ),
             stopLossPrice: 0,
             takeProfitPrice: 0,
@@ -688,7 +684,8 @@ library TradingLib {
 
         positionCollateral[positionId] = DataTypes.PositionCollateral({
             amount: marginInternal,
-            tokenAddress: address(0)
+            tokenAddress: address(0),
+            borrowedAmount: borrowInternal
         });
 
         userExposure[order.account] += order.sizeDelta;
@@ -848,6 +845,9 @@ library TradingLib {
         uint256[] storage failedRepaymentIds,
         mapping(uint256 => uint256) storage failedRepaymentIndex
     ) public {
+        if (failedRepayments[positionId].amount > 0 && !failedRepayments[positionId].resolved) {
+            return;
+        }
         failedRepayments[positionId] = DataTypes.FailedRepayment({
             amount: amount,
             market: market,
@@ -947,7 +947,7 @@ library TradingLib {
             (order.orderType == DataTypes.OrderType.MARKET_INCREASE ||
                 order.orderType == DataTypes.OrderType.LIMIT_INCREASE) && order.collateralDelta > 0
         ) {
-            orderCollateralRefundBalance[order.account] += DataTypes.toUsdcPrecision(order.collateralDelta);
+            orderCollateralRefundBalance[order.account] += order.collateralDelta;
         }
 
         if (order.executionFee > 0) {

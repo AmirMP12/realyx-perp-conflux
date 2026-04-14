@@ -56,11 +56,9 @@ const mockMetric = {
     timestamp: "1600000000"
 };
 
-// Ultimate Fetch Interceptor for GraphQL and REST
 (global as any).fetch = jest.fn().mockImplementation((url: any, options: any) => {
     const urlStr = String(url);
     
-    // Subgraph (POST)
     if (options?.method === 'POST' || urlStr.includes('subgraph')) {
         const body = options?.body ? JSON.parse(options.body) : {};
         const query = body.query || "";
@@ -81,7 +79,6 @@ const mockMetric = {
         });
     }
 
-    // Pyth (REST)
     if (urlStr.includes('benchmarks.pyth.network') || urlStr.includes('hermes')) {
         return Promise.resolve({
             ok: true,
@@ -90,7 +87,6 @@ const mockMetric = {
         });
     }
 
-    // CoinGecko (REST)
     if (urlStr.includes('coingecko')) {
         return Promise.resolve({
             ok: true,
@@ -109,12 +105,10 @@ const mockMetric = {
     });
 });
 
-// Mock rateLimit to ALWAYS PASS
 jest.mock("../middleware/rateLimit.js", () => ({
     rateLimit: (req: any, res: any, next: any) => next()
 }));
 
-// Also keep standard mocks as fallback
 jest.mock("../services/activeMarkets.js", () => ({
     getActiveMarketAddresses: jest.fn().mockResolvedValue(new Set(["0x986a383f6de4a24dd3f524f0f93546229b58265f"]))
 }));

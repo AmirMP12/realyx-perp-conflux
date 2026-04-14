@@ -1,6 +1,26 @@
 [
   {
     "inputs": [],
+    "name": "BreakerAlreadyTriggered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BreakerNotConfigured",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "BreakerNotTriggered",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "CooldownActive",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ExceedsMaxLeverage",
     "type": "error"
   },
@@ -26,12 +46,22 @@
   },
   {
     "inputs": [],
+    "name": "InvalidCooldownSeconds",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidLeverage",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "InvalidPrice",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidWindowSeconds",
     "type": "error"
   },
   {
@@ -63,6 +93,87 @@
     "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum DataTypes.BreakerType",
+        "name": "breakerType",
+        "type": "uint8"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "resetBy",
+        "type": "address"
+      }
+    ],
+    "name": "BreakerReset",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum DataTypes.BreakerType",
+        "name": "breakerType",
+        "type": "uint8"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "resetBy",
+        "type": "address"
+      }
+    ],
+    "name": "BreakerResetByAdmin",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum DataTypes.BreakerType",
+        "name": "breakerType",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "threshold",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      }
+    ],
+    "name": "BreakerTriggered",
+    "type": "event"
   },
   {
     "inputs": [],
@@ -353,12 +464,12 @@
             "type": "uint8"
           },
           {
-            "internalType": "enum DataTypes.CollateralType",
+            "internalType": "uint8",
             "name": "collateralType",
             "type": "uint8"
           },
           {
-            "internalType": "enum DataTypes.PosStatus",
+            "internalType": "uint8",
             "name": "state",
             "type": "uint8"
           }
@@ -502,7 +613,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "mmBps",
+        "name": "size",
         "type": "uint256"
       },
       {
@@ -1026,12 +1137,12 @@
             "type": "uint8"
           },
           {
-            "internalType": "enum DataTypes.CollateralType",
+            "internalType": "uint8",
             "name": "collateralType",
             "type": "uint8"
           },
           {
-            "internalType": "enum DataTypes.PosStatus",
+            "internalType": "uint8",
             "name": "state",
             "type": "uint8"
           }
@@ -1117,12 +1228,12 @@
             "type": "uint8"
           },
           {
-            "internalType": "enum DataTypes.CollateralType",
+            "internalType": "uint8",
             "name": "collateralType",
             "type": "uint8"
           },
           {
-            "internalType": "enum DataTypes.PosStatus",
+            "internalType": "uint8",
             "name": "state",
             "type": "uint8"
           }
@@ -1583,6 +1694,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "harnessPositionDividendIndex",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "head",
     "outputs": [
@@ -1967,12 +2097,12 @@
         "type": "uint8"
       },
       {
-        "internalType": "enum DataTypes.CollateralType",
+        "internalType": "uint8",
         "name": "collateralType",
         "type": "uint8"
       },
       {
-        "internalType": "enum DataTypes.PosStatus",
+        "internalType": "uint8",
         "name": "state",
         "type": "uint8"
       }
@@ -1993,6 +2123,11 @@
         "internalType": "address",
         "name": "tokenAddress",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "borrowedAmount",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -2017,6 +2152,11 @@
         "internalType": "address",
         "name": "tokenAddress",
         "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "borrowedAmount",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -2107,12 +2247,12 @@
         "type": "uint8"
       },
       {
-        "internalType": "enum DataTypes.CollateralType",
+        "internalType": "uint8",
         "name": "collateralType",
         "type": "uint8"
       },
       {
-        "internalType": "enum DataTypes.PosStatus",
+        "internalType": "uint8",
         "name": "state",
         "type": "uint8"
       }
@@ -2199,6 +2339,56 @@
       }
     ],
     "name": "setDust",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "market",
+            "type": "address"
+          },
+          {
+            "internalType": "bool",
+            "name": "isLong",
+            "type": "bool"
+          },
+          {
+            "internalType": "int256",
+            "name": "pnl",
+            "type": "int256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "timestamp",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "resolved",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct DataTypes.FailedRepayment",
+        "name": "fr",
+        "type": "tuple"
+      }
+    ],
+    "name": "setFailedRepayment",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -2475,12 +2665,12 @@
             "type": "uint8"
           },
           {
-            "internalType": "enum DataTypes.CollateralType",
+            "internalType": "uint8",
             "name": "collateralType",
             "type": "uint8"
           },
           {
-            "internalType": "enum DataTypes.PosStatus",
+            "internalType": "uint8",
             "name": "state",
             "type": "uint8"
           }
@@ -2518,7 +2708,7 @@
         "type": "uint8"
       },
       {
-        "internalType": "enum DataTypes.PosStatus",
+        "internalType": "uint8",
         "name": "state",
         "type": "uint8"
       },
@@ -2551,6 +2741,11 @@
             "internalType": "address",
             "name": "tokenAddress",
             "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "borrowedAmount",
+            "type": "uint256"
           }
         ],
         "internalType": "struct DataTypes.PositionCollateral",
@@ -2716,7 +2911,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "mm",
+        "name": "size",
         "type": "uint256"
       },
       {
@@ -3630,6 +3825,52 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "positionId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "msgSender",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "usdcAddr",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "vaultAddr",
+        "type": "address"
+      }
+    ],
+    "name": "testResolveFailedRepayment",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "testSeedUserExposure",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "m",
         "type": "address"
@@ -3774,6 +4015,90 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "nextOrderId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint8",
+        "name": "orderTypeRaw",
+        "type": "uint8"
+      },
+      {
+        "internalType": "address",
+        "name": "market",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "sizeDelta",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "collateralDelta",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "triggerPrice",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "isLong",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxSlippage",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "positionId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "executionFee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "msgSenderAddr",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minExecutionFee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "oracleAggregatorAddr",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "usdcAddr",
+        "type": "address"
+      }
+    ],
+    "name": "testTradingLibCreateOrder",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "orderId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint8",
         "name": "rawOrderType",
         "type": "uint8"
@@ -3827,6 +4152,35 @@
       {
         "internalType": "int256",
         "name": "",
+        "type": "int256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "positionId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "oracleAggregator",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "dividendManagerAddr",
+        "type": "address"
+      }
+    ],
+    "name": "testTradingLibSettlePositionFundingWithDividends",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "paid",
         "type": "int256"
       }
     ],

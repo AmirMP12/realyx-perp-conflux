@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { 
     useUSDC, 
     useUSDCBalance, 
     useCreateOrder, 
     useOpenPosition,
-    usePositions,
     useAddCollateral,
     useClosePosition,
     useModifyMargin,
@@ -17,7 +16,7 @@ import {
     calculatePnL,
     MOCK_USDC_ADDRESS,
 } from '../useProgram';
-import { useReadContract, useAccount, useWriteContract, usePublicClient } from 'wagmi';
+import { useReadContract, useAccount, useWriteContract } from 'wagmi';
 
 // Mock wagmi
 vi.mock('wagmi', () => ({
@@ -107,24 +106,6 @@ describe('useProgram hooks - Full Coverage', () => {
             });
 
             expect(mockWrite).toHaveBeenCalled(); // Approve OR CreateOrder
-        });
-    });
-
-    describe('usePositions', () => {
-        it('fetches and formats positions', async () => {
-            const mockRead = vi.fn()
-                .mockResolvedValueOnce({ size: BigInt(1000000), leverage: BigInt(10), state: 1, flags: 1 }) // getPosition
-                .mockResolvedValueOnce([BigInt(100000), BigInt(1e18)]); // getPositionPnL
-            
-            (useReadContract as any).mockReturnValue({ data: [BigInt(1)], isLoading: false });
-            (usePublicClient as any).mockReturnValue({ readContract: mockRead });
-
-            const { result } = renderHook(() => usePositions());
-            
-            await waitFor(() => {
-                expect(result.current.positions.length).toBeGreaterThan(0);
-            });
-            expect(result.current.positions[0].id).toBe(1);
         });
     });
 

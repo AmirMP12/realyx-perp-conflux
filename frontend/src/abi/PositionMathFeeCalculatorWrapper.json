@@ -217,7 +217,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "maintenanceMarginBps",
+        "name": "size",
         "type": "uint256"
       },
       {

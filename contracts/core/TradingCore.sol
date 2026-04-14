@@ -31,7 +31,8 @@ import "../libraries/CleanupLib.sol";
 
 /**
  * @title TradingCore
- * @notice Main trading engine for RWA perpetual futures
+ * @notice Upgradeable perpetual futures engine: positions, keeper-driven orders, funding, collateral, and vault/oracle integration.
+ * @dev Heavy logic lives in libraries (`TradingLib`, `FundingLib`, …). Several views delegate to `tradingViews` when set; unset reverts on those reads.
  */
 /// @custom:oz-upgrades-unsafe-allow external-library-linking
 contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, AccessControlled, ITradingCore {
@@ -53,6 +54,10 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     error ComplianceCheckFailed();
     error MarketClosed();
     error DeviationOutOfRange();
+    /// @dev Mirrored from TradingLib so callers and off-chain tooling can decode library reverts on this contract.
+    error InvalidOraclePrice();
+    error MinPositionDuration();
+    error ExecutionFeeTooLow();
 
     event ParamsUpdated(string paramName, uint256 oldValue, uint256 newValue);
 
@@ -67,6 +72,8 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     IOracleAggregator public oracleAggregator;
     IPositionToken public positionToken;
     address public treasury;
+
+    /// @inheritdoc ITradingCore
     uint256 public nextPositionId;
     DataTypes.FeeConfig public feeConfig;
     DataTypes.LiquidationFeeTiers public liquidationTiers;
@@ -196,9 +203,13 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-        /* _disableInitializers(); */
+        _disableInitializers();
     }
 
+    /// @notice One-time initializer for the UUPS implementation / proxy.
+    /// @param admin AccessControl admin (DEFAULT_ADMIN).
+    /// @param _usdc USDC token used as collateral.
+    /// @param _treasury Address receiving protocol fee sweeps.
     function initialize(address admin, address _usdc, address _treasury) external initializer {
         if (admin == address(0) || _usdc == address(0) || _treasury == address(0)) revert ZeroAddress();
 
@@ -234,6 +245,10 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         _nextOrderId = 1;
     }
 
+    /// @notice Wire core external dependencies after deploy.
+    /// @param _vc Vault used for borrow/repay and TVL health.
+    /// @param _oa Oracle aggregator for prices and breakers.
+    /// @param _pt ERC721 position token.
     function setContracts(address _vc, address _oa, address _pt) external onlyAdmin {
         if (_vc == address(0) || _oa == address(0) || _pt == address(0)) revert ZeroAddress();
         vaultCore = IVaultCore(_vc);
@@ -241,6 +256,10 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         positionToken = IPositionToken(_pt);
     }
 
+    /// @notice Optional modules for session hours, dividend accrual, and allow-list compliance.
+    /// @param _calendar Market calendar (zero to disable).
+    /// @param _dividendManager Dividend module (zero to disable).
+    /// @param _complianceManager Compliance hook (zero to disable).
     function setRWAContracts(
         address _calendar,
         address _dividendManager,
@@ -251,6 +270,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         complianceManager = IComplianceManager(_complianceManager);
     }
 
+    /// @notice Map a market contract to a calendar `marketId` string used by `IMarketCalendar`.
     function setMarketId(address market, string memory marketId) external onlyOperator {
         marketIds[market] = marketId;
     }
@@ -296,6 +316,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         _checkMarketOpen(market);
     }
 
+    /// @notice List a new active market with risk parameters and oracle feed metadata.
     function setMarket(
         address m,
         address feed,
@@ -324,6 +345,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         emit MarketUpdated(m, maxLev, maxPos, maxExp);
     }
 
+    /// @notice Update parameters for an already-listed market.
     function updateMarket(
         address m,
         address feed,
@@ -349,16 +371,19 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         emit MarketUpdated(m, maxLev, maxPos, maxExp);
     }
 
+    /// @notice Remove a market from the active tradable set.
     function unlistMarket(address m) external onlyOperator {
         ConfigLib.unlistMarket(m, _markets, _isMarketActive, _activeMarkets);
     }
 
+    /// @notice Replace trading/liquidation fee configuration after validation.
     function setFeeConfig(DataTypes.FeeConfig calldata _config) external onlyAdmin {
         if (!FeeCalculator.validateFeeConfig(_config)) revert FeeCalculator.InvalidFeeConfig();
         feeConfig = _config;
         emit FeeConfigUpdated(_config);
     }
 
+    /// @notice Batch-update anti-abuse and sizing limits; pass `0` to skip a field (except `minPositionDuration` bounds).
     function setLimits(
         uint256 _uvl,
         uint256 _gvl,
@@ -375,11 +400,13 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         if (_mpd >= 30 && _mpd <= 3600) minPositionDuration = _mpd;
     }
 
+    /// @notice Allow or disallow an ERC2771-style trusted forwarder for `msg.sender` resolution.
     function setTrustedForwarder(address forwarder, bool trusted) external onlyAdmin {
         if (forwarder == address(0)) revert ZeroAddress();
         trustedForwarders[forwarder] = trusted;
     }
 
+    /// @inheritdoc ITradingCore
     function closePosition(
         DataTypes.ClosePositionParams calldata p
     ) external nonReentrant whenNotPaused noFlashLoan returns (int256) {
@@ -400,6 +427,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             );
     }
 
+    /// @inheritdoc ITradingCore
     function partialClose(
         uint256 id,
         uint256 pct,
@@ -426,6 +454,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             );
     }
 
+    /// @inheritdoc ITradingCore
     function recordFailedRepayment(
         uint256 positionId,
         uint256 amount,
@@ -447,11 +476,13 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         protocolHealth.totalBadDebt += DataTypes.toInternalPrecision(amount);
     }
 
+    /// @inheritdoc ITradingCore
     function liquidatePosition(uint256 id) external nonReentrant whenNotPaused onlyLiquidator returns (uint256 reward) {
         settlePositionFunding(id);
         reward = TradingLib.liquidatePosition(id, _liqCtx(), _positions, _positionCollateral, _markets, _userExposure);
     }
 
+    /// @notice Guardian/admin path to clear a recorded failed repayment after backstop resolution.
     function resolveFailedRepayment(uint256 positionId) external nonReentrant onlyAdmin {
         totalFailedRepayments = TradingLib.resolveFailedRepaymentFull(
             positionId,
@@ -467,23 +498,29 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         );
     }
 
+    /// @notice Snapshot of failed repayment bookkeeping for a position (if any).
     function getFailedRepayment(uint256 positionId) external view returns (DataTypes.FailedRepayment memory) {
         return _failedRepayments[positionId];
     }
 
+    /// @notice Number of entries in the failed-repayment id list.
     function failedRepaymentCount() external view returns (uint256) {
         return _failedRepaymentIds.length;
     }
+
+    /// @notice Failed-repayment position id at list `index` (unordered; for iteration only).
     function failedRepaymentIdAt(uint256 index) external view returns (uint256) {
         return _failedRepaymentIds[index];
     }
 
+    /// @notice Pending fee/refund balances credited to `addr` from keeper execution and order cancellations.
     function getBalances(
         address addr
     ) external view returns (uint256 keeperFee, uint256 orderRefund, uint256 orderCollateralRefund) {
         return (_keeperFeeBalance[addr], _orderRefundBalance[addr], _orderCollateralRefundBalance[addr]);
     }
 
+    /// @inheritdoc ITradingCore
     function updatePositionOwner(uint256 id, address newOwner, address oldOwner) external nonReentrant {
         if (msg.sender != address(positionToken)) revert NotPositionToken();
         if (address(complianceManager) != address(0)) {
@@ -493,6 +530,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         TradingLib.updatePositionOwner(id, newOwner, oldOwner, maxUserExposure, _positions, _userExposure);
     }
 
+    /// @inheritdoc ITradingCore
     function setStopLoss(uint256 id, uint256 sl) external nonReentrant {
         PositionTriggersLib.setStopLoss(
             id,
@@ -504,6 +542,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         );
     }
 
+    /// @inheritdoc ITradingCore
     function setTakeProfit(uint256 id, uint256 tp) external nonReentrant {
         PositionTriggersLib.setTakeProfit(
             id,
@@ -515,20 +554,24 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         );
     }
 
+    /// @inheritdoc ITradingCore
     function setTrailingStop(uint256 id, uint256 bps) external nonReentrant {
         PositionTriggersLib.setTrailingStop(id, bps, MAX_TRAILING_BPS, address(positionToken), _positions);
     }
 
+    /// @inheritdoc ITradingCore
     function addCollateral(uint256 id, uint256 amt, uint256 maxLev, bool emg) external nonReentrant {
         _validateOwner(id);
         TradingLib.addCollateral(id, amt, maxLev, emg, _collateralCtx(), _positions, _positionCollateral, _markets);
     }
 
+    /// @inheritdoc ITradingCore
     function withdrawCollateral(uint256 id, uint256 amt) external nonReentrant checkProtocolHealth {
         _validateOwner(id);
         TradingLib.withdrawCollateral(id, amt, _collateralCtx(), _positions, _positionCollateral, _markets);
     }
 
+    /// @inheritdoc ITradingCore
     function createOrder(
         DataTypes.OrderType orderType,
         address market,
@@ -569,6 +612,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         emit OrderCreated(orderId, msg.sender, orderType, market);
     }
 
+    /// @inheritdoc ITradingCore
     function executeOrder(
         uint256 orderId,
         bytes[] calldata
@@ -578,6 +622,9 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             bool openingIncrease = (order.orderType == DataTypes.OrderType.MARKET_INCREASE ||
                 order.orderType == DataTypes.OrderType.LIMIT_INCREASE);
             if (openingIncrease && !protocolHealth.isHealthy) revert ProtocolUnhealthy();
+            if (openingIncrease && _userPositions[order.account].length >= maxPositionsPerUser) {
+                revert TradingLib.MaxPositionsExceeded();
+            }
         }
         if (
             order.positionId > 0 &&
@@ -612,26 +659,32 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         emit OrderExecuted(orderId, positionId, msg.sender);
     }
 
+    /// @notice Pull accumulated keeper execution fees to `msg.sender`.
     function withdrawKeeperFees() external nonReentrant {
         WithdrawLib.withdrawKeeperFees(_keeperFeeBalance, msg.sender);
     }
 
+    /// @inheritdoc ITradingCore
     function cancelOrder(uint256 orderId) external nonReentrant {
         TradingLib.cancelOrder(orderId, msg.sender, usdc, _orders, _orderRefundBalance, _orderCollateralRefundBalance);
     }
 
+    /// @notice Withdraw USDC escrow returned from a cancelled order collateral leg.
     function withdrawOrderCollateralRefund() external nonReentrant {
         WithdrawLib.withdrawOrderCollateralRefund(_orderCollateralRefundBalance, msg.sender, usdc);
     }
 
+    /// @notice Withdraw native ETH refunds from cancelled orders (when applicable).
     function withdrawOrderRefund() external nonReentrant {
         WithdrawLib.withdrawOrderRefund(_orderRefundBalance, msg.sender);
     }
 
+    /// @inheritdoc ITradingCore
     function settleFunding(address market) external whenNotPaused {
         FundingLib.settleFunding(_fundingStates[market], _markets[market], market);
     }
 
+    /// @inheritdoc ITradingCore
     function settlePositionFunding(uint256 id) public returns (int256 paid) {
         return
             TradingLib.settlePositionFundingWithDividends(
@@ -647,48 +700,60 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             );
     }
 
+    /// @notice Set the delegate views contract powering `getPositionPnL`, `canLiquidate`, and `getGlobalUnrealizedPnL`.
     function setTradingViews(address _v) external onlyAdmin {
         tradingViews = _v;
     }
 
+    /// @notice Collateral row for a position (USDC amount and token address metadata).
     function getPositionCollateral(uint256 id) external view returns (uint256 amount, address tokenAddress) {
         DataTypes.PositionCollateral storage c = _positionCollateral[id];
         return (c.amount, c.tokenAddress);
     }
 
+    /// @notice Number of markets currently in the active list.
     function activeMarketCount() external view returns (uint256) {
         return _activeMarkets.length;
     }
+
+    /// @notice Market contract address at `index` in the active list (unordered stable index until mutation).
     function activeMarketAt(uint256 index) external view returns (address) {
         return _activeMarkets[index];
     }
 
+    /// @inheritdoc ITradingCore
     function getPosition(uint256 id) external view returns (DataTypes.Position memory) {
         return _positions[id];
     }
 
+    /// @inheritdoc ITradingCore
     function getPositionPnL(uint256 id) external view returns (int256 pnl, uint256 hf) {
         if (tradingViews == address(0)) revert Unauthorized();
         return ITradingCoreViewsQueries(tradingViews).getPositionPnL(this, id);
     }
 
+    /// @inheritdoc ITradingCore
     function getUserPositions(address u) external view returns (uint256[] memory) {
         return _userPositions[u];
     }
 
+    /// @inheritdoc ITradingCore
     function getMarketInfo(address c) external view returns (DataTypes.Market memory) {
         return _markets[c];
     }
 
+    /// @inheritdoc ITradingCore
     function getFundingState(address c) external view returns (DataTypes.FundingState memory) {
         return _fundingStates[c];
     }
 
+    /// @inheritdoc ITradingCore
     function canLiquidate(uint256 id) external view returns (bool, uint256 hf) {
         if (tradingViews == address(0)) revert Unauthorized();
         return ITradingCoreViewsQueries(tradingViews).canLiquidate(this, id);
     }
 
+    /// @notice Remove stale closed-position ids from `u`'s enumeration (self-serve or admin with higher cap).
     function cleanupPositions(address u, uint256 maxClean) external returns (uint256) {
         if (u != msg.sender && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert Unauthorized();
         uint256 cap = hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ? 40 : MAX_CLEANUP;
@@ -696,6 +761,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         return CleanupLib.cleanupPositions(_userPositions[u], _positions, _positionCollateral, limit);
     }
 
+    /// @notice Batch-update execution/oracle/liquidation tuning; `0` skips a field where documented.
     function setParams(
         uint256 mps,
         uint256 mou,
@@ -728,14 +794,17 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         }
     }
 
+    /// @notice Send sub-threshold dust balances to `treasury` per `DustLib` rules.
     function sweepDust() external onlyAdmin {
         DustLib.sweepDust(usdc, treasury, dustAccumulator);
     }
 
+    /// @notice Keeper hook to refresh `protocolHealth` from current vault TVL.
     function updateProtocolHealth() external onlyRole(KEEPER_ROLE) {
         HealthLib.updateProtocolHealth(vaultCore.totalAssets(), protocolHealth);
     }
 
+    /// @inheritdoc ITradingCore
     function getGlobalUnrealizedPnL() external view returns (int256 totalPnL) {
         if (tradingViews == address(0)) revert Unauthorized();
         return ITradingCoreViewsQueries(tradingViews).getGlobalUnrealizedPnL(this);
@@ -749,6 +818,8 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     function _authorizeUpgrade(address) internal override onlyAdmin {}
 
+    /// @notice Keeper batch: close positions whose stop-loss / take-profit / trailing conditions are met.
+    /// @return count Number of positions successfully processed (implementation-defined semantics).
     function executeStopLossTakeProfit(
         uint256[] calldata positionIds
     ) external nonReentrant whenNotPaused onlyRole(KEEPER_ROLE) returns (uint256) {
@@ -769,6 +840,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             );
     }
 
+    /// @notice Aggregate protocol health snapshot for dashboards.
     function getProtocolHealthState()
         external
         view
@@ -778,6 +850,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     /// @notice Reverts with `InsufficientOracleSources` when the oracle has no healthy configured source for `market`.
+    /// @param market Market address to validate.
     function validateOracleForMarket(address market) external view requireOracleSources(market) {}
 }
 
@@ -787,7 +860,12 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
  * @dev Implemented by TradingCoreViews and called when `tradingViews` is configured.
  */
 interface ITradingCoreViewsQueries {
+    /// @notice Compute live PnL and health for `id` on `core` storage layout.
     function getPositionPnL(ITradingCore core, uint256 id) external view returns (int256 pnl, uint256 hf);
+
+    /// @notice Whether `id` is liquidatable on `core` at current oracle snapshot.
     function canLiquidate(ITradingCore core, uint256 id) external view returns (bool, uint256 hf);
+
+    /// @notice Sum of unrealized PnL across all open positions on `core`.
     function getGlobalUnrealizedPnL(ITradingCore core) external view returns (int256);
 }

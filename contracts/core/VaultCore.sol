@@ -13,8 +13,8 @@ import "../interfaces/ITradingCore.sol";
 
 /**
  * @title VaultCore
- * @notice Unified USDC vault combining LP deposits and insurance fund
- * @dev Consolidates LiquidityVault + InsuranceFund for improved security
+ * @notice Unified USDC vault: LP liquidity for `TradingCore`, insurance tranche, borrow/repay hooks, withdrawal queue, and bad-debt governance.
+ * @dev Mirrors `IVaultCore` surface for integrators; mutators are role- or `TradingCore`-gated as documented per function.
  */
 contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, AccessControlled {
     using SafeERC20 for IERC20;
@@ -57,7 +57,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     uint256 private _lpTotalShares;
     mapping(address => uint256) private _lpShares;
     uint256 public totalBorrowed;
-    int256 public pendingPnL;
+    int256 public pendingPnL; // deprecated: kept for storage layout compatibility
     mapping(address => DataTypes.MarketExposure) private _exposures;
     uint256 public defaultMaxExposureBps;
     uint256 public restrictionThresholdBps;
@@ -145,9 +145,10 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-        /* _disableInitializers(); */
+        _disableInitializers();
     }
 
+    /// @notice Initialize the vault proxy: USDC asset, roles, and default risk parameters.
     function initialize(address admin, address _usdc, address _treasury) external initializer {
         if (admin == address(0) || _usdc == address(0) || _treasury == address(0)) {
             revert ZeroAddress();
@@ -182,6 +183,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         _insTotalShares = DEAD_SHARES;
     }
 
+    /// @notice Bind `TradingCore` and grant it the `TRADING_CORE_ROLE` for borrow/repay/fee hooks.
     function setTradingCore(address _tradingCore) external onlyAdmin {
         if (_tradingCore == address(0)) revert ZeroAddress();
         if (tradingCore != address(0)) {
@@ -191,6 +193,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         _grantRole(TRADING_CORE_ROLE, _tradingCore);
     }
 
+    /// @notice Mint LP shares against USDC (`IVaultCore.deposit`).
     function deposit(
         uint256 assets,
         address receiver
@@ -214,6 +217,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         emit Deposit(msg.sender, assets, shares);
     }
 
+    /// @notice Instant LP redemption when healthy liquidity and not in emergency (`IVaultCore.withdraw`).
     function withdraw(
         uint256 shares,
         address receiver,
@@ -232,19 +236,20 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
         _lpShares[owner] -= shares;
         _lpTotalShares -= shares;
-        _lpAssets = _lpAssets > assetsInternal ? _lpAssets - assetsInternal : 0;
+        _lpAssets = _lpAssets > assets ? _lpAssets - assets : 0;
         usdc.safeTransfer(receiver, assets);
 
         emit Withdraw(msg.sender, assets, shares);
     }
 
+    /// @notice Queue LP exit with cooldown and reserved liquidity (`IVaultCore.queueWithdrawal`).
     function queueWithdrawal(uint256 shares, uint256 minAssets) external nonReentrant returns (uint256 requestId) {
         if (shares == 0) revert ZeroShares();
         if (_lpShares[msg.sender] < shares) revert InsufficientShares();
 
         requestId = _nextRequestId++;
-        uint256 expectedAssets = _convertToLPAssets(shares);
-        uint256 reservationAmount = (expectedAssets * (BPS + RESERVATION_BUFFER_BPS)) / BPS;
+        uint256 expectedAssetsUsdc = DataTypes.toUsdcPrecision(_convertToLPAssets(shares));
+        uint256 reservationAmount = (expectedAssetsUsdc * (BPS + RESERVATION_BUFFER_BPS)) / BPS;
 
         _withdrawalRequests[requestId] = DataTypes.WithdrawalRequest({
             user: msg.sender,
@@ -260,6 +265,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         emit WithdrawalQueued(msg.sender, shares, requestId);
     }
 
+    /// @notice Finalize queued withdrawals subject to cooldown, slippage floor, and gas budget (`IVaultCore.processWithdrawals`).
     function processWithdrawals(uint256[] calldata requestIds) external nonReentrant returns (uint256 processed) {
         uint256 len = requestIds.length;
         if (len > MAX_WITHDRAWAL_BATCH) revert InvalidRequest();
@@ -285,7 +291,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         if (req.processed || req.shares == 0) revert InvalidRequest();
         if (block.timestamp < req.requestTime + withdrawalCooldown) revert WithdrawalNotReady();
 
-        uint256 assets = _convertToLPAssets(req.shares);
+        uint256 assets = DataTypes.toUsdcPrecision(_convertToLPAssets(req.shares));
         address user = req.user;
 
         uint256 originalReservation = (assets * (BPS + RESERVATION_BUFFER_BPS)) / BPS;
@@ -349,6 +355,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         return balance > nonLpAssets ? balance - nonLpAssets : 0;
     }
 
+    /// @notice Lend USDC to `TradingCore` if utilization and per-market exposure caps allow (`IVaultCore.borrow`).
     function borrow(
         uint256 amount,
         address market,
@@ -384,6 +391,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         return true;
     }
 
+    /// @notice Accept repayment and PnL settlement from `TradingCore` (`IVaultCore.repay`).
     function repay(uint256 amount, address market, bool isLong, int256 pnl) external onlyTradingCore nonReentrant {
         totalBorrowed = totalBorrowed > amount ? totalBorrowed - amount : 0;
 
@@ -394,8 +402,12 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
             exp.shortExposure = exp.shortExposure > amount ? exp.shortExposure - amount : 0;
         }
 
-        uint256 loss = pnl < 0 ? uint256(-pnl) : 0;
-        uint256 receiveAmount = pnl >= 0 ? amount : (amount > loss ? amount - loss : 0);
+        uint256 receiveAmount;
+        if (pnl >= 0) {
+            receiveAmount = amount;
+        } else {
+            receiveAmount = amount + uint256(-pnl);
+        }
         if (usdc.balanceOf(msg.sender) < receiveAmount) revert InsufficientRepayBalance();
 
         emit PnLSettled(market, pnl, pnl >= 0);
@@ -404,6 +416,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         if (pnl >= 0) usdc.safeTransfer(msg.sender, uint256(pnl));
     }
 
+    /// @notice Update open-interest counters without moving tokens (`IVaultCore.updateExposure`).
     function updateExposure(address market, int256 sizeDelta, bool isLong) external onlyTradingCore {
         DataTypes.MarketExposure storage exp = _exposures[market];
         if (sizeDelta > 0) {
@@ -425,6 +438,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         emit ExposureUpdated(market, exp.longExposure, exp.shortExposure);
     }
 
+    /// @notice Stake USDC into the insurance pool (`IVaultCore.stakeInsurance`).
     function stakeInsurance(
         uint256 assets,
         address receiver
@@ -444,6 +458,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         emit InsuranceStaked(receiver, assets, shares);
     }
 
+    /// @notice Redeem insurance shares after cooldown and ratio checks (`IVaultCore.unstakeInsurance`).
     function unstakeInsurance(uint256 shares, address receiver) external nonReentrant returns (uint256 assets) {
         if (shares == 0) revert ZeroAssets();
         if (receiver == address(0)) revert ZeroAddress();
@@ -472,17 +487,19 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         emit InsuranceUnstaked(msg.sender, assets, shares);
     }
 
+    /// @notice Start unstake cooldown for the caller (`IVaultCore.requestUnstake`).
     function requestUnstake() external {
         _unstakeRequestTime[msg.sender] = block.timestamp;
         emit UnstakeRequested(msg.sender, block.timestamp);
     }
 
+    /// @notice Insurance payout to cover trading bad debt (`IVaultCore.coverBadDebt`).
     function coverBadDebt(uint256 amount, uint256 positionId) external onlyTradingCore returns (uint256 covered) {
         if (insuranceCircuitBreakerActive) revert InsuranceFundCircuitBreakerActive();
 
+        uint256 governanceClaimId;
         if (amount > approvalThreshold) {
-            _submitClaimInternal(amount, positionId);
-            return 0;
+            governanceClaimId = _submitClaimInternal(amount, positionId);
         }
 
         uint256 available = _insAssets;
@@ -496,26 +513,51 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         uint256 circuitBreakerThreshold = (_insAssets * BAD_DEBT_CIRCUIT_BREAKER_BPS) / BPS;
         if (newCumulative > circuitBreakerThreshold) {
             insuranceCircuitBreakerActive = true;
+            if (amount > approvalThreshold && governanceClaimId > 0) {
+                totalPendingClaims = totalPendingClaims > amount ? totalPendingClaims - amount : 0;
+                _claims[governanceClaimId].paid = true;
+            }
             emit InsuranceCircuitBreakerTriggered(circuitBreakerThreshold, newCumulative);
             return 0;
         }
 
-        _checkClaimRateLimit(amount);
+        if (amount > approvalThreshold) {
+            _checkClaimRateLimit(covered);
+        } else {
+            _checkClaimRateLimit(amount);
+        }
 
         if (covered > 0) {
             _insAssets -= covered;
             cumulativeBadDebt24h += covered;
             usdc.safeTransfer(tradingCore, covered);
-            uint256 claimId = _nextClaimId++;
-            _claims[claimId] = DataTypes.BadDebtClaim({
-                amount: amount,
-                positionId: positionId,
-                timestamp: block.timestamp,
-                approved: true,
-                paid: amount == covered,
-                amountPaid: covered
-            });
-            emit BadDebtCovered(claimId, covered, positionId);
+
+            if (amount > approvalThreshold) {
+                DataTypes.BadDebtClaim storage claim = _claims[governanceClaimId];
+                claim.amountPaid += covered;
+                if (totalPendingClaims >= covered) {
+                    totalPendingClaims -= covered;
+                } else {
+                    totalPendingClaims = 0;
+                }
+                emit BadDebtCovered(governanceClaimId, covered, positionId);
+                if (claim.amountPaid < claim.amount) {
+                    emit ClaimPartialPayment(governanceClaimId, covered, claim.amount - claim.amountPaid);
+                } else {
+                    claim.paid = true;
+                }
+            } else {
+                uint256 claimId = _nextClaimId++;
+                _claims[claimId] = DataTypes.BadDebtClaim({
+                    amount: amount,
+                    positionId: positionId,
+                    timestamp: block.timestamp,
+                    approved: true,
+                    paid: amount == covered,
+                    amountPaid: covered
+                });
+                emit BadDebtCovered(claimId, covered, positionId);
+            }
         }
     }
 
@@ -540,16 +582,19 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         if (autoApprove) _processClaim(claimId);
     }
 
+    /// @notice `TradingCore` entry to submit a bad-debt claim (`IVaultCore.submitClaim`).
     function submitClaim(uint256 amount, uint256 positionId) external onlyTradingCore returns (uint256 claimId) {
         return _submitClaimInternal(amount, positionId);
     }
 
+    /// @notice Guardian approval step before `processClaim` (`IVaultCore.approveClaim`).
     function approveClaim(uint256 claimId) external onlyGuardian {
         DataTypes.BadDebtClaim storage claim = _claims[claimId];
         if (claim.amount == 0 || claim.paid) revert ClaimInvalidOrPaid();
         claim.approved = true;
     }
 
+    /// @notice Pay out an approved claim in USDC chunks (`IVaultCore.processClaim`).
     function processClaim(uint256 claimId) external returns (uint256) {
         return _processClaim(claimId);
     }
@@ -601,12 +646,14 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         rateLimitCurrentLevel += amount;
     }
 
+    /// @notice Credit trading fees from `TradingCore` (`IVaultCore.receiveFees`).
     function receiveFees(uint256 amount) external onlyTradingCore {
         if (amount == 0) return;
         accumulatedFees += amount;
         emit FeeReceived(amount, "trading");
     }
 
+    /// @notice Sweep insurance surplus above target to configured recipients (`IVaultCore.distributeSurplus`).
     function distributeSurplus() external nonReentrant whenNotPaused {
         uint256 currentAssets = _insAssets;
         uint256 targetAssets = (protocolTVL * targetRatioBps) / BPS;
@@ -623,11 +670,15 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
             usdc.safeTransfer(treasury, treasuryShare);
             _insAssets -= treasuryShare;
         }
+        if (stakerShare > 0) {
+            _insAssets += stakerShare;
+        }
         accumulatedFees -= surplus;
 
         emit SurplusDistributed(surplus, stakerShare, treasuryShare);
     }
 
+    /// @notice Activate emergency mode halting normal LP withdrawals (`IVaultCore.triggerEmergencyMode`).
     function triggerEmergencyMode() external onlyGuardian {
         if (!_emergencyMode) {
             _emergencyMode = true;
@@ -636,6 +687,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         }
     }
 
+    /// @notice Clear emergency mode once utilization is below the configured restriction threshold (`IVaultCore.stopEmergencyMode`).
     function stopEmergencyMode() external onlyAdmin {
         if (_emergencyMode && getUtilization() < (restrictionThresholdBps * PRECISION) / BPS) {
             _emergencyMode = false;
@@ -644,6 +696,8 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         }
     }
 
+    /// @notice Pro-rata LP withdrawal after emergency timelock when normal `withdraw` is frozen.
+    /// @dev Uses conservative asset valuation; payout may be capped by actual USDC on hand.
     function emergencyEscapeWithdraw(uint256 shares) external nonReentrant {
         if (!_emergencyMode) revert NotEmergencyMode();
         if (block.timestamp < emergencyModeActivatedAt + MAX_EMERGENCY_DURATION) {
@@ -660,11 +714,13 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         _lpShares[msg.sender] -= shares;
         _lpTotalShares = totalShares >= shares ? totalShares - shares : 0;
 
-        uint256 balance = usdc.balanceOf(address(this));
-        uint256 assets = requestedAssets > balance ? balance : requestedAssets;
-        if (requestedAssets > balance && requestedAssets > 0) {
+        uint256 lpAvailable = getAvailableLiquidity();
+        uint256 assets = requestedAssets > lpAvailable ? lpAvailable : requestedAssets;
+        if (requestedAssets > lpAvailable && requestedAssets > 0) {
             emit EmergencyEscapeWithdrawCapped(msg.sender, requestedAssets, assets, shares);
         }
+
+        _lpAssets = _lpAssets > assets ? _lpAssets - assets : 0;
 
         if (assets > 0) {
             usdc.safeTransfer(msg.sender, assets);
@@ -673,6 +729,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         emit Withdraw(msg.sender, assets, shares);
     }
 
+    /// @notice Update treasury recipient for surplus and fee routing.
     function setTreasury(address _treasury) external onlyAdmin {
         if (_treasury == address(0)) revert ZeroAddress();
         address oldTreasury = treasury;
@@ -680,18 +737,21 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         emit TreasuryUpdated(oldTreasury, _treasury);
     }
 
+    /// @notice Per-market cap on open interest as bps of conservative TVL.
     function setMaxExposure(address market, uint256 maxBps) external onlyOperator {
         uint256 old = _exposures[market].maxExposurePercent;
         _exposures[market].maxExposurePercent = maxBps;
         emit ExposureCapUpdated(market, old, maxBps);
     }
 
+    /// @notice Update utilization thresholds that drive alerts and emergency policy.
     function setThresholds(uint256 _restrictionBps, uint256 _emergencyBps) external onlyAdmin {
         restrictionThresholdBps = _restrictionBps;
         emergencyThresholdBps = _emergencyBps;
         emit ThresholdsUpdated(_restrictionBps, _emergencyBps);
     }
 
+    /// @notice Operator-fed reference TVL used for insurance ratio targets (bounded by `maxProtocolTVL`).
     function updateProtocolTVL(uint256 _tvl) external onlyOperator {
         if (_tvl > maxProtocolTVL) revert InvalidTVL();
         uint256 old = protocolTVL;
@@ -699,10 +759,12 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         emit ProtocolTVLUpdated(old, _tvl);
     }
 
+    /// @notice Raise/lower the ceiling for `updateProtocolTVL`.
     function setMaxProtocolTVL(uint256 _maxTVL) external onlyAdmin {
         maxProtocolTVL = _maxTVL;
     }
 
+    /// @notice Clear insurance bad-debt circuit breaker after operational review.
     function resetInsuranceCircuitBreaker() external onlyAdmin {
         insuranceCircuitBreakerActive = false;
         cumulativeBadDebt24h = 0;
@@ -710,11 +772,12 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         emit InsuranceCircuitBreakerReset(msg.sender);
     }
 
+    /// @notice LP-side assets including borrows and global PnL adjustment from `TradingCore` when available (`IVaultCore.totalAssets`).
     function totalAssets() public view returns (uint256) {
         uint256 balance = usdc.balanceOf(address(this));
         uint256 nonLpAssets = _insAssets + accumulatedFees;
         uint256 lpBalance = balance > nonLpAssets ? balance - nonLpAssets : 0;
-        uint256 total = (lpBalance * DataTypes.DECIMAL_CONVERSION) + totalBorrowed;
+        uint256 total = (lpBalance * DataTypes.DECIMAL_CONVERSION) + (totalBorrowed * DataTypes.DECIMAL_CONVERSION);
 
         if (tradingCore != address(0)) {
             try ITradingCore(tradingCore).getGlobalUnrealizedPnL() returns (int256 globalPnL) {
@@ -731,31 +794,38 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         return total;
     }
 
+    /// @notice Raw USDC held for insurance stakers (`IVaultCore.insuranceAssets`).
     function insuranceAssets() public view returns (uint256) {
         return _insAssets;
     }
 
+    /// @notice Accounting balance for LP pool excluding insurance/fees slice.
     function lpAssets() public view returns (uint256) {
         return _lpAssets;
     }
 
+    /// @notice Total LP shares outstanding (`IVaultCore.lpTotalShares`).
     function lpTotalShares() external view returns (uint256) {
         return _lpTotalShares;
     }
+
+    /// @notice Total insurance shares outstanding (`IVaultCore.insTotalShares`).
     function insTotalShares() external view returns (uint256) {
         return _insTotalShares;
     }
 
+    /// @notice Borrowed USDC vs LP assets including PnL adjustments (`IVaultCore.getUtilization`).
     function getUtilization() public view returns (uint256) {
         uint256 a = totalAssets();
-        return a == 0 ? 0 : (totalBorrowed * PRECISION) / a;
+        return a == 0 ? 0 : (totalBorrowed * DataTypes.DECIMAL_CONVERSION * PRECISION) / a;
     }
 
+    /// @notice Conservative LP asset figure ignoring positive trader PnL liability for safety checks.
     function getConservativeTotalAssets() public view returns (uint256) {
         uint256 balance = usdc.balanceOf(address(this));
         uint256 nonLpAssets = _insAssets + accumulatedFees;
         uint256 lpBalance = balance > nonLpAssets ? balance - nonLpAssets : 0;
-        uint256 total = (lpBalance * DataTypes.DECIMAL_CONVERSION) + totalBorrowed;
+        uint256 total = (lpBalance * DataTypes.DECIMAL_CONVERSION) + (totalBorrowed * DataTypes.DECIMAL_CONVERSION);
 
         if (tradingCore != address(0)) {
             try ITradingCore(tradingCore).getGlobalUnrealizedPnL() returns (int256 globalPnL) {
@@ -770,68 +840,96 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         return total;
     }
 
+    /// @notice Utilization using on-hand LP slice without global PnL uplift.
     function getConservativeUtilization() public view returns (uint256) {
         uint256 lpBal = _lpBalanceSliceUSDC();
         uint256 denom = lpBal + totalBorrowed;
         return denom == 0 ? 0 : (totalBorrowed * PRECISION) / denom;
     }
 
+    /// @notice USDC available to LP operations (excludes insurance and fee reserves).
     function getAvailableLiquidity() public view returns (uint256) {
-        return usdc.balanceOf(address(this));
+        uint256 balance = usdc.balanceOf(address(this));
+        uint256 nonLpAssets = _insAssets + accumulatedFees;
+        return balance > nonLpAssets ? balance - nonLpAssets : 0;
     }
 
+    /// @notice LP share price in internal precision (`IVaultCore.getLPSharePrice`).
     function getLPSharePrice() public view returns (uint256) {
         return _lpTotalShares == 0 ? PRECISION : (totalAssets() * PRECISION) / _lpTotalShares;
     }
 
+    /// @notice Per-market long/short exposure snapshot (`IVaultCore.getMarketExposure`).
     function getMarketExposure(address market) external view returns (DataTypes.MarketExposure memory) {
         return _exposures[market];
     }
 
+    /// @notice Whether emergency pause of LP withdrawals is active (`IVaultCore.isEmergencyMode`).
     function isEmergencyMode() external view returns (bool) {
         return _emergencyMode;
     }
+
+    /// @notice LP share balance for `user` (`IVaultCore.lpBalanceOf`).
     function lpBalanceOf(address user) external view returns (uint256) {
         return _lpShares[user];
     }
+
+    /// @notice Insurance share balance for `user` (`IVaultCore.insBalanceOf`).
     function insBalanceOf(address user) external view returns (uint256) {
         return _insShares[user];
     }
+
+    /// @notice Shares minted for an LP deposit at current exchange rate (`IVaultCore.previewDeposit`).
     function previewDeposit(uint256 assets) public view returns (uint256) {
         return _convertToLPShares(assets);
     }
+
+    /// @notice Internal-precision assets returned for burning `shares` (`IVaultCore.previewWithdraw`).
     function previewWithdraw(uint256 shares) public view returns (uint256) {
         return _convertToLPAssets(shares);
     }
 
+    /// @notice Metadata for a queued withdrawal (`IVaultCore.getWithdrawalRequest`).
     function getWithdrawalRequest(uint256 requestId) external view returns (DataTypes.WithdrawalRequest memory) {
         return _withdrawalRequests[requestId];
     }
 
+    /// @notice Bad-debt claim record (`IVaultCore.getClaim`).
     function getClaim(uint256 claimId) external view returns (DataTypes.BadDebtClaim memory) {
         return _claims[claimId];
     }
 
+    /// @notice Insurance assets divided by `protocolTVL`, scaled by `BPS` (`IVaultCore.getInsuranceHealthRatio`).
     function getInsuranceHealthRatio() public view returns (uint256) {
         return protocolTVL == 0 ? PRECISION : (_insAssets * BPS) / protocolTVL;
     }
 
+    /// @notice True when `getInsuranceHealthRatio()` is at least `minRatioBps` (`IVaultCore.isInsuranceHealthy`).
     function isInsuranceHealthy() external view returns (bool) {
         return getInsuranceHealthRatio() >= minRatioBps;
     }
 
+    /// @notice Underlying ERC20 asset address (`IVaultCore.asset`).
     function asset() external view returns (address) {
         return address(usdc);
     }
+
+    /// @notice `assets` -> LP shares at current rate (`IVaultCore.convertToShares`).
     function convertToShares(uint256 assets) external view returns (uint256) {
         return _convertToLPShares(assets);
     }
+
+    /// @notice LP shares -> internal-precision assets (`IVaultCore.convertToAssets`).
     function convertToAssets(uint256 shares) external view returns (uint256) {
         return _convertToLPAssets(shares);
     }
+
+    /// @notice ERC4626-style max deposit hint (`IVaultCore.maxDeposit`).
     function maxDeposit(address) external pure returns (uint256) {
         return type(uint256).max;
     }
+
+    /// @notice Max redeemable LP shares for `owner` (zero during emergency) (`IVaultCore.maxRedeem`).
     function maxRedeem(address owner) external view returns (uint256) {
         return _emergencyMode ? 0 : _lpShares[owner];
     }
@@ -851,7 +949,8 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
             }
             return (assets * _lpTotalShares) / rawTotal;
         }
-        return (assets * _lpTotalShares + total - 1) / total;
+        uint256 assetsInternal = DataTypes.toInternalPrecision(assets);
+        return (assetsInternal * _lpTotalShares) / total;
     }
 
     function _convertToLPAssets(uint256 shares) internal view returns (uint256) {

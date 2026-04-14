@@ -1,4 +1,4 @@
-import { run } from "hardhat";
+import { run, upgrades } from "hardhat";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -32,6 +32,7 @@ function loadAddresses(): { name: string; address: string }[] {
     push("DividendKeeper", "DEPLOYED_DIVIDEND_KEEPER");
     push("TradingCoreViews", "DEPLOYED_TRADING_CORE_VIEWS");
     push("MockUSDC", "DEPLOYED_MOCK_USDC");
+    push("MockPythWrapper", "DEPLOYED_MOCK_PYTH");
 
     if (addresses.length > 0) return addresses;
 
@@ -62,6 +63,7 @@ function loadAddresses(): { name: string; address: string }[] {
         dividendKeeper: "DividendKeeper",
         tradingCoreViews: "TradingCoreViews",
         mockUsdc: "MockUSDC",
+        mockPyth: "MockPythWrapper",
     };
 
     for (const [key, contractName] of Object.entries(contractMap)) {
@@ -87,7 +89,22 @@ async function main() {
 
     for (const { name, address } of addresses) {
         try {
-            await run("verify:verify", { address });
+            if (name === "MockUSDC") {
+                await run("verify:verify", {
+                    address,
+                    contract: "contracts/test/MockUSDC.sol:MockUSDC",
+                    constructorArguments: [],
+                });
+            } else if (name === "MockPythWrapper") {
+                await run("verify:verify", {
+                    address,
+                    contract: "contracts/test/MockPyth.sol:MockPythWrapper",
+                    constructorArguments: [3600, 0],
+                });
+            } else {
+                console.log(`Verifying: ${name} at ${address}`);
+                await run("verify:verify", { address });
+            }
             console.log(`✓ Verified: ${name} at ${address}`);
             verified++;
         } catch (e: unknown) {
@@ -95,6 +112,10 @@ async function main() {
             if (msg.includes("Already Verified") || msg.includes("already verified")) {
                 console.log(`✓ Already verified: ${name} at ${address}`);
                 verified++;
+            } else if (msg.includes("startsWith")) {
+                console.error(`✗ Failed to verify ${name} at ${address} due to a 'startsWith' error.`);
+                console.error(`  This is likely a configuration mismatch in hardhat.config.ts or a plugin bug.`);
+                failed++;
             } else {
                 console.error(`✗ Failed to verify ${name}:`, msg);
                 failed++;

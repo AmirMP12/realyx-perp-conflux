@@ -238,10 +238,11 @@ describe("High Coverage Test Suite", function () {
         });
 
         it("should cover liquidation prices", async function () {
-            const liqLong = await math.calculateLiquidationPrice(60000, 20n * 10n**18n, 50, true);
+            const size = 10n ** 18n;
+            const liqLong = await math.calculateLiquidationPrice(60000, 10n * 10n**18n, size, true);
             expect(liqLong).to.be.lt(60000);
-            
-            const liqShort = await math.calculateLiquidationPrice(60000, 20n * 10n**18n, 50, false);
+
+            const liqShort = await math.calculateLiquidationPrice(60000, 10n * 10n**18n, size, false);
             expect(liqShort).to.be.gt(60000);
         });
 

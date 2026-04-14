@@ -16,8 +16,8 @@ interface IComplianceManager {
     function isAllowed(address user, address market, bytes calldata data) external view returns (bool allowed);
 
     /**
-     * @notice Register a new market for compliance tracking
-     * @param market The market to register
+     * @notice Register a market contract so policy can key rules by address.
+     * @param market Market (or collection) contract added to the compliance module.
      */
     function registerMarket(address market) external;
 }

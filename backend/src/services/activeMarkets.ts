@@ -1,27 +1,25 @@
 import { ethers } from "ethers";
 import TradingCoreABI from "../abi/TradingCore.js";
 
-const TRADING_CORE_ABI_FALLBACK = [
-  "function activeMarketCount() view returns (uint256)",
-  "function activeMarketAt(uint256 index) view returns (address)",
-] as const;
-
 function getTradingCoreAbi(): any[] {
   return (TradingCoreABI as any).abi ?? TradingCoreABI;
 }
 
-const CONFLUX_FALLBACK_RPCS = [
+const DEFAULT_TESTNET_RPCS = [
   "https://evmtestnet.confluxrpc.com",
-  "https://evm.confluxrpc.com",
+  "https://evmtestnet.confluxrpc.org",
 ];
+const DEFAULT_MAINNET_RPCS = ["https://evm.confluxrpc.com"];
 
 function getRpcUrls(): string[] {
   const primary = (process.env.RPC_URL ?? "").trim();
-  const fallback = (process.env.RPC_FALLBACK_URL ?? "").trim();
-  const urls = primary ? [primary] : [];
-  if (fallback && !urls.includes(fallback)) urls.push(fallback);
-  if (process.env.CHAIN_ID === "71" || process.env.CHAIN_ID === "1030" || !primary) {
-    for (const u of CONFLUX_FALLBACK_RPCS) if (!urls.includes(u)) urls.push(u);
+  const fallbackEnv = (process.env.RPC_FALLBACK_URL ?? "").trim();
+  const urls: string[] = primary ? [primary] : [];
+  if (fallbackEnv && !urls.includes(fallbackEnv)) urls.push(fallbackEnv);
+  const chainId = process.env.CHAIN_ID ?? "71";
+  const defaults = chainId === "1030" ? DEFAULT_MAINNET_RPCS : DEFAULT_TESTNET_RPCS;
+  if (!primary || chainId === "71" || chainId === "1030") {
+    for (const u of defaults) if (!urls.includes(u)) urls.push(u);
   }
   return urls;
 }

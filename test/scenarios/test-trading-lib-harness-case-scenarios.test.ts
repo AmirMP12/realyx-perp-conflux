@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { deployTestEnvironment } from "../helpers";
 
 describe("TradingLib Harness Branch Wave", function () {
@@ -50,6 +50,14 @@ describe("TradingLib Harness Branch Wave", function () {
         expect(res[0].length).to.equal(2);
         expect(res[1]).to.equal(3n);
 
+        // offset + limit > total → `end = total` branch (line 205 ternary true arm)
+        res = await harness.testGetUserPositionsPaginated(0, 100);
+        expect(res[0].length).to.equal(3);
+        expect(res[1]).to.equal(3n);
+        // offset < total && limit == 0 → second disjunct of `(offset >= total || limit == 0)`
+        res = await harness.testGetUserPositionsPaginated(0, 0);
+        expect(res[0].length).to.equal(0);
+
         // enum PosStatus: NONE=0, OPEN=1, CLOSED=2
         await harness.setPosition(1, 1000, 1000, 1, 1, ethers.ZeroAddress);
         await harness.setPosition(2, 1000, 1000, 1, 2, ethers.ZeroAddress);
@@ -71,6 +79,13 @@ describe("TradingLib Harness Branch Wave", function () {
         await harness.setPosition(7, 1000, 1000, 1, 1, ethers.ZeroAddress);
         await harness.testUpdatePositionOwner(7, ownerB.address, ownerA.address, 1);
         await harness.testUpdatePositionOwner(7, ownerA.address, ownerB.address, ethers.MaxUint256);
+
+        const market = ethers.Wallet.createRandom().address;
+        const internalSize = 1_000_000_000_000_000_000n;
+        await harness.setPosition(42, internalSize, 1000, 1, 1, market);
+        const sz = 1_000_000n;
+        await harness.testSeedUserExposure(ownerA.address, sz * 2n);
+        await harness.testUpdatePositionOwner(42, ownerB.address, ownerA.address, ethers.MaxUint256);
     });
 
     it("covers TradingLib market-open and collateral error branches", async function () {
@@ -93,5 +108,22 @@ describe("TradingLib Harness Branch Wave", function () {
         await expect(
             harness.testWithdrawCollateral(10, 10, await env.usdc.getAddress(), ethers.ZeroAddress, 0)
         ).to.be.reverted;
+    });
+
+    it("covers TradingLib addCollateral non-emergency oracle confidence revert", async function () {
+        const { harness, env } = await loadFixture(deployHarnessFixture);
+        const oracle = await ethers.deployContract("MockOracleConfigurable");
+        const market = await env.usdc.getAddress();
+        await harness.setPosition(55, 1000, 1000, 1, 1, market);
+        const ts = BigInt(await time.latest());
+        await oracle.setPrice(market, 100n * 10n ** 18n, 600n, ts);
+        await env.usdc.mintTo(env.admin.address, 10_000_000n);
+        await env.usdc.connect(env.admin).approve(await harness.getAddress(), ethers.MaxUint256);
+        const tl = await ethers.getContractAt("TradingLib", ethers.ZeroAddress);
+        await expect(
+            harness
+                .connect(env.admin)
+                .testAddCollateral(55, 1_000_000n, 0, false, await env.usdc.getAddress(), await oracle.getAddress(), 1000n)
+        ).to.be.revertedWithCustomError({ interface: tl.interface }, "InvalidOraclePrice");
     });
 });

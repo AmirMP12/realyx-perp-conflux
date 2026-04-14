@@ -806,12 +806,12 @@
             "type": "uint8"
           },
           {
-            "internalType": "enum DataTypes.CollateralType",
+            "internalType": "uint8",
             "name": "collateralType",
             "type": "uint8"
           },
           {
-            "internalType": "enum DataTypes.PosStatus",
+            "internalType": "uint8",
             "name": "state",
             "type": "uint8"
           }

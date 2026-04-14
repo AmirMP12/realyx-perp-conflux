@@ -6,6 +6,7 @@ describe("Config", () => {
         expect(config.wsPort).toBeDefined();
         expect(config.postgresUrl).toBeUndefined(); // It is undefined in testing normally, but part of schema
         expect(config.chainId).toBeDefined();
+        expect(config.rpcUrl).toBeDefined();
         expect(config.nodeEnv).toBeDefined();
         expect(config.metricsPort).toBeDefined();
     });

@@ -90,7 +90,7 @@ library LiquidationLib {
             isLong
         );
 
-        uint256 borrowedAmount = uint256(position.size) - collateralValue;
+        uint256 borrowedAmount = positionCollateral[positionId].borrowedAmount;
         uint256 repayAmountUsdc = DataTypes.toUsdcPrecisionCeil(borrowedAmount);
         uint256 receiveAmount = pnl >= 0
             ? repayAmountUsdc

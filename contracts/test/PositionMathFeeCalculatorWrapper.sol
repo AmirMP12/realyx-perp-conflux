@@ -32,10 +32,10 @@ contract PositionMathFeeCalculatorWrapper {
     function calculateLiquidationPrice(
         uint256 entryPrice,
         uint256 leverage,
-        uint256 maintenanceMarginBps,
+        uint256 size,
         bool isLong
     ) public pure returns (uint256) {
-        return PositionMath.calculateLiquidationPrice(entryPrice, leverage, maintenanceMarginBps, isLong);
+        return PositionMath.calculateLiquidationPrice(entryPrice, leverage, size, isLong);
     }
 
     function shouldTriggerStopLoss(

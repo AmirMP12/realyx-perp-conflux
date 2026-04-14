@@ -1,15 +1,15 @@
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
+import { ABI_OUTPUT_DIRS } from "./abi-output-dirs.js";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const ARTIFACTS_DIR = path.join(__dirname, "..", "backend", "abi");
 
 const ENUM_REPLACEMENTS = [
     ['"type": "DataTypes.CollateralType"', '"type": "uint8"'],
     ['"type": "DataTypes.PosStatus"', '"type": "uint8"'],
+    ['"internalType": "enum DataTypes.CollateralType"', '"internalType": "uint8"'],
+    ['"internalType": "enum DataTypes.PosStatus"', '"internalType": "uint8"'],
 ];
 
 function walkDir(dir, callback) {
@@ -33,9 +33,19 @@ function fixAbiInFile(filePath) {
     }
     if (changed) {
         fs.writeFileSync(filePath, content, "utf8");
-        console.log("Fixed:", path.relative(ARTIFACTS_DIR, filePath));
+        console.log("Fixed:", filePath);
     }
 }
 
-walkDir(ARTIFACTS_DIR, fixAbiInFile);
-console.log("ABI enum fix done.");
+export function applyAbiEnumFixToAllExportedAbis() {
+    for (const dir of ABI_OUTPUT_DIRS) {
+        walkDir(dir, fixAbiInFile);
+    }
+}
+
+const isMain =
+    typeof process.argv[1] === "string" && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+if (isMain) {
+    applyAbiEnumFixToAllExportedAbis();
+    console.log("ABI enum fix done.");
+}

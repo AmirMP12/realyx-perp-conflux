@@ -38,11 +38,8 @@ describe('Sidebar', () => {
             </MemoryRouter>
         );
 
-        // Actually, Sidebar.tsx has <button onClick={onClose} ...><X className="..." /></button>
-        // Let's use getByRole or testid if we want to be sure.
-        // There's only one close button in the header.
         const buttons = screen.getAllByRole('button');
-        fireEvent.click(buttons[0]); // The X button is the first one
+        fireEvent.click(buttons[0]);
         expect(mockOnClose).toHaveBeenCalled();
     });
 

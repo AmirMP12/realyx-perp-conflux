@@ -1,8 +1,8 @@
-import { ethers } from "hardhat";
+import { artifacts, ethers } from "hardhat";
 
 async function main() {
-    const ITradingCore = await ethers.getContractFactory("ITradingCore");
-    const iface = ITradingCore.interface;
+    const { abi } = await artifacts.readArtifact("TradingCore");
+    const iface = new ethers.Interface(abi);
     const fragment = iface.getFunction("closePosition");
     if (fragment) {
         console.log("Function:", fragment.name);

@@ -1,4 +1,4 @@
-import { ethers } from "hardhat";
+import { ethers, upgrades } from "hardhat";
 import type { ContractFactory } from "ethers";
 
 /** Linked factories for UUPS upgrade tests (same wiring as deployTestEnvironment). */
@@ -85,18 +85,28 @@ export async function deployTestEnvironment() {
     const GlobalPnLLib = await (await ethers.getContractFactory("GlobalPnLLib")).deploy();
     
     const OracleAggregator = await ethers.getContractFactory("OracleAggregator");
-    const oracle = await OracleAggregator.deploy();
-    await oracle.initialize(admin.address, await pyth.getAddress());
+    const oracle = await upgrades.deployProxy(OracleAggregator, [admin.address, await pyth.getAddress()], {
+        kind: "uups",
+        initializer: "initialize",
+    });
+    await oracle.waitForDeployment();
 
     // Deploy Vault
     const VaultCore = await ethers.getContractFactory("VaultCore");
-    const vault = await VaultCore.deploy();
-    await vault.initialize(admin.address, await usdc.getAddress(), treasury.address);
+    const vault = await upgrades.deployProxy(VaultCore, [admin.address, await usdc.getAddress(), treasury.address], {
+        kind: "uups",
+        initializer: "initialize",
+    });
+    await vault.waitForDeployment();
 
     // Deploy PositionToken
     const PositionToken = await ethers.getContractFactory("PositionToken");
-    const positionToken = await PositionToken.deploy();
-    await positionToken.initialize("RWA", "RWAP", "");
+    const positionToken = await upgrades.deployProxy(PositionToken, ["RWA", "RWAP", ""], {
+        kind: "uups",
+        initializer: "initialize",
+        unsafeAllow: ["constructor"],
+    });
+    await positionToken.waitForDeployment();
 
     // Deploy Trading Libs
     const deployLib = async (name: string) => (await (await ethers.getContractFactory(name)).deploy()).getAddress();
@@ -149,8 +159,12 @@ export async function deployTestEnvironment() {
         }
     });
     
-    const trading = await TradingCore.deploy();
-    await trading.initialize(admin.address, await usdc.getAddress(), treasury.address);
+    const trading = await upgrades.deployProxy(TradingCore, [admin.address, await usdc.getAddress(), treasury.address], {
+        kind: "uups",
+        initializer: "initialize",
+        unsafeAllowLinkedLibraries: true,
+    });
+    await trading.waitForDeployment();
 
     // Wiring
     await vault.setTradingCore(await trading.getAddress());

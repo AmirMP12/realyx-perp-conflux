@@ -236,7 +236,7 @@ export function useInsuranceFund() {
         insuranceAssets,
         healthRatioPercent,
         isHealthy: isHealthy ?? false,
-        circuitBreakerActive: circuitBreakerActive ?? false,
+        circuitBreakerActive: Boolean(circuitBreakerActive),
         insTotalShares,
         insSharePrice,
         userInsShares,

@@ -25,7 +25,6 @@ library PositionMath {
     uint256 private constant MIN_MAINTENANCE_MARGIN_BPS = 100;
     uint256 private constant DEFAULT_MAINTENANCE_MARGIN_BPS = 500;
     uint256 private constant NO_LIQUIDATION_PRICE = type(uint128).max;
-    uint256 private constant MAX_SAFE_SIZE_FOR_FUNDING = 1e50;
 
     function calculateUnrealizedPnL(
         uint256 size,
@@ -96,25 +95,31 @@ library PositionMath {
     function calculateLiquidationPrice(
         uint256 entryPrice,
         uint256 leverage,
-        uint256 maintenanceMarginBps,
+        uint256 size,
         bool isLong
     ) internal pure returns (uint256 liquidationPrice) {
         if (entryPrice == 0) revert InvalidPrice();
         if (leverage == 0) revert InvalidLeverage();
 
-        uint256 maintenanceMargin = (maintenanceMarginBps * PRECISION) / BPS;
-        uint256 lossCapacity = PRECISION - maintenanceMargin;
-        // priceMovementAllowed should be (lossCapacity / leverage)
-        // If lossCapacity is 1e18 (100%) and leverage is 1, priceMovementAllowed is 1e18.
-        uint256 priceMovementAllowed = (lossCapacity * PRECISION) / leverage;
+        uint256 mmMargin = calculateDynamicMaintenanceMargin(size, leverage);
+        uint256 mmFraction = size > 0
+            ? (mmMargin * PRECISION) / size
+            : (DEFAULT_MAINTENANCE_MARGIN_BPS * PRECISION) / BPS;
+        uint256 inverseL = (PRECISION * PRECISION) / leverage;
 
         if (isLong) {
-            if (priceMovementAllowed >= PRECISION) {
+            if (PRECISION + mmFraction <= inverseL) {
                 return NO_LIQUIDATION_PRICE;
             }
-            liquidationPrice = uint256(uint128((entryPrice * (PRECISION - priceMovementAllowed)) / PRECISION));
+            uint256 factor = PRECISION + mmFraction - inverseL;
+            liquidationPrice = (entryPrice * factor) / PRECISION;
         } else {
-            liquidationPrice = uint256(uint128((entryPrice * (PRECISION + priceMovementAllowed)) / PRECISION));
+            uint256 factor = PRECISION + inverseL - mmFraction;
+            liquidationPrice = (entryPrice * factor) / PRECISION;
+        }
+
+        if (liquidationPrice > NO_LIQUIDATION_PRICE) {
+            liquidationPrice = NO_LIQUIDATION_PRICE;
         }
     }
 
@@ -332,6 +337,7 @@ library PositionMath {
     }
 
     function abs(int256 x) internal pure returns (uint256) {
+        if (x == type(int256).min) return uint256(type(int256).max) + 1;
         return x >= 0 ? uint256(x) : uint256(-x);
     }
 
