@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 
 const root = process.cwd();
 
@@ -29,6 +30,16 @@ try {
   run('npx vite build', '[3/3] Building Frontend Assets (Vite)', {
     cwd: path.join(root, 'frontend'),
   });
+
+  console.log('\n--- Preparing Backend Runtime Metadata ---');
+  const backendDistDir = path.join(root, 'backend', 'dist');
+  fs.mkdirSync(backendDistDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(backendDistDir, 'package.json'),
+    JSON.stringify({ type: 'module' }, null, 2),
+    'utf-8'
+  );
+  console.log('✅ Wrote backend/dist/package.json with type=module.');
   
   console.log('\n--- Standardizing Output ---');
   if (process.platform === 'win32') {
