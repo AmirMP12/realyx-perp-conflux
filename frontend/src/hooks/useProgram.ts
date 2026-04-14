@@ -186,7 +186,27 @@ export function useOpenPosition() {
     const [isLoading, setIsLoading] = useState(false);
     const [step, setStep] = useState<'IDLE' | 'APPROVING' | 'COMMITTING' | 'WAITING' | 'REVEALING'>('IDLE');
 
+    const decodeCreateOrderRevert = (err: any): string | null => {
+        const known: Record<string, string> = {
+            '0xc8561601': 'Execution fee is too low. Please retry in a few seconds.',
+            '0x6b59e4ed': 'Trading is temporarily blocked by risk circuit breaker for this market.',
+            '0x3a23d825': 'Insufficient collateral for this position size/leverage.',
+            '0xb521771a': 'Market is currently not active.',
+            '0xaf610693': 'Invalid order parameters for current market conditions.',
+            '0x8199f5f3': 'Slippage exceeded. Increase slippage tolerance or retry.',
+        };
+
+        const raw = JSON.stringify(err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
+        const match = raw.match(/0x[a-fA-F0-9]{8,}/);
+        if (!match) return null;
+        const selector = match[0].slice(0, 10).toLowerCase();
+        return known[selector] ?? null;
+    };
+
     const mapRevertToMessage = (err: any): string => {
+        const decoded = decodeCreateOrderRevert(err);
+        if (decoded) return decoded;
+
         const text = `${err?.shortMessage ?? ''} ${err?.message ?? ''} ${err?.details ?? ''}`.toLowerCase();
         if (text.includes('executionfeetoolow')) return 'Execution fee is too low. Please retry in a few seconds.';
         if (text.includes('breakeractive')) return 'Trading is temporarily blocked by risk circuit breaker for this market.';
