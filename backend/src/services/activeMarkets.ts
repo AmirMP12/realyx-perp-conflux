@@ -1,8 +1,10 @@
 import { ethers } from "ethers";
-import TradingCoreABI from "../abi/TradingCore.js";
 
 function getTradingCoreAbi(): any[] {
-  return (TradingCoreABI as any).abi ?? TradingCoreABI;
+  return [
+    "function activeMarketCount() view returns (uint256)",
+    "function activeMarketAt(uint256 index) view returns (address)",
+  ];
 }
 
 const DEFAULT_TESTNET_RPCS = [

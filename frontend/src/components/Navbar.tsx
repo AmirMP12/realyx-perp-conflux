@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ChevronDown, ExternalLink } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { WalletConnectButton } from './WalletConnect';
 import { ProtocolStatsBar } from './ProtocolStatsBar';
 import { NetworkIndicator } from './NetworkIndicator';
@@ -114,15 +114,6 @@ export function Navbar() {
                     <ProtocolStatsBar />
                     <div className="hidden xl:block h-6 w-px bg-[var(--border-color)]" aria-hidden />
                     <NetworkIndicator />
-                    <a
-                        href="https://efaucet.confluxnetwork.org/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hidden md:flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] hover:border-[var(--border-color-hover)] transition-colors"
-                    >
-                        <span className="text-xs font-medium text-text-secondary">Faucet</span>
-                        <ExternalLink className="w-3 h-3 text-text-secondary" />
-                    </a>
                     <div className="[&_button]:!h-9 [&_button]:!min-h-0 [&_button]:!px-3 sm:[&_button]:!px-4 [&_button]:!text-xs sm:[&_button]:!text-sm [&_button]:!rounded-lg">
                         <WalletConnectButton />
                     </div>

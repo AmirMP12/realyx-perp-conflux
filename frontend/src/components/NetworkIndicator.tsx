@@ -18,8 +18,7 @@ export function NetworkIndicator() {
                 alt="Conflux" 
                 className={`w-3.5 h-3.5 object-contain ${isTestnet ? 'animate-pulse' : ''}`} 
             />
-            <span className="text-xs font-mono font-medium text-text-primary">{isTestnet ? 'conflux' : chainName}</span>
-            {isTestnet && <span className="text-[10px] text-amber-400 font-medium">testnet</span>}
+            <span className="text-xs font-medium text-text-primary">{chainName}</span>
         </div>
     );
 }

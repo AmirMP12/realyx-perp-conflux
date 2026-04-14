@@ -78,11 +78,11 @@ const connectors = connectorsForWallets(
 export const realyxChains = [
     {
         ...confluxESpace,
-        name: 'mainnet',
+        name: 'eSpace',
     },
     {
         ...confluxESpaceTestnet,
-        name: 'testnet',
+        name: 'eSpace Testnet',
     },
 ] as const;
 

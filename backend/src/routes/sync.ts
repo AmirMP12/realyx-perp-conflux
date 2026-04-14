@@ -2,7 +2,12 @@ import express from "express";
 import { ethers } from "ethers";
 import pg from "pg";
 import { config } from "../config.js";
-import TradingCoreABI from "../abi/TradingCore.js";
+
+const TRADING_CORE_SYNC_ABI = [
+  "event PositionOpened(uint256,address,address,bool,uint256,uint256,uint256)",
+  "event PositionClosed(uint256,address,int256,uint256,uint256)",
+  "event PositionLiquidated(uint256,address,uint256,uint256)",
+] as const;
 
 const router = express.Router();
 
@@ -72,10 +77,7 @@ router.get("/", async (req: any, res: any) => {
       });
     }
 
-    const rawAbi = Array.isArray(TradingCoreABI)
-      ? TradingCoreABI
-      : (TradingCoreABI as { abi: ethers.InterfaceAbi }).abi;
-    const iface = new ethers.Interface(rawAbi);
+    const iface = new ethers.Interface(TRADING_CORE_SYNC_ABI);
 
     let startBlock = 160000000;
     const stateResult = await pool.query(`SELECT last_synced_block FROM indexer_state WHERE key = 'trading_core'`);

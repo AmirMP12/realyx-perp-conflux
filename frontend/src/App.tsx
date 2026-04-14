@@ -1,11 +1,14 @@
 import { Routes, Route } from 'react-router-dom';
 import { useEffect, Suspense, lazy } from 'react';
+import toast from 'react-hot-toast';
+import { useAccount, useChainId } from 'wagmi';
 import { Layout } from './components/Layout';
 import { useReferralUrl } from './hooks/useReferralUrl';
 import { initializeTheme } from './stores/settingsStore';
 import { useMarketsStore } from './stores';
 import { useMarkets } from './hooks/useBackend';
 import { useWebSocket } from './hooks/useWebSocket';
+import { realyxChains } from './config/wagmi';
 
 const MarketsPage = lazy(() => import('./pages/Markets').then(m => ({ default: m.MarketsPage })));
 const TradingPage = lazy(() => import('./pages/Trading').then(m => ({ default: m.TradingPage })));
@@ -21,10 +24,29 @@ const AnalyticsDashboard = lazy(() => import('./pages/Analytics'));
 export default function App() {
     useWebSocket(); // Connect WebSocket for live prices/stats
     useReferralUrl(); // Parse ?ref=CODE from URL and store for referral links
+    const { isConnected } = useAccount();
+    const chainId = useChainId();
+
+    const defaultChainId = realyxChains[1].id;
+    const isOnDefaultChain = chainId === defaultChainId;
 
     useEffect(() => {
         initializeTheme();
     }, []);
+
+    useEffect(() => {
+        const wrongNetworkToastId = 'network-default-warning';
+
+        if (!isConnected || isOnDefaultChain) {
+            toast.dismiss(wrongNetworkToastId);
+            return;
+        }
+
+        toast.error('Realyx default network is eSpace Testnet. Please switch back to eSpace Testnet.', {
+            id: wrongNetworkToastId,
+            duration: 8000,
+        });
+    }, [isConnected, isOnDefaultChain]);
 
     const { markets: backendMarkets } = useMarkets();
     const { setMarkets } = useMarketsStore();
