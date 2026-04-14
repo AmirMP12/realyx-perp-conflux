@@ -25,22 +25,22 @@ function run(cmd, desc, options = {}) {
 try {
   console.log('🚀 Starting Realyx Verbose Build Process...');
 
-  run('npx tsc -p backend', '[1/3] Building Backend');
+  run('npx tsc -p backend/tsconfig.vercel.json', '[1/3] Building Backend for Vercel');
   run('npx tsc -p frontend', '[2/3] Type-checking Frontend');
   run('npx vite build', '[3/3] Building Frontend Assets (Vite)', {
     cwd: path.join(root, 'frontend'),
   });
 
   console.log('\n--- Preparing Backend Runtime Metadata ---');
-  const backendDistDir = path.join(root, 'backend', 'dist');
-  fs.mkdirSync(backendDistDir, { recursive: true });
+  const backendDistVercelDir = path.join(root, 'backend', 'dist-vercel');
+  fs.mkdirSync(backendDistVercelDir, { recursive: true });
   fs.writeFileSync(
-    path.join(backendDistDir, 'package.json'),
-    JSON.stringify({ type: 'module' }, null, 2),
+    path.join(backendDistVercelDir, 'package.json'),
+    JSON.stringify({ type: 'commonjs' }, null, 2),
     'utf-8'
   );
-  console.log('✅ Wrote backend/dist/package.json with type=module.');
-  
+  console.log('✅ Wrote backend/dist-vercel/package.json with type=commonjs.');
+
   console.log('\n--- Standardizing Output ---');
   if (process.platform === 'win32') {
     run('xcopy /E /I /Y frontend\\dist public', 'Copying assets to root public folder (Windows)');
@@ -49,7 +49,11 @@ try {
   }
 
   console.log('\n--- Build Output Audit ---');
-  run('ls -R public', 'Verifying root public contents');
+  if (process.platform === 'win32') {
+    run('dir /S public', 'Verifying root public contents (Windows)');
+  } else {
+    run('ls -R public', 'Verifying root public contents');
+  }
 
   console.log('\n✨ Build successfully finished!');
 } catch (error) {

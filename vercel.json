@@ -6,7 +6,7 @@
   "outputDirectory": "public",
   "functions": {
     "api/index.js": {
-      "includeFiles": "backend/{dist,node_modules}/**"
+      "includeFiles": "backend/dist-vercel/**"
     }
   },
   "cleanUrls": false,

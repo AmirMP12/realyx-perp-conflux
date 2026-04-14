@@ -1,0 +1,56 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const config_js_1 = require("../config.js");
+const pyth_js_1 = require("../services/pyth.js");
+const indexer_js_1 = require("../services/indexer.js");
+const activeMarkets_js_1 = require("../services/activeMarkets.js");
+const router = (0, express_1.Router)();
+/** Basic liveness - always returns ok */
+router.get("/", (_req, res) => {
+    res.json({ ok: true, ts: new Date().toISOString() });
+});
+/** Extended health - verifies RPC, subgraph, Pyth */
+router.get("/detailed", async (_req, res) => {
+    const checks = {};
+    const start = Date.now();
+    try {
+        const t0 = Date.now();
+        await (0, indexer_js_1.fetchProtocol)();
+        checks.indexer = { ok: true, latencyMs: Date.now() - t0 };
+    }
+    catch (e) {
+        checks.indexer = { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+    try {
+        const t0 = Date.now();
+        const prices = await (0, pyth_js_1.fetchPythPrices)();
+        checks.pyth = { ok: true, latencyMs: Date.now() - t0 };
+        checks.pyth.pricesCount = Object.keys(prices || {}).length;
+    }
+    catch (e) {
+        checks.pyth = { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+    try {
+        const t0 = Date.now();
+        const active = await (0, activeMarkets_js_1.getActiveMarketAddresses)();
+        checks.rpc = { ok: true, latencyMs: Date.now() - t0 };
+        checks.rpc.activeMarkets = active?.size ?? null;
+    }
+    catch (e) {
+        checks.rpc = { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
+    const allOk = Object.values(checks).every((c) => c.ok);
+    res.status(allOk ? 200 : 503).json({
+        ok: allOk,
+        ts: new Date().toISOString(),
+        latencyMs: Date.now() - start,
+        checks,
+        config: {
+            indexerSet: Boolean(config_js_1.config.postgresUrl),
+            rpcSet: Boolean(process.env.RPC_URL?.trim()),
+            tradingCoreSet: Boolean((process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE)?.trim()),
+        },
+    });
+});
+exports.default = router;
