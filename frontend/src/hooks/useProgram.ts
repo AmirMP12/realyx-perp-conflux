@@ -194,6 +194,13 @@ export function useOpenPosition() {
             '0xb521771a': 'Market is currently not active.',
             '0xaf610693': 'Invalid order parameters for current market conditions.',
             '0x8199f5f3': 'Slippage exceeded. Increase slippage tolerance or retry.',
+            '0xf073bef9': 'Smart-contract wallets are blocked for trading actions (FlashLoanDetected). Please use a regular EOA wallet.',
+            '0xa74c1c5f': 'You are submitting actions too quickly. Wait a few seconds and retry.',
+            '0xa0e1accb': 'Compliance check failed for this market/account.',
+            '0x0b5f6bf0': 'This market is currently closed.',
+            '0xd0ad2225': 'Protocol health guard is active. New increase orders are temporarily disabled.',
+            '0x1ab7da6b': 'Transaction deadline expired. Please retry.',
+            '0xb28e83a9': 'Oracle sources are currently insufficient for this market.',
         };
 
         const raw = JSON.stringify(err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
@@ -255,6 +262,10 @@ export function useOpenPosition() {
             }
             if (!marketInfo.isActive) {
                 throw new Error('Market is temporarily paused. Please try again later.');
+            }
+            const accountCode = await publicClient.getCode({ address });
+            if (accountCode && accountCode !== '0x') {
+                throw new Error('Smart-contract wallets are not supported for createOrder on this deployment. Please use an EOA wallet.');
             }
 
             const coreOracleAddress = await publicClient.readContract({

@@ -62,6 +62,27 @@ Use Hardhat / cast with the **proxy address** of the contract you are administer
 - `VaultCore`: `hasRole(TRADING_CORE_ROLE, tradingCoreProxy) == true`
 - Keepers/oracles/guardians granted on **TradingCore**, **OracleAggregator**, and **VaultCore** as per your playbooks
 
+### Auto keeper bot (testnet / staging)
+
+Repo includes `scripts/keeper-bot.ts` to continuously execute pending orders from `OrderCreated` events.
+The keeper now fetches Pyth Hermes updates and pushes `updatePriceFeeds` before `executeOrder`, which is required when oracle state is stale.
+
+1. Fund keeper wallet with native gas token.
+2. Grant `KEEPER_ROLE` on `TradingCore` to keeper wallet.
+3. Configure env:
+   - `KEEPER_PRIVATE_KEY`
+   - `KEEPER_RPC_URL` (or rely on `CONFLUX_TESTNET_RPC_URL`)
+   - optional `KEEPER_RPC_URLS` (CSV fallback RPCs)
+   - optional `KEEPER_HERMES_URL` (default `https://hermes.pyth.network`)
+   - optional `KEEPER_TRADING_CORE_ADDRESS`
+4. Run:
+
+```bash
+npm run keeper:bot
+```
+
+For high-throughput test runs, run at least 2 keeper instances (different wallets), each with role + gas budget.
+
 ---
 
 ## 3. Deploy (clean environment)
