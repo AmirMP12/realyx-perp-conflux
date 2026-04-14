@@ -6,7 +6,7 @@
   "outputDirectory": "public",
   "functions": {
     "api/index.js": {
-      "includeFiles": "backend/dist/**"
+      "includeFiles": "backend/{dist,node_modules}/**"
     }
   },
   "cleanUrls": false,
