@@ -105,6 +105,7 @@ export function useAllowance() {
 export function useCreateOrder() {
     const { address, chainId } = useAccount();
     const { writeContractAsync, isPending } = useWriteContract();
+    const publicClient = usePublicClient();
     const { data: minExecutionFeeWei } = useReadContract({
         address: TRADING_CORE_ADDRESS,
         abi: TRADING_CORE_ABI,
@@ -130,7 +131,7 @@ export function useCreateOrder() {
             ? BigInt(params.triggerPriceWei ?? '0')
             : 0n;
 
-        const orderId = await writeContractAsync({
+        const request = {
             chainId,
             address: TRADING_CORE_ADDRESS,
             abi: TRADING_CORE_ABI,
@@ -146,7 +147,17 @@ export function useCreateOrder() {
                 BigInt(params.positionId ?? 0),
             ],
             value: fee,
-        });
+        } as const;
+
+        // Preflight simulation provides clearer revert reasons before wallet signing.
+        if (publicClient) {
+            await publicClient.simulateContract({
+                ...request,
+                account: address,
+            });
+        }
+
+        const orderId = await writeContractAsync(request);
         return orderId;
     };
 
@@ -197,6 +208,19 @@ export function useOpenPosition() {
 
             if (!marketInfo || !marketInfo.isListed) {
                 throw new Error(`Market ${params.market} is not registered in the protocol.`);
+            }
+            if (!marketInfo.isActive) {
+                throw new Error('Market is temporarily paused. Please try again later.');
+            }
+
+            const actionAllowed = await publicClient.readContract({
+                address: ORACLE_AGGREGATOR_ADDRESS,
+                abi: ORACLE_ABI,
+                functionName: 'isActionAllowed',
+                args: [params.market as Address, 0],
+            }) as boolean;
+            if (!actionAllowed) {
+                throw new Error('Trading is temporarily blocked by circuit breaker for this market.');
             }
 
             const sizeNum = parseFloat(params.size);
