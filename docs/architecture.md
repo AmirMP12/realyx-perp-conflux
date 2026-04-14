@@ -38,7 +38,7 @@ A unique NFT representation of leveraged positions.
 The backend layer serves as the high-throughput bridge connecting the UI to Conflux.
 - Exposes REST endpoints and optional WebSocket broadcasts.
 - In Vercel/serverless mode, realtime data is served via frontend polling (`VITE_WS_URL` left empty).
-- Aggregates indexed PostgreSQL data with Pyth/CoinGecko derived values for frontend consumption.
+- Aggregates indexed PostgreSQL data with Pyth/fallback market data source values for frontend consumption.
 
 ### 2. Indexing Layer (PostgreSQL Event Indexer)
 PostgreSQL tables index execution events emitted by the contracts.

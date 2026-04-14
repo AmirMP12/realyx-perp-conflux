@@ -78,6 +78,13 @@
     transform: translateY(-1px);
   }
 
+  @media (prefers-reduced-motion: reduce) {
+    .glass-card:hover,
+    .glass-panel:hover {
+      transform: none;
+    }
+  }
+
   /* Primary/hero panels - elevated for chart, trading form */
   .glass-panel-elevated {
     background: linear-gradient(180deg, rgba(27, 28, 39, 0.98) 0%, rgba(21, 22, 31, 0.98) 100%);

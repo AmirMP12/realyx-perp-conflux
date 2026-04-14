@@ -15,6 +15,7 @@ import { useSound } from '../../hooks/useSound';
 import { showToast } from '../ui/Toast';
 import { GuidedTooltip } from '../ui/GuidedTooltip';
 import { Market } from '../../services/markets';
+import { formatPriceWithPrecision } from '../../utils/format';
 
 interface TradingFormProps {
     market: Market;
@@ -185,19 +186,21 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
             {/* Tabs */}
             <div className="flex p-2 gap-2 mx-2 mt-2.5 min-w-0">
                 <button
+                    type="button"
                     onClick={() => setSide('long')}
                     className={clsx(
-                        "flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]",
-                            side === 'long' ? "bg-[var(--long)] text-white shadow-lg shadow-emerald-900/25" : "bg-[var(--bg-tertiary)]/80 text-text-secondary hover:text-text-primary hover:bg-[var(--border-color)]/50 border border-[var(--border-color)]/50"
+                        "flex-1 py-2.5 text-sm font-bold rounded-xl transition-colors duration-200 motion-safe:hover:scale-[1.01] motion-safe:active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--long)]/50",
+                            side === 'long' ? "bg-[var(--long)] text-white shadow-lg shadow-emerald-900/25" : "bg-[var(--bg-tertiary)] text-text-secondary hover:text-text-primary border border-[var(--border-color)]/80 hover:border-[var(--border-color-hover)]"
                     )}
                 >
                     Long
                 </button>
                 <button
+                    type="button"
                     onClick={() => setSide('short')}
                     className={clsx(
-                        "flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]",
-                            side === 'short' ? "bg-[var(--short)] text-white shadow-lg shadow-rose-900/25" : "bg-[var(--bg-tertiary)]/80 text-text-secondary hover:text-text-primary hover:bg-[var(--border-color)]/50 border border-[var(--border-color)]/50"
+                        "flex-1 py-2.5 text-sm font-bold rounded-xl transition-colors duration-200 motion-safe:hover:scale-[1.01] motion-safe:active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--short)]/50",
+                            side === 'short' ? "bg-[var(--short)] text-white shadow-lg shadow-rose-900/25" : "bg-[var(--bg-tertiary)] text-text-secondary hover:text-text-primary border border-[var(--border-color)]/80 hover:border-[var(--border-color-hover)]"
                     )}
                 >
                     Short
@@ -210,10 +213,11 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                     {(['market', 'limit'] as const).map(type => (
                         <button
                             key={type}
+                            type="button"
                             data-testid={`order-type-${type}`}
                             onClick={() => setOrderType(type)}
                             className={clsx(
-                                "capitalize transition-colors hover:text-text-primary",
+                                "capitalize transition-colors hover:text-text-primary rounded-lg px-1 -mx-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40",
                                 orderType === type ? "text-text-primary" : "text-text-secondary"
                             )}
                         >
@@ -226,14 +230,17 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                         Isolated
                     </span>
                     <button
+                        type="button"
                         onClick={() => setShowSettings(!showSettings)}
                         className={clsx(
-                            "p-1.5 rounded transition-colors",
+                            "p-2 rounded-xl transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40",
                             showSettings
                                 ? "bg-[var(--primary)]/20 text-[var(--primary)]"
                                 : "text-text-secondary hover:text-text-primary hover:bg-[var(--bg-tertiary)]"
                         )}
                         title="Trading Settings"
+                        aria-expanded={showSettings}
+                        aria-label="Trading settings"
                     >
                         <Settings className="w-3.5 h-3.5" />
                     </button>
@@ -249,7 +256,7 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                         exit={{ height: 0, opacity: 0 }}
                         className="overflow-hidden border-b border-[var(--border-color)]"
                     >
-                        <div className="p-4 space-y-3 bg-[var(--bg-tertiary)]/40">
+                        <div className="p-4 space-y-3 bg-[var(--bg-tertiary)]/70 border-b border-[var(--border-color)]/80">
                             <div className="text-[10px] font-bold text-text-muted uppercase tracking-wider mb-2">Trading Settings</div>
 
                             {/* Allowed Slippage */}
@@ -360,10 +367,10 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
             <div className="p-3 sm:p-4 space-y-3.5 sm:space-y-4 mx-2 min-w-0">
                 {/* Trigger Price Input */}
                 {(orderType === 'limit' || orderType === 'stop') && (
-                    <div className="bg-[var(--bg-tertiary)]/50 rounded-xl p-3 border border-[var(--border-color)]/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
-                        <div className="flex justify-between text-xs text-text-secondary mb-1">
+                    <div className="rounded-xl p-3 border border-[var(--border-color)]/80 bg-[var(--bg-tertiary)]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                        <div className="flex justify-between text-xs text-text-secondary mb-1 gap-2">
                             <span>Price</span>
-                            <span>Mark: {currentPrice.toFixed(2)}</span>
+                            <span className="tabular-nums shrink-0">Mark: ${formatPriceWithPrecision(currentPrice)}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <input
@@ -382,14 +389,14 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                 )}
 
                 {/* Amount Input */}
-                <div className="bg-[var(--bg-tertiary)]/50 rounded-xl p-3 border border-[var(--border-color)]/40 focus-within:border-[var(--primary)]/60 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                <div className="rounded-xl p-3 border border-[var(--border-color)]/80 bg-[var(--bg-tertiary)]/70 focus-within:border-[var(--primary)]/55 focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                     <div className="flex justify-between items-center text-xs text-text-secondary mb-2">
                         <span>Margin (USDC)</span>
                         <span className="tabular-nums">
                             Balance: {balanceLoading ? '…' : (usdcBalance != null ? usdcBalance.toFixed(2) : '0.00')} USDC
                         </span>
                     </div>
-                    <div className="flex items-center gap-2 rounded-lg bg-[var(--bg-secondary)]/50 border border-[var(--border-color)]/30 px-3 py-2 focus-within:border-[var(--primary)]/50 focus-within:bg-[var(--bg-secondary)]/70 transition-colors">
+                    <div className="flex items-center gap-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/70 px-3 py-2 focus-within:border-[var(--primary)]/50 transition-colors">
                         <input
                             type="number"
                             inputMode="decimal"
@@ -435,7 +442,7 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                 </div>
 
                 {/* Leverage Slider */}
-                <div className="bg-[var(--bg-tertiary)]/35 rounded-xl p-3 border border-[var(--border-color)]/40">
+                <div className="rounded-xl p-3 border border-[var(--border-color)]/80 bg-[var(--bg-tertiary)]/70">
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 text-xs text-text-secondary mb-2">
                         <GuidedTooltip id="leverage" title="Leverage" content="Higher leverage amplifies both gains and losses. Your position can be liquidated if price moves against you.">
                             <span>Leverage</span>
@@ -494,7 +501,7 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
 
                 {/* Liquidation distance */}
                 {sizeNum > 0 && (
-                    <div className="bg-[var(--bg-tertiary)]/60 rounded-xl p-3 border border-[var(--border-color)]/50">
+                    <div className="rounded-xl p-3 border border-[var(--border-color)]/80 bg-[var(--bg-tertiary)]/70">
                         <div className="flex justify-between text-xs text-text-secondary mb-1">
                             <span>Liquidation distance</span>
                             <span className="text-orange-400 font-medium">
@@ -518,25 +525,26 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                 )}
 
                 {/* Summary */}
-                <div className="space-y-2 pt-3 mt-1 border-t border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/25 rounded-xl p-3">
+                <div className="space-y-2 pt-3 mt-1 border border-[var(--border-color)]/80 bg-[var(--bg-tertiary)]/50 rounded-xl p-3">
                     <SummaryRow label="Margin Mode" value="Isolated" valueClass="text-amber-400" />
                     <SummaryRow label="Collateral" value={`$${margin || '0.00'}`} />
-                    <SummaryRow label="Entry Price" value={`$${currentPrice.toFixed(2)}`} />
-                    <SummaryRow label="Liq. Price" value={`$${estLiqPrice.toFixed(2)}`} valueClass={side === 'long' ? "text-[var(--short)]" : "text-[var(--long)]"} />
+                    <SummaryRow label="Entry Price" value={`$${formatPriceWithPrecision(currentPrice)}`} />
+                    <SummaryRow label="Liq. Price" value={`$${formatPriceWithPrecision(estLiqPrice)}`} valueClass={side === 'long' ? "text-[var(--short)]" : "text-[var(--long)]"} />
                     <SummaryRow label="Est. Fee (0.1%)" value={`$${tradingFee.toFixed(2)}`} />
                     <SummaryRow label="Funding / 1h" value={`${((market.fundingRate ?? 0) * 100).toFixed(4)}%`} valueClass={(market.fundingRate ?? 0) > 0 ? "text-[var(--long)]" : "text-[var(--short)]"} />
                 </div>
             </div>
 
             {/* Action Button */}
-            <div className="p-3 sm:p-4 mx-2 mb-2 border-t border-[var(--border-color)]/60 bg-[var(--bg-secondary)]/50 rounded-b-2xl">
+            <div className="p-3 sm:p-4 mx-2 mb-2 border-t border-[var(--border-color)]/80 bg-[var(--bg-secondary)] rounded-b-2xl">
                 {isConnected ? (
                     <button
+                        type="button"
                         onClick={handleOpenPosition}
                         disabled={isPositionLoading}
                         data-testid="trade-button"
                         className={clsx(
-                            "w-full py-3.5 rounded-xl text-sm font-bold uppercase transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.01] active:scale-[0.99] disabled:hover:scale-100",
+                            "w-full py-3.5 rounded-xl text-sm font-bold uppercase transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed motion-safe:hover:scale-[1.01] motion-safe:active:scale-[0.99] disabled:hover:scale-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-secondary)] focus-visible:ring-white/30",
                             side === 'long'
                                 ? "bg-[var(--long)] text-white hover:opacity-95 shadow-lg shadow-emerald-900/25"
                                 : "bg-[var(--short)] text-white hover:opacity-95 shadow-lg shadow-rose-900/25"
@@ -549,7 +557,7 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                     <div className="w-full">
                         <ConnectButton.Custom>
                             {({ openConnectModal }) => (
-                                <button onClick={openConnectModal} className="w-full py-3.5 rounded-xl bg-[var(--primary)] text-white font-bold hover:opacity-90 transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]">
+                                <button type="button" onClick={openConnectModal} className="w-full py-3.5 rounded-xl bg-[var(--primary)] text-white font-bold hover:opacity-90 transition-all duration-200 motion-safe:hover:scale-[1.01] motion-safe:active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/50">
                                     Connect Wallet
                                 </button>
                             )}
@@ -561,13 +569,13 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
             {/* Confirmation Modal */}
             <AnimatePresence>
                 {showTradeConfirmModal && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="confirm-trade-title">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="confirm-trade-title">
                         <motion.div
                             ref={confirmModalRef}
                             initial={{ opacity: 0, scale: 0.95 }}
                             animate={{ opacity: 1, scale: 1 }}
                             exit={{ opacity: 0, scale: 0.95 }}
-                            className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg p-6 max-w-sm w-full shadow-2xl relative"
+                            className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl p-6 max-w-sm w-full shadow-2xl relative"
                         >
                             <h2 id="confirm-trade-title" data-testid="confirm-modal-title" className="text-lg font-bold mb-4 text-text-primary">Confirm Trade</h2>
                             <div className="space-y-3 text-sm mb-6">

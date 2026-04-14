@@ -6,6 +6,7 @@ export function formatCompact(num: number, options?: { prefix?: string; noDollar
     const prefix = options?.prefix ?? '';
     const noDollar = options?.noDollar ?? false;
     const d = noDollar ? '' : '$';
+    if (!Number.isFinite(num)) return `${prefix}${d}0`;
     const abs = Math.abs(num);
     const sign = num < 0 ? '-' : '';
     const compactValue = (value: number, unit: string) => {

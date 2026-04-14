@@ -40,7 +40,7 @@ export function Navbar() {
     }, []);
 
     return (
-        <nav className="h-16 border-b border-[var(--border-color)]/80 bg-[var(--bg-secondary)]/95 backdrop-blur-md sticky top-0 z-50">
+        <nav className="h-16 border-b border-[var(--border-color)]/80 bg-[var(--bg-secondary)] sticky top-0 z-50 shadow-[0_1px_0_rgba(0,0,0,0.2)]">
             <div className="h-full max-w-[1920px] mx-auto flex items-center justify-between gap-2 sm:gap-4 lg:gap-6 px-3 sm:px-4 lg:px-6 min-w-0">
                 {/* Left: Logo */}
                 <Link to="/" className="flex items-center gap-2 shrink-0 group">
@@ -62,10 +62,10 @@ export function Navbar() {
                                     key={link.path}
                                     to={link.path}
                                     className={clsx(
-                                        'h-9 px-4 inline-flex items-center rounded-lg text-sm font-medium transition-all duration-300 ease-out active:scale-[0.98]',
+                                        'h-9 px-4 inline-flex items-center rounded-lg text-sm font-medium transition-colors duration-300 ease-out motion-safe:active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40',
                                         active
                                             ? 'text-white bg-[var(--primary)]/20 shadow-[0_0_0_1px_rgba(45,66,252,0.2)]'
-                                            : 'text-text-secondary hover:text-white hover:bg-white/5'
+                                            : 'text-text-secondary hover:text-white hover:bg-[var(--bg-tertiary)]'
                                     )}
                                 >
                                     {link.name}
@@ -74,19 +74,22 @@ export function Navbar() {
                         })}
                         <div className="relative" ref={moreRef}>
                             <button
+                                type="button"
                                 onClick={() => setMoreOpen(!moreOpen)}
+                                aria-expanded={moreOpen}
+                                aria-haspopup="menu"
                                 className={clsx(
-                                    'h-9 flex items-center gap-1 px-4 rounded-lg text-sm font-medium transition-all duration-300 ease-out active:scale-[0.98]',
+                                    'h-9 flex items-center gap-1 px-4 rounded-lg text-sm font-medium transition-colors duration-300 ease-out motion-safe:active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40',
                                     MORE_LINKS.some(l => isLinkActive(l.path, location.pathname))
                                         ? 'text-white bg-[var(--primary)]/20 shadow-[0_0_0_1px_rgba(45,66,252,0.2)]'
-                                        : 'text-text-secondary hover:text-white hover:bg-white/5'
+                                        : 'text-text-secondary hover:text-white hover:bg-[var(--bg-tertiary)]'
                                 )}
                             >
                                 More
                                 <ChevronDown className={clsx('w-3.5 h-3.5 transition-transform', moreOpen && 'rotate-180')} />
                             </button>
                             {moreOpen && (
-                                <div className="absolute top-full left-0 mt-2 py-2 min-w-[220px] rounded-xl bg-[var(--bg-secondary)]/95 backdrop-blur-md border border-[var(--border-color)] shadow-2xl z-50">
+                                <div className="absolute top-full left-0 mt-2 py-2 min-w-[220px] rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-2xl z-[100]">
                                     <div className="px-3 pb-2 text-[11px] uppercase tracking-[0.12em] text-text-muted">Explore</div>
                                     {MORE_LINKS.map((link) => {
                                         const active = isLinkActive(link.path, location.pathname);
@@ -96,8 +99,8 @@ export function Navbar() {
                                                 to={link.path}
                                                 onClick={() => setMoreOpen(false)}
                                                 className={clsx(
-                                                    'mx-2 block px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 active:scale-[0.99]',
-                                                    active ? 'text-[var(--primary)] bg-[var(--primary)]/10' : 'text-text-secondary hover:text-white hover:bg-white/5'
+                                                    'mx-2 block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200 motion-safe:active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30',
+                                                    active ? 'text-[var(--primary)] bg-[var(--primary)]/10' : 'text-text-secondary hover:text-white hover:bg-[var(--bg-tertiary)]'
                                                 )}
                                             >
                                                 {link.name}

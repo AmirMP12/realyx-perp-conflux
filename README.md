@@ -7,7 +7,7 @@ Trade perpetual futures on Real World Assets (RWA) with up to 10x leverage. Buil
 [![Hackathon](https://img.shields.io/badge/Global%20Hackfest%202026-green)](https://github.com/conflux-fans/global-hackfest-2026)
 
 ## Overview
-Realyx is a decentralized perpetual futures exchange for Real World Assets including crypto, equities, commodities, and forex. Users can long or short markets with up to 10x leverage using real-time Pyth oracle prices. The system consists of on-chain smart contracts (TradingCore, VaultCore, OracleAggregator), a backend API orchestrating off-chain data (Pyth/CoinGecko), a PostgreSQL event indexer, and a React frontend.
+Realyx is a decentralized perpetual futures exchange for Real World Assets including crypto, equities, commodities, and forex. Users can long or short markets with up to 10x leverage using real-time Pyth oracle prices. The system consists of on-chain smart contracts (TradingCore, VaultCore, OracleAggregator), a backend API orchestrating off-chain data (Pyth/fallback market data source), a PostgreSQL event indexer, and a React frontend.
 
 ## 🏆 Hackathon Information
 - **Event**: Global Hackfest 2026
@@ -28,7 +28,7 @@ Current DeFi perpetual exchanges are limited to synthetic crypto assets. Traditi
 **How does your project address the problem?**
 Realyx provides a decentralized perpetual futures DEX on Conflux eSpace.
 - **Unified Markets:** Users can trade Crypto (BTC, ETH, LINK, …), Equities (NVDA, TSLA, AAPL, …), Commodities (Gold), and other RWAs.
-- **Oracle Integrated:** Real-time pricing via Pyth Network oracles with fallback.
+- **Oracle Integrated:** Real-time pricing via Pyth Network with a fallback market data source.
 - **Yield Opportunities:** Users can act as LPs in the Vault or stake in Insurance to earn premiums.
 - **Leverage:** Configurable leverage up to 10x without expiration dates.
 
@@ -56,7 +56,7 @@ Realyx provides a decentralized perpetual futures DEX on Conflux eSpace.
 ### Core Features
 - **Markets** - Crypto (BTC, ETH), Equities (NVDA, TSLA), Commodities (Gold), RWAs
 - **Perpetuals** - No expiry; funding rate settlement every hour
-- **Trading** - Long/short perpetuals; limit orders via keeper; market orders.
+- **Trading** - Long/short perpetuals with asynchronous execution (`createOrder` -> keeper `executeOrder`) for both market and limit flows.
 - **Vault** - LP deposits, share-based accounting, withdrawal queue.
 - **Insurance** - Stake to backstop bad debt; earn premiums.
 
@@ -84,10 +84,10 @@ Realyx provides a decentralized perpetual futures DEX on Conflux eSpace.
 - **Network**: Conflux eSpace Testnet
 - **Smart Contracts**: Solidity 0.8.24
 - **Development**: Hardhat
-- **Oracles**: Pyth Network, CoinGecko (fallback)
+- **Oracles**: Pyth Network, fallback market data source
 
 ### Infrastructure
-- **Hosting**: Docker, Kubernetes (for production), Vercel (for frontend/API)
+- **Hosting**: Docker, Kubernetes (for production), Vercel (frontend/API), always-on worker host (keeper bot)
 - **Indexing**: PostgreSQL Database
 - **Monitoring**: Prometheus, Grafana, Pino
 
@@ -103,11 +103,11 @@ Realyx provides a decentralized perpetual futures DEX on Conflux eSpace.
 │                              BACKEND (Express)                               │
 │  /api/markets | /api/user | /api/stats | /api/leaderboard | /api/insurance   │
 └────────────────────────────────────────┬────────────────────────────────────┘
-                                         │ SQL + Pyth + CoinGecko
+                                         │ SQL + Pyth + fallback market data source
          ┌───────────────────────────────┼───────────────────────────────┐
          ▼                               ▼                               ▼
 ┌─────────────────┐           ┌─────────────────┐           ┌─────────────────┐
-│  DATABASE INDEXER │           │  PYTH NETWORK   │           │   COINGECKO     │
+│  DATABASE INDEXER │           │  PYTH NETWORK   │           │ FALLBACK SOURCE  │
 │  (PostgreSQL)   │           │ (Hermes/Bench)  │           │   (fallback)    │
 │ Markets, Stats  │           │ Price feeds     │           │ Prices, 24h chg │
 └────────┬────────┘           └─────────────────┘           └─────────────────┘
@@ -243,7 +243,7 @@ Same deploy (`deployment/confluxTestnet.json`): TradingCoreViews `0x944d4030CEc4
 ### Operator & integration docs
 
 - [Error catalog](docs/ERROR_CATALOG.md) — custom errors: meaning, typical cause, suggested fix for integrators.
-- [Deployment & ops runbook](docs/DEPLOYMENT_AND_OPS.md) — versioned addresses, roles, upgrades, pause/breaker playbooks, stale-oracle triage.
+- [Deployment & ops runbook](docs/DEPLOYMENT_AND_OPS.md) — versioned addresses, roles, upgrades, pause/breaker playbooks, stale-oracle triage, keeper role operations, and compliance contract notes.
 
 ### REST Endpoints
 Base URL: `http://localhost:3001` (or your backend host)
@@ -252,7 +252,7 @@ Base URL: `http://localhost:3001` (or your backend host)
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/health` | Health check |
-| GET | `/api/markets` | List markets (database indexer + Pyth/CoinGecko) |
+| GET | `/api/markets` | List markets (database indexer + Pyth/fallback market data source) |
 | GET | `/api/stats` | Protocol stats (volume, OI, liquidations) |
 | GET | `/api/leaderboard?limit=10&timeframe=all` | Leaderboard by volume |
 | GET | `/api/insurance/claims?limit=20` | Bad debt claims |
@@ -302,6 +302,9 @@ Base URL: `http://localhost:3001` (or your backend host)
 | CONFLUX_TESTNET_RPC_URL | Yes | RPC endpoint |
 | CONFLUXSCAN_API_KEY | No | For contract verification |
 | USDC_ADDRESS | No | USDC contract address |
+| KEEPER_PRIVATE_KEY | Optional | Keeper wallet private key for `npm run keeper:bot` |
+| KEEPER_RPC_URLS | Optional | CSV RPC fallbacks for keeper reliability |
+| KEEPER_HERMES_URL | Optional | Hermes base URL used for Pyth refresh before order execution |
 
 **Backend**
 | Variable | Default | Description |
@@ -354,6 +357,7 @@ docker compose -f docker-compose.minimal.yml up -d
 
 ### Deploy on Vercel
 You can run the full app (frontend + API) on a single Vercel project in **REST polling mode**. The backend runs as serverless functions; native Node WebSocket server is disabled in this mode.
+Run keeper bot on a separate always-on worker host (not Vercel serverless), otherwise pending orders will not be executed reliably.
 
 1. Import your Git repository via Vercel.
 2. Leave **Root Directory** empty.
@@ -370,7 +374,9 @@ You can run the full app (frontend + API) on a single Vercel project in **REST p
 | Issue | Solution |
 |-------|----------|
 | **Markets not loading** | Check `POSTGRES_URL` and backend logs. Ensure PostgreSQL indexer is synced. |
-| **Prices show 0** | Verify `RPC_URL`, `TRADING_CORE_ADDRESS`. Pyth/CoinGecko may be rate-limited. |
+| **Prices show 0** | Verify `RPC_URL`, `TRADING_CORE_ADDRESS`. Pyth/fallback market data source may be rate-limited. |
+| **Order stays Pending** | Keeper is not executing orders. Verify `KEEPER_ROLE`, keeper wallet gas, and `npm run keeper:bot` logs. |
+| **`createOrder` reverted despite USDC balance** | Check compliance: `TradingCore.complianceManager()` and `isAllowed(user, market, 0x)` on compliance contract. |
 | **Mint Mock USDC fails** | Confirm `VITE_MOCK_USDC_ADDRESS` matches `deployment/confluxTestnet.json`. Connect to Conflux eSpace Testnet. |
 | **WalletConnect not connecting** | Set `VITE_WALLET_CONNECT_PROJECT_ID` from cloud.walletconnect.com. |
 | **Backend 404** | Ensure routes use `/api` prefix. Frontend should use `VITE_API_URL=http://localhost:3001/api`. |

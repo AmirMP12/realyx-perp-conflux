@@ -16,6 +16,7 @@ import {
 import { useVaultStats } from '../hooks/useVault';
 import { useBackendStats, useLeaderboard, useDailyStats, useMarkets, LeaderboardEntry } from '../hooks/useBackend';
 import { Skeleton } from '../components/ui';
+import { formatCompact } from '../utils/format';
 
 interface DailyStats {
     date: string;
@@ -37,14 +38,28 @@ interface StatCardProps {
     loading?: boolean;
 }
 
+function formatUsdStat(value: unknown): string {
+    const n =
+        typeof value === 'number'
+            ? value
+            : typeof value === 'string'
+              ? parseFloat(value.trim())
+              : Number(value);
+    if (!Number.isFinite(n)) return formatCompact(0);
+    return formatCompact(n);
+}
+
 function StatCard({ title, value, change, icon, className = '', loading }: StatCardProps) {
     return (
-        <div className={clsx('glass-card p-4 md:p-6 hover:bg-[var(--bg-tertiary)]/20 transition-colors', className)}>
-            <div className="flex items-center justify-between mb-2">
-                <span className="text-text-secondary text-sm font-medium uppercase tracking-wider">{title}</span>
-                <div className="text-[var(--primary)] p-2 bg-[var(--primary)]/10 rounded-lg">{icon}</div>
+        <div className={clsx('glass-card min-w-0 overflow-hidden p-4 md:p-6 hover:bg-[var(--bg-tertiary)]/20 transition-colors', className)}>
+            <div className="flex items-center justify-between gap-2 mb-2 min-w-0">
+                <span className="text-text-secondary text-sm font-medium uppercase tracking-wider truncate">{title}</span>
+                <div className="text-[var(--primary)] p-2 bg-[var(--primary)]/10 rounded-lg shrink-0">{icon}</div>
             </div>
-            <div className="text-xl sm:text-2xl md:text-3xl font-bold text-text-primary font-mono tracking-tight">
+            <div
+                className="text-lg sm:text-xl md:text-2xl font-bold text-text-primary font-mono tracking-tight min-w-0 break-words [overflow-wrap:anywhere] leading-tight"
+                title={!loading ? String(value) : undefined}
+            >
                 {loading ? <Skeleton className="h-8 w-24" /> : value}
             </div>
             {change !== undefined && !loading && (
@@ -136,8 +151,8 @@ function VolumeChart({ data }: { data: DailyStats[] }) {
 
 function OpenInterestChart({ longOI, shortOI }: { longOI: number; shortOI: number }) {
     const data = [
-        { name: 'Long', value: longOI, color: '#34d399' }, // emerald-400
-        { name: 'Short', value: shortOI, color: '#fb7185' }, // rose-400
+        { name: 'Long', value: longOI, color: 'var(--long)' },
+        { name: 'Short', value: shortOI, color: 'var(--short)' },
     ];
 
     const total = longOI + shortOI;
@@ -320,7 +335,7 @@ function Leaderboard({ entries, loading, error }: { entries: LeaderboardEntry[];
                                         <span className={clsx(
                                             "inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold",
                                             entry.rank === 1 ? "bg-yellow-500/20 text-yellow-500" :
-                                                entry.rank === 2 ? "bg-gray-400/20 text-gray-400" :
+                                                entry.rank === 2 ? "bg-[var(--bg-tertiary)] text-text-muted" :
                                                     entry.rank === 3 ? "bg-orange-500/20 text-orange-500" :
                                                         "text-text-muted"
                                         )}>
@@ -364,7 +379,7 @@ function Leaderboard({ entries, loading, error }: { entries: LeaderboardEntry[];
                                     <span className={clsx(
                                         "inline-flex items-center justify-center w-5 h-5 rounded-full text-[10px] font-bold",
                                         entry.rank === 1 ? "bg-yellow-500/20 text-yellow-500" :
-                                            entry.rank === 2 ? "bg-gray-400/20 text-gray-400" :
+                                            entry.rank === 2 ? "bg-[var(--bg-tertiary)] text-text-muted" :
                                                 entry.rank === 3 ? "bg-orange-500/20 text-orange-500" :
                                                     "bg-[var(--bg-tertiary)] text-text-muted"
                                     )}>
@@ -429,12 +444,6 @@ export default function AnalyticsDashboard() {
     const realTimeShortOI = marketTableData.reduce((acc, m) => acc + m.shortOI, 0);
     const realTimeOI = realTimeLongOI + realTimeShortOI;
 
-    const formatNumber = (num: number) => {
-        if (num >= 1_000_000) return `$${(num / 1_000_000).toFixed(2)}M`;
-        if (num >= 1_000) return `$${(num / 1_000).toFixed(2)}K`;
-        return `$${num.toFixed(2)}`;
-    };
-
     return (
         <div className="min-h-screen pb-20 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
             {/* Header */}
@@ -461,19 +470,19 @@ export default function AnalyticsDashboard() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
                     title="Total Volume (24h)"
-                    value={formatNumber(totalVolume)}
+                    value={formatUsdStat(totalVolume)}
                     icon={<DollarSign className="w-6 h-6" />}
                     loading={statsLoading}
                 />
                 <StatCard
                     title="Total Value Locked"
-                    value={formatNumber(vaultStats?.tvl ?? 0)}
+                    value={formatUsdStat(vaultStats?.tvl ?? 0)}
                     icon={<Activity className="w-6 h-6" />}
                     loading={vaultLoading}
                 />
                 <StatCard
                     title="Open Interest"
-                    value={formatNumber(realTimeOI)}
+                    value={formatUsdStat(realTimeOI)}
                     icon={<Activity className="w-6 h-6" />}
                     loading={marketsLoading}
                 />

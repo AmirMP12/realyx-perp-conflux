@@ -174,7 +174,8 @@ export function useVaultStats() {
         query: { refetchInterval: 10000 }
     });
 
-    const tvl = totalAssets !== undefined ? parseFloat(formatUnits(totalAssets as bigint, assetDecimals)) : 0;
+    // VaultCore.totalAssets() returns internal precision (USDC * 1e12), i.e. 18 decimals.
+    const tvl = totalAssets !== undefined ? parseFloat(formatUnits(totalAssets as bigint, 18)) : 0;
     const availableLiquidity = availableLiquidityWei !== undefined ? parseFloat(formatUnits(availableLiquidityWei as bigint, assetDecimals)) : 0;
     const totalSharesNum = lpTotalShares !== undefined ? parseFloat(formatUnits(lpTotalShares as bigint, 18)) : 0;
 

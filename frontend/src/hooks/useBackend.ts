@@ -252,14 +252,47 @@ export function useDailyStats() {
     return { stats, loading, error: err ? (err as Error).message : null, refetch };
 }
 
-export function useLeaderboard(limit = 10, timeframe = 'all') {
+export type LeaderboardTimeframe = 'all' | '24h' | '7d';
+
+function normalizeLeaderboardEntries(raw: unknown): LeaderboardEntry[] {
+    if (!Array.isArray(raw)) return [];
+    return raw.map((row, i) => {
+        const o = row && typeof row === 'object' ? (row as Record<string, unknown>) : {};
+        const rank = Number(o.rank) || i + 1;
+        const wallet = String(o.wallet ?? o.address ?? '').trim();
+        const pnl = o.pnl != null ? String(o.pnl) : '0';
+        const volume = o.volume != null ? String(o.volume) : '0';
+        const trades = Number(o.trades ?? o.tradeCount ?? 0) || 0;
+        return { rank, wallet, pnl, volume, trades };
+    });
+}
+
+export function useLeaderboard(limit = 10, timeframe: LeaderboardTimeframe = 'all') {
     const { data: entries = [], isLoading: loading, error: err, refetch } = useQuery({
         queryKey: ['backend', 'leaderboard', limit, timeframe],
         queryFn: async (): Promise<LeaderboardEntry[]> => {
-            const response = await fetch(`${API_BASE_URL}/leaderboard?limit=${limit}&timeframe=${timeframe}`);
-            const data = await response.json().catch(() => ({ success: false }));
-            if (!data.success) throw new Error(data.error || 'Failed to fetch leaderboard');
-            return Array.isArray(data.data) ? data.data : [];
+            const params = new URLSearchParams({
+                limit: String(limit),
+                timeframe: timeframe === 'all' ? 'all' : timeframe,
+            });
+            let response: Response;
+            try {
+                response = await fetch(`${API_BASE_URL}/leaderboard?${params.toString()}`);
+            } catch {
+                throw new Error('Network error loading leaderboard');
+            }
+            const data = (await response.json().catch(() => ({ success: false }))) as {
+                success?: boolean;
+                data?: unknown;
+                error?: string;
+            };
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to fetch leaderboard');
+            }
+            if (data.success === false) {
+                throw new Error(data.error || 'Failed to fetch leaderboard');
+            }
+            return normalizeLeaderboardEntries(Array.isArray(data.data) ? data.data : []);
         },
         staleTime: STALE_MS,
     });
@@ -300,42 +333,134 @@ export function useMarkets() {
     };
 }
 
+/** Default referral code segment from wallet (matches `?ref=` parsing in useReferralUrl). */
+export function referralCodeFromWallet(address?: string | null): string | null {
+    if (!address || !address.startsWith('0x') || address.length < 10) return null;
+    return address.slice(2, 8).toUpperCase();
+}
+
+export function buildReferralShareLink(code: string): string {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${origin}/?ref=${encodeURIComponent(code)}`;
+}
+
+export interface ReferralStatsNormalized {
+    referees: number;
+    totalEarned: number;
+    pendingClaim: number;
+    code: string;
+}
+
+function pickFiniteNumberFromRecord(obj: Record<string, unknown>, keys: string[]): number {
+    for (const k of keys) {
+        const v = obj[k];
+        if (v === undefined || v === null) continue;
+        const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/,/g, ''));
+        if (Number.isFinite(n)) return n;
+    }
+    return 0;
+}
+
+function pickNonEmptyString(obj: Record<string, unknown>, keys: string[]): string {
+    for (const k of keys) {
+        const v = obj[k];
+        if (v === undefined || v === null) continue;
+        const s = String(v).trim();
+        if (s) return s;
+    }
+    return '';
+}
+
+/** Normalize backend / mock payloads so the referrals UI never reads undefined or wrong keys. */
+export function normalizeReferralStats(raw: unknown, walletAddress: string): ReferralStatsNormalized {
+    const fallbackCode = referralCodeFromWallet(walletAddress) ?? '';
+    if (!raw || typeof raw !== 'object') {
+        return { referees: 0, totalEarned: 0, pendingClaim: 0, code: fallbackCode };
+    }
+    const o = raw as Record<string, unknown>;
+    const referees = Math.max(
+        0,
+        Math.floor(pickFiniteNumberFromRecord(o, ['referees', 'referralCount', 'referral_count', 'refereeCount', 'referee_count', 'count']))
+    );
+    const totalEarned = Math.max(0, pickFiniteNumberFromRecord(o, ['totalEarned', 'total_earned', 'earned', 'totalEarnings', 'earnings_usd', 'total']));
+    const pendingClaim = Math.max(0, pickFiniteNumberFromRecord(o, ['pendingClaim', 'pending_claim', 'pending', 'claimable', 'claimableAmount', 'pending_amount']));
+    const fromApi = pickNonEmptyString(o, ['code', 'referralCode', 'referral_code', 'ref']);
+    const code = (fromApi || fallbackCode).toUpperCase();
+    return { referees, totalEarned, pendingClaim, code };
+}
+
+const EMPTY_REFERRAL_STATS: ReferralStatsNormalized = {
+    referees: 0,
+    totalEarned: 0,
+    pendingClaim: 0,
+    code: '',
+};
+
+const REFERRAL_LIKE_BODY_KEYS = [
+    'referees',
+    'referralCount',
+    'referral_count',
+    'totalEarned',
+    'total_earned',
+    'pendingClaim',
+    'pending_claim',
+    'code',
+    'referralCode',
+    'referral_code',
+];
+
+function referralStatsPayloadFromApiBody(body: Record<string, unknown>): unknown {
+    if (body.success === false) return null;
+    const data = body.data;
+    if (data !== undefined && data !== null && typeof data === 'object') return data;
+    if (REFERRAL_LIKE_BODY_KEYS.some((k) => Object.prototype.hasOwnProperty.call(body, k))) return body;
+    return null;
+}
+
 export function useReferralCode() {
     const { address } = useAccount();
-    const [code, setCode] = useState<string | null>(null);
-
-    useEffect(() => {
-        if (address) {
-            const shortFn = address.slice(2, 8).toUpperCase();
-            setCode(shortFn);
-        } else {
-            setCode(null);
-        }
-    }, [address]);
-
-    return { code, link: code ? `${window.location.origin}/?ref=${code}` : null };
+    const code = referralCodeFromWallet(address ?? null);
+    return { code, link: code ? buildReferralShareLink(code) : null };
 }
 
 export function useReferralStats() {
     const { address } = useAccount();
 
-    const { data: stats, isLoading: loading, error } = useQuery({
+    const { data: stats, isLoading: loading, error, refetch } = useQuery({
         queryKey: ['backend', 'referrals', address],
-        queryFn: async () => {
-            if (!address) return null;
-            const response = await fetch(`${API_BASE_URL}/referrals/stats?address=${address}`);
-            const data = await response.json().catch(() => ({ success: false }));
-            if (!data.success) return { referees: 0, totalEarned: 0, pendingClaim: 0, code: address.slice(2, 8).toUpperCase() };
-            return data.data;
+        queryFn: async (): Promise<ReferralStatsNormalized> => {
+            if (!address) return EMPTY_REFERRAL_STATS;
+            let response: Response;
+            try {
+                response = await fetch(`${API_BASE_URL}/referrals/stats?address=${encodeURIComponent(address)}`);
+            } catch {
+                return normalizeReferralStats(null, address);
+            }
+            let body: Record<string, unknown> = {};
+            try {
+                body = (await response.json()) as Record<string, unknown>;
+            } catch {
+                return normalizeReferralStats(null, address);
+            }
+            if (!response.ok) {
+                return normalizeReferralStats(null, address);
+            }
+            const payload = referralStatsPayloadFromApiBody(body);
+            return normalizeReferralStats(payload, address);
         },
         enabled: !!address,
         staleTime: STALE_MS,
     });
 
+    const normalized = stats ?? (address ? normalizeReferralStats(null, address) : EMPTY_REFERRAL_STATS);
+    const link = normalized.code ? buildReferralShareLink(normalized.code) : null;
+
     return {
-        stats: stats || { referees: 0, totalEarned: 0, pendingClaim: 0, code: address ? address.slice(2, 8).toUpperCase() : '...' },
+        stats: normalized,
+        link,
         loading,
-        error
+        error: error ? (error as Error).message : null,
+        refetch,
     };
 }
 

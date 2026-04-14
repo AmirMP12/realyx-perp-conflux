@@ -15,8 +15,8 @@ export function Sparkline({
   data,
   width = 80,
   height = 28,
-  positiveColor = '#22c55e',
-  negativeColor = '#ef4444',
+  positiveColor = 'var(--long)',
+  negativeColor = 'var(--short)',
   className = '',
 }: SparklineProps) {
   const { path, color } = useMemo(() => {

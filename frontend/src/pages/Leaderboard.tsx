@@ -1,18 +1,29 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Trophy, Medal } from 'lucide-react';
-import { useLeaderboard } from '../hooks/useBackend';
+import { useLeaderboard, type LeaderboardTimeframe } from '../hooks/useBackend';
 import { Skeleton } from '../components/ui';
 import clsx from 'clsx';
 import { formatCompact } from '../utils/format';
 
+const LEADERBOARD_TIMEFRAMES: { label: string; value: LeaderboardTimeframe }[] = [
+    { label: '24h', value: '24h' },
+    { label: '7d', value: '7d' },
+    { label: 'All Time', value: 'all' },
+];
+
+function safeUsd(n: string | number): number {
+    const x = typeof n === 'number' ? n : parseFloat(String(n).replace(/,/g, ''));
+    return Number.isFinite(x) ? x : 0;
+}
+
 export function LeaderboardPage() {
-    const [timeframe, setTimeframe] = useState<'24h' | '7d' | 'all'>('all');
-    const { entries, loading } = useLeaderboard(50, timeframe);
+    const [timeframe, setTimeframe] = useState<LeaderboardTimeframe>('all');
+    const { entries, loading, error } = useLeaderboard(50, timeframe);
 
     const getRankIcon = (rank: number) => {
         if (rank === 1) return <Medal className="w-6 h-6 text-yellow-400" />;
-        if (rank === 2) return <Medal className="w-6 h-6 text-gray-300" />;
+        if (rank === 2) return <Medal className="w-6 h-6 text-text-muted" />;
         if (rank === 3) return <Medal className="w-6 h-6 text-orange-400" />;
         return <span className="font-mono font-bold text-text-muted">#{rank}</span>;
     };
@@ -33,60 +44,80 @@ export function LeaderboardPage() {
 
                 {/* Timeframe Toggle */}
                 <div className="bg-[var(--bg-tertiary)] p-1 rounded-lg flex space-x-1">
-                    {['24h', '7d', 'All Time'].map((tf) => {
-                        const key = tf.toLowerCase().replace(' ', '') as any;
-                        return (
-                            <button
-                                key={key}
-                                onClick={() => setTimeframe(key)}
-                                className={clsx(
-                                    "px-4 py-2 rounded text-sm font-bold transition-all",
-                                    timeframe === key
-                                        ? "bg-[var(--bg-secondary)] text-text-primary shadow-sm"
-                                        : "text-text-muted hover:text-text-secondary"
-                                )}
-                            >
-                                {tf}
-                            </button>
-                        );
-                    })}
+                    {LEADERBOARD_TIMEFRAMES.map(({ label, value }) => (
+                        <button
+                            key={value}
+                            type="button"
+                            onClick={() => setTimeframe(value)}
+                            className={clsx(
+                                'px-4 py-2 rounded text-sm font-bold transition-all',
+                                timeframe === value
+                                    ? 'bg-[var(--bg-secondary)] text-text-primary shadow-sm'
+                                    : 'text-text-muted hover:text-text-secondary'
+                            )}
+                        >
+                            {label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
+            {error ? (
+                <p className="text-center text-sm text-orange-400" role="alert">
+                    {error}
+                </p>
+            ) : null}
+
             {/* Top 3 Cards (Hidden on mobile, shown on md+) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 lg:mb-8">
-                {entries.slice(0, 3).map((entry) => (
-                    <motion.div
-                        key={entry.rank}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={clsx(
-                            "glass-panel p-4 sm:p-6 relative overflow-hidden border-t-4",
-                            entry.rank === 1 ? "border-yellow-400/50 bg-yellow-400/5" :
-                                entry.rank === 2 ? "border-gray-300/50 bg-gray-300/5" :
-                                    "border-orange-400/50 bg-orange-400/5"
-                        )}
-                    >
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="p-2 rounded-lg bg-[var(--bg-primary)]">
-                                {getRankIcon(entry.rank)}
-                            </div>
-                            <div className="bg-[var(--bg-tertiary)] px-2 py-1 rounded text-xs text-text-muted font-mono">
-                                {entry.wallet}
-                            </div>
-                        </div>
-                        <div className="space-y-1">
-                            <div className="text-sm text-text-secondary">Net PnL</div>
-                            <div className="text-xl sm:text-2xl font-bold font-mono text-[var(--long)]">
-                                {parseFloat(entry.pnl) >= 0 ? '+' : ''}{formatCompact(parseFloat(entry.pnl))}
-                            </div>
-                        </div>
-                        <div className="mt-4 pt-4 border-t border-[var(--border-color)] flex justify-between text-sm">
-                            <span className="text-text-muted">Volume</span>
-                            <span className="font-mono text-text-primary font-medium">{formatCompact(parseFloat(entry.volume))}</span>
-                        </div>
-                    </motion.div>
-                ))}
+            <div className="hidden md:grid md:grid-cols-3 gap-4 sm:gap-6 mb-6 lg:mb-8">
+                {loading
+                    ? Array.from({ length: 3 }).map((_, i) => (
+                          <div key={i} className="glass-panel p-4 sm:p-6 space-y-4">
+                              <Skeleton className="h-10 w-full" />
+                              <Skeleton className="h-8 w-2/3" />
+                              <Skeleton className="h-6 w-1/2" />
+                          </div>
+                      ))
+                    : entries.slice(0, 3).map((entry) => (
+                          <motion.div
+                              key={`${entry.rank}-${entry.wallet}`}
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className={clsx(
+                                  'glass-panel p-4 sm:p-6 relative overflow-hidden border-t-4',
+                                  entry.rank === 1
+                                      ? 'border-yellow-400/50 bg-yellow-400/5'
+                                      : entry.rank === 2
+                                        ? 'border-[var(--border-color-hover)] bg-[var(--bg-tertiary)]/40'
+                                        : 'border-orange-400/50 bg-orange-400/5'
+                              )}
+                          >
+                              <div className="flex justify-between items-start mb-4">
+                                  <div className="p-2 rounded-lg bg-[var(--bg-primary)]">{getRankIcon(entry.rank)}</div>
+                                  <div className="bg-[var(--bg-tertiary)] px-2 py-1 rounded text-xs text-text-muted font-mono truncate max-w-[140px]">
+                                      {entry.wallet || '—'}
+                                  </div>
+                              </div>
+                              <div className="space-y-1">
+                                  <div className="text-sm text-text-secondary">Net PnL</div>
+                                  <div
+                                      className={clsx(
+                                          'text-xl sm:text-2xl font-bold font-mono',
+                                          safeUsd(entry.pnl) >= 0 ? 'text-[var(--long)]' : 'text-[var(--short)]'
+                                      )}
+                                  >
+                                      {safeUsd(entry.pnl) >= 0 ? '+' : ''}
+                                      {formatCompact(safeUsd(entry.pnl))}
+                                  </div>
+                              </div>
+                              <div className="mt-4 pt-4 border-t border-[var(--border-color)] flex justify-between text-sm">
+                                  <span className="text-text-muted">Volume</span>
+                                  <span className="font-mono text-text-primary font-medium">
+                                      {formatCompact(safeUsd(entry.volume))}
+                                  </span>
+                              </div>
+                          </motion.div>
+                      ))}
             </div>
 
             {/* Full Table */}
@@ -121,7 +152,7 @@ export function LeaderboardPage() {
                                 </tr>
                             ) : (
                                 entries.map((entry) => (
-                                    <tr key={entry.rank} className="group hover:bg-[var(--bg-tertiary)]/50 transition-colors">
+                                    <tr key={`${entry.rank}-${entry.wallet}`} className="group hover:bg-[var(--bg-tertiary)]/50 transition-colors">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-2">
                                                 {getRankIcon(entry.rank)}
@@ -136,13 +167,13 @@ export function LeaderboardPage() {
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
                                             <span className={clsx(
                                                 "font-mono font-bold",
-                                                parseFloat(entry.pnl) >= 0 ? "text-[var(--long)]" : "text-[var(--short)]"
+                                                safeUsd(entry.pnl) >= 0 ? "text-[var(--long)]" : "text-[var(--short)]"
                                             )}>
-                                                {parseFloat(entry.pnl) >= 0 ? '+' : ''}{formatCompact(parseFloat(entry.pnl))}
+                                                {safeUsd(entry.pnl) >= 0 ? '+' : ''}{formatCompact(safeUsd(entry.pnl))}
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right font-mono text-sm text-text-primary">
-                                            {formatCompact(parseFloat(entry.volume))}
+                                            {formatCompact(safeUsd(entry.volume))}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right font-mono text-sm text-text-primary">
                                             {entry.trades}
@@ -169,7 +200,7 @@ export function LeaderboardPage() {
                         </div>
                     ) : (
                         entries.map((entry) => (
-                            <div key={entry.rank} className="p-4 bg-[var(--bg-secondary)]">
+                            <div key={`${entry.rank}-${entry.wallet}`} className="p-4 bg-[var(--bg-secondary)]">
                                 <div className="flex items-center justify-between mb-3">
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 flex items-center justify-center">
@@ -182,15 +213,15 @@ export function LeaderboardPage() {
                                     </div>
                                     <div className={clsx(
                                         "font-mono font-bold text-lg",
-                                        parseFloat(entry.pnl) >= 0 ? "text-[var(--long)]" : "text-[var(--short)]"
+                                        safeUsd(entry.pnl) >= 0 ? "text-[var(--long)]" : "text-[var(--short)]"
                                     )}>
-                                        {parseFloat(entry.pnl) >= 0 ? '+' : ''}{formatCompact(parseFloat(entry.pnl))}
+                                        {safeUsd(entry.pnl) >= 0 ? '+' : ''}{formatCompact(safeUsd(entry.pnl))}
                                     </div>
                                 </div>
                                 <div className="flex items-center justify-between text-sm text-text-secondary pl-11">
                                     <div className="flex gap-4">
                                         <span>
-                                            Vol: <span className="text-text-primary font-mono">{formatCompact(parseFloat(entry.volume))}</span>
+                                            Vol: <span className="text-text-primary font-mono">{formatCompact(safeUsd(entry.volume))}</span>
                                         </span>
                                         <span>
                                             Trades: <span className="text-text-primary font-mono">{entry.trades}</span>

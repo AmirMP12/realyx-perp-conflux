@@ -13,6 +13,33 @@ import { TradeHistoryItem } from '../../hooks/useBackend';
 import { CollateralEditModal } from './CollateralEditModal';
 import { ClosePositionModal } from './ClosePositionModal';
 import { Skeleton } from '../ui/Skeleton';
+import { formatPriceWithPrecision } from '../../utils/format';
+
+function fmtUsdPrice(n: number): string {
+    return `$${formatPriceWithPrecision(n)}`;
+}
+
+/** Allows only a valid decimal string (no browser number spinners). */
+function filterDecimalInput(raw: string): string {
+    const t = raw.replace(/[^\d.]/g, '');
+    if (!t) return '';
+    const parts = t.split('.');
+    if (parts.length === 1) return parts[0];
+    return `${parts[0]}.${parts.slice(1).join('')}`;
+}
+
+function filterUnsignedIntInput(raw: string): string {
+    return raw.replace(/\D/g, '');
+}
+
+interface SlTpModalState {
+    id: number;
+    stopLossPrice: number;
+    takeProfitPrice: number;
+    trailingStopBps: number;
+    symbol: string;
+    isLong: boolean;
+}
 
 interface PositionTableProps {
     positions: Position[];
@@ -35,7 +62,7 @@ export function PositionTable({
     const cellPad = settings.compactMode ? 'px-3 py-1.5' : 'px-4 py-3';
     const [activeTab, setActiveTab] = useState<'positions' | 'orders' | 'history' | 'trades'>('positions');
 
-    const [slTpPosition, setSlTpPosition] = useState<{ id: number; stopLossPrice: number; takeProfitPrice: number; trailingStopBps: number } | null>(null);
+    const [slTpPosition, setSlTpPosition] = useState<SlTpModalState | null>(null);
     const [activeCollateralPos, setActiveCollateralPos] = useState<Position | null>(null);
     const [activeClosePos, setActiveClosePos] = useState<Position | null>(null);
 
@@ -52,9 +79,10 @@ export function PositionTable({
 
     const confirmSlTp = async () => {
         if (!slTpPosition) return;
-        const sl = slTpStopLoss.trim() ? parseFloat(slTpStopLoss) : 0;
-        const tp = slTpTakeProfit.trim() ? parseFloat(slTpTakeProfit) : 0;
-        const tr = trailingStop.trim() ? parseFloat(trailingStop) : 0; // bps
+        const parseUsd = (s: string) => parseFloat(s.replace(/,/g, '').trim());
+        const sl = slTpStopLoss.trim() ? parseUsd(slTpStopLoss) : 0;
+        const tp = slTpTakeProfit.trim() ? parseUsd(slTpTakeProfit) : 0;
+        const tr = trailingStop.trim() ? parseFloat(trailingStop.replace(/,/g, '')) : 0; // bps
 
         if (isNaN(sl) || isNaN(tp) || sl < 0 || tp < 0 || isNaN(tr) || tr < 0) {
             showToast('error', 'Invalid', 'Enter valid prices (0 or empty to clear)');
@@ -127,22 +155,23 @@ export function PositionTable({
                     ) : (
                         <>
                             {/* Desktop Table */}
-                            <div className="hidden md:block">
-                                <table className="w-full text-left text-sm whitespace-nowrap">
-                                    <thead className="text-xs text-text-muted uppercase tracking-wider bg-[var(--bg-tertiary)]/30 sticky top-0 z-10">
+                            <div className="hidden md:block px-2 md:px-3 pb-3">
+                                <div className="rounded-xl border border-[var(--border-color)]/70 bg-[var(--bg-secondary)]/40 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                                    <table className="w-full text-left text-sm whitespace-nowrap">
+                                    <thead className="text-[10px] text-text-muted uppercase tracking-wider bg-[var(--bg-tertiary)]/45 sticky top-0 z-10 border-b border-[var(--border-color)]/80">
                                         <tr>
-                                            <th className="px-4 py-2 font-medium">Market</th>
-                                            <th className="px-4 py-2 font-medium text-right">Net Value</th>
-                                            <th className="px-4 py-2 font-medium text-right">Size</th>
-                                            <th className="px-4 py-2 font-medium text-right">Collateral</th>
-                                            <th className="px-4 py-2 font-medium text-right">Entry Price</th>
-                                            <th className="px-4 py-2 font-medium text-right">Mark Price</th>
-                                            <th className="px-4 py-2 font-medium text-right">Liq. Price</th>
-                                            <th className="px-4 py-2 font-medium text-right">PnL</th>
-                                            <th className="px-4 py-2 font-medium text-right">Action</th>
+                                            <th className="px-4 py-3 font-semibold">Market</th>
+                                            <th className="px-4 py-3 font-semibold text-right tabular-nums">Net Value</th>
+                                            <th className="px-4 py-3 font-semibold text-right tabular-nums">Size</th>
+                                            <th className="px-4 py-3 font-semibold text-right tabular-nums">Collateral</th>
+                                            <th className="px-4 py-3 font-semibold text-right tabular-nums">Entry Price</th>
+                                            <th className="px-4 py-3 font-semibold text-right tabular-nums">Mark Price</th>
+                                            <th className="px-4 py-3 font-semibold text-right tabular-nums">Liq. Price</th>
+                                            <th className="px-4 py-3 font-semibold text-right tabular-nums">PnL</th>
+                                            <th className="px-4 py-3 font-semibold text-right">Action</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-[var(--border-color)]">
+                                    <tbody className="divide-y divide-[var(--border-color)]/80">
                                         {positions.map((pos: any, i: number) => (
                                             <PositionRow
                                                 key={i}
@@ -160,6 +189,7 @@ export function PositionTable({
                                         ))}
                                     </tbody>
                                 </table>
+                                </div>
                             </div>
 
                             {/* Mobile List */}
@@ -308,8 +338,8 @@ export function PositionTable({
                                                     <span className="text-[10px] text-text-muted">{t.type}</span>
                                                 </div>
                                             </td>
-                                            <td className="px-4 py-3 text-right font-mono text-text-primary">
-                                                ${parseFloat(t.price).toFixed(2)}
+                                            <td className="px-4 py-3 text-right font-mono text-sm tabular-nums text-text-primary">
+                                                {fmtUsdPrice(parseFloat(t.price))}
                                             </td>
                                             <td className={clsx("px-4 py-3 text-right font-mono", t.pnl && parseFloat(t.pnl) >= 0 ? "text-[var(--long)]" : "text-[var(--short)]")}>
                                                 {t.pnl ? (parseFloat(t.pnl) >= 0 ? '+' : '') + parseFloat(t.pnl).toFixed(2) : '-'}
@@ -326,74 +356,131 @@ export function PositionTable({
             {/* Triggers Modal */}
             <AnimatePresence>
                 {slTpPosition && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
                         <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg p-6 max-w-sm w-full shadow-2xl relative"
+                            initial={{ opacity: 0, scale: 0.96, y: 8 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.96, y: 8 }}
+                            transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                            className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl max-w-md w-full shadow-[0_24px_48px_rgba(0,0,0,0.45)] overflow-hidden"
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="position-triggers-title"
                         >
-                            <div className="flex items-center justify-between mb-4">
-                                <h2 className="text-lg font-bold text-text-primary">Position Triggers</h2>
-                                <button onClick={() => setSlTpPosition(null)} className="text-text-muted hover:text-text-primary">
+                            <div className="px-5 pt-5 pb-4 border-b border-[var(--border-color)]/80 flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                    <h2 id="position-triggers-title" className="text-lg font-bold text-text-primary tracking-tight">
+                                        Position triggers
+                                    </h2>
+                                    <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-text-muted">
+                                        <span className="font-medium text-text-secondary truncate">{slTpPosition.symbol}</span>
+                                        <span
+                                            className={clsx(
+                                                'text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md shrink-0',
+                                                slTpPosition.isLong ? 'text-[var(--long)] bg-[var(--long)]/12' : 'text-[var(--short)] bg-[var(--short)]/12'
+                                            )}
+                                        >
+                                            {slTpPosition.isLong ? 'Long' : 'Short'}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-text-muted mt-2 leading-relaxed">
+                                        Set stop loss, take profit, or a trailing distance. Use 0 or leave blank to clear a trigger.
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setSlTpPosition(null)}
+                                    className="shrink-0 p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-[var(--bg-tertiary)] transition-colors"
+                                    aria-label="Close"
+                                >
                                     <X className="w-5 h-5" />
                                 </button>
                             </div>
 
-                            <div className="space-y-4 mb-6">
+                            <div className="px-5 py-5 space-y-5 max-h-[min(70vh,520px)] overflow-y-auto custom-scrollbar">
                                 <div>
-                                    <label className="text-xs text-text-secondary block mb-1.5 uppercase font-bold">Stop Loss</label>
-                                    <div className="relative">
+                                    <label htmlFor="trigger-stop-loss" className="flex items-baseline justify-between gap-2 mb-2">
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Stop loss</span>
+                                        <span className="text-[10px] text-text-muted">USD</span>
+                                    </label>
+                                    <div className="relative rounded-xl border border-[var(--border-color)]/90 bg-[var(--bg-tertiary)]/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-within:border-[var(--primary)]/55 focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all">
                                         <input
-                                            type="number"
-                                            step="any"
+                                            id="trigger-stop-loss"
+                                            type="text"
+                                            inputMode="decimal"
+                                            autoComplete="off"
                                             value={slTpStopLoss}
-                                            onChange={e => setSlTpStopLoss(e.target.value)}
-                                            placeholder="Price (USD)"
-                                            className="w-full bg-[var(--bg-tertiary)] border border-transparent focus:border-[var(--primary)] rounded px-3 py-2 font-mono text-text-primary outline-none transition-colors"
+                                            onChange={(e) => setSlTpStopLoss(filterDecimalInput(e.target.value))}
+                                            placeholder="e.g. 1842.50"
+                                            className="w-full min-w-0 bg-transparent border-0 rounded-xl py-3 pl-4 pr-4 font-mono text-sm text-text-primary placeholder:text-text-muted/50 outline-none ring-0"
                                         />
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">USD</div>
                                     </div>
+                                    <p className="mt-1.5 text-[11px] text-text-muted leading-snug">
+                                        Market order when price hits this level (against your position).
+                                    </p>
                                 </div>
                                 <div>
-                                    <label className="text-xs text-text-secondary block mb-1.5 uppercase font-bold">Take Profit</label>
-                                    <div className="relative">
+                                    <label htmlFor="trigger-take-profit" className="flex items-baseline justify-between gap-2 mb-2">
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Take profit</span>
+                                        <span className="text-[10px] text-text-muted">USD</span>
+                                    </label>
+                                    <div className="relative rounded-xl border border-[var(--border-color)]/90 bg-[var(--bg-tertiary)]/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-within:border-[var(--primary)]/55 focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all">
                                         <input
-                                            type="number"
-                                            step="any"
+                                            id="trigger-take-profit"
+                                            type="text"
+                                            inputMode="decimal"
+                                            autoComplete="off"
                                             value={slTpTakeProfit}
-                                            onChange={e => setSlTpTakeProfit(e.target.value)}
-                                            placeholder="Price (USD)"
-                                            className="w-full bg-[var(--bg-tertiary)] border border-transparent focus:border-[var(--primary)] rounded px-3 py-2 font-mono text-text-primary outline-none transition-colors"
+                                            onChange={(e) => setSlTpTakeProfit(filterDecimalInput(e.target.value))}
+                                            placeholder="e.g. 2100.00"
+                                            className="w-full min-w-0 bg-transparent border-0 rounded-xl py-3 pl-4 pr-4 font-mono text-sm text-text-primary placeholder:text-text-muted/50 outline-none ring-0"
                                         />
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">USD</div>
                                     </div>
+                                    <p className="mt-1.5 text-[11px] text-text-muted leading-snug">
+                                        Lock in gains when price reaches this level in your favor.
+                                    </p>
                                 </div>
                                 <div>
-                                    <label className="text-xs text-text-secondary block mb-1.5 uppercase font-bold">Trailing Stop</label>
-                                    <div className="relative">
+                                    <label htmlFor="trigger-trailing" className="flex items-baseline justify-between gap-2 mb-2">
+                                        <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Trailing stop</span>
+                                        <span className="text-[10px] text-text-muted">BPS</span>
+                                    </label>
+                                    <div className="relative rounded-xl border border-[var(--border-color)]/90 bg-[var(--bg-tertiary)]/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-within:border-[var(--primary)]/55 focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all">
                                         <input
-                                            type="number"
-                                            step="10"
+                                            id="trigger-trailing"
+                                            type="text"
+                                            inputMode="numeric"
+                                            autoComplete="off"
                                             value={trailingStop}
-                                            onChange={e => setTrailingStop(e.target.value)}
-                                            placeholder="Basis Points (e.g. 100 = 1%)"
-                                            className="w-full bg-[var(--bg-tertiary)] border border-transparent focus:border-[var(--primary)] rounded px-3 py-2 font-mono text-text-primary outline-none transition-colors"
+                                            onChange={(e) => setTrailingStop(filterUnsignedIntInput(e.target.value))}
+                                            placeholder="e.g. 100"
+                                            className="w-full min-w-0 bg-transparent border-0 rounded-xl py-3 pl-4 pr-4 font-mono text-sm text-text-primary placeholder:text-text-muted/50 outline-none ring-0"
                                         />
-                                        <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-muted">BPS</div>
                                     </div>
-                                    <div className="text-[10px] text-gray-500 mt-1">100 BPS = 1%. 0 to disable.</div>
+                                    <p className="mt-1.5 text-[11px] text-text-muted leading-snug">
+                                        Basis points from the best price (100 BPS = 1%). Use <span className="font-mono text-text-secondary">0</span> to turn off.
+                                    </p>
                                 </div>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={confirmSlTp}
-                                disabled={slLoading || tpLoading || trLoading}
-                                className="w-full py-3 bg-[var(--primary)] rounded font-bold text-white hover:bg-blue-600 transition-colors disabled:opacity-50"
-                            >
-                                {slLoading || tpLoading || trLoading ? 'Updating...' : 'Confirm'}
-                            </button>
+                            <div className="px-5 pb-5 pt-0 flex flex-col-reverse sm:flex-row gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setSlTpPosition(null)}
+                                    disabled={slLoading || tpLoading || trLoading}
+                                    className="sm:flex-1 py-3 rounded-xl font-semibold text-sm text-text-secondary border border-[var(--border-color)] hover:bg-[var(--bg-tertiary)] hover:text-text-primary transition-colors disabled:opacity-50"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={confirmSlTp}
+                                    disabled={slLoading || tpLoading || trLoading}
+                                    className="sm:flex-1 py-3 rounded-xl font-bold text-sm text-white bg-[var(--primary)] hover:opacity-95 active:scale-[0.99] transition-all disabled:opacity-50 shadow-lg shadow-[var(--primary)]/20"
+                                >
+                                    {slLoading || tpLoading || trLoading ? 'Saving…' : 'Save triggers'}
+                                </button>
+                            </div>
                         </motion.div>
                     </div>
                 )}
@@ -425,12 +512,12 @@ function PositionRow({ pos, markets, settings, cellPad, setActiveCollateralPos, 
     const trBps = (pos as any).trailingStopBps ? parseFloat((pos as any).trailingStopBps.toString()) : 0;
 
     return (
-        <tr data-testid="position-row" className="hover:bg-[var(--bg-tertiary)]/40 transition-colors duration-150">
-            <td className="px-4 py-3 font-medium text-text-primary">
-                <div className="flex items-center gap-2">
-                    {market && <img src={market.image} className="w-5 h-5 rounded-full" alt="" />}
-                    <span>{market?.symbol || 'Unknown'}</span>
-                    <span className={clsx("text-xs font-bold px-1.5 py-0.5 rounded ml-1", pos.isLong ? "text-[var(--long)] bg-[var(--long)]/10" : "text-[var(--short)] bg-[var(--short)]/10")}>
+        <tr data-testid="position-row" className="hover:bg-[var(--bg-tertiary)]/30 transition-colors duration-150">
+            <td className="px-4 py-3.5 font-medium text-text-primary">
+                <div className="flex items-center gap-2 min-w-0">
+                    {market && <img src={market.image} className="w-6 h-6 rounded-full ring-1 ring-[var(--border-color)]/60 shrink-0" alt="" />}
+                    <span className="truncate">{market?.symbol || 'Unknown'}</span>
+                    <span className={clsx("text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 tracking-wide", pos.isLong ? "text-[var(--long)] bg-[var(--long)]/12" : "text-[var(--short)] bg-[var(--short)]/12")}>
                         {pos.isLong ? 'Long' : 'Short'}
                     </span>
                     {isOptimistic && (
@@ -438,19 +525,19 @@ function PositionRow({ pos, markets, settings, cellPad, setActiveCollateralPos, 
                     )}
                 </div>
             </td>
-            <td className="px-4 py-3 text-right font-mono text-text-primary">
+            <td className="px-4 py-3.5 text-right font-mono text-sm tabular-nums text-text-primary">
                 ${Number(pos.size).toFixed(2)}
             </td>
-            <td className="px-4 py-3 text-right font-mono text-text-primary">
+            <td className="px-4 py-3.5 text-right font-mono text-sm tabular-nums text-text-primary">
                 {(Number(pos.size) / (Number(pos.entryPrice) || 1)).toFixed(4)} {market?.symbol}
             </td>
-            <td className="px-4 py-3 text-right font-mono text-text-primary">
+            <td className="px-4 py-3.5 text-right font-mono text-sm tabular-nums text-text-primary">
                 <div className="flex items-center justify-end gap-2 group">
                     ${Number(pos.collateral || (pos as any).margin).toFixed(2)}
                     {!isOptimistic && (
                         <button
                             onClick={() => setActiveCollateralPos(pos)}
-                            className="opacity-0 group-hover:opacity-100 p-1 hover:bg-[var(--bg-tertiary)] rounded text-gray-400 hover:text-white transition-all"
+                            className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-[var(--bg-tertiary)] rounded-lg text-text-muted hover:text-text-primary transition-all focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40"
                             title="Edit Collateral"
                         >
                             <Edit2 size={12} />
@@ -458,16 +545,16 @@ function PositionRow({ pos, markets, settings, cellPad, setActiveCollateralPos, 
                     )}
                 </div>
             </td>
-            <td className="px-4 py-3 text-right font-mono text-text-primary">
-                ${Number(pos.entryPrice).toFixed(2)}
+            <td className="px-4 py-3.5 text-right font-mono text-sm tabular-nums text-text-primary">
+                {fmtUsdPrice(Number(pos.entryPrice))}
             </td>
-            <td className="px-4 py-3 text-right font-mono text-text-primary">
-                ${Number(pos.markPrice ?? pos.entryPrice).toFixed(2)}
+            <td className="px-4 py-3.5 text-right font-mono text-sm tabular-nums text-text-primary">
+                {fmtUsdPrice(Number(pos.markPrice ?? pos.entryPrice))}
             </td>
-            <td className="px-4 py-3 text-right font-mono text-orange-400">
-                ${Number(pos.liquidationPrice).toFixed(2)}
+            <td className="px-4 py-3.5 text-right font-mono text-sm tabular-nums text-orange-400">
+                {fmtUsdPrice(Number(pos.liquidationPrice))}
             </td>
-            <td className={clsx(cellPad, "text-right font-mono", isProfit ? "text-[var(--long)]" : "text-[var(--short)]")}>
+            <td className={clsx(cellPad, "text-right font-mono text-sm tabular-nums", isProfit ? "text-[var(--long)]" : "text-[var(--short)]")}>
                 {isProfit ? '+' : ''}{pnl.toFixed(2)}
                 {settings.showPnlPercent && Number(pos.collateral) > 0 && (
                     <span className="text-[10px] ml-1 opacity-70">
@@ -475,21 +562,23 @@ function PositionRow({ pos, markets, settings, cellPad, setActiveCollateralPos, 
                     </span>
                 )}
             </td>
-            <td className="px-4 py-3 text-right">
+            <td className="px-4 py-3.5 text-right">
                 {isOptimistic ? (
                     <span className="text-xs text-text-muted">Confirming...</span>
                 ) : (
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex items-center justify-end gap-1.5">
                         <button
                             onClick={() => {
                                 setSlTpPosition({
                                     id: Number(pos.id),
                                     stopLossPrice: slPrice,
                                     takeProfitPrice: tpPrice,
-                                    trailingStopBps: trBps
+                                    trailingStopBps: trBps,
+                                    symbol: market?.symbol || 'Position',
+                                    isLong: !!pos.isLong,
                                 });
-                                setSlTpStopLoss(slPrice > 0 ? slPrice.toFixed(2) : '');
-                                setSlTpTakeProfit(tpPrice > 0 ? tpPrice.toFixed(2) : '');
+                                setSlTpStopLoss(slPrice > 0 ? formatPriceWithPrecision(slPrice) : '');
+                                setSlTpTakeProfit(tpPrice > 0 ? formatPriceWithPrecision(tpPrice) : '');
                                 setTrailingStop(trBps > 0 ? trBps.toString() : '');
                             }}
                             className="p-1 hover:bg-[var(--bg-tertiary)] rounded text-text-secondary hover:text-text-primary transition-colors"
@@ -500,7 +589,7 @@ function PositionRow({ pos, markets, settings, cellPad, setActiveCollateralPos, 
                         </button>
                         <button
                             onClick={() => setActiveClosePos(pos)}
-                            className="px-3 py-1 text-xs font-bold bg-[var(--bg-tertiary)] hover:bg-white/10 text-white rounded transition-colors"
+                            className="px-3 py-1.5 text-xs font-bold bg-[var(--bg-tertiary)] border border-[var(--border-color)]/80 hover:bg-white/10 text-text-primary rounded-lg transition-colors"
                         >
                             Close
                         </button>
@@ -523,11 +612,11 @@ function MobilePositionCard({ pos, markets, setActiveCollateralPos, setActiveClo
     const trBps = (pos as any).trailingStopBps ? parseFloat((pos as any).trailingStopBps.toString()) : 0;
 
     return (
-        <div data-testid="position-card" className="p-4 bg-[var(--bg-tertiary)]/50 rounded-xl border border-[var(--border-color)]/50">
+        <div data-testid="position-card" className="p-4 sm:p-5 bg-[var(--bg-secondary)]/60 rounded-2xl border border-[var(--border-color)]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                    {market && <img src={market.image} className="w-6 h-6 rounded-full" alt="" />}
+                    {market && <img src={market.image} className="w-6 h-6 rounded-full ring-1 ring-[var(--border-color)]/60" alt="" />}
                     <span className="font-bold text-text-primary">{market?.symbol || 'Unknown'}</span>
                     <span className={clsx("text-xs font-bold px-1.5 py-0.5 rounded ml-1", pos.isLong ? "text-[var(--long)] bg-[var(--long)]/10" : "text-[var(--short)] bg-[var(--short)]/10")}>
                         {pos.isLong ? 'Long' : 'Short'}
@@ -542,31 +631,31 @@ function MobilePositionCard({ pos, markets, setActiveCollateralPos, setActiveClo
 
             {/* Grid Stats */}
             <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm mb-4">
-                <div className="flex justify-between">
-                    <span className="text-text-secondary">Net Value</span>
-                    <span className="text-text-primary font-mono">${netValue.toFixed(2)}</span>
+                <div className="flex justify-between gap-2 min-w-0">
+                    <span className="text-text-secondary shrink-0">Net Value</span>
+                    <span className="text-text-primary font-mono tabular-nums text-right">${netValue.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between">
-                    <span className="text-text-secondary">Collateral</span>
+                <div className="flex justify-between gap-2 min-w-0">
+                    <span className="text-text-secondary shrink-0">Collateral</span>
                     {isOptimistic ? (
-                        <span className="text-text-primary font-mono">${Number(pos.collateral || (pos as any).margin).toFixed(2)}</span>
+                        <span className="text-text-primary font-mono tabular-nums text-right">${Number(pos.collateral || (pos as any).margin).toFixed(2)}</span>
                     ) : (
-                        <button onClick={() => setActiveCollateralPos(pos)} className="flex items-center gap-1 text-text-primary font-mono underline decoration-dashed decoration-text-muted/50">
-                            ${Number(pos.collateral || (pos as any).margin).toFixed(2)} <Edit2 size={10} className="text-text-muted" />
+                        <button onClick={() => setActiveCollateralPos(pos)} className="flex items-center gap-1 text-text-primary font-mono tabular-nums text-right underline decoration-dashed decoration-text-muted/50 min-w-0">
+                            ${Number(pos.collateral || (pos as any).margin).toFixed(2)} <Edit2 size={10} className="text-text-muted shrink-0" />
                         </button>
                     )}
                 </div>
-                <div className="flex justify-between">
-                    <span className="text-text-secondary">Entry Price</span>
-                    <span className="text-text-primary font-mono">${Number(pos.entryPrice).toFixed(2)}</span>
+                <div className="flex justify-between gap-2 min-w-0">
+                    <span className="text-text-secondary shrink-0">Entry Price</span>
+                    <span className="text-text-primary font-mono text-sm tabular-nums text-right">{fmtUsdPrice(Number(pos.entryPrice))}</span>
                 </div>
-                <div className="flex justify-between">
-                    <span className="text-text-secondary">Mark Price</span>
-                    <span className="text-text-primary font-mono">${Number(pos.markPrice ?? pos.entryPrice).toFixed(2)}</span>
+                <div className="flex justify-between gap-2 min-w-0">
+                    <span className="text-text-secondary shrink-0">Mark Price</span>
+                    <span className="text-text-primary font-mono text-sm tabular-nums text-right">{fmtUsdPrice(Number(pos.markPrice ?? pos.entryPrice))}</span>
                 </div>
-                <div className="flex justify-between">
-                    <span className="text-text-secondary">Liq. Price</span>
-                    <span className="text-orange-400 font-mono">${Number(pos.liquidationPrice).toFixed(2)}</span>
+                <div className="flex justify-between gap-2 min-w-0">
+                    <span className="text-text-secondary shrink-0">Liq. Price</span>
+                    <span className="text-orange-400 font-mono text-sm tabular-nums text-right">{fmtUsdPrice(Number(pos.liquidationPrice))}</span>
                 </div>
             </div>
 
@@ -582,19 +671,21 @@ function MobilePositionCard({ pos, markets, setActiveCollateralPos, setActiveClo
                                     id: Number(pos.id),
                                     stopLossPrice: slPrice,
                                     takeProfitPrice: tpPrice,
-                                    trailingStopBps: trBps
+                                    trailingStopBps: trBps,
+                                    symbol: market?.symbol || 'Position',
+                                    isLong: !!pos.isLong,
                                 });
-                                setSlTpStopLoss(slPrice > 0 ? slPrice.toFixed(2) : '');
-                                setSlTpTakeProfit(tpPrice > 0 ? tpPrice.toFixed(2) : '');
+                                setSlTpStopLoss(slPrice > 0 ? formatPriceWithPrecision(slPrice) : '');
+                                setSlTpTakeProfit(tpPrice > 0 ? formatPriceWithPrecision(tpPrice) : '');
                                 setTrailingStop(trBps > 0 ? trBps.toString() : '');
                             }}
-                            className="flex items-center justify-center gap-2 py-2 rounded bg-[var(--bg-tertiary)] text-text-primary font-medium hover:bg-[var(--border-color)] transition-colors"
+                            className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/50 text-text-primary text-sm font-medium hover:bg-[var(--bg-tertiary)] transition-colors"
                         >
                             <Shield size={14} /> Triggers
                         </button>
                         <button
                             onClick={() => setActiveClosePos(pos)}
-                            className="py-2 rounded bg-[var(--bg-tertiary)] hover:bg-[var(--primary)] text-text-primary hover:text-white font-medium transition-colors"
+                            className="py-2.5 rounded-xl border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/50 hover:bg-[var(--primary)] text-text-primary hover:text-white text-sm font-semibold transition-colors"
                         >
                             Close Position
                         </button>

@@ -299,9 +299,17 @@ export function InsurancePage() {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="py-6 text-center">
-                                    <Wallet className="w-8 h-8 text-text-muted/30 mx-auto mb-2" />
-                                    <p className="text-text-muted text-sm">Connect to view position</p>
+                                <div className="py-8 px-4 text-center rounded-xl border border-dashed border-[var(--border-color)]/80 bg-[var(--bg-tertiary)]/40">
+                                    <div className="w-14 h-14 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] flex items-center justify-center mx-auto mb-4">
+                                        <Wallet className="w-7 h-7 text-text-muted" />
+                                    </div>
+                                    <p className="text-text-primary font-semibold text-sm mb-1">Connect your wallet</p>
+                                    <p className="text-text-muted text-xs mb-5 max-w-[220px] mx-auto leading-relaxed">
+                                        See staked insurance balance and manage stake or unstake.
+                                    </p>
+                                    <div className="flex justify-center">
+                                        <ConnectButton />
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -321,9 +329,10 @@ export function InsurancePage() {
                                     {[1, 2, 3].map(i => <Skeleton key={i} className="h-14 w-full" />)}
                                 </div>
                             ) : claims.length === 0 ? (
-                                <div className="py-8 text-center">
-                                    <Shield className="w-8 h-8 text-text-muted/30 mx-auto mb-2" />
-                                    <p className="text-text-muted text-sm">No recent claims</p>
+                                <div className="py-10 px-4 text-center mx-3 my-3 rounded-xl border border-dashed border-[var(--border-color)]/70 bg-[var(--bg-tertiary)]/30">
+                                    <Shield className="w-9 h-9 text-text-muted mx-auto mb-3 opacity-60" />
+                                    <p className="text-text-primary text-sm font-medium mb-1">No recent claims</p>
+                                    <p className="text-text-muted text-xs max-w-[240px] mx-auto">Insurance payouts will appear here when they occur.</p>
                                 </div>
                             ) : (
                                 <div className="divide-y divide-[var(--border-color)]/50">

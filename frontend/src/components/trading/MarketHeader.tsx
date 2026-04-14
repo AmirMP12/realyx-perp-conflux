@@ -35,12 +35,13 @@ export function MarketHeader({ market, markets, currentPrice, fundingRate, isLiv
     }, []);
 
     return (
-        <div className="relative z-30 flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 border-b border-[var(--border-color)] bg-[var(--bg-secondary)]/85 backdrop-blur-md w-full min-w-0">
+        <div className="relative z-30 flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 border-b border-[var(--border-color)] bg-[var(--bg-secondary)] w-full min-w-0 shadow-[0_1px_0_rgba(0,0,0,0.15)]">
             {/* Left: Market Selector */}
             <div className="relative" ref={dropdownRef}>
                 <button
+                    type="button"
                     onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 -ml-2 rounded-xl hover:bg-[var(--bg-tertiary)]/55 transition-all duration-200 min-h-[44px] touch-manipulation group min-w-0"
+                    className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 -ml-2 rounded-xl hover:bg-[var(--bg-tertiary)]/55 transition-colors duration-200 min-h-[44px] touch-manipulation group min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40"
                     aria-expanded={dropdownOpen}
                     aria-haspopup="listbox"
                 >
@@ -61,20 +62,21 @@ export function MarketHeader({ market, markets, currentPrice, fundingRate, isLiv
                 <div
                     role="listbox"
                     className={clsx(
-                        "absolute top-full left-0 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-[var(--bg-secondary)]/95 backdrop-blur-md border border-[var(--border-color)] rounded-xl shadow-2xl z-[100] overflow-hidden transition-all duration-200",
+                        "absolute top-full left-0 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl z-[100] overflow-hidden transition-all duration-200",
                         dropdownOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
                     )}
                 >
                     <div className="max-h-[300px] overflow-y-auto custom-scrollbar">
                         {[...markets].sort((a, b) => (b.volume24h || 0) - (a.volume24h || 0)).map(m => (
                             <button
+                                type="button"
                                 key={m.id}
                                 onClick={() => {
                                     navigate(`/trade/${m.symbol}`);
                                     setDropdownOpen(false);
                                 }}
                                 className={clsx(
-                                    "w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--bg-tertiary)] transition-colors border-b border-[var(--border-color)] last:border-0",
+                                    "w-full flex items-center justify-between px-4 py-3 hover:bg-[var(--bg-tertiary)] transition-colors border-b border-[var(--border-color)] last:border-0 focus:outline-none focus-visible:bg-[var(--bg-tertiary)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]/25",
                                     m.id === market.id && "bg-[var(--bg-tertiary)]"
                                 )}
                             >

@@ -51,6 +51,24 @@ Defined in `contracts/libraries/DataTypes.sol` (hashes of string labels):
 | `LIQUIDATOR_ROLE` | `"LIQUIDATOR_ROLE"` | Liquidation bots |
 | `TRADING_CORE_ROLE` | `"TRADING_CORE_ROLE"` | **Only** the `TradingCore` proxy on `VaultCore` |
 
+### Keeper role notes (critical for order flow)
+
+- `createOrder` is asynchronous: users create pending orders, then a keeper executes them with `executeOrder`.
+- If no wallet has `KEEPER_ROLE` (or keeper process is down), orders remain in **Pending**.
+- Keepers also need native gas token and healthy RPC/oracle connectivity.
+
+**Quick checks**
+
+- `TradingCore.hasRole(KEEPER_ROLE, <keeperWallet>) == true`
+- `OrderCreated` events increase while `OrderExecuted` stays flat -> keeper pipeline is failing
+- keeper logs show Pyth refresh and execute tx hashes
+
+**Fast remediation**
+
+1. `GRANT_TO_ADDRESS=<keeper-wallet>`
+2. `npm run grant:keeper`
+3. `npm run keeper:bot`
+
 **Grant example** (from repo scripts pattern):
 
 ```bash
@@ -61,6 +79,30 @@ Use Hardhat / cast with the **proxy address** of the contract you are administer
 
 - `VaultCore`: `hasRole(TRADING_CORE_ROLE, tradingCoreProxy) == true`
 - Keepers/oracles/guardians granted on **TradingCore**, **OracleAggregator**, and **VaultCore** as per your playbooks
+
+### Compliance contract notes
+
+- `TradingCore.createOrder` enforces compliance through `checkCompliance(market)`.
+- If `complianceManager` is non-zero, user must pass:
+  - `IComplianceManager.isAllowed(user, market, bytes("")) == true`
+- Otherwise `createOrder` reverts with `ComplianceCheckFailed`, even if balances/allowance/fee are correct.
+
+**Operational checks**
+
+- Read `TradingCore.complianceManager()`
+- If non-zero:
+  - call `isAllowed(user, market, 0x)` on compliance contract
+  - for allowlist implementations, verify `isWhitelisted(user)`
+
+**Temporary disable for testnet**
+
+- Admin can disable compliance by calling:
+  - `setRWAContracts(existingCalendar, existingDividendManager, 0x0000000000000000000000000000000000000000)`
+
+**Safer approach**
+
+- Keep compliance enabled and whitelist testers:
+  - `setWhitelist(user, true)` or `batchSetWhitelist([...], true)`
 
 ### Auto keeper bot (testnet / staging)
 

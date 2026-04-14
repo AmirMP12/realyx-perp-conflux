@@ -19,7 +19,7 @@ export function MobileNav() {
     return (
         <>
             <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 pb-safe pointer-events-none">
-                <div className="mx-3 mb-2 pointer-events-auto rounded-2xl border border-white/10 bg-[#0B0E14]/85 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
+                <div className="mx-3 mb-2 pointer-events-auto rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
                     <div className="flex items-center justify-around h-[62px] px-2">
                     {navItems.map((item) => {
                         const isActive = item.path !== '#' && (
@@ -36,7 +36,7 @@ export function MobileNav() {
                                     key={item.name}
                                     onClick={item.onClick}
                                     className={clsx(
-                                        "flex flex-col items-center justify-center w-full h-full space-y-1 touch-manipulation rounded-xl transition-all duration-200 active:scale-[0.96]",
+                                        "flex flex-col items-center justify-center w-full h-full space-y-1 touch-manipulation rounded-xl transition-colors duration-200 motion-safe:active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40",
                                         isMoreOpen ? "text-[var(--primary)]" : "text-text-secondary active:text-text-primary"
                                     )}
                                 >
@@ -51,7 +51,7 @@ export function MobileNav() {
                                 key={item.name}
                                 to={item.path}
                                 className={clsx(
-                                    "flex flex-col items-center justify-center w-full h-full space-y-1 relative touch-manipulation rounded-xl transition-all duration-200 active:scale-[0.96]",
+                                    "flex flex-col items-center justify-center w-full h-full space-y-1 relative touch-manipulation rounded-xl transition-colors duration-200 motion-safe:active:scale-[0.96] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40",
                                     isActive ? "text-[var(--primary)]" : "text-text-secondary active:text-text-primary"
                                 )}
                             >
@@ -85,41 +85,41 @@ export function MobileNav() {
                             animate={{ y: 0 }}
                             exit={{ y: '100%' }}
                             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                            className="lg:hidden fixed bottom-[74px] left-0 right-0 mx-3 rounded-2xl bg-[#151921]/95 border border-white/10 backdrop-blur-xl z-50 overflow-hidden pb-5 shadow-2xl"
+                            className="lg:hidden fixed bottom-[74px] left-0 right-0 mx-3 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] z-50 overflow-hidden pb-5 shadow-2xl max-h-[min(70vh,420px)] flex flex-col"
                         >
                             <div className="px-4 pt-3 pb-2 flex items-center justify-between">
-                                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                                     <Sparkles className="w-4 h-4 text-[var(--primary)]" />
                                     More
                                 </div>
                                 <button
                                     onClick={() => setIsMoreOpen(false)}
-                                    className="p-2 rounded-lg text-text-secondary hover:text-white hover:bg-white/5"
+                                    className="p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-[var(--bg-tertiary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40"
                                     aria-label="Close more menu"
                                 >
                                     <X className="w-4 h-4" />
                                 </button>
                             </div>
-                            <div className="p-4 grid grid-cols-2 gap-3">
-                                <Link to="/analytics" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all duration-200 active:scale-[0.98] flex flex-col items-center gap-2">
+                            <div className="p-4 grid grid-cols-2 gap-3 overflow-y-auto custom-scrollbar min-h-0">
+                                <Link to="/analytics" onClick={() => setIsMoreOpen(false)} className="p-4 bg-[var(--bg-tertiary)]/70 rounded-xl border border-[var(--border-color)]/80 hover:bg-[var(--bg-tertiary)] transition-colors motion-safe:active:scale-[0.98] flex flex-col items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40">
                                     <BarChart2 className="w-6 h-6 text-text-secondary" />
-                                    <span className="text-sm font-medium">Analytics</span>
+                                    <span className="text-sm font-medium text-text-primary">Analytics</span>
                                 </Link>
-                                <Link to="/leaderboard" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all duration-200 active:scale-[0.98] flex flex-col items-center gap-2">
+                                <Link to="/leaderboard" onClick={() => setIsMoreOpen(false)} className="p-4 bg-[var(--bg-tertiary)]/70 rounded-xl border border-[var(--border-color)]/80 hover:bg-[var(--bg-tertiary)] transition-colors motion-safe:active:scale-[0.98] flex flex-col items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40">
                                     <Trophy className="w-6 h-6 text-text-secondary" />
-                                    <span className="text-sm font-medium">Leaderboard</span>
+                                    <span className="text-sm font-medium text-text-primary">Leaderboard</span>
                                 </Link>
-                                <Link to="/referrals" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all duration-200 active:scale-[0.98] flex flex-col items-center gap-2">
+                                <Link to="/referrals" onClick={() => setIsMoreOpen(false)} className="p-4 bg-[var(--bg-tertiary)]/70 rounded-xl border border-[var(--border-color)]/80 hover:bg-[var(--bg-tertiary)] transition-colors motion-safe:active:scale-[0.98] flex flex-col items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40">
                                     <Share2 className="w-6 h-6 text-text-secondary" />
-                                    <span className="text-sm font-medium">Referrals</span>
+                                    <span className="text-sm font-medium text-text-primary">Referrals</span>
                                 </Link>
-                                <Link to="/insurance" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all duration-200 active:scale-[0.98] flex flex-col items-center gap-2">
+                                <Link to="/insurance" onClick={() => setIsMoreOpen(false)} className="p-4 bg-[var(--bg-tertiary)]/70 rounded-xl border border-[var(--border-color)]/80 hover:bg-[var(--bg-tertiary)] transition-colors motion-safe:active:scale-[0.98] flex flex-col items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40">
                                     <Shield className="w-6 h-6 text-text-secondary" />
-                                    <span className="text-sm font-medium">Insurance</span>
+                                    <span className="text-sm font-medium text-text-primary">Insurance</span>
                                 </Link>
-                                <Link to="/settings" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all duration-200 active:scale-[0.98] flex flex-col items-center gap-2">
+                                <Link to="/settings" onClick={() => setIsMoreOpen(false)} className="p-4 bg-[var(--bg-tertiary)]/70 rounded-xl border border-[var(--border-color)]/80 hover:bg-[var(--bg-tertiary)] transition-colors motion-safe:active:scale-[0.98] flex flex-col items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40">
                                     <Settings className="w-6 h-6 text-text-secondary" />
-                                    <span className="text-sm font-medium">Settings</span>
+                                    <span className="text-sm font-medium text-text-primary">Settings</span>
                                 </Link>
                             </div>
                         </motion.div>

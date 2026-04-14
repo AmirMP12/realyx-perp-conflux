@@ -388,12 +388,20 @@ export function useAddCollateral() {
 }
 
 export function useClosePosition() {
-    const { chainId } = useAccount();
+    const { chainId, address } = useAccount();
     const { writeContractAsync, isPending } = useWriteContract();
     const { playSuccess, playError } = useSound();
 
     const closePosition = async (id: number) => {
         try {
+            if (!address) {
+                toast.error("Wallet not connected. Please reconnect your wallet.");
+                return false;
+            }
+            if (!chainId) {
+                toast.error("Network not detected. Please switch network and retry.");
+                return false;
+            }
             const params = {
                 positionId: BigInt(id),
                 closeSize: BigInt(0),
@@ -413,7 +421,14 @@ export function useClosePosition() {
         } catch (e: any) {
             playError();
             console.error(e);
-            toast.error(e.shortMessage || "Failed close");
+            const msg = `${e?.shortMessage ?? ""} ${e?.message ?? ""}`.toLowerCase();
+            if (msg.includes("not been authorized") || msg.includes("unauthorized") || e?.code === 4100) {
+                toast.error("Wallet authorization failed. Reconnect wallet and approve account access, then retry.");
+            } else if (e?.code === 4001 || msg.includes("user rejected")) {
+                toast.error("Transaction was rejected in wallet.");
+            } else {
+                toast.error(e.shortMessage || "Failed close");
+            }
             return false;
         }
     };
@@ -540,12 +555,20 @@ export function useSetTrailingStop() {
 }
 
 export function usePartialClose() {
-    const { chainId } = useAccount();
+    const { chainId, address } = useAccount();
     const { writeContractAsync, isPending } = useWriteContract();
     const { playSuccess, playError } = useSound();
 
     const partialClose = async (id: number, percent: number) => {
         try {
+            if (!address) {
+                toast.error("Wallet not connected. Please reconnect your wallet.");
+                return false;
+            }
+            if (!chainId) {
+                toast.error("Network not detected. Please switch network and retry.");
+                return false;
+            }
             const pctWei = parseUnits((percent / 100).toFixed(18), 18); // 1% = 0.01 = 1e16. 100% = 1.0 = 1e18.
             const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
 
@@ -562,7 +585,14 @@ export function usePartialClose() {
         } catch (e: any) {
             playError();
             console.error(e);
-            toast.error(e.shortMessage || "Failed partial close");
+            const msg = `${e?.shortMessage ?? ""} ${e?.message ?? ""}`.toLowerCase();
+            if (msg.includes("not been authorized") || msg.includes("unauthorized") || e?.code === 4100) {
+                toast.error("Wallet authorization failed. Reconnect wallet and approve account access, then retry.");
+            } else if (e?.code === 4001 || msg.includes("user rejected")) {
+                toast.error("Transaction was rejected in wallet.");
+            } else {
+                toast.error(e.shortMessage || "Failed partial close");
+            }
             return false;
         }
     };

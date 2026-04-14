@@ -60,11 +60,16 @@ export function Sidebar({ isMobileOpen, onClose }: SidebarProps) {
                         animate={{ x: 0 }}
                         exit={{ x: '-100%' }}
                         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-                        className="fixed left-0 top-0 bottom-0 w-[85vw] max-w-[300px] border-r border-[var(--border-color)] bg-[#10111a]/95 backdrop-blur-xl flex flex-col z-50 lg:hidden shadow-2xl"
+                        className="fixed left-0 top-0 bottom-0 w-[85vw] max-w-[300px] border-r border-[var(--border-color)] bg-[var(--bg-secondary)] flex flex-col z-50 lg:hidden shadow-2xl"
                     >
                         <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
                             <span className="font-display font-bold text-lg text-white">Menu</span>
-                            <button onClick={onClose} className="p-2 -mr-2 text-text-secondary hover:text-white">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="p-2 -mr-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-[var(--bg-tertiary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40"
+                                aria-label="Close menu"
+                            >
                                 <X className="w-5 h-5" />
                             </button>
                         </div>
@@ -79,10 +84,10 @@ export function Sidebar({ isMobileOpen, onClose }: SidebarProps) {
                                         <Link key={item.path} to={item.path} onClick={onClose}>
                                             <div
                                                 className={clsx(
-                                                    'flex items-center space-x-3 px-4 py-3 rounded transition-colors',
+                                                    'flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors focus-within:ring-2 focus-within:ring-[var(--primary)]/40',
                                                     isActive
                                                         ? 'bg-[var(--primary)] text-white'
-                                                        : 'text-text-secondary hover:text-white hover:bg-white/5'
+                                                        : 'text-text-secondary hover:text-white hover:bg-[var(--bg-tertiary)]'
                                                 )}
                                             >
                                                 <item.icon className="w-5 h-5 shrink-0" />
@@ -103,7 +108,7 @@ export function Sidebar({ isMobileOpen, onClose }: SidebarProps) {
                                             href={item.href}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="flex items-center space-x-3 px-4 py-3 rounded text-text-secondary hover:text-white hover:bg-white/5 transition-colors"
+                                            className="flex items-center space-x-3 px-4 py-3 rounded-xl text-text-secondary hover:text-white hover:bg-[var(--bg-tertiary)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40"
                                             onClick={onClose}
                                         >
                                             <item.icon className="w-5 h-5" />
@@ -116,10 +121,10 @@ export function Sidebar({ isMobileOpen, onClose }: SidebarProps) {
                                             to={item.path!}
                                             onClick={onClose}
                                             className={clsx(
-                                                'flex items-center space-x-3 px-4 py-3 rounded transition-colors',
+                                                'flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors focus-within:ring-2 focus-within:ring-[var(--primary)]/40',
                                                 location.pathname === item.path
-                                                    ? 'bg-white/10 text-white'
-                                                    : 'text-text-secondary hover:text-white hover:bg-white/5'
+                                                    ? 'bg-[var(--bg-tertiary)] text-white'
+                                                    : 'text-text-secondary hover:text-white hover:bg-[var(--bg-tertiary)]'
                                             )}
                                         >
                                             <item.icon className="w-5 h-5" />

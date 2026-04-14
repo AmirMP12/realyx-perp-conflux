@@ -93,8 +93,19 @@ export function MarketsPage() {
         return matchesFilter && matchesCategory && matchesSearch;
     });
 
-    const volume24h = backendStats ? parseFloat(backendStats.volume24h) : 0;
-    const totalOpenInterest = backendStats ? parseFloat(backendStats.totalOpenInterest) : 0;
+    const parseStat = (v: unknown) => {
+        const n = Number(v ?? 0);
+        return Number.isFinite(n) ? n : 0;
+    };
+    const marketVolumeFallback = displayMarkets.reduce((acc, m) => acc + (Number.isFinite(m.volume24h) ? m.volume24h : 0), 0);
+    const marketOiFallback = displayMarkets.reduce(
+        (acc, m) => acc + (Number.isFinite(m.longOI) ? m.longOI : 0) + (Number.isFinite(m.shortOI) ? m.shortOI : 0),
+        0
+    );
+    const backendVolume = parseStat(backendStats?.volume24h);
+    const backendOi = parseStat(backendStats?.totalOpenInterest);
+    const volume24h = backendVolume > 0 ? backendVolume : marketVolumeFallback;
+    const totalOpenInterest = backendOi > 0 ? backendOi : marketOiFallback;
     const tvl = vaultStats?.tvl ?? 0;
 
     const handleRefresh = async () => {
@@ -129,7 +140,7 @@ export function MarketsPage() {
             </div>
 
             {/* Markets Table Container */}
-            <div className="bg-[var(--bg-secondary)]/90 border-y md:border border-[var(--border-color)] md:rounded-2xl overflow-hidden shadow-[0_14px_35px_rgba(0,0,0,0.28)]">
+            <div className="bg-[var(--bg-secondary)] border-y md:border border-[var(--border-color)] md:rounded-2xl overflow-hidden shadow-[0_14px_35px_rgba(0,0,0,0.28)]">
                 {/* Controls */}
                 <div className="p-4 border-b border-[var(--border-color)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent)]">
                     <div className="flex flex-wrap items-center gap-2">
@@ -347,7 +358,7 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
             </td>
             <td className="px-6 py-4 text-right">
                 <div className="w-[100px] h-[30px] ml-auto">
-                    <Sparkline data={prices} width={100} height={30} positiveColor="#30e0a1" negativeColor="#fa3c58" />
+                    <Sparkline data={prices} width={100} height={30} />
                 </div>
             </td>
             <td className="px-6 py-4 text-right">
@@ -398,7 +409,7 @@ function MobileMarketCard({ market, isFavorite, toggleFavorite }: { market: Disp
                         Funding: <span className={clsx("font-mono", market.fundingRate >= 0 ? "text-[var(--long)]" : "text-[var(--short)]")}>{(market.fundingRate * 100).toFixed(4)}%</span>
                     </span>
                     <div className="w-[60px] h-[20px] shrink-0">
-                        <Sparkline data={prices} width={60} height={20} positiveColor="#30e0a1" negativeColor="#fa3c58" />
+                        <Sparkline data={prices} width={60} height={20} />
                     </div>
                 </div>
                 <button

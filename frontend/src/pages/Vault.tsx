@@ -282,9 +282,17 @@ export function VaultPage() {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="py-6 text-center">
-                                    <Wallet className="w-8 h-8 text-text-muted/30 mx-auto mb-2" />
-                                    <p className="text-text-muted text-sm">Connect to view position</p>
+                                <div className="py-8 px-4 text-center rounded-xl border border-dashed border-[var(--border-color)]/80 bg-[var(--bg-tertiary)]/40">
+                                    <div className="w-14 h-14 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] flex items-center justify-center mx-auto mb-4">
+                                        <Wallet className="w-7 h-7 text-text-muted" />
+                                    </div>
+                                    <p className="text-text-primary font-semibold text-sm mb-1">Connect your wallet</p>
+                                    <p className="text-text-muted text-xs mb-5 max-w-[220px] mx-auto leading-relaxed">
+                                        View your vault balance, LP tokens, and deposit or withdraw once connected.
+                                    </p>
+                                    <div className="flex justify-center">
+                                        <ConnectButton />
+                                    </div>
                                 </div>
                             )}
                         </div>

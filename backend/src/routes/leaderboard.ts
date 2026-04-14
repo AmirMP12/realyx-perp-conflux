@@ -1,14 +1,23 @@
 import { Router, Request, Response } from "express";
-import { fetchLeaderboard } from "../services/indexer.js";
+import { fetchLeaderboard, type LeaderboardTimeframe } from "../services/indexer.js";
 import type { LeaderboardEntry, ApiResponse } from "../types/index.js";
 import { toDecimal } from "../utils/format.js";
 
 const router = Router();
 
+function parseTimeframe(q: unknown): LeaderboardTimeframe {
+  const s = String(q ?? "all").toLowerCase().replace(/\s+/g, "");
+  if (s === "24h") return "24h";
+  if (s === "7d") return "7d";
+  if (s === "alltime" || s === "all") return "all";
+  return "all";
+}
+
 router.get("/", async (req: Request, res: Response) => {
   const limit = Math.min(parseInt(req.query.limit as string, 10) || 10, 100);
+  const timeframe = parseTimeframe(req.query.timeframe);
   try {
-    const users = await fetchLeaderboard(limit);
+    const users = await fetchLeaderboard(limit, timeframe);
     const data: LeaderboardEntry[] = users.map((u, i) => ({
       rank: i + 1,
       wallet: u.address,

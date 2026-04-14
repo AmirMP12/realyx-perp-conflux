@@ -272,22 +272,70 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
   }
 }
 
-export async function fetchLeaderboard(limit: number): Promise<User[]> {
+export type LeaderboardTimeframe = "all" | "24h" | "7d";
+
+function leaderboardTimeFilter(timeframe: LeaderboardTimeframe): string {
+  if (timeframe === "24h") return `AND c.created_at >= NOW() - INTERVAL '24 hours'`;
+  if (timeframe === "7d") return `AND c.created_at >= NOW() - INTERVAL '7 days'`;
+  return "";
+}
+
+/**
+ * Rank traders from indexed `position_events`.
+ * PnL and fees are summed from `PositionClosed` rows (same raw integers as on-chain, then passed through `toDecimal` in the route).
+ * Volume is approximated as sum of (open_size * exit_price) / 1e12 in internal units (size and oracle price are both scaled by DECIMAL_CONVERSION in the protocol).
+ */
+export async function fetchLeaderboard(
+  limit: number,
+  timeframe: LeaderboardTimeframe = "all",
+): Promise<User[]> {
   if (!process.env.POSTGRES_URL) return [];
   try {
     const pool = getPool();
     if (!pool) return [];
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+    const tf: LeaderboardTimeframe =
+      timeframe === "24h" || timeframe === "7d" ? timeframe : "all";
+    const timeFilter = leaderboardTimeFilter(tf);
+
     const res = await pool.query(
-      `SELECT account, COUNT(*) as trades FROM position_events GROUP BY account ORDER BY trades DESC LIMIT $1`,
-      [Math.min(limit, 100)]
+      `
+      SELECT
+        MAX(c.account) AS address,
+        COUNT(*)::bigint AS total_trades,
+        COALESCE(SUM((c.data->>2)::numeric), 0)::text AS total_realized_pnl,
+        COALESCE(SUM(
+          CASE
+            WHEN o.size_raw IS NOT NULL AND (c.data->>3) IS NOT NULL
+            THEN (o.size_raw * (c.data->>3)::numeric) / POWER(10::numeric, 12)
+            ELSE 0::numeric
+          END
+        ), 0)::text AS total_volume_usd
+      FROM position_events c
+      LEFT JOIN (
+        SELECT DISTINCT ON ((data->>0)::text)
+          (data->>0)::text AS position_id,
+          (data->>4)::numeric AS size_raw
+        FROM position_events
+        WHERE event_type = 'PositionOpened'
+        ORDER BY (data->>0)::text, id ASC
+      ) o ON o.position_id = (c.data->>0)::text
+      WHERE c.event_type = 'PositionClosed'
+        AND c.data IS NOT NULL
+        ${timeFilter}
+      GROUP BY lower(c.account)
+      ORDER BY COALESCE(SUM((c.data->>2)::numeric), 0) DESC NULLS LAST
+      LIMIT $1
+      `,
+      [safeLimit],
     );
 
     return res.rows.map((row: any) => ({
-      id: row.account,
-      address: row.account,
-      totalTrades: String(row.trades),
-      totalVolumeUsd: "0",
-      totalRealizedPnl: "0",
+      id: row.address,
+      address: row.address,
+      totalTrades: String(row.total_trades),
+      totalVolumeUsd: row.total_volume_usd ?? "0",
+      totalRealizedPnl: row.total_realized_pnl ?? "0",
     }));
   } catch (e) {
     return [];

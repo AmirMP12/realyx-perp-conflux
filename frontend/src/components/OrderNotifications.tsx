@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, type CSSProperties } from 'react';
 import { useAccount } from 'wagmi';
 import toast from 'react-hot-toast';
 
@@ -207,14 +207,14 @@ export function useOrderNotifications() {
             }
         };
 
-        const getToastStyle = () => {
+        const getToastStyle = (): CSSProperties => {
             if (notification.type === 'POSITION_LIQUIDATED') {
-                return { background: '#ff4444', color: '#fff' };
+                return { background: 'var(--short)', color: '#fff' };
             }
-            if (notification.type === 'POSITION_CLOSED' && notification.pnl) {
+            if (notification.type === 'POSITION_CLOSED' && notification.pnl != null) {
                 return notification.pnl >= 0
-                    ? { background: '#22c55e', color: '#fff' }
-                    : { background: '#ef4444', color: '#fff' };
+                    ? { background: 'var(--long)', color: '#fff' }
+                    : { background: 'var(--short)', color: '#fff' };
             }
             return {};
         };
@@ -284,11 +284,14 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
     return (
         <div className={`relative ${className} `}>
             <button
+                type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative p-2 rounded-lg hover:bg-dark-200 transition-colors"
+                className="relative p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40"
+                aria-label={isOpen ? 'Close notifications' : 'Open notifications'}
+                aria-expanded={isOpen}
             >
                 <svg
-                    className="w-6 h-6 text-gray-400 hover:text-white transition-colors"
+                    className="w-6 h-6 text-text-muted hover:text-text-primary transition-colors"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -308,13 +311,14 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto bg-dark-100 border border-dark-300 rounded-lg shadow-xl z-50">
-                    <div className="flex items-center justify-between p-3 border-b border-dark-300">
-                        <h3 className="font-semibold text-white">Notifications</h3>
+                <div className="absolute right-0 mt-2 w-80 max-h-96 overflow-y-auto custom-scrollbar bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl z-50">
+                    <div className="flex items-center justify-between p-3 border-b border-[var(--border-color)]">
+                        <h3 className="font-semibold text-text-primary">Notifications</h3>
                         {notifications.length > 0 && (
                             <button
+                                type="button"
                                 onClick={clearNotifications}
-                                className="text-xs text-gray-400 hover:text-white"
+                                className="text-xs text-text-muted hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 rounded-md px-1"
                             >
                                 Clear all
                             </button>
@@ -322,19 +326,19 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
                     </div>
 
                     {notifications.length === 0 ? (
-                        <div className="p-4 text-center text-gray-400">
-                            No notifications
+                        <div className="p-6 text-center text-text-muted text-sm">
+                            No notifications yet
                         </div>
                     ) : (
-                        <div className="divide-y divide-dark-300">
+                        <div className="divide-y divide-[var(--border-color)]">
                             {notifications.map((notification: any) => (
                                 <div
                                     key={notification.id}
-                                    className="p-3 hover:bg-dark-200 cursor-pointer transition-colors"
+                                    className="p-3 hover:bg-[var(--bg-tertiary)]/50 cursor-pointer transition-colors"
                                     onClick={() => markAsRead(notification.id)}
                                 >
-                                    <p className="text-sm text-white">{notification.message}</p>
-                                    <p className="text-xs text-gray-400 mt-1">
+                                    <p className="text-sm text-text-primary">{notification.message}</p>
+                                    <p className="text-xs text-text-muted mt-1">
                                         {new Date(notification.timestamp).toLocaleTimeString()}
                                     </p>
                                 </div>
