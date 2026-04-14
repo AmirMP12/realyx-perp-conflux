@@ -1,5 +1,6 @@
 /**
- * Format number for compact display (e.g. $1.2M, $450K, $2.50)
+ * Format number for compact display with dynamic precision:
+ * 1-999,000 -> exact number, then m/b/t with trimmed decimals (e.g. 1.2m).
  */
 export function formatCompact(num: number, options?: { prefix?: string; noDollar?: boolean }): string {
     const prefix = options?.prefix ?? '';
@@ -7,12 +8,18 @@ export function formatCompact(num: number, options?: { prefix?: string; noDollar
     const d = noDollar ? '' : '$';
     const abs = Math.abs(num);
     const sign = num < 0 ? '-' : '';
+    const compactValue = (value: number, unit: string) => {
+        const formatted = value.toLocaleString(undefined, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: value < 10 ? 2 : value < 100 ? 1 : 0,
+        });
+        return `${formatted}${unit}`;
+    };
 
-    if (abs >= 1_000_000_000_000) return `${sign}${prefix}${d}${(abs / 1_000_000_000_000).toFixed(2)}T`;
-    if (abs >= 1_000_000_000) return `${sign}${prefix}${d}${(abs / 1_000_000_000).toFixed(2)}B`;
-    if (abs >= 1_000_000) return `${sign}${prefix}${d}${(abs / 1_000_000).toFixed(2)}M`;
-    if (abs >= 1_000) return `${sign}${prefix}${d}${(abs / 1_000).toFixed(2)}K`;
-    return `${sign}${prefix}${d}${num.toFixed(2)}`;
+    if (abs >= 1_000_000_000_000) return `${sign}${prefix}${d}${compactValue(abs / 1_000_000_000_000, 't')}`;
+    if (abs >= 1_000_000_000) return `${sign}${prefix}${d}${compactValue(abs / 1_000_000_000, 'b')}`;
+    if (abs >= 1_000_000) return `${sign}${prefix}${d}${compactValue(abs / 1_000_000, 'm')}`;
+    return `${sign}${prefix}${d}${abs.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 
 /**
