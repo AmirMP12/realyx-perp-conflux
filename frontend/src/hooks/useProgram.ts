@@ -193,6 +193,9 @@ export function useOpenPosition() {
         if (text.includes('insufficientcollateral')) return 'Insufficient collateral for this position size/leverage.';
         if (text.includes('marketnotactive')) return 'Market is currently not active.';
         if (text.includes('transfer amount exceeds balance') || text.includes('erc20')) return 'Insufficient token balance or allowance for collateral transfer.';
+        if (text.includes('the contract function "createorder" reverted')) {
+            return 'Order creation reverted on-chain. Common causes: insufficient USDC/allowance, low execution fee, or market circuit breaker.';
+        }
         return err?.shortMessage || err?.message || 'Failed to submit order';
     };
 
@@ -234,8 +237,13 @@ export function useOpenPosition() {
                 throw new Error('Market is temporarily paused. Please try again later.');
             }
 
+            const coreOracleAddress = await publicClient.readContract({
+                address: TRADING_CORE_ADDRESS,
+                abi: TRADING_CORE_ABI,
+                functionName: 'oracleAggregator',
+            }) as Address;
             const actionAllowed = await publicClient.readContract({
-                address: ORACLE_AGGREGATOR_ADDRESS,
+                address: coreOracleAddress,
                 abi: ORACLE_ABI,
                 functionName: 'isActionAllowed',
                 args: [params.market as Address, 0],
@@ -262,6 +270,25 @@ export function useOpenPosition() {
                 : undefined;
 
             if (usdcAddress) {
+                const coreUsdcAddress = await publicClient.readContract({
+                    address: TRADING_CORE_ADDRESS,
+                    abi: TRADING_CORE_ABI,
+                    functionName: 'usdc',
+                }) as Address;
+                if (coreUsdcAddress.toLowerCase() !== usdcAddress.toLowerCase()) {
+                    throw new Error('USDC contract mismatch detected. Please refresh and reconnect wallet.');
+                }
+
+                const walletUsdcBalance = await publicClient.readContract({
+                    address: coreUsdcAddress,
+                    abi: ERC20_ABI,
+                    functionName: 'balanceOf',
+                    args: [address],
+                }) as bigint;
+                if (walletUsdcBalance < collateralDelta6) {
+                    throw new Error('Insufficient USDC balance for this margin amount.');
+                }
+
                 const requiredCollateral = collateralDelta6;
                 let currentAllowance = allowance;
                 if (currentAllowance === undefined) {
