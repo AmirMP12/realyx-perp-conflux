@@ -20,10 +20,13 @@
 
   --radius-card: 8px;
   --radius-modal: 12px;
+  --radius-panel: 14px;
 
   /* Animations for prices, fills, modals */
   --transition-fast: 150ms ease;
   --transition-modal: 200ms ease-out;
+  --transition-smooth: 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  --transition-snappy: 180ms cubic-bezier(0.2, 0.9, 0.2, 1);
 }
 
 @layer base {
@@ -33,6 +36,17 @@
     @apply font-sans antialiased overflow-x-hidden;
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior: contain;
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: -1;
+    background:
+      radial-gradient(900px 500px at 8% -10%, rgba(45, 66, 252, 0.14), transparent 55%),
+      radial-gradient(700px 420px at 95% 0%, rgba(56, 189, 248, 0.09), transparent 55%);
   }
 
   /* Faster mobile taps — eliminate 300ms delay */
@@ -50,44 +64,56 @@
   /* Pro Panels - Solid, crisp borders, elevated hierarchy */
   .glass-card,
   .glass-panel {
-    background: var(--bg-secondary);
+    background: linear-gradient(180deg, rgba(27, 28, 39, 0.98) 0%, rgba(21, 22, 31, 0.98) 100%);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-card);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-panel);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255, 255, 255, 0.02) inset;
+    transition: border-color var(--transition-snappy), transform var(--transition-snappy), box-shadow var(--transition-smooth);
   }
 
   .glass-card:hover,
   .glass-panel:hover {
     border-color: var(--border-color-hover);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32), 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+    transform: translateY(-1px);
   }
 
   /* Primary/hero panels - elevated for chart, trading form */
   .glass-panel-elevated {
-    background: var(--bg-secondary);
+    background: linear-gradient(180deg, rgba(27, 28, 39, 0.98) 0%, rgba(21, 22, 31, 0.98) 100%);
     border: 1px solid var(--border-color);
-    border-radius: var(--radius-card);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.02);
+    border-radius: var(--radius-panel);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(255, 255, 255, 0.02);
   }
 
   /* Buttons */
   .btn-primary {
-    @apply relative overflow-hidden font-medium rounded-lg px-4 py-2 text-white transition-all duration-200 active:scale-[0.98] hover:scale-[1.02];
-    background: var(--primary);
-    box-shadow: 0 2px 10px rgba(45, 66, 252, 0.3);
+    @apply relative overflow-hidden font-semibold rounded-xl px-4 py-2.5 text-white transition-all duration-200 active:scale-[0.98];
+    background: linear-gradient(135deg, #2d42fc 0%, #5062ff 100%);
+    box-shadow: 0 8px 20px rgba(45, 66, 252, 0.34);
+    transition: transform var(--transition-snappy), box-shadow var(--transition-smooth), background var(--transition-smooth), filter var(--transition-snappy);
   }
 
   .btn-primary:hover {
-    background: #3d52fd;
+    background: linear-gradient(135deg, #3a4eff 0%, #5f70ff 100%);
     transform: translateY(-1px);
+    filter: brightness(1.03);
+    box-shadow: 0 12px 26px rgba(45, 66, 252, 0.4);
   }
 
   .btn-secondary {
-    @apply bg-[var(--bg-tertiary)] hover:bg-[#252535] text-text-primary font-medium px-4 py-2 rounded-lg border border-[var(--border-color)] transition-all duration-200 active:scale-[0.98] hover:scale-[1.01];
+    @apply bg-[var(--bg-tertiary)] hover:bg-[#252535] text-text-primary font-medium px-4 py-2.5 rounded-xl border border-[var(--border-color)] transition-all duration-200 active:scale-[0.98];
+    transition: transform var(--transition-snappy), border-color var(--transition-snappy), background var(--transition-smooth), box-shadow var(--transition-smooth);
+  }
+
+  .btn-secondary:hover {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
   }
 
   .input {
     background-color: var(--bg-secondary);
-    @apply w-full border border-[var(--border-color)] text-text-primary rounded px-3 py-2 focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)] placeholder-text-muted transition-all duration-200;
+    @apply w-full border border-[var(--border-color)] text-text-primary rounded-xl px-3 py-2.5 focus:outline-none focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary)]/20 placeholder-text-muted transition-all duration-200;
+    transition: border-color var(--transition-snappy), box-shadow var(--transition-smooth), background var(--transition-smooth);
   }
 
   /* Typography */
@@ -232,8 +258,12 @@
   @media (prefers-reduced-motion: reduce) {
 
     .btn-primary,
-    .btn-secondary {
+    .btn-secondary,
+    .glass-card,
+    .glass-panel,
+    .input {
       transition-duration: 0.01ms;
+      transform: none !important;
     }
   }
 }

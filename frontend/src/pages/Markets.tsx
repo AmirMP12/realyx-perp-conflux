@@ -102,18 +102,18 @@ export function MarketsPage() {
     };
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500 min-w-0">
+        <div className="space-y-7 animate-in fade-in duration-500 min-w-0">
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 px-4 md:px-0">
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-white mb-2">Markets</h1>
-                    <p className="text-text-secondary text-sm md:text-base">
+                    <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 tracking-tight">Markets</h1>
+                    <p className="text-text-secondary text-sm md:text-base max-w-2xl">
                         Trade perpetuals with up to 10x leverage. Crypto, equities, commodities & RWAs.
                     </p>
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-xs font-bold text-emerald-400 uppercase tracking-wider">
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs font-bold text-emerald-400 uppercase tracking-wider shadow-[0_0_0_1px_rgba(16,185,129,0.1)]">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                         Operational
                     </div>
@@ -129,15 +129,15 @@ export function MarketsPage() {
             </div>
 
             {/* Markets Table Container */}
-            <div className="bg-[var(--bg-secondary)] border-y md:border border-[var(--border-color)] md:rounded-xl overflow-hidden">
+            <div className="bg-[var(--bg-secondary)]/90 border-y md:border border-[var(--border-color)] md:rounded-2xl overflow-hidden shadow-[0_14px_35px_rgba(0,0,0,0.28)]">
                 {/* Controls */}
-                <div className="p-4 border-b border-[var(--border-color)] flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="p-4 border-b border-[var(--border-color)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent)]">
                     <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex bg-[var(--bg-tertiary)] rounded-lg p-1 w-fit">
+                        <div className="flex bg-[var(--bg-tertiary)]/70 rounded-xl p-1 w-fit border border-[var(--border-color)]/60">
                             <button
                                 onClick={() => setFilter('all')}
                                 className={clsx(
-                                    "px-4 py-1.5 rounded text-sm font-medium transition-all",
+                                    "px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
                                     filter === 'all' ? "bg-[var(--bg-secondary)] text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
                                 )}
                             >
@@ -146,7 +146,7 @@ export function MarketsPage() {
                             <button
                                 onClick={() => setFilter('favorites')}
                                 className={clsx(
-                                    "px-4 py-1.5 rounded text-sm font-medium transition-all flex items-center gap-2",
+                                    "px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-2",
                                     filter === 'favorites' ? "bg-[var(--bg-secondary)] text-amber-400 shadow-sm" : "text-text-secondary hover:text-amber-400"
                                 )}
                             >
@@ -154,13 +154,13 @@ export function MarketsPage() {
                                 Favorites
                             </button>
                         </div>
-                        <div className="flex bg-[var(--bg-tertiary)] rounded-lg p-1 w-fit overflow-x-auto">
+                        <div className="flex bg-[var(--bg-tertiary)]/70 rounded-xl p-1 w-fit overflow-x-auto border border-[var(--border-color)]/60">
                             {categories.map((cat) => (
                                 <button
                                     key={cat.id}
                                     onClick={() => setCategoryFilter(cat.id)}
                                     className={clsx(
-                                        "px-3 py-1.5 rounded text-xs font-medium whitespace-nowrap transition-all",
+                                        "px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all",
                                         categoryFilter === cat.id ? "bg-[var(--bg-secondary)] text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
                                     )}
                                 >
@@ -169,14 +169,14 @@ export function MarketsPage() {
                             ))}
                         </div>
                     </div>
-                    <div className="relative w-full sm:w-64">
+                    <div className="relative w-full sm:w-72">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
                         <input
                             type="text"
                             placeholder="Search markets..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full bg-[var(--bg-tertiary)] border border-transparent focus:border-[var(--border-color-hover)] rounded-lg pl-9 pr-4 py-2 text-sm text-text-primary placeholder-text-muted outline-none transition-colors"
+                            className="w-full bg-[var(--bg-tertiary)]/80 border border-[var(--border-color)]/60 focus:border-[var(--border-color-hover)] rounded-xl pl-9 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted outline-none transition-colors"
                         />
                     </div>
                 </div>
@@ -213,7 +213,7 @@ export function MarketsPage() {
                         {/* Desktop Table */}
                         <div className="hidden md:block overflow-x-auto max-h-[70vh] overflow-y-auto">
                             <table className="w-full text-left">
-                                <thead className="bg-[var(--bg-tertiary)]/50 text-xs uppercase text-text-secondary font-medium sticky top-0 z-10 backdrop-blur-sm">
+                                <thead className="bg-[var(--bg-tertiary)]/60 text-xs uppercase text-text-secondary font-medium sticky top-0 z-10 backdrop-blur-sm">
                                     <tr>
                                         <th className="px-6 py-3">Market</th>
                                         <th className="px-6 py-3 text-right">Price</th>
@@ -225,7 +225,7 @@ export function MarketsPage() {
                                         <th className="px-6 py-3"></th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-[var(--border-color)]">
+                                <tbody className="divide-y divide-[var(--border-color)]/70">
                                     {filteredMarkets.map((market) => (
                                         <MarketRow
                                             key={market.id}
@@ -274,12 +274,12 @@ function MarketsTableSkeleton() {
 
 function StatCard({ label, value, loading }: { label: string, value: string, loading: boolean }) {
     return (
-        <div className="bg-[var(--bg-secondary)] p-4 rounded-xl border border-[var(--border-color)] shadow-sm hover:border-[var(--border-color-hover)] transition-colors">
-            <div className="text-xs text-text-secondary mb-1 uppercase tracking-wide font-medium">{label}</div>
+        <div className="bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent)] p-4 rounded-2xl border border-[var(--border-color)] shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:border-[var(--border-color-hover)] transition-all duration-200">
+            <div className="text-[11px] text-text-secondary mb-1 uppercase tracking-[0.12em] font-semibold">{label}</div>
             {loading ? (
                 <Skeleton className="h-7 w-24" />
             ) : (
-                <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/80 font-mono tracking-tight">
+                <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/80 font-mono tracking-tight tabular-nums">
                     {value}
                 </div>
             )}
@@ -293,7 +293,7 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
     const isPositive = market.change24h >= 0;
 
     return (
-        <tr className="hover:bg-[var(--bg-tertiary)]/40 transition-colors duration-150 group">
+        <tr className="hover:bg-[var(--bg-tertiary)]/35 transition-colors duration-150 group">
             <td className="px-6 py-4">
                 <div className="flex items-center gap-3">
                     <button
@@ -309,7 +309,7 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
                         <Star className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} />
                     </button>
                     <Link to={`/trade/${market.symbol}`} className="flex items-center gap-3">
-                        <img src={market.image} alt={market.symbol} className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)]" />
+                        <img src={market.image} alt={market.symbol} className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/70" />
                         <div>
                             <div className="flex items-center gap-2 flex-wrap">
                                 <span className="font-bold text-text-primary text-sm">{market.symbol}</span>
@@ -352,7 +352,7 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
             </td>
             <td className="px-6 py-4 text-right">
                 <Link to={`/trade/${market.symbol}`}>
-                    <button className="px-4 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--primary)] text-text-primary hover:text-white rounded-lg text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]">
+                    <button className="px-4 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--primary)] text-text-primary hover:text-white rounded-xl text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-[var(--border-color)]/60 hover:border-transparent">
                         Trade
                     </button>
                 </Link>

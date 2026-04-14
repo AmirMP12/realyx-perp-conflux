@@ -29,6 +29,7 @@ export function VaultPage() {
     const utilizationRate = stats.utilizationRate ?? 0;
     const availableLiquidity = stats.availableLiquidity ?? 0;
     const userShares = stats.userShares ?? 0;
+    const compactSharePrice = formatCompact(sharePrice).replace(/([mbt])$/, (s) => s.toUpperCase());
 
     const handleAction = async () => {
         if (!isConnected) return;
@@ -84,7 +85,7 @@ export function VaultPage() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <StatCard icon={Lock} label="Total Value Locked" value={formatCompact(tvl)} sublabel="USDC in Vault" loading={statsLoading} />
                 <StatCard icon={PieChart} label="Utilization" value={`${utilizationRate.toFixed(1)}%`} sublabel="Capital Efficiency" valueColor={utilizationRate > 80 ? 'text-orange-400' : 'text-blue-400'} loading={statsLoading} />
-                <StatCard icon={TrendingUp} label="Share Price" value={`$${formatPrice(sharePrice, 4)}`} sublabel="USDC per LP" loading={statsLoading} />
+                <StatCard icon={TrendingUp} label="Share Price" value={compactSharePrice} sublabel="USDC per LP" loading={statsLoading} />
                 <StatCard icon={DollarSign} label="Fees Earned" value={formatCompact(accumulatedFees)} sublabel="Protocol Revenue" valueColor="text-emerald-400" loading={statsLoading} />
             </div>
 

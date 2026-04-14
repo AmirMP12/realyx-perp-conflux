@@ -35,17 +35,17 @@ export function MarketHeader({ market, markets, currentPrice, fundingRate, isLiv
     }, []);
 
     return (
-        <div className="relative z-30 flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 border-b border-[var(--border-color)] bg-[var(--bg-secondary)]/80 backdrop-blur-sm w-full min-w-0">
+        <div className="relative z-30 flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 border-b border-[var(--border-color)] bg-[var(--bg-secondary)]/85 backdrop-blur-md w-full min-w-0">
             {/* Left: Market Selector */}
             <div className="relative" ref={dropdownRef}>
                 <button
                     onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 -ml-2 rounded-xl hover:bg-[var(--bg-tertiary)]/60 transition-all duration-200 min-h-[44px] touch-manipulation group min-w-0"
+                    className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 -ml-2 rounded-xl hover:bg-[var(--bg-tertiary)]/55 transition-all duration-200 min-h-[44px] touch-manipulation group min-w-0"
                     aria-expanded={dropdownOpen}
                     aria-haspopup="listbox"
                 >
                     <div className="relative">
-                        <img src={market.image} alt={market.name} className="w-10 h-10 rounded-full ring-2 ring-[var(--border-color)] group-hover:ring-[var(--border-color-hover)] transition-colors" />
+                        <img src={market.image} alt={market.name} className="w-10 h-10 rounded-full ring-2 ring-[var(--border-color)]/80 group-hover:ring-[var(--border-color-hover)] transition-colors" />
                     </div>
                     <div className="flex flex-col items-start gap-0.5 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -61,7 +61,7 @@ export function MarketHeader({ market, markets, currentPrice, fundingRate, isLiv
                 <div
                     role="listbox"
                     className={clsx(
-                        "absolute top-full left-0 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl z-[100] overflow-hidden transition-all duration-200",
+                        "absolute top-full left-0 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-[var(--bg-secondary)]/95 backdrop-blur-md border border-[var(--border-color)] rounded-xl shadow-2xl z-[100] overflow-hidden transition-all duration-200",
                         dropdownOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
                     )}
                 >
@@ -100,7 +100,7 @@ export function MarketHeader({ market, markets, currentPrice, fundingRate, isLiv
             </div>
 
             {/* Right: Stats Row (Desktop) */}
-            <div className="hidden md:flex items-center rounded-lg bg-[var(--bg-tertiary)]/40 px-2 py-1.5 border border-[var(--border-color)]/50">
+            <div className="hidden md:flex items-center rounded-xl bg-[var(--bg-tertiary)]/40 px-2 py-1.5 border border-[var(--border-color)]/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                 {[
                     { label: 'Price', value: <PriceTicker value={currentPrice} prefix="$" decimals={2} className="text-text-primary font-semibold" />, valueClass: 'text-text-primary' },
                     { label: '24h Change', value: `${isPositive ? '+' : ''}${change24h.toFixed(2)}%`, valueClass: isPositive ? 'text-[var(--long)]' : 'text-[var(--short)]' },

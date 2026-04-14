@@ -181,14 +181,14 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
     };
 
     return (
-        <div className="flex flex-col glass-panel-elevated rounded-xl overflow-hidden">
+        <div className="flex flex-col glass-panel-elevated rounded-2xl overflow-hidden shadow-[0_18px_40px_rgba(0,0,0,0.35)]">
             {/* Tabs */}
-            <div className="flex p-2 gap-2 mx-2 mt-2 min-w-0">
+            <div className="flex p-2 gap-2 mx-2 mt-2.5 min-w-0">
                 <button
                     onClick={() => setSide('long')}
                     className={clsx(
                         "flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]",
-                        side === 'long' ? "bg-[var(--long)] text-white shadow-lg shadow-emerald-900/25" : "bg-[var(--bg-tertiary)]/80 text-text-secondary hover:text-text-primary hover:bg-[var(--border-color)]/50"
+                            side === 'long' ? "bg-[var(--long)] text-white shadow-lg shadow-emerald-900/25" : "bg-[var(--bg-tertiary)]/80 text-text-secondary hover:text-text-primary hover:bg-[var(--border-color)]/50 border border-[var(--border-color)]/50"
                     )}
                 >
                     Long
@@ -197,7 +197,7 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                     onClick={() => setSide('short')}
                     className={clsx(
                         "flex-1 py-2.5 text-sm font-bold rounded-xl transition-all duration-200 hover:scale-[1.01] active:scale-[0.99]",
-                        side === 'short' ? "bg-[var(--short)] text-white shadow-lg shadow-rose-900/25" : "bg-[var(--bg-tertiary)]/80 text-text-secondary hover:text-text-primary hover:bg-[var(--border-color)]/50"
+                            side === 'short' ? "bg-[var(--short)] text-white shadow-lg shadow-rose-900/25" : "bg-[var(--bg-tertiary)]/80 text-text-secondary hover:text-text-primary hover:bg-[var(--border-color)]/50 border border-[var(--border-color)]/50"
                     )}
                 >
                     Short
@@ -205,7 +205,7 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
             </div>
 
             {/* Order Type Selector + Settings Gear */}
-            <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 mx-2 border-b border-[var(--border-color)]/60 gap-2 min-w-0">
+            <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 mx-2 border-b border-[var(--border-color)]/60 gap-2 min-w-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent)]">
                 <div className="flex gap-3 sm:gap-4 text-xs font-medium text-text-secondary shrink-0">
                     {(['market', 'limit'] as const).map(type => (
                         <button
@@ -357,10 +357,10 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                 )}
             </AnimatePresence>
 
-            <div className="p-3 sm:p-4 space-y-3 sm:space-y-4 mx-2 min-w-0">
+            <div className="p-3 sm:p-4 space-y-3.5 sm:space-y-4 mx-2 min-w-0">
                 {/* Trigger Price Input */}
                 {(orderType === 'limit' || orderType === 'stop') && (
-                    <div className="bg-[var(--bg-tertiary)]/60 rounded-xl p-3 border border-[var(--border-color)]/40">
+                    <div className="bg-[var(--bg-tertiary)]/50 rounded-xl p-3 border border-[var(--border-color)]/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                         <div className="flex justify-between text-xs text-text-secondary mb-1">
                             <span>Price</span>
                             <span>Mark: {currentPrice.toFixed(2)}</span>
@@ -382,7 +382,7 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                 )}
 
                 {/* Amount Input */}
-                <div className="bg-[var(--bg-tertiary)]/60 rounded-xl p-3 border border-[var(--border-color)]/40 focus-within:border-[var(--primary)]/60 transition-all">
+                <div className="bg-[var(--bg-tertiary)]/50 rounded-xl p-3 border border-[var(--border-color)]/40 focus-within:border-[var(--primary)]/60 transition-all shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                     <div className="flex justify-between items-center text-xs text-text-secondary mb-2">
                         <span>Margin (USDC)</span>
                         <span className="tabular-nums">
@@ -435,7 +435,7 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                 </div>
 
                 {/* Leverage Slider */}
-                <div>
+                <div className="bg-[var(--bg-tertiary)]/35 rounded-xl p-3 border border-[var(--border-color)]/40">
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 text-xs text-text-secondary mb-2">
                         <GuidedTooltip id="leverage" title="Leverage" content="Higher leverage amplifies both gains and losses. Your position can be liquidated if price moves against you.">
                             <span>Leverage</span>
@@ -518,7 +518,7 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
                 )}
 
                 {/* Summary */}
-                <div className="space-y-2 pt-3 mt-1 border-t border-[var(--border-color)]/60">
+                <div className="space-y-2 pt-3 mt-1 border-t border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/25 rounded-xl p-3">
                     <SummaryRow label="Margin Mode" value="Isolated" valueClass="text-amber-400" />
                     <SummaryRow label="Collateral" value={`$${margin || '0.00'}`} />
                     <SummaryRow label="Entry Price" value={`$${currentPrice.toFixed(2)}`} />
@@ -529,7 +529,7 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
             </div>
 
             {/* Action Button */}
-            <div className="p-3 sm:p-4 mx-2 mb-2 border-t border-[var(--border-color)]/60 bg-[var(--bg-secondary)]/50 rounded-b-xl">
+            <div className="p-3 sm:p-4 mx-2 mb-2 border-t border-[var(--border-color)]/60 bg-[var(--bg-secondary)]/50 rounded-b-2xl">
                 {isConnected ? (
                     <button
                         onClick={handleOpenPosition}

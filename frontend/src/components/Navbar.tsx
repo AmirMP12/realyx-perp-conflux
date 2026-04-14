@@ -62,7 +62,7 @@ export function Navbar() {
                                     key={link.path}
                                     to={link.path}
                                     className={clsx(
-                                        'h-9 px-4 inline-flex items-center rounded-lg text-sm font-medium transition-all duration-200',
+                                        'h-9 px-4 inline-flex items-center rounded-lg text-sm font-medium transition-all duration-300 ease-out active:scale-[0.98]',
                                         active
                                             ? 'text-white bg-[var(--primary)]/20 shadow-[0_0_0_1px_rgba(45,66,252,0.2)]'
                                             : 'text-text-secondary hover:text-white hover:bg-white/5'
@@ -76,7 +76,7 @@ export function Navbar() {
                             <button
                                 onClick={() => setMoreOpen(!moreOpen)}
                                 className={clsx(
-                                    'h-9 flex items-center gap-1 px-4 rounded-lg text-sm font-medium transition-all duration-200',
+                                    'h-9 flex items-center gap-1 px-4 rounded-lg text-sm font-medium transition-all duration-300 ease-out active:scale-[0.98]',
                                     MORE_LINKS.some(l => isLinkActive(l.path, location.pathname))
                                         ? 'text-white bg-[var(--primary)]/20 shadow-[0_0_0_1px_rgba(45,66,252,0.2)]'
                                         : 'text-text-secondary hover:text-white hover:bg-white/5'
@@ -96,7 +96,7 @@ export function Navbar() {
                                                 to={link.path}
                                                 onClick={() => setMoreOpen(false)}
                                                 className={clsx(
-                                                    'mx-2 block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                                                    'mx-2 block px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 active:scale-[0.99]',
                                                     active ? 'text-[var(--primary)] bg-[var(--primary)]/10' : 'text-text-secondary hover:text-white hover:bg-white/5'
                                                 )}
                                             >

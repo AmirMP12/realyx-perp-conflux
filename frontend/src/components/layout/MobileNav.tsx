@@ -36,7 +36,7 @@ export function MobileNav() {
                                     key={item.name}
                                     onClick={item.onClick}
                                     className={clsx(
-                                        "flex flex-col items-center justify-center w-full h-full space-y-1 touch-manipulation rounded-xl transition-colors",
+                                        "flex flex-col items-center justify-center w-full h-full space-y-1 touch-manipulation rounded-xl transition-all duration-200 active:scale-[0.96]",
                                         isMoreOpen ? "text-[var(--primary)]" : "text-text-secondary active:text-text-primary"
                                     )}
                                 >
@@ -51,7 +51,7 @@ export function MobileNav() {
                                 key={item.name}
                                 to={item.path}
                                 className={clsx(
-                                    "flex flex-col items-center justify-center w-full h-full space-y-1 relative touch-manipulation rounded-xl transition-colors",
+                                    "flex flex-col items-center justify-center w-full h-full space-y-1 relative touch-manipulation rounded-xl transition-all duration-200 active:scale-[0.96]",
                                     isActive ? "text-[var(--primary)]" : "text-text-secondary active:text-text-primary"
                                 )}
                             >
@@ -101,23 +101,23 @@ export function MobileNav() {
                                 </button>
                             </div>
                             <div className="p-4 grid grid-cols-2 gap-3">
-                                <Link to="/analytics" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors flex flex-col items-center gap-2">
+                                <Link to="/analytics" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all duration-200 active:scale-[0.98] flex flex-col items-center gap-2">
                                     <BarChart2 className="w-6 h-6 text-text-secondary" />
                                     <span className="text-sm font-medium">Analytics</span>
                                 </Link>
-                                <Link to="/leaderboard" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors flex flex-col items-center gap-2">
+                                <Link to="/leaderboard" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all duration-200 active:scale-[0.98] flex flex-col items-center gap-2">
                                     <Trophy className="w-6 h-6 text-text-secondary" />
                                     <span className="text-sm font-medium">Leaderboard</span>
                                 </Link>
-                                <Link to="/referrals" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors flex flex-col items-center gap-2">
+                                <Link to="/referrals" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all duration-200 active:scale-[0.98] flex flex-col items-center gap-2">
                                     <Share2 className="w-6 h-6 text-text-secondary" />
                                     <span className="text-sm font-medium">Referrals</span>
                                 </Link>
-                                <Link to="/insurance" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors flex flex-col items-center gap-2">
+                                <Link to="/insurance" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all duration-200 active:scale-[0.98] flex flex-col items-center gap-2">
                                     <Shield className="w-6 h-6 text-text-secondary" />
                                     <span className="text-sm font-medium">Insurance</span>
                                 </Link>
-                                <Link to="/settings" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors flex flex-col items-center gap-2">
+                                <Link to="/settings" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all duration-200 active:scale-[0.98] flex flex-col items-center gap-2">
                                     <Settings className="w-6 h-6 text-text-secondary" />
                                     <span className="text-sm font-medium">Settings</span>
                                 </Link>
