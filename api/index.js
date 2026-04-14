@@ -6,12 +6,11 @@ let cachedApp = null;
 
 /**
  * Load backend app at runtime via true dynamic import.
- * Using eval() prevents bundlers from rewriting this to require(),
- * which caused ERR_REQUIRE_ESM in Vercel serverless.
+ * Use Function constructor to avoid bundlers rewriting import() to require().
  */
 async function getApp() {
   if (cachedApp) return cachedApp;
-  const dynamicImport = (0, eval)("import");
+  const dynamicImport = new Function("p", "return import(p)");
   const mod = await dynamicImport("../backend/dist/app.js");
   if (!mod || !mod.app) {
     throw new Error("Backend app export not found in backend/dist/app.js");
