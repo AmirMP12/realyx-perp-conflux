@@ -123,7 +123,7 @@ export function Navbar() {
                         <span className="text-xs font-medium text-text-secondary">Faucet</span>
                         <ExternalLink className="w-3 h-3 text-text-secondary" />
                     </a>
-                    <div className="[&_button]:!text-xs [&_button]:!py-1.5 [&_button]:!px-3 sm:[&_button]:!text-sm sm:[&_button]:!py-2 sm:[&_button]:!px-4">
+                    <div className="[&_button]:!h-9 [&_button]:!min-h-0 [&_button]:!px-3 sm:[&_button]:!px-4 [&_button]:!text-xs sm:[&_button]:!text-sm [&_button]:!rounded-lg">
                         <WalletConnectButton />
                     </div>
                 </div>

@@ -1,4 +1,4 @@
-# 💻 Developer & Environment Setup
+# Developer & Environment Setup
 
 This operational manual provides a step-by-step workflow for configuring a local, full-stack development environment for the **Realyx** protocol on **Conflux eSpace**.
 
@@ -13,16 +13,7 @@ The Realyx architecture relies on modern, containerized environments. Ensure you
 
 ---
 
-## 2. Global Utilities Installation
-
-To interface with our blockchain indexing layer natively, install the official Graph CLI globally:
-```bash
-npm install -g @graphprotocol/graph-cli
-```
-
----
-
-## 3. Repository Initialization
+## 2. Repository Initialization
 
 Clone the master repository and initiate the monorepo-style package installations:
 ```bash
@@ -31,9 +22,7 @@ cd realyx-perp-dex
 npm install
 ```
 
----
-
-## 4. Multi-Tier Environment Variables
+## 3. Multi-Tier Environment Variables
 
 Realyx utilizes strict `.env` segregation across its core services. Replicate the example files and populate required credentials.
 
@@ -49,6 +38,9 @@ cd backend
 cp .env.example .env
 ```
 *Action Item: Define the `POSTGRES_URL`, network ports, and PostgreSQL credentials.*
+Also set:
+- `ENABLE_WS=true` for local native websocket mode.
+- `ENABLE_WS=false` for Vercel/serverless polling mode.
 
 ### 📱 Frontend UX Scope
 ```bash
@@ -56,10 +48,11 @@ cd ../frontend
 cp .env.example .env
 ```
 *Action Item: Input your `VITE_WALLET_CONNECT_PROJECT_ID` and sync contract addresses with `deployment/confluxTestnet.json`.*
+For Vercel-only deployments keep `VITE_WS_URL` empty.
 
 ---
 
-## 5. Protocol Invocation (Local Deploy)
+## 4. Protocol Invocation (Local Deploy)
 
 ### The Containerized Fast-Track (Recommended)
 The most robust method to replicate the Realyx stack locally is via Docker Compose.
@@ -73,7 +66,7 @@ docker-compose -f docker-compose.minimal.yml up -d
 **Service Endpoints:**
 - **Frontend App**: `http://localhost:3000`
 - **REST API Portal**: `http://localhost:3001/api`
-- **WebSocket Feed**: `ws://localhost:3002`
+- **WebSocket Feed**: `ws://localhost:3002` (only when `ENABLE_WS=true`)
 
 ### The Manual Debug Track
 To attach debuggers and review hot-reloads actively:
@@ -83,7 +76,7 @@ To attach debuggers and review hot-reloads actively:
 
 ---
 
-## 6. Smart Contract Engineering
+## 5. Smart Contract Engineering
 
 Modifying or patching the Realyx Solidity logic is strictly controlled via **Hardhat**.
 
@@ -92,7 +85,7 @@ Modifying or patching the Realyx Solidity logic is strictly controlled via **Har
 npx hardhat compile
 
 # Deploy logic to the Conflux eSpace Testnet edge
-npx hardhat run scripts/deploy.ts --network confluxTestnet
+npm run deploy:conflux-testnet
 ```
 
 ---

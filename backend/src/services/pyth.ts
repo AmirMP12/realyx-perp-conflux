@@ -133,7 +133,7 @@ export async function fetchPythPriceHistory(
   const url = `${BENCHMARKS_BASE}/v1/shims/tradingview/history?symbol=${encodeURIComponent(symbol)}&resolution=60&from=${from}&to=${to}`;
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
+    const timeout = setTimeout(() => controller.abort(), 4_000);
     const res = await fetch(url, { headers: { Accept: "application/json" }, signal: controller.signal });
     clearTimeout(timeout);
     if (!res.ok) return [];

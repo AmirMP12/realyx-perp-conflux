@@ -12,7 +12,13 @@ function getPool(): pg.Pool | null {
   if (!process.env.POSTGRES_URL) return null;
   poolInstance = new pg.Pool({
     connectionString: process.env.POSTGRES_URL,
-    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined
+    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
+    max: 1,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 3_000,
+    query_timeout: 5_000,
+    statement_timeout: 5_000,
+    allowExitOnIdle: true,
   });
   return poolInstance;
 }

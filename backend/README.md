@@ -1,10 +1,6 @@
-# Realyx — Backend
+# Realyx Backend
 
-REST API and (optional) WebSocket backend that reads from the **database indexer** and serves the frontend (`useBackend.ts`, `api.ts`).
-
-## Contract / database indexer context
-
-See [../docs/CONTRACT_ANALYSIS.md](../docs/CONTRACT_ANALYSIS.md) and [../database indexer/README.md](../database indexer/README.md).
+Express + TypeScript API layer that reads indexed on-chain data from PostgreSQL and serves the frontend.
 
 ## Setup
 
@@ -12,13 +8,14 @@ See [../docs/CONTRACT_ANALYSIS.md](../docs/CONTRACT_ANALYSIS.md) and [../databas
 cd backend
 npm install
 cp .env.example .env
-# Edit .env: POSTGRES_URL (Graph Node endpoint), PORT, CHAIN_ID
 ```
+
+Minimum env to run meaningful responses: `POSTGRES_URL`, `CHAIN_ID`, `RPC_URL`, and `TRADING_CORE_ADDRESS`.
 
 ## Run
 
 ```bash
-npm run dev    # tsx watch
+npm run dev
 # or
 npm run build && npm start
 ```
@@ -27,40 +24,52 @@ npm run build && npm start
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/api/markets` | List markets (from database indexer) |
+| GET | `/api/markets` | Markets with OI, funding, and current price hints |
+| GET | `/api/markets/price-history/:marketId?days=7` | Historical prices for a market |
 | GET | `/api/user/:address/positions` | User open positions |
 | GET | `/api/user/:address/trades?limit=20` | User trade history |
-| GET | `/api/stats` | Protocol stats (totalMarkets, volume24h, totalOpenInterest) |
-| GET | `/api/stats/history` | Daily stats (placeholder) |
-| GET | `/api/leaderboard?limit=10` | Leaderboard by volume |
+| GET | `/api/stats` | Protocol stats (`totalMarkets`, `volume24h`, `totalOpenInterest`, `totalLiquidations`) |
+| GET | `/api/stats/history` | Daily metric history |
+| GET | `/api/leaderboard?limit=10&timeframe=all` | Leaderboard by volume/PnL |
+| GET | `/api/insurance/claims?limit=20` | Insurance/bad debt claim events |
+| GET | `/api/sync` | Manual index sync endpoint (optional bearer auth) |
 
 All JSON responses follow `{ success: boolean, data?: T, error?: string }`.
 
 ## Health
 
-- `GET /health` → `{ ok: true, ts: "..." }`
+- `GET /health` basic liveness
+- `GET /health/detailed` dependency and config checks
 
-## Env
+## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | PORT | 3001 | HTTP server port |
-| WS_PORT | 3002 | WebSocket server port (reserved) |
-| POSTGRES_URL | local Graph Node | database indexer GraphQL endpoint |
-| CHAIN_ID | 71 | Chain ID (Conflux Testnet) |
-| NODE_ENV | development | Environment |
-| METRICS_PORT | 9090 | Metrics port (for Prometheus) |
+| WS_PORT | 3002 | Native WebSocket server port |
+| ENABLE_WS | true | Set `false` on Vercel/serverless |
+| ENABLE_ACTIVE_MARKETS_FILTER | true | Set `false` on Vercel for faster responses |
+| ENABLE_PYTH_24H | true | Set `false` on Vercel to skip expensive per-market 24h history |
+| POSTGRES_URL | - | PostgreSQL connection string |
+| CHAIN_ID | 71 | Chain ID |
+| RPC_URL | chain default | Primary RPC endpoint |
+| RPC_FALLBACK_URL | - | Fallback RPC endpoint |
+| TRADING_CORE_ADDRESS | - | TradingCore used by active market filters/sync |
+| DEPLOYED_TRADING_CORE | - | Alternate TradingCore env fallback |
+| CRON_SECRET | - | Optional bearer token for `/api/sync` |
+| NODE_ENV | development | Runtime mode |
+| METRICS_PORT | 9090 | Metrics port config |
 
 ## Structure
 
-```
+```text
 backend/
 ├── src/
-│   ├── index.ts         # Express app, routes mount
-│   ├── config.ts        # Env config
-│   ├── types/           # API types (align with frontend)
-│   ├── routes/          # markets, user, stats, leaderboard
-│   └── services/        # database indexer.ts (GraphQL client)
+│   ├── app.ts           # Express app + route wiring
+│   ├── index.ts         # HTTP + optional WS startup
+│   ├── config.ts        # Env loading and defaults
+│   ├── routes/          # markets, user, stats, leaderboard, insurance, sync, health
+│   └── services/        # indexer, pyth, coingecko, activeMarkets
 ├── package.json
 ├── tsconfig.json
 ├── .env.example
@@ -72,11 +81,14 @@ backend/
 ```bash
 cd backend
 docker build -t realyx/backend:latest .
-docker run -p 3001:3001 -e POSTGRES_URL=https://api.thegraph.com/database indexers/name/... realyx/backend:latest
+docker run --rm -p 3001:3001 -p 3002:3002 \
+  -e POSTGRES_URL=postgres://user:pass@host:5432/realyx \
+  -e RPC_URL=https://evmtestnet.confluxrpc.com \
+  -e TRADING_CORE_ADDRESS=0x... \
+  realyx/backend:latest
 ```
-
-Override env with `-e` or an env file. The image exposes port 3001.
 
 ## Deployment
 
-- Kubernetes: see `infrastructure/kubernetes/` (backend.yaml uses `backend-config` ConfigMap and optional `backend-secrets`).
+- Kubernetes: see `infrastructure/kubernetes/`.
+- Vercel: run in polling mode by setting `ENABLE_WS=false`.

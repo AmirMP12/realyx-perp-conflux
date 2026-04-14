@@ -13,7 +13,7 @@ Before trading, you must connect your Web3 wallet (e.g., **MetaMask**, **Fluent*
 - **RPC URL**: `https://evmtestnet.confluxrpc.com`
 - **Chain ID**: `71`
 - **Currency Symbol**: `CFX`
-- **Block Explorer**: `https://evmtestnet.confluxscan.net`
+- **Block Explorer**: `https://evmtestnet.confluxscan.org`
 
 ### Acquiring Gas & Test Funds
 To submit transactions, you will need **CFX** for gas fees and **Mock USDC** for trading collateral.

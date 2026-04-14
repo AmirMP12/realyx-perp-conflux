@@ -24,6 +24,15 @@ function getRpcUrls(): string[] {
   return urls;
 }
 
+function activeFilterEnabled(): boolean {
+  if (process.env.ENABLE_ACTIVE_MARKETS_FILTER != null) {
+    return /^(1|true|yes)$/i.test(process.env.ENABLE_ACTIVE_MARKETS_FILTER);
+  }
+  // In serverless (Vercel), skip on-chain filtering by default to avoid
+  // expensive RPC calls on every request.
+  return !process.env.VERCEL;
+}
+
 async function tryFetchActiveSet(rpcUrl: string, tradingCoreAddress: string): Promise<Set<string> | null> {
   const chainId = parseInt(process.env.CHAIN_ID ?? "71", 10);
   const provider = new ethers.JsonRpcProvider(rpcUrl, chainId);
@@ -39,6 +48,9 @@ async function tryFetchActiveSet(rpcUrl: string, tradingCoreAddress: string): Pr
 }
 
 export async function getActiveMarketAddresses(): Promise<Set<string> | null> {
+  if (!activeFilterEnabled()) {
+    return null;
+  }
   const tradingCoreAddress = (process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE ?? "").trim();
   const urls = getRpcUrls();
   if (!urls.length || !tradingCoreAddress) {

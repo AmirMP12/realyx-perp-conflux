@@ -1,4 +1,4 @@
-# 🏗️ Architecture Overview
+# Architecture Overview
 
 Realyx is fundamentally designed as a scalable, decentralized **Perpetual DEX** operating natively on **Conflux eSpace**. It is heavily optimized for Real-World Asset (RWA) and Crypto futures, delivering robust leverage trading with institutional-grade latency.
 
@@ -32,15 +32,16 @@ A unique NFT representation of leveraged positions.
 
 ---
 
-## ⚙️ Off-Chain Infrastructure
+## Off-Chain Infrastructure
 
 ### 1. Backend Services (Node.js & Express)
 The backend layer serves as the high-throughput bridge connecting the UI to Conflux.
-- Exposes robust REST and WebSocket endpoints.
-- Abstract the deep graph queries and Pyth interactions, enabling hyper-fast frontend rendering.
+- Exposes REST endpoints and optional WebSocket broadcasts.
+- In Vercel/serverless mode, realtime data is served via frontend polling (`VITE_WS_URL` left empty).
+- Aggregates indexed PostgreSQL data with Pyth/CoinGecko derived values for frontend consumption.
 
-### 2. Indexing Layer (The Graph)
-PostgreSQL event indexers meticulously index execution events emitted by the contracts. 
+### 2. Indexing Layer (PostgreSQL Event Indexer)
+PostgreSQL tables index execution events emitted by the contracts.
 - Powers granular historic queries.
 - Computes advanced leaderboard metrics, cumulative user volume, and protocol TVL—computations too expensive to execute natively via RPC.
 

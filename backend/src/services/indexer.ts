@@ -8,7 +8,14 @@ function getPool(): any {
   
   poolInstance = new Pool({
     connectionString: process.env.POSTGRES_URL,
-    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined
+    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
+    // Serverless-safe defaults: fail fast instead of hanging and timing out.
+    max: 1,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 3_000,
+    query_timeout: 5_000,
+    statement_timeout: 5_000,
+    allowExitOnIdle: true,
   });
   return poolInstance;
 }

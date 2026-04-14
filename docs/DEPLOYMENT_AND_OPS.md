@@ -72,7 +72,7 @@ Prerequisites: `PRIVATE_KEY` or `MNEMONIC`, RPC URLs (see `.env.example`), Confl
 npm ci
 npm run compile
 npx hardhat run scripts/deploy-testnet.ts --network confluxTestnet
-npm run verify:confluxTestnet
+npm run verify:conflux-testnet
 npm run setup:market
 ```
 

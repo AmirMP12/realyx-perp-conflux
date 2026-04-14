@@ -7,6 +7,9 @@ import type { BackendMarket, ApiResponse } from "../types/index.js";
 import { toDecimal, PRECISION_1E18 } from "../utils/format.js";
 
 const router = Router();
+const ENABLE_PYTH_24H = process.env.ENABLE_PYTH_24H != null
+  ? /^(1|true|yes)$/i.test(process.env.ENABLE_PYTH_24H)
+  : !process.env.VERCEL;
 
 const MARKET_META: Record<string, { name: string; symbol: string; image: string }> = {
   "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c": {
@@ -152,9 +155,11 @@ router.get("/", async (_req: Request, res: Response) => {
       try {
         const [protocol, cgPrices, pythPrices] = await Promise.all([fetchProtocol(), fetchCoinGeckoPrices(), fetchPythPrices()]);
         const protocolVolume24h = protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0";
-        const pythChanges = await Promise.all(
-          fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined))
-        );
+        const pythChanges = ENABLE_PYTH_24H
+          ? await Promise.all(
+              fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined))
+            )
+          : fallback.map(() => undefined);
         const enriched = fallback.map((m, i) => {
           const addr = m.marketAddress.toLowerCase();
           const cgId = getCoinGeckoIdForMarket(m.marketAddress);
@@ -188,12 +193,14 @@ router.get("/", async (_req: Request, res: Response) => {
     const cgPrices = cgPricesRaw as Record<string, any>;
     const pythPrices = pythPricesRaw as Record<string, any>;
     const protocolVolume24h = protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0";
-    const pythChanges = await Promise.all(
-      markets.map((m) => {
-        const a = (typeof m.marketAddress === "string" ? m.marketAddress : String(m.marketAddress)).toLowerCase();
-        return fetchPyth24hChange(a).catch(() => undefined);
-      })
-    );
+    const pythChanges = ENABLE_PYTH_24H
+      ? await Promise.all(
+          markets.map((m) => {
+            const a = (typeof m.marketAddress === "string" ? m.marketAddress : String(m.marketAddress)).toLowerCase();
+            return fetchPyth24hChange(a).catch(() => undefined);
+          })
+        )
+      : markets.map(() => undefined);
     const data: BackendMarket[] = markets.map((m, i) => {
       const addr = (typeof m.marketAddress === "string" ? m.marketAddress : String(m.marketAddress)).toLowerCase();
       const longSize = Number(m.totalLongSize);
@@ -245,9 +252,11 @@ router.get("/", async (_req: Request, res: Response) => {
         fetchPythPrices().catch(() => ({}))
       ]);
       const protocolVolume24h = protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0";
-      const pythChanges = await Promise.all(
-        fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined))
-      );
+      const pythChanges = ENABLE_PYTH_24H
+        ? await Promise.all(
+            fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined))
+          )
+        : fallback.map(() => undefined);
       const cg = cgPrRaw as Record<string, any>;
       const pyth = pythPrRaw as Record<string, any>;
       const enriched = fallback.map((m, i) => {

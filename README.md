@@ -140,15 +140,12 @@ cd realyx-perp-dex
 
 ### 2. Install Dependencies
 ```bash
-# Backend dependencies
-cd backend
+# Install root dependencies first (contracts/scripts/build tooling)
 npm install
-cd ..
 
-# Frontend dependencies
-cd frontend
-npm install
-cd ..
+# Optional: explicitly ensure workspace deps are installed
+npm install --workspace backend
+npm install --workspace frontend
 ```
 
 ### 3. Environment Configuration
@@ -176,7 +173,7 @@ npm run compile
 npm run deploy:conflux-testnet
 
 # Verify on Conflux eSpace Testnet Scan
-npm run verify:confluxTestnet
+npm run verify:conflux-testnet
 
 # Setup Market on Testnet
 npm run setup:market
@@ -301,6 +298,7 @@ Base URL: `http://localhost:3001` (or your backend host)
 | Variable | Required | Description |
 |----------|----------|-------------|
 | PRIVATE_KEY | Yes (deploy) | Deployer private key (no 0x) |
+| CONFLUX_RPC_URL | No | Conflux eSpace mainnet RPC endpoint |
 | CONFLUX_TESTNET_RPC_URL | Yes | RPC endpoint |
 | CONFLUXSCAN_API_KEY | No | For contract verification |
 | USDC_ADDRESS | No | USDC contract address |
@@ -311,24 +309,34 @@ Base URL: `http://localhost:3001` (or your backend host)
 | PORT | 3001 | HTTP server port |
 | WS_PORT | 3002 | WebSocket server port |
 | ENABLE_WS | true | Set `false` on Vercel (polling mode) |
+| ENABLE_ACTIVE_MARKETS_FILTER | true | Set `false` on Vercel to avoid RPC-heavy filtering |
+| ENABLE_PYTH_24H | true | Set `false` on Vercel to avoid expensive per-market history calls |
 | POSTGRES_URL | (see .env.example) | PostgreSQL connection URL |
 | CHAIN_ID | 71 | Chain ID |
 | RPC_URL | - | For on-chain market filter |
+| RPC_FALLBACK_URL | - | Fallback RPC when primary fails |
 | TRADING_CORE_ADDRESS | - | TradingCore contract |
 | ORACLE_AGGREGATOR_ADDRESS | - | OracleAggregator contract |
+| CRON_SECRET | - | Optional bearer token for `/api/sync` |
 | NODE_ENV | development | Environment |
+| METRICS_PORT | 9090 | Metrics endpoint config |
 
 **Frontend**
 | Variable | Default | Description |
 |----------|---------|-------------|
 | VITE_API_URL | http://localhost:3001/api | Backend API base |
 | VITE_WS_URL | (empty) | Optional; keep empty on Vercel |
+| VITE_CHAIN_ID | 71 | Chain id for wallet/network checks |
+| VITE_RPC_URL | https://evmtestnet.confluxrpc.com | Primary RPC for wallet/client |
+| VITE_CONFLUX_TESTNET_RPC_URL | https://evmtestnet.confluxrpc.com | Explicit testnet RPC |
+| VITE_APP_URL | - | Optional app base URL (WalletConnect metadata) |
 | VITE_WALLET_CONNECT_PROJECT_ID | - | **Required** for WalletConnect |
 | VITE_TRADING_CORE_ADDRESS | - | **Required** for trading |
 | VITE_VAULT_CORE_ADDRESS | - | **Required** for vault |
 | VITE_ORACLE_AGGREGATOR_ADDRESS | - | **Required** for prices |
 | VITE_POSITION_TOKEN_ADDRESS | - | **Required** for positions |
 | VITE_MOCK_USDC_ADDRESS | - | Mock USDC on testnet |
+| VITE_MOCK_MODE | false | Toggle mock-mode UI behavior |
 
 ---
 
@@ -353,8 +361,10 @@ You can run the full app (frontend + API) on a single Vercel project in **REST p
    - `VITE_API_URL=/api`
    - `VITE_WS_URL=` (empty)
    - `ENABLE_WS=false`
+   - `ENABLE_ACTIVE_MARKETS_FILTER=false`
+   - `ENABLE_PYTH_24H=false`
    - `POSTGRES_URL=<your neon pooled url with sslmode=require>`
-4. Deploy! Vercel handles backend (`backend/dist`) and frontend (`frontend/dist`) compilation automatically.
+4. Deploy! Vercel runs the root `build` script (`build-vercel.mjs`), builds backend/frontend artifacts, rewrites `/api/*` to `api/index.ts`, and serves frontend assets from `public`.
 
 ### Troubleshooting
 | Issue | Solution |
@@ -370,6 +380,7 @@ You can run the full app (frontend + API) on a single Vercel project in **REST p
 - Commit with conventional messages.
 - More docs:
   - [backend/README.md](backend/README.md) — Backend API details
+  - [frontend/README.md](frontend/README.md) — Frontend runtime/build/env details
   - PostgreSQL Database Schema
   - [infrastructure/README.md](infrastructure/README.md) — Kubernetes & monitoring
 
