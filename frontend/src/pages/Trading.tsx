@@ -17,10 +17,25 @@ import { PositionTable } from '../components/trading/PositionTable';
 import { MobileControls } from '../components/trading/MobileControls';
 import { MobileStickyPriceBar } from '../components/trading/MobileStickyPriceBar';
 import { TradingViewWidget } from '../components/TradingViewWidget';
+import { MARKET_DISPLAY_FALLBACK } from '../config/markets';
+
+function applyMarketDisplayFallback<T extends { marketAddress?: string; name: string; symbol: string; image?: string }>(market: T): T {
+    const key = market.marketAddress?.toLowerCase();
+    const fallback = key ? MARKET_DISPLAY_FALLBACK[key] : undefined;
+    if (!fallback) return market;
+
+    return {
+        ...market,
+        name: fallback.name,
+        symbol: fallback.symbol,
+        image: fallback.image,
+    };
+}
 
 export function TradingPage() {
     const { marketId } = useParams();
-    const markets = useMarketsStore((s) => s.markets);
+    const rawMarkets = useMarketsStore((s) => s.markets);
+    const markets = useMemo(() => rawMarkets.map(applyMarketDisplayFallback), [rawMarkets]);
 
     const [activeTab, setActiveTab] = useState<'chart' | 'trade' | 'positions'>('chart');
     const [tradeSide, setTradeSide] = useState<'long' | 'short'>('long');

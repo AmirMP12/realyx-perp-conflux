@@ -7,6 +7,9 @@ export function formatCompact(num: number, options?: { prefix?: string; noDollar
     const d = noDollar ? '' : '$';
     const abs = Math.abs(num);
     const sign = num < 0 ? '-' : '';
+
+    if (abs >= 1_000_000_000_000) return `${sign}${prefix}${d}${(abs / 1_000_000_000_000).toFixed(2)}T`;
+    if (abs >= 1_000_000_000) return `${sign}${prefix}${d}${(abs / 1_000_000_000).toFixed(2)}B`;
     if (abs >= 1_000_000) return `${sign}${prefix}${d}${(abs / 1_000_000).toFixed(2)}M`;
     if (abs >= 1_000) return `${sign}${prefix}${d}${(abs / 1_000).toFixed(2)}K`;
     return `${sign}${prefix}${d}${num.toFixed(2)}`;

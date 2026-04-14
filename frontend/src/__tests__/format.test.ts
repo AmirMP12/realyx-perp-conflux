@@ -7,6 +7,11 @@ describe('formatCompact', () => {
         expect(formatCompact(-1_200_000)).toBe('-$1.20M');
     });
 
+    it('formats billions and trillions', () => {
+        expect(formatCompact(1_200_000_000)).toBe('$1.20B');
+        expect(formatCompact(1_200_000_000_000)).toBe('$1.20T');
+    });
+
     it('formats thousands', () => {
         expect(formatCompact(450_000)).toBe('$450.00K');
         expect(formatCompact(1_000)).toBe('$1.00K');

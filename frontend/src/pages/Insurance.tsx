@@ -175,9 +175,20 @@ export function InsurancePage() {
 
                                     <div className="relative group">
                                         <input
-                                            type="number"
+                                            type="text"
+                                            inputMode="decimal"
                                             value={amount}
-                                            onChange={(e) => setAmount(e.target.value)}
+                                            onChange={(e) => {
+                                                const next = e.target.value;
+                                                if (/^\d*\.?\d*$/.test(next)) setAmount(next);
+                                            }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === '-' || e.key === '+') e.preventDefault();
+                                            }}
+                                            onPaste={(e) => {
+                                                const pasted = e.clipboardData.getData('text');
+                                                if (pasted.includes('-')) e.preventDefault();
+                                            }}
                                             placeholder="0.00"
                                             className="w-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-text-primary text-xl sm:text-2xl lg:text-3xl font-mono font-medium py-4 sm:py-5 pl-4 sm:pl-5 pr-28 sm:pr-36 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 transition-all placeholder:text-text-muted/20"
                                         />

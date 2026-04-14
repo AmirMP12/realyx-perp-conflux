@@ -15,7 +15,7 @@ export function ProtocolStatsBar() {
     const cfxPrice = cfxMarket ? parseFloat(cfxMarket.indexPrice) : 0;
 
     return (
-        <div className="hidden lg:flex items-center gap-6 text-xs text-text-muted">
+        <div className="hidden xl:flex items-center gap-4 text-[11px] text-text-muted whitespace-nowrap">
             {cfxPrice > 0 && (
                 <span className="tabular-nums">CFX: <span className="text-[var(--primary)] font-medium">${formatPrice(cfxPrice)}</span></span>
             )}
