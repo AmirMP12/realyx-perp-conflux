@@ -364,7 +364,7 @@ You can run the full app (frontend + API) on a single Vercel project in **REST p
    - `ENABLE_ACTIVE_MARKETS_FILTER=false`
    - `ENABLE_PYTH_24H=false`
    - `POSTGRES_URL=<your neon pooled url with sslmode=require>`
-4. Deploy! Vercel runs the root `build` script (`build-vercel.mjs`), builds backend/frontend artifacts, rewrites `/api/*` to `api/index.ts`, and serves frontend assets from `public`.
+4. Deploy! Vercel runs the root `build` script (`build-vercel.mjs`), builds backend/frontend artifacts, rewrites `/api/*` to `api/index.js`, and serves frontend assets from `public`.
 
 ### Troubleshooting
 | Issue | Solution |
