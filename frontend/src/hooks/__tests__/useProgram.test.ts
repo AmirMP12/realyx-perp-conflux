@@ -197,7 +197,7 @@ describe('useProgram hooks - Full Coverage', () => {
             (useWriteContract as any).mockReturnValue({ writeContractAsync: mockWrite });
             const { result } = renderHook(() => usePartialClose());
             await act(async () => {
-                await result.current.partialClose(1, 50);
+                await result.current.partialClose(1, 50, '1000000000000000000000');
             });
             expect(mockWrite).toHaveBeenCalledWith(expect.objectContaining({ functionName: 'partialClose' }));
         });

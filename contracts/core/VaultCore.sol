@@ -493,6 +493,11 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         emit UnstakeRequested(msg.sender, block.timestamp);
     }
 
+    /// @notice Timestamp when `user` last called `requestUnstake` (`0` if none or cleared after `unstakeInsurance`).
+    function unstakeRequestTime(address user) external view returns (uint256) {
+        return _unstakeRequestTime[user];
+    }
+
     /// @notice Insurance payout to cover trading bad debt (`IVaultCore.coverBadDebt`).
     function coverBadDebt(uint256 amount, uint256 positionId) external onlyTradingCore returns (uint256 covered) {
         if (insuranceCircuitBreakerActive) revert InsuranceFundCircuitBreakerActive();

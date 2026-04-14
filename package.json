@@ -31,6 +31,8 @@
     "deploy:conflux": "hardhat run scripts/deploy-mainnet.ts --network conflux",
     "upgrade:conflux-testnet": "hardhat run scripts/upgrade.ts --network confluxTestnet",
     "upgrade:conflux": "hardhat run scripts/upgrade.ts --network conflux",
+    "upgrade:vault-core:conflux-testnet": "hardhat run scripts/upgrade-vault-core.ts --network confluxTestnet",
+    "upgrade:vault-core:conflux": "hardhat run scripts/upgrade-vault-core.ts --network conflux",
     "verify:conflux-testnet": "hardhat run scripts/verify.ts --network confluxTestnet",
     "verify:conflux": "hardhat run scripts/verify.ts --network conflux",
     "verify:mockusdc": "hardhat run scripts/verify-mockusdc.ts --network confluxTestnet",

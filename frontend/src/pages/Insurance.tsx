@@ -1,9 +1,15 @@
 import { useState } from 'react';
 import { useAccount } from 'wagmi';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Shield, AlertTriangle, Activity, DollarSign, ExternalLink, Loader2, Wallet, Sparkles } from 'lucide-react';
+import { Shield, AlertTriangle, Activity, DollarSign, ExternalLink, Loader2, Wallet, Sparkles, Clock } from 'lucide-react';
 import clsx from 'clsx';
-import { useInsuranceFund, useStakeInsurance, useUnstakeInsurance } from '../hooks/useVault';
+import {
+    useInsuranceFund,
+    useInsuranceUnstakeStatus,
+    useRequestUnstake,
+    useStakeInsurance,
+    useUnstakeInsurance,
+} from '../hooks/useVault';
 import { useBackendStats, useInsuranceClaims } from '../hooks/useBackend';
 import { useUSDCBalance } from '../hooks/useProgram';
 import { Skeleton } from '../components/ui';
@@ -19,6 +25,8 @@ export function InsurancePage() {
     const { claims, loading: claimsLoading } = useInsuranceClaims(20);
     const { stake, loading: stakeLoading } = useStakeInsurance();
     const { unstake, loading: unstakeLoading } = useUnstakeInsurance();
+    const unstakeStatus = useInsuranceUnstakeStatus();
+    const { requestUnstake, loading: requestUnstakeLoading } = useRequestUnstake(unstakeStatus.refetch);
     const { balance: usdcBalance, loading: balanceLoading } = useUSDCBalance();
 
     const [activeTab, setActiveTab] = useState<'stake' | 'unstake'>('stake');
@@ -38,14 +46,16 @@ export function InsurancePage() {
         if (activeTab === 'stake') {
             success = await stake(num);
         } else {
+            if (unstakeStatus.phase !== 'ready') return;
             const sharePrice = insurance.insSharePrice;
             if (sharePrice <= 0) return;
             const sharesToRedeem = num / sharePrice;
-            success = await unstake(sharesToRedeem);
+            success = await unstake(sharesToRedeem, insurance.userInsSharesWei);
         }
 
         if (success) {
             setAmount('');
+            void unstakeStatus.refetch();
         }
     };
 
@@ -70,7 +80,15 @@ export function InsurancePage() {
         }
     };
 
-    const isActionDisabled = stakeLoading || unstakeLoading || !amount || parseFloat(amount) <= 0 || (activeTab === 'unstake' && insurance.circuitBreakerActive);
+    const unstakeCanExecute =
+        activeTab !== 'unstake' ||
+        (unstakeStatus.phase === 'ready' && !insurance.circuitBreakerActive && !unstakeStatus.statusError);
+    const isActionDisabled =
+        stakeLoading ||
+        unstakeLoading ||
+        !amount ||
+        parseFloat(amount) <= 0 ||
+        (activeTab === 'unstake' && !unstakeCanExecute);
 
     return (
         <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6 lg:space-y-8">
@@ -223,7 +241,53 @@ export function InsurancePage() {
                                             <span className="text-xs sm:text-sm">Circuit breaker active — unstaking paused to protect solvency.</span>
                                         </div>
                                     )}
+                                    {activeTab === 'unstake' && !insurance.circuitBreakerActive && unstakeStatus.phase === 'need_request' && (
+                                        <div className="px-4 py-3 text-amber-400/95 flex gap-2 items-start border-t border-[var(--border-color)]/50">
+                                            <Clock className="w-4 h-4 mt-0.5 shrink-0" />
+                                            <span className="text-xs sm:text-sm leading-relaxed">
+                                                Unstaking uses a waiting period on-chain. Start the timer below, then return after the cooldown to redeem USDC.
+                                                Each completed unstake resets the timer for the next redemption.
+                                            </span>
+                                        </div>
+                                    )}
+                                    {activeTab === 'unstake' && !insurance.circuitBreakerActive && unstakeStatus.phase === 'cooldown' && unstakeStatus.unlockAtSec != null && (
+                                        <div className="px-4 py-3 text-sky-300/95 flex gap-2 items-start border-t border-[var(--border-color)]/50">
+                                            <Clock className="w-4 h-4 mt-0.5 shrink-0" />
+                                            <span className="text-xs sm:text-sm leading-relaxed">
+                                                Waiting period in progress. You can redeem after{' '}
+                                                <span className="font-mono font-semibold text-text-primary">
+                                                    {formatDate(new Date(unstakeStatus.unlockAtSec * 1000).toISOString())}
+                                                </span>
+                                                .
+                                            </span>
+                                        </div>
+                                    )}
+                                    {activeTab === 'unstake' && unstakeStatus.statusError && (
+                                        <div className="px-4 py-3 text-red-400 flex gap-2 items-start border-t border-[var(--border-color)]/50">
+                                            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                                            <span className="text-xs sm:text-sm">
+                                                Could not load unstake status from the chain. Refresh the page or try again later.
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
+
+                                {activeTab === 'unstake' && !insurance.circuitBreakerActive && unstakeStatus.phase === 'need_request' && isConnected && (
+                                    <motion.button
+                                        type="button"
+                                        whileHover={{ scale: 1.01 }}
+                                        whileTap={{ scale: 0.98 }}
+                                        onClick={() => void requestUnstake()}
+                                        disabled={requestUnstakeLoading || unstakeStatus.loading}
+                                        className={clsx(
+                                            'w-full py-3 sm:py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border border-amber-500/40 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15 transition-colors',
+                                            (requestUnstakeLoading || unstakeStatus.loading) && 'opacity-60 cursor-wait'
+                                        )}
+                                    >
+                                        {requestUnstakeLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : null}
+                                        Begin unstake waiting period
+                                    </motion.button>
+                                )}
 
                                 {/* Action Button */}
                                 {isConnected ? (

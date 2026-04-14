@@ -11,6 +11,7 @@ import leaderboardRouter from "./routes/leaderboard.js";
 import insuranceRouter from "./routes/insurance.js";
 import healthRouter from "./routes/health.js";
 import syncRouter from "./routes/sync.js";
+import pythRefreshRouter from "./routes/pythRefresh.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
 import { metricsMiddleware } from "./middleware/metrics.js";
 
@@ -40,6 +41,7 @@ app.use("/api/stats", statsRouter);
 app.use("/api/leaderboard", leaderboardRouter);
 app.use("/api/insurance", insuranceRouter);
 app.use("/api/sync", syncRouter);
+app.use("/api/pyth-refresh", pythRefreshRouter);
 
 app.use((_req: any, res: any) => {
   res.status(404).json({ success: false, error: "Not found" });

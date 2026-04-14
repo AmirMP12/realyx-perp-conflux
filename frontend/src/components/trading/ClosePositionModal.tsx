@@ -4,6 +4,7 @@ import { X, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 import { Position } from '../../hooks/usePositions';
 import { useClosePosition, usePartialClose } from '../../hooks/useProgram';
+import { usePythOnChainUpdater } from '../../hooks/usePythOnChainUpdater';
 
 interface ClosePositionModalProps {
     isOpen: boolean;
@@ -15,10 +16,11 @@ export function ClosePositionModal({ isOpen, onClose, position }: ClosePositionM
     const [percentage, setPercentage] = useState(100);
     const { closePosition, loading: closing } = useClosePosition();
     const { partialClose, loading: partialClosing } = usePartialClose();
+    const { pushLatestForMarkets, isPending: pythPushPending } = usePythOnChainUpdater();
 
     if (!position) return null;
 
-    const loading = closing || partialClosing;
+    const loading = closing || partialClosing || pythPushPending;
     const isFullClose = percentage === 100;
 
     const size = parseFloat(position.size);
@@ -33,12 +35,17 @@ export function ClosePositionModal({ isOpen, onClose, position }: ClosePositionM
 
     const handleClose = async () => {
         let success = false;
-        const posId = Number(position.id);
+        const posId = position.id;
+        const m = position.marketAddress;
+        if (m && m.startsWith('0x') && m.length === 42) {
+            const pushed = await pushLatestForMarkets([m]);
+            if (!pushed) return;
+        }
 
         if (isFullClose) {
             success = await closePosition(posId);
         } else {
-            success = await partialClose(posId, percentage);
+            success = await partialClose(posId, percentage, position.sizeRaw);
         }
 
         if (success) {
@@ -138,7 +145,9 @@ export function ClosePositionModal({ isOpen, onClose, position }: ClosePositionM
                             </div>
                             <p className="text-xs text-text-secondary leading-relaxed pt-0.5">
                                 Closing realizes PnL and returns collateral to your wallet.
-                                {isFullClose ? ' A keeper fee applies on full close.' : ' Partial close scales size and collateral proportionally.'}
+                                {isFullClose
+                                    ? ' A keeper fee applies on full close.'
+                                    : ' Partial closes cannot leave a remainder below the protocol minimum position size—use a larger % or full close if the tx fails.'}
                             </p>
                         </div>
 

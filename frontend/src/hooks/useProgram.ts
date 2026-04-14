@@ -32,6 +32,71 @@ const ERC20_ABI = [
     { "inputs": [], "name": "decimals", "outputs": [{ "name": "", "type": "uint8" }], "stateMutability": "view", "type": "function" },
 ] as const;
 
+/** Protocol fixed-point for partialClose `pct` (1e18 = 100%). */
+const PRECISION_WAD = 10n ** 18n;
+/** Matches `DataTypes.DECIMAL_CONVERSION` (USDC 6 → internal). */
+const DECIMAL_CONVERSION = 10n ** 12n;
+/** Wall-clock deadline for close txs; short values fail if the wallet confirms slowly. */
+const CLOSE_TX_DEADLINE_SEC = 30 * 60;
+
+function toPositionId(v: string | number | bigint): bigint {
+    return typeof v === 'bigint' ? v : BigInt(String(v));
+}
+
+/** First 4 bytes of `keccak256("StalePrice()")` — OracleAggregator when Pyth publishTime is too old. */
+const STALE_PRICE_SELECTOR = '0x19abf40e';
+
+function revertDataHex(err: unknown): string | null {
+    const walk = (x: unknown): string | null => {
+        if (!x || typeof x !== 'object') return null;
+        const o = x as Record<string, unknown>;
+        const d = o.data;
+        if (typeof d === 'string' && d.startsWith('0x')) return d.toLowerCase();
+        if (o.cause) return walk(o.cause);
+        return null;
+    };
+    return walk(err);
+}
+
+function closeTxErrorMessage(err: unknown): string {
+    const data = revertDataHex(err);
+    if (data?.startsWith(STALE_PRICE_SELECTOR)) {
+        return 'Oracle price is stale (Pyth publish time is too old for this network). Update feeds on the oracle / run your price keeper, then retry the close.';
+    }
+    const raw = `${(err as { shortMessage?: string })?.shortMessage ?? ''} ${(err as Error)?.message ?? ''} ${(err as { cause?: unknown })?.cause ?? ''} ${data ?? ''}`.toLowerCase();
+    if (raw.includes('staleprice') || raw.includes('stale price')) {
+        return 'Oracle price is stale. Wait for a fresh Pyth update (or poke the testnet oracle), then retry.';
+    }
+    if (raw.includes('minpositionduration')) {
+        return 'This position must stay open for a short minimum time before closing. Wait and try again.';
+    }
+    if (raw.includes('positiontoosmall') || raw.includes('too small')) {
+        return 'After this partial close, the remaining size would be below the protocol minimum. Close a larger share or use full close.';
+    }
+    if (raw.includes('zeroclosesize')) {
+        return 'Close amount rounds to zero on-chain. Use a higher percentage or full close.';
+    }
+    if (raw.includes('deadlineexpired') || raw.includes('deadline')) {
+        return 'Transaction deadline passed before confirmation. Please try again.';
+    }
+    if (raw.includes('notpositionowner') || raw.includes('not owner')) {
+        return 'You are not the owner of this position.';
+    }
+    if (raw.includes('flashloan')) {
+        return 'Same-block safety rule: wait one block and retry.';
+    }
+    if (raw.includes('paused')) {
+        return 'Trading is temporarily paused.';
+    }
+    if (raw.includes('slippage')) {
+        return 'Price moved beyond the allowed bound for this close. Retry in a moment.';
+    }
+    if (raw.includes('insufficientliquidity')) {
+        return 'Insufficient vault liquidity for this close. Try again later.';
+    }
+    return (err as { shortMessage?: string })?.shortMessage || (err as Error)?.message || 'Transaction failed';
+}
+
 export interface OpenPositionParams {
     market: string;
     size: string; // wei
@@ -390,9 +455,10 @@ export function useAddCollateral() {
 export function useClosePosition() {
     const { chainId, address } = useAccount();
     const { writeContractAsync, isPending } = useWriteContract();
+    const publicClient = usePublicClient();
     const { playSuccess, playError } = useSound();
 
-    const closePosition = async (id: number) => {
+    const closePosition = async (positionId: string | number | bigint) => {
         try {
             if (!address) {
                 toast.error("Wallet not connected. Please reconnect your wallet.");
@@ -402,11 +468,42 @@ export function useClosePosition() {
                 toast.error("Network not detected. Please switch network and retry.");
                 return false;
             }
+            const id = toPositionId(positionId);
+            try {
+                if (publicClient) {
+                    const [minDur, pos] = await Promise.all([
+                        publicClient.readContract({
+                            address: TRADING_CORE_ADDRESS,
+                            abi: TRADING_CORE_ABI,
+                            functionName: 'minPositionDuration',
+                        }),
+                        publicClient.readContract({
+                            address: TRADING_CORE_ADDRESS,
+                            abi: TRADING_CORE_ABI,
+                            functionName: 'getPosition',
+                            args: [id],
+                        }),
+                    ]);
+                    if (minDur != null && pos != null && typeof pos === 'object' && 'openTimestamp' in pos) {
+                        const openTs = (pos as { openTimestamp: bigint }).openTimestamp;
+                        const now = BigInt(Math.floor(Date.now() / 1000));
+                        const minD = BigInt(minDur as bigint);
+                        if (now < openTs + minD) {
+                            const wait = Number(openTs + minD - now);
+                            toast.error(`Minimum open time not met. Try again in about ${Math.max(1, wait)}s.`);
+                            return false;
+                        }
+                    }
+                }
+            } catch {
+                /* optional preflight */
+            }
+            const deadline = BigInt(Math.floor(Date.now() / 1000) + CLOSE_TX_DEADLINE_SEC);
             const params = {
-                positionId: BigInt(id),
-                closeSize: BigInt(0),
-                minReceive: BigInt(0),
-                deadline: BigInt(Math.floor(Date.now() / 1000) + 300)
+                positionId: id,
+                closeSize: 0n,
+                minReceive: 0n,
+                deadline,
             };
             await writeContractAsync({
                 chainId,
@@ -427,7 +524,7 @@ export function useClosePosition() {
             } else if (e?.code === 4001 || msg.includes("user rejected")) {
                 toast.error("Transaction was rejected in wallet.");
             } else {
-                toast.error(e.shortMessage || "Failed close");
+                toast.error(closeTxErrorMessage(e));
             }
             return false;
         }
@@ -557,9 +654,11 @@ export function useSetTrailingStop() {
 export function usePartialClose() {
     const { chainId, address } = useAccount();
     const { writeContractAsync, isPending } = useWriteContract();
+    const publicClient = usePublicClient();
     const { playSuccess, playError } = useSound();
 
-    const partialClose = async (id: number, percent: number) => {
+    /** `sizeRaw` = on-chain `position.size` as decimal string (avoids float % and JS bigint loss on id). */
+    const partialClose = async (positionId: string | number | bigint, percent: number, sizeRaw: string) => {
         try {
             if (!address) {
                 toast.error("Wallet not connected. Please reconnect your wallet.");
@@ -569,15 +668,86 @@ export function usePartialClose() {
                 toast.error("Network not detected. Please switch network and retry.");
                 return false;
             }
-            const pctWei = parseUnits((percent / 100).toFixed(18), 18); // 1% = 0.01 = 1e16. 100% = 1.0 = 1e18.
-            const deadline = BigInt(Math.floor(Date.now() / 1000) + 300);
+            if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) {
+                toast.error("Choose a partial close between 1% and 99%, or use full close.");
+                return false;
+            }
+            const id = toPositionId(positionId);
+            let sizeB: bigint;
+            try {
+                sizeB = BigInt(sizeRaw.trim());
+            } catch {
+                toast.error("Invalid position size. Refresh positions and try again.");
+                return false;
+            }
+            if (sizeB <= 0n) {
+                toast.error("Position has no size to close.");
+                return false;
+            }
+            const pctB = BigInt(Math.floor(percent));
+            const pctWei = (pctB * PRECISION_WAD) / 100n;
+            const closeSz = (sizeB * pctWei) / PRECISION_WAD;
+            if (closeSz === 0n) {
+                toast.error("This % rounds to zero on-chain. Use a larger % or full close.");
+                return false;
+            }
+            const rem = sizeB - closeSz;
+            try {
+                if (publicClient) {
+                    const [minDur, minSizeUsdc, pos] = await Promise.all([
+                        publicClient.readContract({
+                            address: TRADING_CORE_ADDRESS,
+                            abi: TRADING_CORE_ABI,
+                            functionName: 'minPositionDuration',
+                        }),
+                        publicClient.readContract({
+                            address: TRADING_CORE_ADDRESS,
+                            abi: TRADING_CORE_ABI,
+                            functionName: 'minPositionSize',
+                        }),
+                        publicClient.readContract({
+                            address: TRADING_CORE_ADDRESS,
+                            abi: TRADING_CORE_ABI,
+                            functionName: 'getPosition',
+                            args: [id],
+                        }),
+                    ]);
+                    if (
+                        minDur != null &&
+                        minSizeUsdc != null &&
+                        pos != null &&
+                        typeof pos === 'object' &&
+                        'openTimestamp' in pos
+                    ) {
+                        const openTs = (pos as { openTimestamp: bigint }).openTimestamp;
+                        const now = BigInt(Math.floor(Date.now() / 1000));
+                        const minD = BigInt(minDur as bigint);
+                        if (now < openTs + minD) {
+                            const wait = Number(openTs + minD - now);
+                            toast.error(`Minimum open time not met. Try again in about ${Math.max(1, wait)}s.`);
+                            return false;
+                        }
+                        const minInternal = BigInt(minSizeUsdc as bigint) * DECIMAL_CONVERSION;
+                        if (rem > 0n && rem < minInternal) {
+                            toast.error(
+                                "Remaining size would be below the protocol minimum. Close a larger % or use full close."
+                            );
+                            return false;
+                        }
+                    }
+                }
+            } catch {
+                /* optional preflight */
+            }
+
+            const deadline = BigInt(Math.floor(Date.now() / 1000) + CLOSE_TX_DEADLINE_SEC);
 
             await writeContractAsync({
                 chainId,
                 address: TRADING_CORE_ADDRESS,
                 abi: TRADING_CORE_ABI,
                 functionName: 'partialClose',
-                args: [BigInt(id), pctWei, BigInt(0), deadline]
+                args: [id, pctWei, 0n, deadline]
             });
             playSuccess();
             toast.success("Partial close submitted");
@@ -591,7 +761,7 @@ export function usePartialClose() {
             } else if (e?.code === 4001 || msg.includes("user rejected")) {
                 toast.error("Transaction was rejected in wallet.");
             } else {
-                toast.error(e.shortMessage || "Failed partial close");
+                toast.error(closeTxErrorMessage(e));
             }
             return false;
         }

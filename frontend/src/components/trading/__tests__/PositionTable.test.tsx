@@ -56,6 +56,7 @@ const mockMarkets = [
 const mockPositions = [
     {
         id: '1',
+        sizeRaw: '1000000000000000000000',
         marketAddress: '0x123',
         side: 'LONG',
         isLong: true,

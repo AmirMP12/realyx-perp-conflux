@@ -106,6 +106,11 @@ interface IVaultCore {
     function requestUnstake() external;
 
     /**
+     * @notice When `user` last started the insurance unstake cooldown (`0` if never or cleared after unstake).
+     */
+    function unstakeRequestTime(address user) external view returns (uint256);
+
+    /**
      * @notice Pay bad debt from the insurance pool up to available assets and governance thresholds.
      * @param amount Claimed shortfall to cover.
      * @param positionId Originating position for analytics.

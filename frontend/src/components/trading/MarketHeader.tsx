@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
 import { Market } from '../../services/markets';
 import { formatCompact } from '../../utils/format';
@@ -14,9 +14,20 @@ interface MarketHeaderProps {
     currentPrice: number;
     fundingRate: number;
     isLive: boolean;
+    /** Push latest Hermes VAAs to on-chain Pyth (avoids StalePrice reverts). */
+    onPushOraclePrices?: () => boolean | void | Promise<boolean | void>;
+    pushOraclePricesLoading?: boolean;
 }
 
-export function MarketHeader({ market, markets, currentPrice, fundingRate, isLive: _isLive }: MarketHeaderProps) {
+export function MarketHeader({
+    market,
+    markets,
+    currentPrice,
+    fundingRate,
+    isLive: _isLive,
+    onPushOraclePrices,
+    pushOraclePricesLoading,
+}: MarketHeaderProps) {
     const navigate = useNavigate();
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
@@ -102,7 +113,7 @@ export function MarketHeader({ market, markets, currentPrice, fundingRate, isLiv
             </div>
 
             {/* Right: Stats Row (Desktop) */}
-            <div className="hidden md:flex items-center rounded-xl bg-[var(--bg-tertiary)]/40 px-2 py-1.5 border border-[var(--border-color)]/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+            <div className="hidden md:flex items-center gap-1 rounded-xl bg-[var(--bg-tertiary)]/40 px-2 py-1.5 border border-[var(--border-color)]/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                 {[
                     { label: 'Price', value: <PriceTicker value={currentPrice} prefix="$" decimals={2} className="text-text-primary font-semibold" />, valueClass: 'text-text-primary' },
                     { label: '24h Change', value: `${isPositive ? '+' : ''}${change24h.toFixed(2)}%`, valueClass: isPositive ? 'text-[var(--long)]' : 'text-[var(--short)]' },
@@ -119,11 +130,37 @@ export function MarketHeader({ market, markets, currentPrice, fundingRate, isLiv
                         isLast={i === 4}
                     />
                 ))}
+                {onPushOraclePrices ? (
+                    <button
+                        type="button"
+                        onClick={() => void onPushOraclePrices()}
+                        disabled={pushOraclePricesLoading}
+                        title="Update on-chain Pyth prices (fixes stale oracle / failed closes)"
+                        className="shrink-0 ml-1 p-2 rounded-lg text-text-muted hover:text-[var(--primary)] hover:bg-[var(--bg-tertiary)] border border-transparent hover:border-[var(--border-color)] transition-colors disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/35"
+                        aria-label="Refresh oracle prices on-chain"
+                    >
+                        <RefreshCw className={clsx('w-4 h-4', pushOraclePricesLoading && 'animate-spin')} />
+                    </button>
+                ) : null}
             </div>
 
             {/* Mobile Stats (Compact) */}
-            <div className="flex md:hidden flex-col items-end gap-0.5 py-1">
-                <PriceTicker value={currentPrice} prefix="$" decimals={2} className="text-lg font-bold font-mono text-text-primary tabular-nums" />
+            <div className="flex md:hidden flex-col items-end gap-1 py-1">
+                <div className="flex items-center gap-2">
+                    {onPushOraclePrices ? (
+                        <button
+                            type="button"
+                            onClick={() => void onPushOraclePrices()}
+                            disabled={pushOraclePricesLoading}
+                            title="Update on-chain Pyth prices"
+                            className="p-1.5 rounded-lg text-text-muted hover:text-[var(--primary)] bg-[var(--bg-tertiary)]/50 border border-[var(--border-color)]/60 disabled:opacity-40"
+                            aria-label="Refresh oracle prices"
+                        >
+                            <RefreshCw className={clsx('w-4 h-4', pushOraclePricesLoading && 'animate-spin')} />
+                        </button>
+                    ) : null}
+                    <PriceTicker value={currentPrice} prefix="$" decimals={2} className="text-lg font-bold font-mono text-text-primary tabular-nums" />
+                </div>
                 <span className={clsx("text-sm font-semibold tabular-nums", isPositive ? "text-[var(--long)]" : "text-[var(--short)]")}>
                     {isPositive ? '+' : ''}{change24h.toFixed(2)}%
                 </span>

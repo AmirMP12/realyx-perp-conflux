@@ -5,6 +5,8 @@ import { formatUnits } from 'viem';
 
 export interface Position {
     id: string;
+    /** On-chain `position.size` (internal units) as decimal string — use for close math, not `Number(id)`. */
+    sizeRaw: string;
     marketAddress: string;
     size: string;
     collateral: string;
@@ -101,6 +103,7 @@ export function usePositions() {
             const collateralNum = leverageNum > 0 ? sizeNum / leverageNum : 0;
             return {
                 id: id.toString(),
+                sizeRaw: (pos.size as bigint).toString(),
                 marketAddress: pos.market, // DataTypes.Position.market
                 size: sizeNum.toFixed(4),
                 collateral: collateralNum.toFixed(2),

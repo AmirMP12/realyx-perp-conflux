@@ -171,6 +171,16 @@ set LIB_TRADING_LIB=0x...deployedLibrary...
 npx hardhat run scripts/upgrade.ts --network confluxTestnet
 ```
 
+**VaultCore only (no linked libraries)**
+
+Uses `deployment/<network>.json` → `contracts.vaultCore`, or override with `VAULT_CORE_PROXY`. Admin wallet in `.env` must own UUPS upgrade rights.
+
+```bash
+npm run compile
+npm run upgrade:vault-core:conflux-testnet
+npm run export-abi && npm run sync:frontend-abi
+```
+
 **Post-upgrade checklist**
 
 1. Implementation verified on ConfluxScan (if supported).

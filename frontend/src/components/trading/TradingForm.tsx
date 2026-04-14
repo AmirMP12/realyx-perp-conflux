@@ -23,9 +23,18 @@ interface TradingFormProps {
     onTradeSuccess?: () => void;
     side?: 'long' | 'short';
     onSideChange?: (side: 'long' | 'short') => void;
+    /** Refresh on-chain Pyth for this market before submitting open (reduces StalePrice reverts). Return false to abort. */
+    pushOracleBeforeTrade?: () => boolean | void | Promise<boolean | void>;
 }
 
-export function TradingForm({ market, currentPrice, onTradeSuccess, side: controlledSide, onSideChange }: TradingFormProps) {
+export function TradingForm({
+    market,
+    currentPrice,
+    onTradeSuccess,
+    side: controlledSide,
+    onSideChange,
+    pushOracleBeforeTrade,
+}: TradingFormProps) {
     const { isConnected } = useAccount();
     const settings = useSettingsStore();
     const { addOptimisticPosition, removeOptimisticPosition } = usePositionsStore();
@@ -127,6 +136,10 @@ export function TradingForm({ market, currentPrice, onTradeSuccess, side: contro
         const tempId = `opt-${Date.now()}`;
 
         try {
+            if (pushOracleBeforeTrade) {
+                const ok = await pushOracleBeforeTrade();
+                if (ok === false) return;
+            }
             addOptimisticPosition({
                 tempId,
                 marketAddress: market.marketAddress || market.id,
