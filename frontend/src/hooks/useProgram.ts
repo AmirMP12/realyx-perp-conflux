@@ -123,8 +123,19 @@ export function useCreateOrder() {
         triggerPriceWei?: string; // 18 decimals; required for LIMIT_*
     }) => {
         if (!address) throw new Error('Wallet not connected');
-        if (minExecutionFeeWei == null) throw new Error('Execution fee not loaded yet. Please wait a moment.');
-        const fee = minExecutionFeeWei as bigint;
+        if (!publicClient && minExecutionFeeWei == null) {
+            throw new Error('Execution fee not loaded yet. Please wait a moment.');
+        }
+        const latestMinExecutionFee = (publicClient
+            ? await publicClient.readContract({
+                address: TRADING_CORE_ADDRESS,
+                abi: TRADING_CORE_ABI,
+                functionName: 'minExecutionFee',
+            })
+            : minExecutionFeeWei) as bigint | undefined;
+        const baseFee = (latestMinExecutionFee ?? (minExecutionFeeWei as bigint | undefined) ?? 0n);
+        // Add a small safety buffer to avoid stale minExecutionFee reverts.
+        const fee = (baseFee * 110n) / 100n;
 
         const orderType = params.orderType ?? OrderType.MARKET_INCREASE;
         const triggerPriceWei = orderType === OrderType.LIMIT_INCREASE || orderType === OrderType.LIMIT_DECREASE
@@ -174,6 +185,16 @@ export function useOpenPosition() {
 
     const [isLoading, setIsLoading] = useState(false);
     const [step, setStep] = useState<'IDLE' | 'APPROVING' | 'COMMITTING' | 'WAITING' | 'REVEALING'>('IDLE');
+
+    const mapRevertToMessage = (err: any): string => {
+        const text = `${err?.shortMessage ?? ''} ${err?.message ?? ''} ${err?.details ?? ''}`.toLowerCase();
+        if (text.includes('executionfeetoolow')) return 'Execution fee is too low. Please retry in a few seconds.';
+        if (text.includes('breakeractive')) return 'Trading is temporarily blocked by risk circuit breaker for this market.';
+        if (text.includes('insufficientcollateral')) return 'Insufficient collateral for this position size/leverage.';
+        if (text.includes('marketnotactive')) return 'Market is currently not active.';
+        if (text.includes('transfer amount exceeds balance') || text.includes('erc20')) return 'Insufficient token balance or allowance for collateral transfer.';
+        return err?.shortMessage || err?.message || 'Failed to submit order';
+    };
 
     const executePosition = async (
         params: Omit<OpenPositionParams, 'isCrossMargin' | 'collateralType' | 'deadline' | 'expectedPrice' | 'maxSlippageBps' | 'stopLossPrice' | 'takeProfitPrice' | 'trailingStopBps'> & {
@@ -280,7 +301,7 @@ export function useOpenPosition() {
             return true;
         } catch (err: any) {
             console.error(err);
-            toast.error(err.shortMessage || err.message || "Failed to submit order");
+            toast.error(mapRevertToMessage(err));
             return false;
         } finally {
             setIsLoading(false);
