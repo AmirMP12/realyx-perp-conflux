@@ -28,7 +28,8 @@ export {
 const ERC20_ABI = [
     { "inputs": [{ "name": "spender", "type": "address" }, { "name": "amount", "type": "uint256" }], "name": "approve", "outputs": [{ "name": "", "type": "bool" }], "stateMutability": "nonpayable", "type": "function" },
     { "inputs": [{ "name": "owner", "type": "address" }, { "name": "spender", "type": "address" }], "name": "allowance", "outputs": [{ "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
-    { "inputs": [{ "name": "account", "type": "address" }], "name": "balanceOf", "outputs": [{ "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" }
+    { "inputs": [{ "name": "account", "type": "address" }], "name": "balanceOf", "outputs": [{ "name": "", "type": "uint256" }], "stateMutability": "view", "type": "function" },
+    { "inputs": [], "name": "decimals", "outputs": [{ "name": "", "type": "uint8" }], "stateMutability": "view", "type": "function" },
 ] as const;
 
 export interface OpenPositionParams {
@@ -58,10 +59,23 @@ export function useUSDC() {
     return { address: (usdcAddress as Address) || MOCK_USDC_ADDRESS };
 }
 
+export function useUSDCDecimals() {
+    const { address: usdcAddress } = useUSDC();
+    const { data: decimalsData } = useReadContract({
+        address: usdcAddress,
+        abi: ERC20_ABI,
+        functionName: 'decimals',
+        query: { enabled: !!usdcAddress },
+    });
+    const decimals = Number(decimalsData ?? 6);
+    return { decimals };
+}
+
 /** User's USDC balance (6 decimals). Requires USDC address from useUSDC. */
 export function useUSDCBalance() {
     const { address: userAddress } = useAccount();
     const { address: usdcAddress } = useUSDC();
+    const { decimals } = useUSDCDecimals();
     const { data: balanceWei, isLoading } = useReadContract({
         address: usdcAddress,
         abi: ERC20_ABI,
@@ -69,7 +83,7 @@ export function useUSDCBalance() {
         args: userAddress ? [userAddress] : undefined,
         query: { enabled: !!usdcAddress && !!userAddress, refetchInterval: 10000 },
     });
-    const balance = balanceWei != null ? Number(formatUnits(balanceWei, 6)) : 0;
+    const balance = balanceWei != null ? Number(formatUnits(balanceWei, decimals)) : 0;
     return { balance, balanceWei, loading: isLoading };
 }
 

@@ -2,9 +2,7 @@ import { useAccount, useReadContract, useWriteContract, usePublicClient } from '
 import { useState } from 'react';
 import toast from "react-hot-toast";
 import { formatUnits, parseUnits } from 'viem';
-import { VAULT_CORE_ADDRESS, VAULT_ABI, useUSDC } from './useProgram';
-
-const USDC_DECIMALS = 6;
+import { VAULT_CORE_ADDRESS, VAULT_ABI, useUSDC, useUSDCDecimals } from './useProgram';
 
 const ERC20_ABI = [
     { inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }], name: 'approve', outputs: [{ type: 'bool' }], stateMutability: 'nonpayable', type: 'function' },
@@ -15,6 +13,7 @@ export function useVaultDeposit() {
     const { address, chainId } = useAccount();
     const { writeContractAsync } = useWriteContract();
     const { address: usdcAddress } = useUSDC();
+    const { decimals: usdcDecimals } = useUSDCDecimals();
     const [loading, setLoading] = useState(false);
 
     const deposit = async (amount: number) => {
@@ -28,7 +27,7 @@ export function useVaultDeposit() {
         }
         setLoading(true);
         try {
-            const wei = parseUnits(amount.toFixed(USDC_DECIMALS), USDC_DECIMALS);
+            const wei = parseUnits(amount.toFixed(usdcDecimals), usdcDecimals);
             await writeContractAsync({
                 chainId,
                 address: usdcAddress,
@@ -60,6 +59,7 @@ export function useVaultWithdraw() {
     const { address, chainId } = useAccount();
     const { writeContractAsync } = useWriteContract();
     const publicClient = usePublicClient();
+    const { decimals: usdcDecimals } = useUSDCDecimals();
     const [loading, setLoading] = useState(false);
 
     const withdraw = async (amountUSDC: number) => {
@@ -69,7 +69,7 @@ export function useVaultWithdraw() {
         }
         setLoading(true);
         try {
-            const assetsWei = parseUnits(amountUSDC.toFixed(6), 6);
+            const assetsWei = parseUnits(amountUSDC.toFixed(usdcDecimals), usdcDecimals);
 
             const shares = await publicClient.readContract({
                 address: VAULT_CORE_ADDRESS,
@@ -100,6 +100,7 @@ export function useVaultWithdraw() {
 
 export function useVaultStats() {
     const { address } = useAccount();
+    const { decimals: usdcDecimals } = useUSDCDecimals();
 
     const { data: totalAssets, isLoading: isLoadingTotalAssets } = useReadContract({
         address: VAULT_CORE_ADDRESS,
@@ -157,15 +158,15 @@ export function useVaultStats() {
         query: { refetchInterval: 10000 }
     });
 
-    const tvl = totalAssets !== undefined ? parseFloat(formatUnits(totalAssets as bigint, 6)) : 0;
-    const availableLiquidity = availableLiquidityWei !== undefined ? parseFloat(formatUnits(availableLiquidityWei as bigint, 6)) : 0;
+    const tvl = totalAssets !== undefined ? parseFloat(formatUnits(totalAssets as bigint, usdcDecimals)) : 0;
+    const availableLiquidity = availableLiquidityWei !== undefined ? parseFloat(formatUnits(availableLiquidityWei as bigint, usdcDecimals)) : 0;
     const totalSharesNum = lpTotalShares !== undefined ? parseFloat(formatUnits(lpTotalShares as bigint, 18)) : 0;
 
     const sharePrice = (tvl > 0 && totalSharesNum > 0) ? tvl / totalSharesNum : 1.0;
     const userSharesNum = userShares !== undefined ? parseFloat(formatUnits(userShares as bigint, 18)) : 0;
     const userBalanceUSDC = userSharesNum * sharePrice;
 
-    const fees = accumulatedFees !== undefined ? parseFloat(formatUnits(accumulatedFees as bigint, 6)) : 0;
+    const fees = accumulatedFees !== undefined ? parseFloat(formatUnits(accumulatedFees as bigint, usdcDecimals)) : 0;
     const utilRatePercent = utilization !== undefined ? Number(formatUnits(utilization as bigint, 18)) * 100 : 0;
 
     return {
@@ -186,6 +187,7 @@ export function useVaultStats() {
 
 export function useInsuranceFund() {
     const { address } = useAccount();
+    const { decimals: usdcDecimals } = useUSDCDecimals();
 
     const { data: insuranceAssetsWei, isLoading: isInsuranceAssetsLoading } = useReadContract({
         address: VAULT_CORE_ADDRESS,
@@ -225,7 +227,7 @@ export function useInsuranceFund() {
         query: { refetchInterval: 10000 },
     });
 
-    const insuranceAssets = insuranceAssetsWei !== undefined ? Number(formatUnits(insuranceAssetsWei as bigint, USDC_DECIMALS)) : 0;
+    const insuranceAssets = insuranceAssetsWei !== undefined ? Number(formatUnits(insuranceAssetsWei as bigint, usdcDecimals)) : 0;
     const healthRatioPercent = healthRatioWei !== undefined ? Number(formatUnits(healthRatioWei as bigint, 18)) * 100 : 0;
     const insTotalShares = insTotalSharesWei !== undefined ? Number(formatUnits(insTotalSharesWei as bigint, 18)) : 0;
     const insSharePrice = insuranceAssets > 0 && insTotalShares > 0 ? insuranceAssets / insTotalShares : 1;
@@ -249,6 +251,7 @@ export function useStakeInsurance() {
     const { address, chainId } = useAccount();
     const { writeContractAsync } = useWriteContract();
     const { address: usdcAddress } = useUSDC();
+    const { decimals: usdcDecimals } = useUSDCDecimals();
     const [loading, setLoading] = useState(false);
 
     const stake = async (amountUSDC: number) => {
@@ -262,7 +265,7 @@ export function useStakeInsurance() {
         }
         setLoading(true);
         try {
-            const wei = parseUnits(amountUSDC.toFixed(USDC_DECIMALS), USDC_DECIMALS);
+            const wei = parseUnits(amountUSDC.toFixed(usdcDecimals), usdcDecimals);
             await writeContractAsync({
                 chainId,
                 address: usdcAddress,

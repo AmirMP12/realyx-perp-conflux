@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutGrid, CandlestickChart, Wallet, Coins, Menu, BarChart2, Trophy, Share2, Shield, Settings } from 'lucide-react';
+import { LayoutGrid, CandlestickChart, Wallet, Coins, Menu, BarChart2, Trophy, Share2, Shield, Settings, X, Sparkles } from 'lucide-react';
 import clsx from 'clsx';
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -18,9 +18,9 @@ export function MobileNav() {
 
     return (
         <>
-            {/* Bottom Navigation Bar */}
-            <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0B0E14]/80 backdrop-blur-xl border-t border-white/5 pb-safe">
-                <div className="flex items-center justify-around h-[60px] px-2">
+            <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 pb-safe pointer-events-none">
+                <div className="mx-3 mb-2 pointer-events-auto rounded-2xl border border-white/10 bg-[#0B0E14]/85 backdrop-blur-xl shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
+                    <div className="flex items-center justify-around h-[62px] px-2">
                     {navItems.map((item) => {
                         const isActive = item.path !== '#' && (
                             item.path === '/'
@@ -36,7 +36,7 @@ export function MobileNav() {
                                     key={item.name}
                                     onClick={item.onClick}
                                     className={clsx(
-                                        "flex flex-col items-center justify-center w-full h-full space-y-1 touch-manipulation",
+                                        "flex flex-col items-center justify-center w-full h-full space-y-1 touch-manipulation rounded-xl transition-colors",
                                         isMoreOpen ? "text-[var(--primary)]" : "text-text-secondary active:text-text-primary"
                                     )}
                                 >
@@ -51,7 +51,7 @@ export function MobileNav() {
                                 key={item.name}
                                 to={item.path}
                                 className={clsx(
-                                    "flex flex-col items-center justify-center w-full h-full space-y-1 relative touch-manipulation",
+                                    "flex flex-col items-center justify-center w-full h-full space-y-1 relative touch-manipulation rounded-xl transition-colors",
                                     isActive ? "text-[var(--primary)]" : "text-text-secondary active:text-text-primary"
                                 )}
                             >
@@ -66,10 +66,10 @@ export function MobileNav() {
                             </Link>
                         );
                     })}
+                    </div>
                 </div>
             </nav>
 
-            {/* More Menu Drawer */}
             <AnimatePresence>
                 {isMoreOpen && (
                     <>
@@ -85,26 +85,39 @@ export function MobileNav() {
                             animate={{ y: 0 }}
                             exit={{ y: '100%' }}
                             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                            className="lg:hidden fixed bottom-[60px] left-0 right-0 bg-[#151921] border-t border-white/10 rounded-t-2xl z-40 overflow-hidden pb-6"
+                            className="lg:hidden fixed bottom-[74px] left-0 right-0 mx-3 rounded-2xl bg-[#151921]/95 border border-white/10 backdrop-blur-xl z-50 overflow-hidden pb-5 shadow-2xl"
                         >
+                            <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                                    <Sparkles className="w-4 h-4 text-[var(--primary)]" />
+                                    More
+                                </div>
+                                <button
+                                    onClick={() => setIsMoreOpen(false)}
+                                    className="p-2 rounded-lg text-text-secondary hover:text-white hover:bg-white/5"
+                                    aria-label="Close more menu"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
                             <div className="p-4 grid grid-cols-2 gap-3">
-                                <Link to="/analytics" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 flex flex-col items-center gap-2">
+                                <Link to="/analytics" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors flex flex-col items-center gap-2">
                                     <BarChart2 className="w-6 h-6 text-text-secondary" />
                                     <span className="text-sm font-medium">Analytics</span>
                                 </Link>
-                                <Link to="/leaderboard" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 flex flex-col items-center gap-2">
+                                <Link to="/leaderboard" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors flex flex-col items-center gap-2">
                                     <Trophy className="w-6 h-6 text-text-secondary" />
                                     <span className="text-sm font-medium">Leaderboard</span>
                                 </Link>
-                                <Link to="/referrals" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 flex flex-col items-center gap-2">
+                                <Link to="/referrals" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors flex flex-col items-center gap-2">
                                     <Share2 className="w-6 h-6 text-text-secondary" />
                                     <span className="text-sm font-medium">Referrals</span>
                                 </Link>
-                                <Link to="/insurance" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 flex flex-col items-center gap-2">
+                                <Link to="/insurance" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors flex flex-col items-center gap-2">
                                     <Shield className="w-6 h-6 text-text-secondary" />
                                     <span className="text-sm font-medium">Insurance</span>
                                 </Link>
-                                <Link to="/settings" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 flex flex-col items-center gap-2">
+                                <Link to="/settings" onClick={() => setIsMoreOpen(false)} className="p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors flex flex-col items-center gap-2">
                                     <Settings className="w-6 h-6 text-text-secondary" />
                                     <span className="text-sm font-medium">Settings</span>
                                 </Link>

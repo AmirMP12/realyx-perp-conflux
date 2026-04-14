@@ -8,7 +8,7 @@ import {
 import clsx from 'clsx';
 import { useVaultDeposit, useVaultWithdraw, useVaultStats } from '../hooks/useVault';
 import { useUSDCBalance } from '../hooks/useProgram';
-import { formatCompact } from '../utils/format';
+import { formatCompact, formatPrice } from '../utils/format';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { Skeleton } from '../components/ui';
 
@@ -84,7 +84,7 @@ export function VaultPage() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <StatCard icon={Lock} label="Total Value Locked" value={formatCompact(tvl)} sublabel="USDC in Vault" loading={statsLoading} />
                 <StatCard icon={PieChart} label="Utilization" value={`${utilizationRate.toFixed(1)}%`} sublabel="Capital Efficiency" valueColor={utilizationRate > 80 ? 'text-orange-400' : 'text-blue-400'} loading={statsLoading} />
-                <StatCard icon={TrendingUp} label="Share Price" value={`$${sharePrice.toFixed(4)}`} sublabel="USDC per LP" loading={statsLoading} />
+                <StatCard icon={TrendingUp} label="Share Price" value={`$${formatPrice(sharePrice, 4)}`} sublabel="USDC per LP" loading={statsLoading} />
                 <StatCard icon={DollarSign} label="Fees Earned" value={formatCompact(accumulatedFees)} sublabel="Protocol Revenue" valueColor="text-emerald-400" loading={statsLoading} />
             </div>
 
@@ -101,7 +101,7 @@ export function VaultPage() {
                             </div>
                             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)]">
                                 <ArrowDownUp className="w-3.5 h-3.5 text-text-muted" />
-                                <span className="text-xs font-mono text-text-secondary">1 LP = {sharePrice.toFixed(4)}</span>
+                                <span className="text-xs font-mono text-text-secondary">1 LP = {formatPrice(sharePrice, 4)}</span>
                             </div>
                         </div>
 
@@ -193,7 +193,7 @@ export function VaultPage() {
                                 <div className="rounded-xl bg-[var(--bg-tertiary)]/40 border border-[var(--border-color)]/50 divide-y divide-[var(--border-color)]/50">
                                     <div className="flex justify-between items-center px-4 py-3">
                                         <span className="text-xs sm:text-sm text-text-muted">Exchange Rate</span>
-                                        <span className="font-mono text-xs sm:text-sm text-text-primary">1 LP = {sharePrice.toFixed(4)} USDC</span>
+                                        <span className="font-mono text-xs sm:text-sm text-text-primary">1 LP = {formatPrice(sharePrice, 4)} USDC</span>
                                     </div>
                                     <div className="flex justify-between items-center px-4 py-3">
                                         <span className="text-xs sm:text-sm text-text-muted">Min Lockup</span>

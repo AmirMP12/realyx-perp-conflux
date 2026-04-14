@@ -40,21 +40,21 @@ export function Navbar() {
     }, []);
 
     return (
-        <nav className="h-14 lg:h-16 border-b border-[var(--border-color)] bg-[var(--bg-secondary)] sticky top-0 z-50">
+        <nav className="h-16 border-b border-[var(--border-color)]/80 bg-[var(--bg-secondary)]/95 backdrop-blur-md sticky top-0 z-50">
             <div className="h-full max-w-[1920px] mx-auto flex items-center justify-between gap-2 sm:gap-4 lg:gap-6 px-3 sm:px-4 lg:px-6 min-w-0">
                 {/* Left: Logo */}
                 <Link to="/" className="flex items-center gap-2 shrink-0 group">
-                    <div className="w-8 h-8 lg:w-9 lg:h-9 rounded-lg overflow-hidden border border-[var(--border-color)]">
+                    <div className="w-9 h-9 rounded-xl overflow-hidden border border-[var(--border-color)]/80 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]">
                         <img src="/tr.png" alt="Realyx" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     </div>
-                    <span className="font-display font-bold text-lg lg:text-xl tracking-tight group-hover:opacity-90 transition-opacity">
+                    <span className="font-display font-bold text-lg tracking-tight group-hover:opacity-90 transition-opacity">
                         <span className="text-white">Real</span><span className="text-[var(--primary)]">yx</span>
                     </span>
                 </Link>
 
                 {/* Center: Desktop Nav - separated from logo and actions */}
                 <div className="hidden lg:flex items-center min-w-0 flex-1 justify-center">
-                    <div className="flex items-center rounded-lg bg-[var(--bg-tertiary)]/50 border border-[var(--border-color)]/50 p-1 gap-0.5">
+                    <div className="flex items-center rounded-xl bg-[var(--bg-tertiary)]/40 border border-[var(--border-color)]/70 p-1 gap-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
                         {PRIMARY_LINKS.map((link) => {
                             const active = isLinkActive(link.path, location.pathname);
                             return (
@@ -62,9 +62,9 @@ export function Navbar() {
                                     key={link.path}
                                     to={link.path}
                                     className={clsx(
-                                        'px-4 py-2 rounded-md text-sm font-medium transition-all duration-200',
+                                        'h-9 px-4 inline-flex items-center rounded-lg text-sm font-medium transition-all duration-200',
                                         active
-                                            ? 'text-white bg-[var(--primary)]/20'
+                                            ? 'text-white bg-[var(--primary)]/20 shadow-[0_0_0_1px_rgba(45,66,252,0.2)]'
                                             : 'text-text-secondary hover:text-white hover:bg-white/5'
                                     )}
                                 >
@@ -76,9 +76,9 @@ export function Navbar() {
                             <button
                                 onClick={() => setMoreOpen(!moreOpen)}
                                 className={clsx(
-                                    'flex items-center gap-1 px-4 py-2 rounded-md text-sm font-medium transition-all duration-200',
+                                    'h-9 flex items-center gap-1 px-4 rounded-lg text-sm font-medium transition-all duration-200',
                                     MORE_LINKS.some(l => isLinkActive(l.path, location.pathname))
-                                        ? 'text-white bg-[var(--primary)]/20'
+                                        ? 'text-white bg-[var(--primary)]/20 shadow-[0_0_0_1px_rgba(45,66,252,0.2)]'
                                         : 'text-text-secondary hover:text-white hover:bg-white/5'
                                 )}
                             >
@@ -86,7 +86,8 @@ export function Navbar() {
                                 <ChevronDown className={clsx('w-3.5 h-3.5 transition-transform', moreOpen && 'rotate-180')} />
                             </button>
                             {moreOpen && (
-                                <div className="absolute top-full left-0 mt-1 py-2 min-w-[160px] rounded-lg bg-[var(--bg-secondary)] border border-[var(--border-color)] shadow-xl z-50">
+                                <div className="absolute top-full left-0 mt-2 py-2 min-w-[220px] rounded-xl bg-[var(--bg-secondary)]/95 backdrop-blur-md border border-[var(--border-color)] shadow-2xl z-50">
+                                    <div className="px-3 pb-2 text-[11px] uppercase tracking-[0.12em] text-text-muted">Explore</div>
                                     {MORE_LINKS.map((link) => {
                                         const active = isLinkActive(link.path, location.pathname);
                                         return (
@@ -95,7 +96,7 @@ export function Navbar() {
                                                 to={link.path}
                                                 onClick={() => setMoreOpen(false)}
                                                 className={clsx(
-                                                    'block px-4 py-2.5 text-sm font-medium transition-colors',
+                                                    'mx-2 block px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
                                                     active ? 'text-[var(--primary)] bg-[var(--primary)]/10' : 'text-text-secondary hover:text-white hover:bg-white/5'
                                                 )}
                                             >
