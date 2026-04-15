@@ -4,7 +4,7 @@ import { getActiveMarketAddresses } from "../services/activeMarkets.js";
 import { fetchCoinGeckoPrices, getCoinGeckoIdForMarket, fetchPriceHistory } from "../services/coingecko.js";
 import { fetchPythPrices, fetchPyth24hChange, getPythTvSymbol, fetchPythPriceHistory, fetchPythPriceHistoryHermes, getPythFeedId } from "../services/pyth.js";
 import type { BackendMarket, ApiResponse } from "../types/index.js";
-import { toDecimal, PRECISION_1E18 } from "../utils/format.js";
+import { toDecimal, toDecimal18, PRECISION_1E18 } from "../utils/format.js";
 
 const router = Router();
 const ENABLE_PYTH_24H = process.env.ENABLE_PYTH_24H != null
@@ -154,7 +154,7 @@ router.get("/", async (_req: Request, res: Response) => {
       const fallback = buildFallbackMarkets();
       try {
         const [protocol, cgPrices, pythPrices] = await Promise.all([fetchProtocol(), fetchCoinGeckoPrices(), fetchPythPrices()]);
-        const protocolVolume24h = protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0";
+        const protocolVolume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
         const pythChanges = ENABLE_PYTH_24H
           ? await Promise.all(
               fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined))
@@ -192,7 +192,7 @@ router.get("/", async (_req: Request, res: Response) => {
     ]);
     const cgPrices = cgPricesRaw as Record<string, any>;
     const pythPrices = pythPricesRaw as Record<string, any>;
-    const protocolVolume24h = protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0";
+    const protocolVolume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
     const pythChanges = ENABLE_PYTH_24H
       ? await Promise.all(
           markets.map((m) => {
@@ -233,8 +233,8 @@ router.get("/", async (_req: Request, res: Response) => {
         indexPrice,
         lastPrice,
         volume24h: protocolVolume24h,
-        longOI: toDecimal(m.totalLongSize),
-        shortOI: toDecimal(m.totalShortSize),
+        longOI: toDecimal18(m.totalLongSize),
+        shortOI: toDecimal18(m.totalShortSize),
         fundingRate: (Number(m.fundingRate) / PRECISION_1E18).toFixed(6),
         maxLeverage: Number(m.maxLeverage) || 30,
         isPaused: !m.isActive,
@@ -251,7 +251,7 @@ router.get("/", async (_req: Request, res: Response) => {
         fetchCoinGeckoPrices().catch(() => ({})),
         fetchPythPrices().catch(() => ({}))
       ]);
-      const protocolVolume24h = protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0";
+      const protocolVolume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
       const pythChanges = ENABLE_PYTH_24H
         ? await Promise.all(
             fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined))

@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { fetchLeaderboard, type LeaderboardTimeframe } from "../services/indexer.js";
 import type { LeaderboardEntry, ApiResponse } from "../types/index.js";
-import { toDecimal } from "../utils/format.js";
+import { toDecimal18 } from "../utils/format.js";
 
 const router = Router();
 
@@ -21,8 +21,8 @@ router.get("/", async (req: Request, res: Response) => {
     const data: LeaderboardEntry[] = users.map((u, i) => ({
       rank: i + 1,
       wallet: u.address,
-      pnl: toDecimal(u.totalRealizedPnl),
-      volume: toDecimal(u.totalVolumeUsd),
+      pnl: toDecimal18(u.totalRealizedPnl),
+      volume: Number(u.totalVolumeUsd).toFixed(6),
       trades: Number(u.totalTrades) || 0,
     }));
     res.json({ success: true, data } as ApiResponse<LeaderboardEntry[]>);

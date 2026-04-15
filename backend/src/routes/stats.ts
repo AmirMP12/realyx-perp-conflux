@@ -27,14 +27,14 @@ router.get("/", async (_req: Request, res: Response) => {
       });
     }
     const totalMarkets = markets.length;
-    const volume24h = protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0";
+    const volume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
     let totalOpenInterest = "0";
     if (markets.length > 0) {
       const oi = markets.reduce(
         (acc, m) => acc + Number(m.totalLongSize) + Number(m.totalShortSize),
         0
       );
-      totalOpenInterest = (oi / 1e12).toFixed(6);
+      totalOpenInterest = (oi / 1e18).toFixed(6);
     }
     /** Event count from indexer — not a wei amount; do not pass through `toDecimal`. */
     const totalLiquidations = protocol?.totalLiquidations ?? "0";

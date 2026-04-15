@@ -126,7 +126,7 @@ const PROTOCOL_VOLUME_24H_SQL = `
   SELECT COALESCE(SUM(
     CASE
       WHEN o.size_raw IS NOT NULL AND (c.data->>3) IS NOT NULL
-      THEN (o.size_raw * (c.data->>3)::numeric) / POWER(10::numeric, 12)
+      THEN (o.size_raw * (c.data->>3)::numeric) / POWER(10::numeric, 36)
       ELSE 0::numeric
     END
   ), 0)::text AS total_volume_usd
@@ -296,8 +296,22 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
   try {
     const pool = getPool();
     if (!pool) return [];
+    // LEFT JOIN close/liquidate events to their open events to resolve isLong, market, and size
     const res = await pool.query(
-      `SELECT * FROM position_events WHERE lower(account) = $1 ORDER BY id DESC LIMIT $2`,
+      `SELECT e.*,
+              o.data AS open_data,
+              o.market_id AS open_market_id
+       FROM position_events e
+       LEFT JOIN LATERAL (
+         SELECT data, market_id
+         FROM position_events
+         WHERE event_type = 'PositionOpened'
+           AND (data->>0)::text = (e.data->>0)::text
+         ORDER BY id ASC
+         LIMIT 1
+       ) o ON e.event_type IN ('PositionClosed', 'PositionLiquidated')
+       WHERE lower(e.account) = $1
+       ORDER BY e.id DESC LIMIT $2`,
       [trader, Math.min(limit, 200)]
     );
 
@@ -306,6 +320,7 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
       let size = "0";
       let price = "0";
       let pnl = "0";
+      let marketId = row.market_id || "0x";
       try {
         const args = JSON.parse(row.data || "[]");
         if (row.event_type === "PositionOpened") {
@@ -315,7 +330,31 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
         } else if (row.event_type === "PositionClosed") {
           pnl = args[2] || "0";
           price = args[3] || "0";
-          size = "0";
+          // Resolve isLong and size from the open event
+          if (row.open_data) {
+            try {
+              const openArgs = typeof row.open_data === 'string' ? JSON.parse(row.open_data) : row.open_data;
+              isLong = String(openArgs[3]) === "true";
+              size = openArgs[4] || "0";
+            } catch { /* ignore */ }
+          }
+          // Resolve market_id from open event if current is placeholder
+          if ((!marketId || marketId === "0x") && row.open_market_id) {
+            marketId = row.open_market_id;
+          }
+        } else if (row.event_type === "PositionLiquidated") {
+          price = args[2] || "0";
+          // Resolve isLong and size from the open event
+          if (row.open_data) {
+            try {
+              const openArgs = typeof row.open_data === 'string' ? JSON.parse(row.open_data) : row.open_data;
+              isLong = String(openArgs[3]) === "true";
+              size = openArgs[4] || "0";
+            } catch { /* ignore */ }
+          }
+          if ((!marketId || marketId === "0x") && row.open_market_id) {
+            marketId = row.open_market_id;
+          }
         }
       } catch {
         /* ignore malformed JSON */
@@ -329,7 +368,7 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
         id: String(row.id),
         position: { positionId: String(row.id) },
         trader: { id: trader },
-        market: { id: row.market_id },
+        market: { id: marketId },
         type,
         isLong,
         size,
@@ -416,7 +455,7 @@ export async function fetchLeaderboard(
         COALESCE(SUM(
           CASE
             WHEN o.size_raw IS NOT NULL AND e.price_raw IS NOT NULL
-            THEN (o.size_raw * e.price_raw) / POWER(10::numeric, 12)
+            THEN (o.size_raw * e.price_raw) / POWER(10::numeric, 36)
             ELSE 0::numeric
           END
         ), 0)::text AS total_volume_usd

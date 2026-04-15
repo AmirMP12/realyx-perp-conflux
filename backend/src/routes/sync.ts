@@ -118,8 +118,30 @@ router.get("/", async (req: any, res: any) => {
           marketId = String(parsed.args[2]);
         } else if (parsed.name === "PositionClosed") {
           account = String(parsed.args[1]);
+          // Look up market_id from the corresponding PositionOpened event
+          const posId = String(parsed.args[0]);
+          try {
+            const openEvt = await getPool()!.query(
+              `SELECT market_id FROM position_events WHERE event_type = 'PositionOpened' AND (data->>0)::text = $1 LIMIT 1`,
+              [posId]
+            );
+            if (openEvt.rows.length > 0 && openEvt.rows[0].market_id) {
+              marketId = openEvt.rows[0].market_id;
+            }
+          } catch { /* best-effort lookup */ }
         } else if (parsed.name === "PositionLiquidated") {
           account = String(parsed.args[1]);
+          // Look up market_id from the corresponding PositionOpened event
+          const posId = String(parsed.args[0]);
+          try {
+            const openEvt = await getPool()!.query(
+              `SELECT market_id FROM position_events WHERE event_type = 'PositionOpened' AND (data->>0)::text = $1 LIMIT 1`,
+              [posId]
+            );
+            if (openEvt.rows.length > 0 && openEvt.rows[0].market_id) {
+              marketId = openEvt.rows[0].market_id;
+            }
+          } catch { /* best-effort lookup */ }
         }
 
         const eventData = JSON.stringify(parsed.args.map(arg => typeof arg === 'bigint' ? arg.toString() : arg));
