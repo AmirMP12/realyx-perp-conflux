@@ -147,7 +147,22 @@ function buildFallbackMarkets(): BackendMarket[] {
   }));
 }
 
+// ── Response-level cache for /markets ──
+let marketsResponseCache: { data: BackendMarket[]; fallback?: boolean } | null = null;
+let marketsResponseCachedAt = 0;
+const MARKETS_RESPONSE_TTL_MS = 5_000; // 5s — first request computes, subsequent polls get cache
+let marketsResponseInFlight: Promise<void> | null = null;
+
 router.get("/", async (_req: Request, res: Response) => {
+  // Serve from cache if fresh
+  if (marketsResponseCache && Date.now() - marketsResponseCachedAt < MARKETS_RESPONSE_TTL_MS) {
+    return res.json({
+      success: true,
+      data: marketsResponseCache.data,
+      ...(marketsResponseCache.fallback && { fallback: true }),
+    } as ApiResponse<BackendMarket[]>);
+  }
+
   try {
     let markets = await fetchMarkets();
     if (markets.length === 0) {
@@ -173,6 +188,8 @@ router.get("/", async (_req: Request, res: Response) => {
           if (pythPrice != null && pythPrice > 0) indexPrice = String(pythPrice);
           return { ...m, indexPrice, lastPrice: indexPrice, volume24h: protocolVolume24h, ...(change24h !== undefined && { change24h }) };
         });
+        marketsResponseCache = { data: enriched, fallback: true };
+        marketsResponseCachedAt = Date.now();
         return res.json({ success: true, data: enriched, fallback: true } as ApiResponse<BackendMarket[]>);
       } catch {
         return res.json({ success: true, data: fallback, fallback: true } as ApiResponse<BackendMarket[]>);
@@ -241,6 +258,8 @@ router.get("/", async (_req: Request, res: Response) => {
         ...(change24h !== undefined && { change24h }),
       };
     });
+    marketsResponseCache = { data };
+    marketsResponseCachedAt = Date.now();
     res.json({ success: true, data } as ApiResponse<BackendMarket[]>);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to fetch markets";

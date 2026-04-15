@@ -53,11 +53,37 @@ function toStr(n: unknown): string {
   return String(n);
 }
 
+// ── In-memory cache for on-chain markets data ──
+const CACHE_TTL_MS = 10_000; // 10s — frontend polls every 1-5s so this avoids redundant RPC
+let cachedMarkets: OnchainMarketRow[] = [];
+let cachedAt = 0;
+let fetchInProgress: Promise<OnchainMarketRow[]> | null = null;
+
 /**
  * When Postgres markets indexer is empty, load live OI / funding / sizes from TradingCore RPC.
  * Fixes API consumers seeing volume24h / OI / funding all zero on Vercel or without DB.
+ *
+ * Performance: All per-market RPC calls are parallelized and results are cached for 10s.
  */
 export async function fetchMarketsOnChain(): Promise<OnchainMarketRow[]> {
+  // Return cached if still fresh
+  if (Date.now() - cachedAt < CACHE_TTL_MS && cachedMarkets.length > 0) {
+    return cachedMarkets;
+  }
+
+  // Deduplicate concurrent callers — only one in-flight fetch at a time
+  if (fetchInProgress) return fetchInProgress;
+
+  fetchInProgress = _fetchMarketsOnChainImpl();
+  try {
+    const result = await fetchInProgress;
+    return result;
+  } finally {
+    fetchInProgress = null;
+  }
+}
+
+async function _fetchMarketsOnChainImpl(): Promise<OnchainMarketRow[]> {
   const tradingCoreAddress = (process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE ?? "").trim();
   if (!tradingCoreAddress) return [];
 
@@ -75,12 +101,25 @@ export async function fetchMarketsOnChain(): Promise<OnchainMarketRow[]> {
       const n = Number(countBn);
       if (!Number.isFinite(n) || n <= 0) return [];
 
+      // Fetch all market addresses in parallel
+      const addrPromises = Array.from({ length: n }, (_, i) => tc.activeMarketAt(i));
+      const addrs: string[] = await Promise.all(addrPromises);
+
+      // Fetch all getMarketInfo + getFundingState in parallel (2 calls per market, all at once)
+      const infoPromises = addrs.map((addr) => tc.getMarketInfo(addr).catch(() => null));
+      const fundPromises = addrs.map((addr) => tc.getFundingState(addr).catch(() => null));
+      const [infos, funds] = await Promise.all([
+        Promise.all(infoPromises),
+        Promise.all(fundPromises),
+      ]);
+
       const out: OnchainMarketRow[] = [];
-      for (let i = 0; i < n; i++) {
-        const addr: string = await tc.activeMarketAt(i);
+      for (let i = 0; i < addrs.length; i++) {
+        const addr = addrs[i];
         if (!addr || typeof addr !== "string") continue;
-        const info = await tc.getMarketInfo(addr);
-        const fund = await tc.getFundingState(addr);
+        const info = infos[i];
+        const fund = funds[i];
+        if (!info) continue;
         out.push({
           id: addr.toLowerCase(),
           marketAddress: addr,
@@ -91,16 +130,20 @@ export async function fetchMarketsOnChain(): Promise<OnchainMarketRow[]> {
           totalShortSize: toStr(info.totalShortSize),
           totalLongCost: toStr(info.totalLongCost),
           totalShortCost: toStr(info.totalShortCost),
-          fundingRate: toStr(fund.fundingRate),
-          cumulativeFunding: toStr(fund.cumulativeFunding),
-          lastFundingTime: toStr(fund.lastSettlement),
-          longOpenInterest: toStr(fund.longOpenInterest),
-          shortOpenInterest: toStr(fund.shortOpenInterest),
+          fundingRate: fund ? toStr(fund.fundingRate) : "0",
+          cumulativeFunding: fund ? toStr(fund.cumulativeFunding) : "0",
+          lastFundingTime: fund ? toStr(fund.lastSettlement) : "0",
+          longOpenInterest: fund ? toStr(fund.longOpenInterest) : "0",
+          shortOpenInterest: fund ? toStr(fund.shortOpenInterest) : "0",
           isActive: Boolean(info.isActive),
           isListed: Boolean(info.isListed),
           updatedAt: new Date().toISOString(),
         });
       }
+
+      // Update cache
+      cachedMarkets = out;
+      cachedAt = Date.now();
       return out;
     } catch (e) {
       lastErr = e;
@@ -109,3 +152,4 @@ export async function fetchMarketsOnChain(): Promise<OnchainMarketRow[]> {
   console.warn("[fetchMarketsOnChain] all RPCs failed:", lastErr instanceof Error ? lastErr.message : lastErr);
   return [];
 }
+
