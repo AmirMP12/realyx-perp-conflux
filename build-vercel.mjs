@@ -36,10 +36,10 @@ try {
   fs.mkdirSync(backendDistVercelDir, { recursive: true });
   fs.writeFileSync(
     path.join(backendDistVercelDir, 'package.json'),
-    JSON.stringify({ type: 'commonjs' }, null, 2),
+    JSON.stringify({ type: 'module' }, null, 2),
     'utf-8'
   );
-  console.log('✅ Wrote backend/dist-vercel/package.json with type=commonjs.');
+  console.log('✅ Wrote backend/dist-vercel/package.json with type=module (matches NodeNext ESM output).');
 
   console.log('\n--- Standardizing Output ---');
   if (process.platform === 'win32') {

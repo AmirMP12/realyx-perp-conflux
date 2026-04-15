@@ -1,17 +1,11 @@
-"use strict";
 /**
  * CoinGecko API for real-time prices and 24h change.
  * Used to enrich markets with indexPrice and change24h when subgraph has no positions.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.MARKET_TO_COINGECKO_ID = void 0;
-exports.fetchCoinGeckoPrices = fetchCoinGeckoPrices;
-exports.getCoinGeckoIdForMarket = getCoinGeckoIdForMarket;
-exports.fetchPriceHistory = fetchPriceHistory;
 const COINGECKO_BASE = "https://api.coingecko.com/api/v3";
 const CACHE_MS = 60_000; // 1 min
 // Map market address (lowercase) to CoinGecko API id
-exports.MARKET_TO_COINGECKO_ID = {
+export const MARKET_TO_COINGECKO_ID = {
     "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c": "conflux-token",
     "0x986a383f6de4a24dd3f524f0f93546229b58265f": "bitcoin",
     "0x886a383f6de4a24dd3f524f0f93546229b58265f": "ethereum",
@@ -31,11 +25,11 @@ exports.MARKET_TO_COINGECKO_ID = {
 };
 let cachedAt = 0;
 let cachedData = {};
-async function fetchCoinGeckoPrices() {
+export async function fetchCoinGeckoPrices() {
     if (Date.now() - cachedAt < CACHE_MS && Object.keys(cachedData).length > 0) {
         return cachedData;
     }
-    const ids = [...new Set(Object.values(exports.MARKET_TO_COINGECKO_ID))].join(",");
+    const ids = [...new Set(Object.values(MARKET_TO_COINGECKO_ID))].join(",");
     const url = `${COINGECKO_BASE}/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=250&page=1&sparkline=false&price_change_percentage=24h`;
     try {
         const res = await fetch(url, { headers: { Accept: "application/json" } });
@@ -59,11 +53,11 @@ async function fetchCoinGeckoPrices() {
         return cachedData;
     }
 }
-function getCoinGeckoIdForMarket(marketAddress) {
-    return exports.MARKET_TO_COINGECKO_ID[marketAddress.toLowerCase()] ?? null;
+export function getCoinGeckoIdForMarket(marketAddress) {
+    return MARKET_TO_COINGECKO_ID[marketAddress.toLowerCase()] ?? null;
 }
 /** Price history for charts: array of [timestamp_ms, price] */
-async function fetchPriceHistory(coingeckoId, days = 7) {
+export async function fetchPriceHistory(coingeckoId, days = 7) {
     const url = `${COINGECKO_BASE}/coins/${coingeckoId}/market_chart?vs_currency=usd&days=${days}`;
     try {
         const res = await fetch(url, { headers: { Accept: "application/json" } });

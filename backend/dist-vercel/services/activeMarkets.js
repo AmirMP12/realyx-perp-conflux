@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.getActiveMarketAddresses = getActiveMarketAddresses;
-const ethers_1 = require("ethers");
+import { ethers } from "ethers";
 function getTradingCoreAbi() {
     return [
         "function activeMarketCount() view returns (uint256)",
@@ -38,8 +35,8 @@ function activeFilterEnabled() {
 }
 async function tryFetchActiveSet(rpcUrl, tradingCoreAddress) {
     const chainId = parseInt(process.env.CHAIN_ID ?? "71", 10);
-    const provider = new ethers_1.ethers.JsonRpcProvider(rpcUrl, chainId);
-    const contract = new ethers_1.ethers.Contract(tradingCoreAddress, getTradingCoreAbi(), provider);
+    const provider = new ethers.JsonRpcProvider(rpcUrl, chainId);
+    const contract = new ethers.Contract(tradingCoreAddress, getTradingCoreAbi(), provider);
     const count = await contract.activeMarketCount();
     const n = Number(count);
     const set = new Set();
@@ -50,7 +47,7 @@ async function tryFetchActiveSet(rpcUrl, tradingCoreAddress) {
     }
     return set;
 }
-async function getActiveMarketAddresses() {
+export async function getActiveMarketAddresses() {
     if (!activeFilterEnabled()) {
         return null;
     }

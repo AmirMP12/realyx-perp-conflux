@@ -1,17 +1,5 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.fetchProtocol = fetchProtocol;
-exports.fetchMarkets = fetchMarkets;
-exports.fetchUserPositions = fetchUserPositions;
-exports.fetchUserTrades = fetchUserTrades;
-exports.fetchLeaderboard = fetchLeaderboard;
-exports.fetchBadDebtClaims = fetchBadDebtClaims;
-exports.fetchProtocolMetrics = fetchProtocolMetrics;
-const pg_1 = __importDefault(require("pg"));
-const { Pool } = pg_1.default;
+import pg from "pg";
+const { Pool } = pg;
 let poolInstance = null;
 function getPool() {
     if (poolInstance)
@@ -31,7 +19,28 @@ function getPool() {
     });
     return poolInstance;
 }
-async function fetchProtocol() {
+const PROTOCOL_VOLUME_24H_SQL = `
+  SELECT COALESCE(SUM(
+    CASE
+      WHEN o.size_raw IS NOT NULL AND (c.data->>3) IS NOT NULL
+      THEN (o.size_raw * (c.data->>3)::numeric) / POWER(10::numeric, 12)
+      ELSE 0::numeric
+    END
+  ), 0)::text AS total_volume_usd
+  FROM position_events c
+  LEFT JOIN (
+    SELECT DISTINCT ON ((data->>0)::text)
+      (data->>0)::text AS position_id,
+      (data->>4)::numeric AS size_raw
+    FROM position_events
+    WHERE event_type = 'PositionOpened'
+    ORDER BY (data->>0)::text, id ASC
+  ) o ON o.position_id = (c.data->>0)::text
+  WHERE c.event_type = 'PositionClosed'
+    AND c.data IS NOT NULL
+    AND c.created_at >= NOW() - INTERVAL '24 hours'
+`;
+export async function fetchProtocol() {
     if (!process.env.POSTGRES_URL) {
         if (process.env.NODE_ENV === 'test')
             return { totalVolumeUsd: "5000", totalFeesUsd: "100", tvl: "1000", totalTrades: "10", totalPositionsOpened: "5", totalPositionsClosed: "4", totalLiquidations: "1" };
@@ -41,7 +50,10 @@ async function fetchProtocol() {
         const pool = getPool();
         if (!pool)
             return null;
-        const res = await pool.query(`SELECT event_type, COUNT(*) as count FROM position_events GROUP BY event_type`);
+        const [res, volRes] = await Promise.all([
+            pool.query(`SELECT event_type, COUNT(*) as count FROM position_events GROUP BY event_type`),
+            pool.query(PROTOCOL_VOLUME_24H_SQL).catch(() => ({ rows: [{ total_volume_usd: "0" }] })),
+        ]);
         let opened = 0;
         let closed = 0;
         let liq = 0;
@@ -53,11 +65,12 @@ async function fetchProtocol() {
             if (row.event_type === "PositionLiquidated")
                 liq = parseInt(row.count);
         }
+        const totalVolumeUsd = volRes.rows[0]?.total_volume_usd ?? "0";
         return {
             totalPositionsOpened: String(opened),
             totalPositionsClosed: String(closed),
             totalTrades: String(opened + closed + liq),
-            totalVolumeUsd: "0",
+            totalVolumeUsd,
             totalFeesUsd: "0",
             totalLiquidations: String(liq),
             tvl: "0",
@@ -67,10 +80,65 @@ async function fetchProtocol() {
         return null;
     }
 }
-async function fetchMarkets() {
+/**
+ * Distinct wallets with indexed activity in the last 24h: opens, closes, and liquidations
+ * (liquidated traders resolved via PositionOpened on the same position id).
+ */
+export async function fetchActiveTraders24h() {
+    if (!process.env.POSTGRES_URL)
+        return 0;
+    try {
+        const pool = getPool();
+        if (!pool)
+            return 0;
+        const res = await pool.query(`
+      WITH opened_for_liq AS (
+        SELECT DISTINCT ON ((data->>0)::text)
+          (data->>0)::text AS position_id,
+          lower(account) AS trader
+        FROM position_events
+        WHERE event_type = 'PositionOpened'
+        ORDER BY (data->>0)::text, id ASC
+      ),
+      recent AS (
+        SELECT lower(account) AS w
+        FROM position_events
+        WHERE event_type IN ('PositionOpened', 'PositionClosed')
+          AND data IS NOT NULL
+          AND created_at >= NOW() - INTERVAL '24 hours'
+        UNION
+        SELECT o.trader AS w
+        FROM position_events c
+        INNER JOIN opened_for_liq o ON o.position_id = (c.data->>0)::text
+        WHERE c.event_type = 'PositionLiquidated'
+          AND c.data IS NOT NULL
+          AND c.created_at >= NOW() - INTERVAL '24 hours'
+      )
+      SELECT COUNT(DISTINCT w)::int AS n FROM recent WHERE w IS NOT NULL AND w LIKE '0x%'
+    `);
+        const n = res.rows[0]?.n;
+        if (typeof n === "number" && Number.isFinite(n))
+            return n;
+        return parseInt(String(n ?? "0"), 10) || 0;
+    }
+    catch {
+        return 0;
+    }
+}
+export async function fetchMarkets() {
+    try {
+        const { fetchMarketsOnChain } = await import("./fetchMarketsOnchain.js");
+        const onchain = await fetchMarketsOnChain();
+        if (onchain.length > 0)
+            return onchain;
+    }
+    catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn("[indexer] fetchMarkets on-chain fallback failed:", msg);
+    }
     return [];
 }
-async function fetchUserPositions(traderAddress) {
+export async function fetchUserPositions(traderAddress) {
     const trader = traderAddress.toLowerCase();
     if (!trader.startsWith("0x") || !process.env.POSTGRES_URL)
         return [];
@@ -124,7 +192,7 @@ async function fetchUserPositions(traderAddress) {
         return [];
     }
 }
-async function fetchUserTrades(traderAddress, limit) {
+export async function fetchUserTrades(traderAddress, limit) {
     const trader = traderAddress.toLowerCase();
     if (!trader.startsWith("0x") || !process.env.POSTGRES_URL)
         return [];
@@ -181,29 +249,97 @@ async function fetchUserTrades(traderAddress, limit) {
         return [];
     }
 }
-async function fetchLeaderboard(limit) {
+function leaderboardTimeFilter(timeframe, tableAlias) {
+    if (timeframe === "24h")
+        return `AND ${tableAlias}.created_at >= NOW() - INTERVAL '24 hours'`;
+    if (timeframe === "7d")
+        return `AND ${tableAlias}.created_at >= NOW() - INTERVAL '7 days'`;
+    return "";
+}
+/**
+ * Rank traders from indexed `position_events`.
+ * Uses `PositionClosed` (trader = row.account) and `PositionLiquidated` (trader resolved via matching
+ * `PositionOpened` on position id — liquidate events only index the liquidator on-chain).
+ * PnL sums closed `realizedPnL`; liquidations contribute volume (size × liq price / 1e12) and trades count, not PnL in the log.
+ */
+export async function fetchLeaderboard(limit, timeframe = "all") {
     if (!process.env.POSTGRES_URL)
         return [];
     try {
         const pool = getPool();
         if (!pool)
             return [];
-        const res = await pool.query(`SELECT account, COUNT(*) as trades FROM position_events GROUP BY account ORDER BY trades DESC LIMIT $1`, [Math.min(limit, 100)]);
+        const safeLimit = Math.min(Math.max(limit, 1), 100);
+        const tf = timeframe === "24h" || timeframe === "7d" ? timeframe : "all";
+        const timeFilter = leaderboardTimeFilter(tf, "e");
+        const res = await pool.query(`
+      WITH opened AS (
+        SELECT DISTINCT ON ((data->>0)::text)
+          (data->>0)::text AS position_id,
+          account,
+          (data->>4)::numeric AS size_raw
+        FROM position_events
+        WHERE event_type = 'PositionOpened'
+        ORDER BY (data->>0)::text, id ASC
+      ),
+      close_rows AS (
+        SELECT lower(c.account) AS addr_key, c.account AS address_display,
+               (c.data->>0)::text AS position_id,
+               (c.data->>2)::numeric AS pnl_raw,
+               (c.data->>3)::numeric AS price_raw,
+               c.created_at
+        FROM position_events c
+        WHERE c.event_type = 'PositionClosed' AND c.data IS NOT NULL
+      ),
+      liq_rows AS (
+        SELECT lower(o.account) AS addr_key, o.account AS address_display,
+               (c.data->>0)::text AS position_id,
+               NULL::numeric AS pnl_raw,
+               (c.data->>2)::numeric AS price_raw,
+               c.created_at
+        FROM position_events c
+        INNER JOIN opened o ON o.position_id = (c.data->>0)::text
+        WHERE c.event_type = 'PositionLiquidated' AND c.data IS NOT NULL
+      ),
+      exit_events AS (
+        SELECT * FROM close_rows
+        UNION ALL
+        SELECT * FROM liq_rows
+      )
+      SELECT
+        MAX(e.address_display) AS address,
+        COUNT(*)::bigint AS total_trades,
+        COALESCE(SUM(e.pnl_raw), 0)::text AS total_realized_pnl,
+        COALESCE(SUM(
+          CASE
+            WHEN o.size_raw IS NOT NULL AND e.price_raw IS NOT NULL
+            THEN (o.size_raw * e.price_raw) / POWER(10::numeric, 12)
+            ELSE 0::numeric
+          END
+        ), 0)::text AS total_volume_usd
+      FROM exit_events e
+      LEFT JOIN opened o ON o.position_id = e.position_id
+      WHERE 1=1
+      ${timeFilter}
+      GROUP BY e.addr_key
+      ORDER BY COALESCE(SUM(e.pnl_raw), 0) DESC NULLS LAST
+      LIMIT $1
+      `, [safeLimit]);
         return res.rows.map((row) => ({
-            id: row.account,
-            address: row.account,
-            totalTrades: String(row.trades),
-            totalVolumeUsd: "0",
-            totalRealizedPnl: "0",
+            id: row.address,
+            address: row.address,
+            totalTrades: String(row.total_trades),
+            totalVolumeUsd: row.total_volume_usd ?? "0",
+            totalRealizedPnl: row.total_realized_pnl ?? "0",
         }));
     }
     catch (e) {
         return [];
     }
 }
-async function fetchBadDebtClaims(_limit) {
+export async function fetchBadDebtClaims(_limit) {
     return [];
 }
-async function fetchProtocolMetrics(_limit, _periodType = "day") {
+export async function fetchProtocolMetrics(_limit, _periodType = "day") {
     return [];
 }

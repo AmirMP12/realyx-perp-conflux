@@ -1,18 +1,27 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const indexer_js_1 = require("../services/indexer.js");
-const format_js_1 = require("../utils/format.js");
-const router = (0, express_1.Router)();
+import { Router } from "express";
+import { fetchLeaderboard } from "../services/indexer.js";
+import { toDecimal } from "../utils/format.js";
+const router = Router();
+function parseTimeframe(q) {
+    const s = String(q ?? "all").toLowerCase().replace(/\s+/g, "");
+    if (s === "24h")
+        return "24h";
+    if (s === "7d")
+        return "7d";
+    if (s === "alltime" || s === "all")
+        return "all";
+    return "all";
+}
 router.get("/", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit, 10) || 10, 100);
+    const timeframe = parseTimeframe(req.query.timeframe);
     try {
-        const users = await (0, indexer_js_1.fetchLeaderboard)(limit);
+        const users = await fetchLeaderboard(limit, timeframe);
         const data = users.map((u, i) => ({
             rank: i + 1,
             wallet: u.address,
-            pnl: (0, format_js_1.toDecimal)(u.totalRealizedPnl),
-            volume: (0, format_js_1.toDecimal)(u.totalVolumeUsd),
+            pnl: toDecimal(u.totalRealizedPnl),
+            volume: toDecimal(u.totalVolumeUsd),
             trades: Number(u.totalTrades) || 0,
         }));
         res.json({ success: true, data });
@@ -22,4 +31,4 @@ router.get("/", async (req, res) => {
         res.json({ success: false, error: message, data: [] });
     }
 });
-exports.default = router;
+export default router;

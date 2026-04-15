@@ -1,12 +1,10 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const indexer_js_1 = require("../services/indexer.js");
-const activeMarkets_js_1 = require("../services/activeMarkets.js");
-const coingecko_js_1 = require("../services/coingecko.js");
-const pyth_js_1 = require("../services/pyth.js");
-const format_js_1 = require("../utils/format.js");
-const router = (0, express_1.Router)();
+import { Router } from "express";
+import { fetchMarkets, fetchProtocol } from "../services/indexer.js";
+import { getActiveMarketAddresses } from "../services/activeMarkets.js";
+import { fetchCoinGeckoPrices, getCoinGeckoIdForMarket, fetchPriceHistory } from "../services/coingecko.js";
+import { fetchPythPrices, fetchPyth24hChange, getPythTvSymbol, fetchPythPriceHistory, fetchPythPriceHistoryHermes, getPythFeedId } from "../services/pyth.js";
+import { toDecimal, PRECISION_1E18 } from "../utils/format.js";
+const router = Router();
 const ENABLE_PYTH_24H = process.env.ENABLE_PYTH_24H != null
     ? /^(1|true|yes)$/i.test(process.env.ENABLE_PYTH_24H)
     : !process.env.VERCEL;
@@ -141,18 +139,18 @@ function buildFallbackMarkets() {
 }
 router.get("/", async (_req, res) => {
     try {
-        let markets = await (0, indexer_js_1.fetchMarkets)();
+        let markets = await fetchMarkets();
         if (markets.length === 0) {
             const fallback = buildFallbackMarkets();
             try {
-                const [protocol, cgPrices, pythPrices] = await Promise.all([(0, indexer_js_1.fetchProtocol)(), (0, coingecko_js_1.fetchCoinGeckoPrices)(), (0, pyth_js_1.fetchPythPrices)()]);
-                const protocolVolume24h = protocol?.totalVolumeUsd ? (0, format_js_1.toDecimal)(protocol.totalVolumeUsd) : "0";
+                const [protocol, cgPrices, pythPrices] = await Promise.all([fetchProtocol(), fetchCoinGeckoPrices(), fetchPythPrices()]);
+                const protocolVolume24h = protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0";
                 const pythChanges = ENABLE_PYTH_24H
-                    ? await Promise.all(fallback.map((m) => (0, pyth_js_1.fetchPyth24hChange)(m.marketAddress).catch(() => undefined)))
+                    ? await Promise.all(fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined)))
                     : fallback.map(() => undefined);
                 const enriched = fallback.map((m, i) => {
                     const addr = m.marketAddress.toLowerCase();
-                    const cgId = (0, coingecko_js_1.getCoinGeckoIdForMarket)(m.marketAddress);
+                    const cgId = getCoinGeckoIdForMarket(m.marketAddress);
                     let indexPrice = "0";
                     let change24h = pythChanges[i];
                     if (cgId && cgPrices[cgId]) {
@@ -171,7 +169,7 @@ router.get("/", async (_req, res) => {
                 return res.json({ success: true, data: fallback, fallback: true });
             }
         }
-        const activeSet = await (0, activeMarkets_js_1.getActiveMarketAddresses)();
+        const activeSet = await getActiveMarketAddresses();
         if (activeSet && activeSet.size > 0) {
             markets = markets.filter((m) => {
                 const addr = typeof m.marketAddress === "string" ? m.marketAddress : String(m.marketAddress);
@@ -179,17 +177,17 @@ router.get("/", async (_req, res) => {
             });
         }
         const [protocol, cgPricesRaw, pythPricesRaw] = await Promise.all([
-            (0, indexer_js_1.fetchProtocol)().catch(() => null),
-            (0, coingecko_js_1.fetchCoinGeckoPrices)().catch(() => ({})),
-            (0, pyth_js_1.fetchPythPrices)().catch(() => ({}))
+            fetchProtocol().catch(() => null),
+            fetchCoinGeckoPrices().catch(() => ({})),
+            fetchPythPrices().catch(() => ({}))
         ]);
         const cgPrices = cgPricesRaw;
         const pythPrices = pythPricesRaw;
-        const protocolVolume24h = protocol?.totalVolumeUsd ? (0, format_js_1.toDecimal)(protocol.totalVolumeUsd) : "0";
+        const protocolVolume24h = protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0";
         const pythChanges = ENABLE_PYTH_24H
             ? await Promise.all(markets.map((m) => {
                 const a = (typeof m.marketAddress === "string" ? m.marketAddress : String(m.marketAddress)).toLowerCase();
-                return (0, pyth_js_1.fetchPyth24hChange)(a).catch(() => undefined);
+                return fetchPyth24hChange(a).catch(() => undefined);
             }))
             : markets.map(() => undefined);
         const data = markets.map((m, i) => {
@@ -199,7 +197,7 @@ router.get("/", async (_req, res) => {
             let indexPrice = longSize > 0 ? (Number(m.totalLongCost) / longSize / 1e12).toFixed(6) : "0";
             const lastPrice = shortSize > 0 ? (Number(m.totalShortCost) / shortSize / 1e12).toFixed(6) : "0";
             const meta = getMarketMeta(m.marketAddress);
-            const cgId = (0, coingecko_js_1.getCoinGeckoIdForMarket)(m.marketAddress);
+            const cgId = getCoinGeckoIdForMarket(m.marketAddress);
             let change24h = pythChanges[i];
             const preferCoinGeckoForPrice = new Set(["0x926a383f6de4a24dd3f524f0f93546229b58265f"]); // SNX-USD: always use CoinGecko
             if (cgId && cgPrices[cgId] && change24h === undefined) {
@@ -223,9 +221,9 @@ router.get("/", async (_req, res) => {
                 indexPrice,
                 lastPrice,
                 volume24h: protocolVolume24h,
-                longOI: (0, format_js_1.toDecimal)(m.totalLongSize),
-                shortOI: (0, format_js_1.toDecimal)(m.totalShortSize),
-                fundingRate: (Number(m.fundingRate) / format_js_1.PRECISION_1E18).toFixed(6),
+                longOI: toDecimal(m.totalLongSize),
+                shortOI: toDecimal(m.totalShortSize),
+                fundingRate: (Number(m.fundingRate) / PRECISION_1E18).toFixed(6),
                 maxLeverage: Number(m.maxLeverage) || 30,
                 isPaused: !m.isActive,
                 ...(change24h !== undefined && { change24h }),
@@ -238,19 +236,19 @@ router.get("/", async (_req, res) => {
         try {
             const fallback = buildFallbackMarkets();
             const [protocol, cgPrRaw, pythPrRaw] = await Promise.all([
-                (0, indexer_js_1.fetchProtocol)().catch(() => null),
-                (0, coingecko_js_1.fetchCoinGeckoPrices)().catch(() => ({})),
-                (0, pyth_js_1.fetchPythPrices)().catch(() => ({}))
+                fetchProtocol().catch(() => null),
+                fetchCoinGeckoPrices().catch(() => ({})),
+                fetchPythPrices().catch(() => ({}))
             ]);
-            const protocolVolume24h = protocol?.totalVolumeUsd ? (0, format_js_1.toDecimal)(protocol.totalVolumeUsd) : "0";
+            const protocolVolume24h = protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0";
             const pythChanges = ENABLE_PYTH_24H
-                ? await Promise.all(fallback.map((m) => (0, pyth_js_1.fetchPyth24hChange)(m.marketAddress).catch(() => undefined)))
+                ? await Promise.all(fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined)))
                 : fallback.map(() => undefined);
             const cg = cgPrRaw;
             const pyth = pythPrRaw;
             const enriched = fallback.map((m, i) => {
                 const addr = m.marketAddress.toLowerCase();
-                const cgId = (0, coingecko_js_1.getCoinGeckoIdForMarket)(m.marketAddress);
+                const cgId = getCoinGeckoIdForMarket(m.marketAddress);
                 let indexPrice = "0";
                 let change24h = pythChanges[i];
                 if (cgId && cg[cgId]) {
@@ -275,25 +273,25 @@ router.get("/price-history/:marketId", async (req, res) => {
         const marketId = rawId.toLowerCase();
         const days = Math.min(30, Math.max(1, Number(req.query.days) || 7));
         const source = req.query.source?.toLowerCase();
-        const pythSymbol = (0, pyth_js_1.getPythTvSymbol)(marketId);
+        const pythSymbol = getPythTvSymbol(marketId);
         if (pythSymbol) {
-            const prices = await (0, pyth_js_1.fetchPythPriceHistory)(marketId, days);
+            const prices = await fetchPythPriceHistory(marketId, days);
             if (prices.length > 0 || source === "pyth") {
                 return res.json({ success: true, data: prices });
             }
-            const feedId = (0, pyth_js_1.getPythFeedId)(marketId);
+            const feedId = getPythFeedId(marketId);
             if (feedId) {
-                const hermPrices = await (0, pyth_js_1.fetchPythPriceHistoryHermes)(marketId, days, 24);
+                const hermPrices = await fetchPythPriceHistoryHermes(marketId, days, 24);
                 if (hermPrices.length > 0) {
                     return res.json({ success: true, data: hermPrices });
                 }
             }
         }
-        const cgId = (0, coingecko_js_1.getCoinGeckoIdForMarket)(marketId);
+        const cgId = getCoinGeckoIdForMarket(marketId);
         if (!cgId) {
             return res.status(404).json({ success: false, error: "Market not found", data: [] });
         }
-        const prices = await (0, coingecko_js_1.fetchPriceHistory)(cgId, days);
+        const prices = await fetchPriceHistory(cgId, days);
         res.json({ success: true, data: prices });
     }
     catch (e) {
@@ -302,4 +300,4 @@ router.get("/price-history/:marketId", async (req, res) => {
         res.json({ success: false, error: message, data: [] });
     }
 });
-exports.default = router;
+export default router;

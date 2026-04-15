@@ -1,16 +1,13 @@
-"use strict";
 /**
  * WebSocket server for real-time price and stats broadcasts.
  * Polls Pyth/API and pushes to connected clients.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.startWsServer = startWsServer;
-const ws_1 = require("ws");
-const config_js_1 = require("./config.js");
-const pyth_js_1 = require("./services/pyth.js");
-const indexer_js_1 = require("./services/indexer.js");
-const activeMarkets_js_1 = require("./services/activeMarkets.js");
-const format_js_1 = require("./utils/format.js");
+import { WebSocketServer } from "ws";
+import { config } from "./config.js";
+import { fetchPythPrices } from "./services/pyth.js";
+import { fetchMarkets, fetchProtocol } from "./services/indexer.js";
+import { getActiveMarketAddresses } from "./services/activeMarkets.js";
+import { toDecimal } from "./utils/format.js";
 const POLL_MS = process.env.NODE_ENV === "test" ? 500 : 15_000; // fast polling for tests
 const isTestEnv = process.env.NODE_ENV === "test";
 const MARKET_META = {
@@ -29,8 +26,8 @@ function _getMeta(addr) {
     const key = addr.toLowerCase();
     return MARKET_META[key] ?? { name: addr.slice(0, 10), symbol: addr.slice(0, 10) };
 }
-function startWsServer() {
-    const wss = new ws_1.WebSocketServer({ port: config_js_1.config.wsPort });
+export function startWsServer() {
+    const wss = new WebSocketServer({ port: config.wsPort });
     const clients = new Set();
     wss.on("connection", (ws, req) => {
         clients.add(ws);
@@ -74,9 +71,9 @@ function startWsServer() {
     async function poll() {
         try {
             const [pythPrices, markets, protocol] = await Promise.all([
-                (0, pyth_js_1.fetchPythPrices)(),
-                (0, indexer_js_1.fetchMarkets)(),
-                (0, indexer_js_1.fetchProtocol)(),
+                fetchPythPrices(),
+                fetchMarkets(),
+                fetchProtocol(),
             ]);
             lastPythPrices = pythPrices;
             lastMarkets = markets;
@@ -92,7 +89,7 @@ function startWsServer() {
         }
     }
     async function broadcastData(pythPrices, markets, protocol) {
-        const activeSet = await (0, activeMarkets_js_1.getActiveMarketAddresses)();
+        const activeSet = await getActiveMarketAddresses();
         const filtered = activeSet && activeSet.size > 0
             ? markets.filter((m) => {
                 const addr = String(m.marketAddress).toLowerCase();
@@ -115,7 +112,7 @@ function startWsServer() {
             totalOI += Number(m.totalLongSize) + Number(m.totalShortSize);
         }
         broadcast("stats_update", {
-            volume24h: protocol?.totalVolumeUsd ? (0, format_js_1.toDecimal)(protocol.totalVolumeUsd) : "0",
+            volume24h: protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0",
             totalOpenInterest: (totalOI / 1e12).toFixed(6),
             totalMarkets: filtered.length,
         });
@@ -123,7 +120,7 @@ function startWsServer() {
     const interval = setInterval(poll, POLL_MS);
     poll();
     if (!isTestEnv)
-        console.info(`[ws] Server listening on port ${config_js_1.config.wsPort}`);
+        console.info(`[ws] Server listening on port ${config.wsPort}`);
     return () => {
         clearInterval(interval);
         wss.close();

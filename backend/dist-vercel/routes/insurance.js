@@ -1,13 +1,11 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const indexer_js_1 = require("../services/indexer.js");
-const router = (0, express_1.Router)();
+import { Router } from "express";
+import { fetchBadDebtClaims } from "../services/indexer.js";
+const router = Router();
 const USDC_6 = 1e6;
 router.get("/claims", async (req, res) => {
     const limit = Math.min(parseInt(req.query.limit, 10) || 20, 50);
     try {
-        const claims = await (0, indexer_js_1.fetchBadDebtClaims)(limit);
+        const claims = await fetchBadDebtClaims(limit);
         const data = claims.map((c) => ({
             id: c.id,
             claimId: c.claimId,
@@ -25,4 +23,4 @@ router.get("/claims", async (req, res) => {
         res.json({ success: false, error: message, data: [] });
     }
 });
-exports.default = router;
+export default router;

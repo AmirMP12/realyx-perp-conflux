@@ -1,16 +1,14 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const indexer_js_1 = require("../services/indexer.js");
-const format_js_1 = require("../utils/format.js");
-const router = (0, express_1.Router)();
+import { Router } from "express";
+import { fetchUserPositions, fetchUserTrades } from "../services/indexer.js";
+import { toDecimal } from "../utils/format.js";
+const router = Router();
 router.get("/:address/positions", async (req, res) => {
     const address = (req.params.address ?? "").trim();
     if (!address) {
         return res.status(400).json({ success: false, error: "address required" });
     }
     try {
-        const positions = await (0, indexer_js_1.fetchUserPositions)(address);
+        const positions = await fetchUserPositions(address);
         const data = positions.map((p, i) => ({
             id: i + 1,
             market: {
@@ -21,14 +19,14 @@ router.get("/:address/positions", async (req, res) => {
                 collectionImage: "",
             },
             side: p.isLong ? "LONG" : "SHORT",
-            size: (0, format_js_1.toDecimal)(p.size),
-            entryPrice: (0, format_js_1.toDecimal)(p.entryPrice),
-            margin: (0, format_js_1.toDecimal)(p.collateralAmount),
+            size: toDecimal(p.size),
+            entryPrice: toDecimal(p.entryPrice),
+            margin: toDecimal(p.collateralAmount),
             leverage: Number(p.leverage) || 1,
             unrealizedPnl: "0",
             realizedPnl: "0",
-            liquidationPrice: (0, format_js_1.toDecimal)(p.liquidationPrice),
-            breakEvenPrice: (0, format_js_1.toDecimal)(p.entryPrice),
+            liquidationPrice: toDecimal(p.liquidationPrice),
+            breakEvenPrice: toDecimal(p.entryPrice),
             openTs: new Date(Number(p.openTimestamp) * 1000).toISOString(),
         }));
         res.json({ success: true, data });
@@ -45,17 +43,17 @@ router.get("/:address/trades", async (req, res) => {
         return res.status(400).json({ success: false, error: "address required" });
     }
     try {
-        const trades = await (0, indexer_js_1.fetchUserTrades)(address, limit);
+        const trades = await fetchUserTrades(address, limit);
         const data = trades.map((t, i) => ({
             id: i + 1,
             signature: t.txHash,
             market: t.market.id,
             side: t.isLong ? "LONG" : "SHORT",
-            size: (0, format_js_1.toDecimal)(t.size),
-            price: (0, format_js_1.toDecimal)(t.price),
+            size: toDecimal(t.size),
+            price: toDecimal(t.price),
             leverage: 0,
-            fee: (0, format_js_1.toDecimal)(t.fee),
-            pnl: t.realizedPnl ? (0, format_js_1.toDecimal)(t.realizedPnl) : null,
+            fee: toDecimal(t.fee),
+            pnl: t.realizedPnl ? toDecimal(t.realizedPnl) : null,
             type: t.type === "LIQUIDATE" ? "LIQUIDATED" : t.type,
             timestamp: new Date(Number(t.timestamp) * 1000).toISOString(),
         }));
@@ -66,4 +64,4 @@ router.get("/:address/trades", async (req, res) => {
         res.json({ success: false, error: message, data: [] });
     }
 });
-exports.default = router;
+export default router;

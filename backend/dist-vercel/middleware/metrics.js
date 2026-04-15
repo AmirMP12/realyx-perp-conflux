@@ -1,10 +1,7 @@
-"use strict";
 /**
  * Simple request metrics - logs latency and errors.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.metricsMiddleware = metricsMiddleware;
-function metricsMiddleware(req, res, next) {
+export function metricsMiddleware(req, res, next) {
     const start = Date.now();
     res.on("finish", () => {
         const latencyMs = Date.now() - start;

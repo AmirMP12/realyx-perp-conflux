@@ -1,12 +1,7 @@
-"use strict";
 /**
  * In-memory rate limiter for API and WebSocket.
  * Use redis or similar for production multi-instance.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.apiRateLimit = apiRateLimit;
-exports.checkWsRateLimit = checkWsRateLimit;
-exports.decrementWsCount = decrementWsCount;
 const windowMs = 60_000; // 1 minute
 const maxRequests = 100; // per IP per window
 const maxWsPerIp = 10;
@@ -28,7 +23,7 @@ function cleanup() {
     }
 }
 setInterval(cleanup, 30_000).unref();
-function apiRateLimit(req, _res, next) {
+export function apiRateLimit(req, _res, next) {
     const ip = getClientIp(req);
     const now = Date.now();
     const entry = apiCount.get(ip);
@@ -48,14 +43,14 @@ function apiRateLimit(req, _res, next) {
     }
     next();
 }
-function checkWsRateLimit(ip) {
+export function checkWsRateLimit(ip) {
     const n = wsCount.get(ip) ?? 0;
     if (n >= maxWsPerIp)
         return false;
     wsCount.set(ip, n + 1);
     return true;
 }
-function decrementWsCount(ip) {
+export function decrementWsCount(ip) {
     const n = wsCount.get(ip) ?? 0;
     if (n <= 1)
         wsCount.delete(ip);

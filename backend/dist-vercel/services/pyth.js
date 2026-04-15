@@ -1,20 +1,11 @@
-"use strict";
 /**
  * Pyth Hermes (real-time) and Benchmarks (history) for prices and charts.
  */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.PYTH_FEED_BY_MARKET = void 0;
-exports.fetchPythPrices = fetchPythPrices;
-exports.getPythFeedId = getPythFeedId;
-exports.getPythTvSymbol = getPythTvSymbol;
-exports.fetchPyth24hChange = fetchPyth24hChange;
-exports.fetchPythPriceHistory = fetchPythPriceHistory;
-exports.fetchPythPriceHistoryHermes = fetchPythPriceHistoryHermes;
 const HERMES_BASE = "https://hermes.pyth.network";
 const BENCHMARKS_BASE = "https://benchmarks.pyth.network";
 const CACHE_MS = 1_000; // 1s for live prices (trading protocol)
 // Market address (lowercase) -> Pyth price feed ID (hex with 0x)
-exports.PYTH_FEED_BY_MARKET = {
+export const PYTH_FEED_BY_MARKET = {
     "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c": "0x8879170230c9603342f3837cf9a8e76c61791198fb1271bb2552c9af7b33c933",
     "0x986a383f6de4a24dd3f524f0f93546229b58265f": "0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
     "0x886a383f6de4a24dd3f524f0f93546229b58265f": "0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
@@ -60,11 +51,11 @@ function parsePythPrice(priceStr, expo) {
     return p * Math.pow(10, expo);
 }
 /** Fetch latest Pyth prices for all known markets (Hermes batch). */
-async function fetchPythPrices() {
+export async function fetchPythPrices() {
     if (Date.now() - cachedAt < CACHE_MS && Object.keys(cachedPrices).length > 0) {
         return cachedPrices;
     }
-    const feedIds = [...new Set(Object.values(exports.PYTH_FEED_BY_MARKET))];
+    const feedIds = [...new Set(Object.values(PYTH_FEED_BY_MARKET))];
     const idsParam = feedIds.map((id) => `ids[]=${id.startsWith("0x") ? id.slice(2) : id}`).join("&");
     const url = `${HERMES_BASE}/v2/updates/price/latest?${idsParam}`;
     try {
@@ -82,7 +73,7 @@ async function fetchPythPrices() {
             }
         }
         const byMarket = {};
-        for (const [addr, feedId] of Object.entries(exports.PYTH_FEED_BY_MARKET)) {
+        for (const [addr, feedId] of Object.entries(PYTH_FEED_BY_MARKET)) {
             const id = feedId.startsWith("0x") ? feedId.slice(2) : feedId;
             if (byFeedId[id])
                 byMarket[addr] = byFeedId[id];
@@ -96,14 +87,14 @@ async function fetchPythPrices() {
         return cachedPrices;
     }
 }
-function getPythFeedId(marketAddress) {
-    return exports.PYTH_FEED_BY_MARKET[marketAddress.toLowerCase()];
+export function getPythFeedId(marketAddress) {
+    return PYTH_FEED_BY_MARKET[marketAddress.toLowerCase()];
 }
-function getPythTvSymbol(marketAddress) {
+export function getPythTvSymbol(marketAddress) {
     return MARKET_TO_TV_SYMBOL[marketAddress.toLowerCase()] ?? null;
 }
 /** Compute 24h price change % from Pyth (current vs ~24h ago). */
-async function fetchPyth24hChange(marketAddress) {
+export async function fetchPyth24hChange(marketAddress) {
     const addr = marketAddress.toLowerCase();
     const symbol = getPythTvSymbol(marketAddress);
     if (!symbol)
@@ -127,7 +118,7 @@ async function fetchPyth24hChange(marketAddress) {
     return ((current - best.value) / best.value) * 100;
 }
 /** Pyth Benchmarks TradingView history: returns { timestamp, value }[] for sparklines. */
-async function fetchPythPriceHistory(marketAddress, days = 7) {
+export async function fetchPythPriceHistory(marketAddress, days = 7) {
     const symbol = getPythTvSymbol(marketAddress);
     if (!symbol)
         return [];
@@ -152,7 +143,7 @@ async function fetchPythPriceHistory(marketAddress, days = 7) {
     }
 }
 /** Hermes fallback: fetch historical prices at intervals when Benchmarks fails. */
-async function fetchPythPriceHistoryHermes(marketAddress, days = 7, points = 24) {
+export async function fetchPythPriceHistoryHermes(marketAddress, days = 7, points = 24) {
     const feedId = getPythFeedId(marketAddress);
     if (!feedId)
         return [];

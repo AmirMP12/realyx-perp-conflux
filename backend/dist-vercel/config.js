@@ -1,22 +1,16 @@
-"use strict";
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.config = void 0;
-const dotenv_1 = __importDefault(require("dotenv"));
-const fs_1 = __importDefault(require("fs"));
-const path_1 = __importDefault(require("path"));
+import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
 const cwd = process.cwd();
 const paths = [
-    { name: "cwd", path: path_1.default.join(cwd, ".env") },
-    { name: "backend", path: path_1.default.join(cwd, "backend", ".env") },
-    { name: "root", path: path_1.default.join(cwd, "..", ".env") },
+    { name: "cwd", path: path.join(cwd, ".env") },
+    { name: "backend", path: path.join(cwd, "backend", ".env") },
+    { name: "root", path: path.join(cwd, "..", ".env") },
 ];
 for (const p of paths) {
-    const resolved = path_1.default.resolve(p.path);
-    if (fs_1.default.existsSync(resolved)) {
-        dotenv_1.default.config({ path: resolved });
+    const resolved = path.resolve(p.path);
+    if (fs.existsSync(resolved)) {
+        dotenv.config({ path: resolved });
     }
 }
 function defaultRpcUrl() {
@@ -25,7 +19,7 @@ function defaultRpcUrl() {
         return "https://evm.confluxrpc.com";
     return "https://evmtestnet.confluxrpc.com";
 }
-exports.config = {
+export const config = {
     port: parseInt(process.env.PORT ?? "3001", 10),
     wsPort: parseInt(process.env.WS_PORT ?? "3002", 10),
     postgresUrl: process.env.POSTGRES_URL,
