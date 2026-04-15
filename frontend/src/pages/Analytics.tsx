@@ -211,89 +211,6 @@ function OpenInterestChart({ longOI, shortOI }: { longOI: number; shortOI: numbe
     );
 }
 
-interface MarketData {
-    id: string;
-    name: string;
-    symbol: string;
-    volume24h: number;
-    longOI: number;
-    shortOI: number;
-    fundingRate: number;
-    change24h: number;
-    image: string;
-}
-
-function MarketTable({ markets, loading }: { markets: MarketData[]; loading?: boolean }) {
-    return (
-        <div className="glass-panel overflow-hidden">
-            <div className="p-4 md:p-6 border-b border-[var(--border-color)]">
-                <h3 className="text-lg font-bold text-text-primary">Market Overview</h3>
-            </div>
-            <div className="overflow-x-auto min-h-[120px]">
-                {loading && markets.length === 0 ? (
-                    <div className="flex items-center justify-center h-32">
-                        <Loader2 className="w-8 h-8 animate-spin text-text-muted" />
-                    </div>
-                ) : markets.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-32 text-text-muted">
-                        <BarChart2 className="w-10 h-10 mb-2 opacity-30" />
-                        <p>No market data available.</p>
-                    </div>
-                ) : (
-                    <table className="w-full">
-                        <thead>
-                            <tr className="text-xs text-text-secondary uppercase tracking-wider border-b border-[var(--border-color)] bg-[var(--bg-tertiary)]/30">
-                                <th className="text-left p-4 font-medium">Market</th>
-                                <th className="text-right p-4 font-medium">Volume (24h)</th>
-                                <th className="text-right p-4 font-medium text-emerald-400">Long OI</th>
-                                <th className="text-right p-4 font-medium text-rose-400">Short OI</th>
-                                <th className="text-right p-4 font-medium">Funding Rate</th>
-                                <th className="text-right p-4 font-medium">24h Change</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--border-color)]">
-                            {markets.map((market) => (
-                                <tr key={market.id} className="hover:bg-[var(--bg-tertiary)]/50 transition-colors group">
-                                    <td className="p-4">
-                                        <div className="flex items-center gap-3">
-                                            {market.image ? (
-                                                <img src={market.image} alt={market.symbol} className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)]" />
-                                            ) : (
-                                                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--primary)]/20 to-accent-purple/20 flex items-center justify-center text-xs font-bold text-[var(--primary)] border border-[var(--primary)]/30">
-                                                    {market.symbol.substring(0, 2)}
-                                                </div>
-                                            )}
-                                            <div>
-                                                <div className="font-bold text-text-primary text-sm">{market.name}</div>
-                                                <div className="text-xs text-text-muted">{market.symbol}</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td className="p-4 text-right font-mono text-sm text-text-primary">
-                                        ${(market.volume24h / 1000).toFixed(2)}K
-                                    </td>
-                                    <td className="p-4 text-right font-mono text-sm text-emerald-400">
-                                        ${(market.longOI / 1000).toFixed(2)}K
-                                    </td>
-                                    <td className="p-4 text-right font-mono text-sm text-rose-400">
-                                        ${(market.shortOI / 1000).toFixed(2)}K
-                                    </td>
-                                    <td className={clsx('p-4 text-right font-mono text-sm', market.fundingRate >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
-                                        {(market.fundingRate * 100).toFixed(4)}%
-                                    </td>
-                                    <td className={clsx('p-4 text-right font-mono text-sm', market.change24h >= 0 ? 'text-emerald-400' : 'text-rose-400')}>
-                                        {market.change24h >= 0 ? '+' : ''}{market.change24h.toFixed(2)}%
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                )}
-            </div>
-        </div>
-    );
-}
-
 function Leaderboard({ entries, loading, error }: { entries: LeaderboardEntry[]; loading: boolean; error: string | null }) {
     return (
         <div className="glass-panel overflow-hidden h-full flex flex-col">
@@ -427,21 +344,10 @@ export default function AnalyticsDashboard() {
     }));
 
     const totalVolume = backendStats ? parseFloat(backendStats.volume24h) : 0;
+    const activeTraders24h = backendStats?.activeTraders24h ?? 0;
 
-    const marketTableData: MarketData[] = apiMarkets.map(m => ({
-        id: m.id,
-        name: m.name,
-        symbol: m.symbol,
-        image: m.image,
-        volume24h: parseFloat(m.volume24h),
-        longOI: parseFloat(m.longOI),
-        shortOI: parseFloat(m.shortOI),
-        fundingRate: parseFloat(m.fundingRate),
-        change24h: m.change24h || 0 // Use API change or 0
-    }));
-
-    const realTimeLongOI = marketTableData.reduce((acc, m) => acc + m.longOI, 0);
-    const realTimeShortOI = marketTableData.reduce((acc, m) => acc + m.shortOI, 0);
+    const realTimeLongOI = apiMarkets.reduce((acc, m) => acc + parseFloat(m.longOI), 0);
+    const realTimeShortOI = apiMarkets.reduce((acc, m) => acc + parseFloat(m.shortOI), 0);
     const realTimeOI = realTimeLongOI + realTimeShortOI;
 
     return (
@@ -450,7 +356,7 @@ export default function AnalyticsDashboard() {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl md:text-3xl font-bold text-text-primary tracking-tight">Analytics Dashboard</h1>
-                    <p className="text-text-secondary mt-1 text-sm md:text-lg">Real-time protocol statistics and market overview.</p>
+                    <p className="text-text-secondary mt-1 text-sm md:text-lg">Real-time protocol statistics and volume history.</p>
                 </div>
 
             </div>
@@ -487,10 +393,10 @@ export default function AnalyticsDashboard() {
                     loading={marketsLoading}
                 />
                 <StatCard
-                    title="Active Traders"
-                    value={leaderboardEntries.length > 0 ? leaderboardEntries.length : '-'} // Using leaderboard count as proxy for now
+                    title="Active Traders (24h)"
+                    value={activeTraders24h}
                     icon={<BarChart2 className="w-6 h-6" />}
-                    loading={leaderboardLoading}
+                    loading={statsLoading}
                 />
             </div>
 
@@ -513,9 +419,6 @@ export default function AnalyticsDashboard() {
                             </div>
                         )}
                     </div>
-
-                    {/* Market Table */}
-                    <MarketTable markets={marketTableData} loading={marketsLoading} />
                 </div>
 
                 {/* Right Column: OI & Leaderboard */}

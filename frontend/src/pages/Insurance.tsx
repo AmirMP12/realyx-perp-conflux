@@ -33,9 +33,6 @@ export function InsurancePage() {
     const [amount, setAmount] = useState('');
 
     const totalLiquidations = protocolStats?.totalLiquidations ?? '0';
-    const totalPayouts = claims
-        .filter((c) => c.coveredAt)
-        .reduce((sum, c) => sum + parseFloat(c.amountUsd), 0);
 
     const handleAction = async () => {
         if (!isConnected) return;
@@ -117,10 +114,9 @@ export function InsurancePage() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 <StatCard icon={DollarSign} label="Insurance Assets" value={formatCompact(insurance.insuranceAssets)} sublabel="Total Capital" loading={insurance.loading} />
                 <StatCard icon={Activity} label="Health Ratio" value={`${insurance.healthRatioPercent.toFixed(2)}%`} sublabel="Solvency Metric" valueColor={insurance.isHealthy ? 'text-emerald-400' : 'text-red-400'} loading={insurance.loading} />
-                <StatCard icon={AlertTriangle} label="Total Payouts" value={formatCompact(totalPayouts)} sublabel="Bad Debt Covered" valueColor="text-orange-400" loading={claimsLoading} />
                 <StatCard icon={Activity} label="Liquidations" value={totalLiquidations} sublabel="Protocol Wide" loading={statsLoading} />
             </div>
 

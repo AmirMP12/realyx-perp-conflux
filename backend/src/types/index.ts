@@ -57,6 +57,8 @@ export interface ProtocolStats {
   totalMarkets: number;
   volume24h: string;
   totalOpenInterest: string;
+  /** Distinct wallets with indexed opens/closes/liquidations in the last 24 hours */
+  activeTraders24h?: number;
 }
 
 export interface LeaderboardEntry {

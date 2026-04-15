@@ -188,13 +188,6 @@ export function useVaultStats() {
         query: { enabled: !!address, refetchInterval: 10000 }
     });
 
-    const { data: utilization } = useReadContract({
-        address: VAULT_CORE_ADDRESS,
-        abi: VAULT_ABI,
-        functionName: 'getUtilization',
-        query: { refetchInterval: 10000 }
-    });
-
     const { data: accumulatedFees } = useReadContract({
         address: VAULT_CORE_ADDRESS,
         abi: VAULT_ABI,
@@ -226,7 +219,6 @@ export function useVaultStats() {
     const userBalanceUSDC = userSharesNum * sharePrice;
 
     const fees = accumulatedFees !== undefined ? parseFloat(formatUnits(accumulatedFees as bigint, assetDecimals)) : 0;
-    const utilRatePercent = utilization !== undefined ? Number(formatUnits(utilization as bigint, 18)) * 100 : 0;
 
     return {
         stats: {
@@ -235,7 +227,6 @@ export function useVaultStats() {
             userBalance: userBalanceUSDC,
             userShares: userSharesNum,
             accumulatedFees: fees,
-            utilizationRate: utilRatePercent,
             availableLiquidity,
             isPaused: isPaused ?? false,
             asset: assetAddress ? 'USDC' : 'USDC' // For now default to USDC, but we have the address if needed

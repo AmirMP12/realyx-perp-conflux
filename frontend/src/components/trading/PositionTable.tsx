@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Edit2, Shield, Wallet, Clock, FileText } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { X, Edit2, Shield, Wallet, Clock, FileText, ArrowRightLeft } from 'lucide-react';
 import clsx from 'clsx';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -12,6 +12,7 @@ import { showToast } from '../ui/Toast';
 import { TradeHistoryItem } from '../../hooks/useBackend';
 import { CollateralEditModal } from './CollateralEditModal';
 import { ClosePositionModal } from './ClosePositionModal';
+import { TransferPositionModal } from './TransferPositionModal';
 import { Skeleton } from '../ui/Skeleton';
 import { formatPriceWithPrecision } from '../../utils/format';
 
@@ -65,6 +66,7 @@ export function PositionTable({
     const [slTpPosition, setSlTpPosition] = useState<SlTpModalState | null>(null);
     const [activeCollateralPos, setActiveCollateralPos] = useState<Position | null>(null);
     const [activeClosePos, setActiveClosePos] = useState<Position | null>(null);
+    const [activeTransferPos, setActiveTransferPos] = useState<Position | null>(null);
 
     const { orders: pendingOrders, loading: ordersLoading, refetch: refetchOrders } = usePendingOrders();
 
@@ -76,6 +78,15 @@ export function PositionTable({
     const { setTakeProfit, loading: tpLoading } = useSetTakeProfit();
     const { setTrailingStop: setTrailing, loading: trLoading } = useSetTrailingStop();
     const { cancelOrder, loading: cancellingOrder } = useCancelOrder();
+
+    useEffect(() => {
+        if (!slTpPosition) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setSlTpPosition(null);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [slTpPosition]);
 
     const confirmSlTp = async () => {
         if (!slTpPosition) return;
@@ -181,6 +192,7 @@ export function PositionTable({
                                                 cellPad={cellPad}
                                                 setActiveCollateralPos={setActiveCollateralPos}
                                                 setActiveClosePos={setActiveClosePos}
+                                                setActiveTransferPos={setActiveTransferPos}
                                                 setSlTpPosition={setSlTpPosition}
                                                 setSlTpStopLoss={setSlTpStopLoss}
                                                 setSlTpTakeProfit={setSlTpTakeProfit}
@@ -201,6 +213,7 @@ export function PositionTable({
                                         markets={markets}
                                         setActiveCollateralPos={setActiveCollateralPos}
                                         setActiveClosePos={setActiveClosePos}
+                                        setActiveTransferPos={setActiveTransferPos}
                                         setSlTpPosition={setSlTpPosition}
                                         setSlTpStopLoss={setSlTpStopLoss}
                                         setSlTpTakeProfit={setSlTpTakeProfit}
@@ -356,18 +369,23 @@ export function PositionTable({
             {/* Triggers Modal */}
             <AnimatePresence>
                 {slTpPosition && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+                    <div
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 py-8 sm:py-4 bg-black/75 backdrop-blur-sm overflow-y-auto overscroll-contain"
+                        role="presentation"
+                        onClick={() => setSlTpPosition(null)}
+                    >
                         <motion.div
                             initial={{ opacity: 0, scale: 0.96, y: 8 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.96, y: 8 }}
                             transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-                            className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl max-w-md w-full shadow-[0_24px_48px_rgba(0,0,0,0.45)] overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                            className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl max-w-md w-full max-h-[min(90dvh,720px)] my-auto flex flex-col overflow-hidden shadow-[0_24px_48px_rgba(0,0,0,0.45)]"
                             role="dialog"
                             aria-modal="true"
                             aria-labelledby="position-triggers-title"
                         >
-                            <div className="px-5 pt-5 pb-4 border-b border-[var(--border-color)]/80 flex items-start justify-between gap-3">
+                            <div className="shrink-0 px-5 pt-5 pb-4 border-b border-[var(--border-color)]/80 flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                     <h2 id="position-triggers-title" className="text-lg font-bold text-text-primary tracking-tight">
                                         Position triggers
@@ -397,7 +415,7 @@ export function PositionTable({
                                 </button>
                             </div>
 
-                            <div className="px-5 py-5 space-y-5 max-h-[min(70vh,520px)] overflow-y-auto custom-scrollbar">
+                            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-5 py-5 space-y-5 custom-scrollbar">
                                 <div>
                                     <label htmlFor="trigger-stop-loss" className="flex items-baseline justify-between gap-2 mb-2">
                                         <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Stop loss</span>
@@ -463,7 +481,7 @@ export function PositionTable({
                                 </div>
                             </div>
 
-                            <div className="px-5 pb-5 pt-0 flex flex-col-reverse sm:flex-row gap-3">
+                            <div className="shrink-0 px-5 pb-5 pt-4 border-t border-[var(--border-color)]/80 bg-[var(--bg-secondary)] flex flex-col-reverse sm:flex-row gap-3">
                                 <button
                                     type="button"
                                     onClick={() => setSlTpPosition(null)}
@@ -494,14 +512,40 @@ export function PositionTable({
 
             <ClosePositionModal
                 isOpen={!!activeClosePos}
-                onClose={() => { setActiveClosePos(null); setTimeout(fetchPositions, 1000); }}
+                onClose={() => setActiveClosePos(null)}
+                onCloseSuccess={() => {
+                    void fetchPositions();
+                    setTimeout(() => void fetchPositions(), 2000);
+                }}
                 position={activeClosePos}
+            />
+
+            <TransferPositionModal
+                isOpen={!!activeTransferPos}
+                onClose={() => setActiveTransferPos(null)}
+                onSuccess={() => {
+                    void fetchPositions();
+                    setTimeout(() => void fetchPositions(), 2000);
+                }}
+                position={activeTransferPos}
             />
         </div>
     );
 }
 
-function PositionRow({ pos, markets, settings, cellPad, setActiveCollateralPos, setActiveClosePos, setSlTpPosition, setSlTpStopLoss, setSlTpTakeProfit, setTrailingStop }: any) {
+function PositionRow({
+    pos,
+    markets,
+    settings,
+    cellPad,
+    setActiveCollateralPos,
+    setActiveClosePos,
+    setActiveTransferPos,
+    setSlTpPosition,
+    setSlTpStopLoss,
+    setSlTpTakeProfit,
+    setTrailingStop,
+}: any) {
     const market = markets.find((m: any) => (m.marketAddress || '').toLowerCase() === (pos.marketAddress || '').toLowerCase());
     const pnl = Number(pos.livePnl ?? pos.pnl);
     const isProfit = pnl >= 0;
@@ -588,6 +632,15 @@ function PositionRow({ pos, markets, settings, cellPad, setActiveCollateralPos, 
                             <Shield className="w-4 h-4" />
                         </button>
                         <button
+                            type="button"
+                            onClick={() => setActiveTransferPos(pos)}
+                            className="p-1 hover:bg-[var(--bg-tertiary)] rounded text-text-secondary hover:text-[var(--primary)] transition-colors"
+                            title="Transfer position NFT"
+                            data-testid="transfer-position-btn"
+                        >
+                            <ArrowRightLeft className="w-4 h-4" />
+                        </button>
+                        <button
                             onClick={() => setActiveClosePos(pos)}
                             className="px-3 py-1.5 text-xs font-bold bg-[var(--bg-tertiary)] border border-[var(--border-color)]/80 hover:bg-white/10 text-text-primary rounded-lg transition-colors"
                         >
@@ -600,7 +653,17 @@ function PositionRow({ pos, markets, settings, cellPad, setActiveCollateralPos, 
     );
 }
 
-function MobilePositionCard({ pos, markets, setActiveCollateralPos, setActiveClosePos, setSlTpPosition, setSlTpStopLoss, setSlTpTakeProfit, setTrailingStop }: any) {
+function MobilePositionCard({
+    pos,
+    markets,
+    setActiveCollateralPos,
+    setActiveClosePos,
+    setActiveTransferPos,
+    setSlTpPosition,
+    setSlTpStopLoss,
+    setSlTpTakeProfit,
+    setTrailingStop,
+}: any) {
     const market = markets.find((m: any) => (m.marketAddress || '').toLowerCase() === (pos.marketAddress || '').toLowerCase());
     const pnl = Number(pos.livePnl ?? pos.pnl);
     const isProfit = pnl >= 0;
@@ -688,6 +751,13 @@ function MobilePositionCard({ pos, markets, setActiveCollateralPos, setActiveClo
                             className="py-2.5 rounded-xl border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/50 hover:bg-[var(--primary)] text-text-primary hover:text-white text-sm font-semibold transition-colors"
                         >
                             Close Position
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTransferPos(pos)}
+                            className="col-span-2 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/50 text-text-primary text-sm font-medium hover:bg-[var(--bg-tertiary)] transition-colors"
+                        >
+                            <ArrowRightLeft size={14} /> Transfer position
                         </button>
                     </>
                 )}

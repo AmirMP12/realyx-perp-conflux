@@ -146,8 +146,11 @@ export function LeaderboardPage() {
                                 ))
                             ) : entries.length === 0 ? (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-8 text-center text-text-muted">
-                                        No data available for this timeframe.
+                                    <td colSpan={5} className="px-6 py-8 text-center text-text-muted max-w-lg mx-auto text-sm leading-relaxed">
+                                        No indexed trades for this period. The leaderboard is built from position close and
+                                        liquidation events stored by the backend indexer (PostgreSQL plus periodic sync from
+                                        TradingCore). If you just traded, try All Time, or confirm the indexer is running
+                                        against your deployment.
                                     </td>
                                 </tr>
                             ) : (
@@ -195,8 +198,8 @@ export function LeaderboardPage() {
                             </div>
                         ))
                     ) : entries.length === 0 ? (
-                        <div className="p-8 text-center text-text-muted">
-                            No data available.
+                        <div className="p-8 text-center text-text-muted text-sm leading-relaxed">
+                            No indexed trades. Use All Time or confirm the API indexer has synced your closes and liquidations.
                         </div>
                     ) : (
                         entries.map((entry) => (

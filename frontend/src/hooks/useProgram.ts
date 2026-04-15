@@ -82,6 +82,9 @@ function closeTxErrorMessage(err: unknown): string {
     if (raw.includes('notpositionowner') || raw.includes('not owner')) {
         return 'You are not the owner of this position.';
     }
+    if (raw.includes('positionnotfound') || data?.toLowerCase().startsWith('0x6ec9be11')) {
+        return 'This position is already closed or not active. Refresh the list — closed ids can stay in your history until cleanup runs.';
+    }
     if (raw.includes('flashloan')) {
         return 'Same-block safety rule: wait one block and retry.';
     }

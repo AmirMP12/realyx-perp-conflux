@@ -1,7 +1,10 @@
 import { useAccount, useReadContract, useReadContracts } from 'wagmi';
 import { TRADING_CORE_ADDRESS, TRADING_CORE_ABI } from './useProgram';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { formatUnits } from 'viem';
+
+/** `DataTypes.PosStatus` on-chain: only `OPEN` positions are tradable / closable. */
+const POS_STATUS_OPEN = 1;
 
 export interface Position {
     id: string;
@@ -47,7 +50,11 @@ export function usePositions() {
         }));
     }, [ids]);
 
-    const { data: positionsData, isLoading: isLoadingPositions } = useReadContracts({
+    const {
+        data: positionsData,
+        isLoading: isLoadingPositions,
+        refetch: refetchPositionDetails,
+    } = useReadContracts({
         contracts: positionContracts as any,
         query: {
             enabled: positionContracts.length > 0,
@@ -65,7 +72,7 @@ export function usePositions() {
         }));
     }, [ids]);
 
-    const { data: pnlData, isLoading: isLoadingPnL } = useReadContracts({
+    const { data: pnlData, isLoading: isLoadingPnL, refetch: refetchPnls } = useReadContracts({
         contracts: pnlContracts as any,
         query: {
             enabled: pnlContracts.length > 0,
@@ -73,8 +80,13 @@ export function usePositions() {
         }
     });
 
+    const refetch = useCallback(async () => {
+        await refetchIds();
+        await Promise.all([refetchPositionDetails(), refetchPnls()]);
+    }, [refetchIds, refetchPositionDetails, refetchPnls]);
+
     const formattedPositions: Position[] = useMemo(() => {
-        if (!ids || !positionsData) return [];
+        if (!ids?.length || !positionsData) return [];
 
         return ids.map((id, index) => {
             const posResult = positionsData[index];
@@ -83,6 +95,10 @@ export function usePositions() {
             if (!posResult || posResult.status !== 'success' || !posResult.result) return null;
 
             const pos = posResult.result as any;
+            const state = pos.state !== undefined ? Number(pos.state) : POS_STATUS_OPEN;
+            if (state !== POS_STATUS_OPEN) return null;
+            if (BigInt(pos.size ?? 0) === 0n) return null;
+
             const pnlVal = pnlResult && pnlResult.status === 'success' ? (pnlResult.result as any)[0] : 0n;
 
             const sizeNum = parseFloat(formatUnits(pos.size, 18));
@@ -123,6 +139,6 @@ export function usePositions() {
     return {
         positions: formattedPositions,
         isLoading: isLoadingIds || isLoadingPositions || isLoadingPnL,
-        refetch: refetchIds
+        refetch,
     };
 }

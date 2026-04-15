@@ -122,6 +122,28 @@ export interface ProtocolMetric {
   timestamp: string;
 }
 
+const PROTOCOL_VOLUME_24H_SQL = `
+  SELECT COALESCE(SUM(
+    CASE
+      WHEN o.size_raw IS NOT NULL AND (c.data->>3) IS NOT NULL
+      THEN (o.size_raw * (c.data->>3)::numeric) / POWER(10::numeric, 12)
+      ELSE 0::numeric
+    END
+  ), 0)::text AS total_volume_usd
+  FROM position_events c
+  LEFT JOIN (
+    SELECT DISTINCT ON ((data->>0)::text)
+      (data->>0)::text AS position_id,
+      (data->>4)::numeric AS size_raw
+    FROM position_events
+    WHERE event_type = 'PositionOpened'
+    ORDER BY (data->>0)::text, id ASC
+  ) o ON o.position_id = (c.data->>0)::text
+  WHERE c.event_type = 'PositionClosed'
+    AND c.data IS NOT NULL
+    AND c.created_at >= NOW() - INTERVAL '24 hours'
+`;
+
 export async function fetchProtocol(): Promise<Protocol | null> {
   if (!process.env.POSTGRES_URL) {
     if (process.env.NODE_ENV === 'test') return { totalVolumeUsd: "5000", totalFeesUsd: "100", tvl: "1000", totalTrades: "10", totalPositionsOpened: "5", totalPositionsClosed: "4", totalLiquidations: "1" };
@@ -130,7 +152,10 @@ export async function fetchProtocol(): Promise<Protocol | null> {
   try {
     const pool = getPool();
     if (!pool) return null;
-    const res = await pool.query(`SELECT event_type, COUNT(*) as count FROM position_events GROUP BY event_type`);
+    const [res, volRes] = await Promise.all([
+      pool.query(`SELECT event_type, COUNT(*) as count FROM position_events GROUP BY event_type`),
+      pool.query(PROTOCOL_VOLUME_24H_SQL).catch(() => ({ rows: [{ total_volume_usd: "0" }] })),
+    ]);
     let opened = 0;
     let closed = 0;
     let liq = 0;
@@ -139,11 +164,12 @@ export async function fetchProtocol(): Promise<Protocol | null> {
       if (row.event_type === "PositionClosed") closed = parseInt(row.count);
       if (row.event_type === "PositionLiquidated") liq = parseInt(row.count);
     }
+    const totalVolumeUsd = volRes.rows[0]?.total_volume_usd ?? "0";
     return {
       totalPositionsOpened: String(opened),
       totalPositionsClosed: String(closed),
       totalTrades: String(opened + closed + liq),
-      totalVolumeUsd: "0",
+      totalVolumeUsd,
       totalFeesUsd: "0",
       totalLiquidations: String(liq),
       tvl: "0",
@@ -153,8 +179,57 @@ export async function fetchProtocol(): Promise<Protocol | null> {
   }
 }
 
+/**
+ * Distinct wallets with indexed activity in the last 24h: opens, closes, and liquidations
+ * (liquidated traders resolved via PositionOpened on the same position id).
+ */
+export async function fetchActiveTraders24h(): Promise<number> {
+  if (!process.env.POSTGRES_URL) return 0;
+  try {
+    const pool = getPool();
+    if (!pool) return 0;
+    const res = await pool.query(`
+      WITH opened_for_liq AS (
+        SELECT DISTINCT ON ((data->>0)::text)
+          (data->>0)::text AS position_id,
+          lower(account) AS trader
+        FROM position_events
+        WHERE event_type = 'PositionOpened'
+        ORDER BY (data->>0)::text, id ASC
+      ),
+      recent AS (
+        SELECT lower(account) AS w
+        FROM position_events
+        WHERE event_type IN ('PositionOpened', 'PositionClosed')
+          AND data IS NOT NULL
+          AND created_at >= NOW() - INTERVAL '24 hours'
+        UNION
+        SELECT o.trader AS w
+        FROM position_events c
+        INNER JOIN opened_for_liq o ON o.position_id = (c.data->>0)::text
+        WHERE c.event_type = 'PositionLiquidated'
+          AND c.data IS NOT NULL
+          AND c.created_at >= NOW() - INTERVAL '24 hours'
+      )
+      SELECT COUNT(DISTINCT w)::int AS n FROM recent WHERE w IS NOT NULL AND w LIKE '0x%'
+    `);
+    const n = res.rows[0]?.n;
+    if (typeof n === "number" && Number.isFinite(n)) return n;
+    return parseInt(String(n ?? "0"), 10) || 0;
+  } catch {
+    return 0;
+  }
+}
 
 export async function fetchMarkets(): Promise<Market[]> {
+  try {
+    const { fetchMarketsOnChain } = await import("./fetchMarketsOnchain.js");
+    const onchain = await fetchMarketsOnChain();
+    if (onchain.length > 0) return onchain as Market[];
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[indexer] fetchMarkets on-chain fallback failed:", msg);
+  }
   return [];
 }
 
@@ -274,16 +349,17 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
 
 export type LeaderboardTimeframe = "all" | "24h" | "7d";
 
-function leaderboardTimeFilter(timeframe: LeaderboardTimeframe): string {
-  if (timeframe === "24h") return `AND c.created_at >= NOW() - INTERVAL '24 hours'`;
-  if (timeframe === "7d") return `AND c.created_at >= NOW() - INTERVAL '7 days'`;
+function leaderboardTimeFilter(timeframe: LeaderboardTimeframe, tableAlias: string): string {
+  if (timeframe === "24h") return `AND ${tableAlias}.created_at >= NOW() - INTERVAL '24 hours'`;
+  if (timeframe === "7d") return `AND ${tableAlias}.created_at >= NOW() - INTERVAL '7 days'`;
   return "";
 }
 
 /**
  * Rank traders from indexed `position_events`.
- * PnL and fees are summed from `PositionClosed` rows (same raw integers as on-chain, then passed through `toDecimal` in the route).
- * Volume is approximated as sum of (open_size * exit_price) / 1e12 in internal units (size and oracle price are both scaled by DECIMAL_CONVERSION in the protocol).
+ * Uses `PositionClosed` (trader = row.account) and `PositionLiquidated` (trader resolved via matching
+ * `PositionOpened` on position id — liquidate events only index the liquidator on-chain).
+ * PnL sums closed `realizedPnL`; liquidations contribute volume (size × liq price / 1e12) and trades count, not PnL in the log.
  */
 export async function fetchLeaderboard(
   limit: number,
@@ -296,35 +372,60 @@ export async function fetchLeaderboard(
     const safeLimit = Math.min(Math.max(limit, 1), 100);
     const tf: LeaderboardTimeframe =
       timeframe === "24h" || timeframe === "7d" ? timeframe : "all";
-    const timeFilter = leaderboardTimeFilter(tf);
+    const timeFilter = leaderboardTimeFilter(tf, "e");
 
     const res = await pool.query(
       `
-      SELECT
-        MAX(c.account) AS address,
-        COUNT(*)::bigint AS total_trades,
-        COALESCE(SUM((c.data->>2)::numeric), 0)::text AS total_realized_pnl,
-        COALESCE(SUM(
-          CASE
-            WHEN o.size_raw IS NOT NULL AND (c.data->>3) IS NOT NULL
-            THEN (o.size_raw * (c.data->>3)::numeric) / POWER(10::numeric, 12)
-            ELSE 0::numeric
-          END
-        ), 0)::text AS total_volume_usd
-      FROM position_events c
-      LEFT JOIN (
+      WITH opened AS (
         SELECT DISTINCT ON ((data->>0)::text)
           (data->>0)::text AS position_id,
+          account,
           (data->>4)::numeric AS size_raw
         FROM position_events
         WHERE event_type = 'PositionOpened'
         ORDER BY (data->>0)::text, id ASC
-      ) o ON o.position_id = (c.data->>0)::text
-      WHERE c.event_type = 'PositionClosed'
-        AND c.data IS NOT NULL
-        ${timeFilter}
-      GROUP BY lower(c.account)
-      ORDER BY COALESCE(SUM((c.data->>2)::numeric), 0) DESC NULLS LAST
+      ),
+      close_rows AS (
+        SELECT lower(c.account) AS addr_key, c.account AS address_display,
+               (c.data->>0)::text AS position_id,
+               (c.data->>2)::numeric AS pnl_raw,
+               (c.data->>3)::numeric AS price_raw,
+               c.created_at
+        FROM position_events c
+        WHERE c.event_type = 'PositionClosed' AND c.data IS NOT NULL
+      ),
+      liq_rows AS (
+        SELECT lower(o.account) AS addr_key, o.account AS address_display,
+               (c.data->>0)::text AS position_id,
+               NULL::numeric AS pnl_raw,
+               (c.data->>2)::numeric AS price_raw,
+               c.created_at
+        FROM position_events c
+        INNER JOIN opened o ON o.position_id = (c.data->>0)::text
+        WHERE c.event_type = 'PositionLiquidated' AND c.data IS NOT NULL
+      ),
+      exit_events AS (
+        SELECT * FROM close_rows
+        UNION ALL
+        SELECT * FROM liq_rows
+      )
+      SELECT
+        MAX(e.address_display) AS address,
+        COUNT(*)::bigint AS total_trades,
+        COALESCE(SUM(e.pnl_raw), 0)::text AS total_realized_pnl,
+        COALESCE(SUM(
+          CASE
+            WHEN o.size_raw IS NOT NULL AND e.price_raw IS NOT NULL
+            THEN (o.size_raw * e.price_raw) / POWER(10::numeric, 12)
+            ELSE 0::numeric
+          END
+        ), 0)::text AS total_volume_usd
+      FROM exit_events e
+      LEFT JOIN opened o ON o.position_id = e.position_id
+      WHERE 1=1
+      ${timeFilter}
+      GROUP BY e.addr_key
+      ORDER BY COALESCE(SUM(e.pnl_raw), 0) DESC NULLS LAST
       LIMIT $1
       `,
       [safeLimit],

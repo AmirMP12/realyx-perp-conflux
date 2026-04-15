@@ -100,6 +100,8 @@ export interface ProtocolStats {
     volume24h: string;
     totalOpenInterest: string;
     totalLiquidations?: string;
+    /** Distinct wallets with indexed activity in the last 24h (from API DB) */
+    activeTraders24h?: number;
 }
 
 export function useTradeHistory(limit = 20) {

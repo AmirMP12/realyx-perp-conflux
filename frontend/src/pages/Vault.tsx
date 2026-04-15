@@ -3,7 +3,7 @@ import { useAccount } from 'wagmi';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     TrendingUp, Lock, DollarSign,
-    PieChart, Loader2, Wallet, Info, ArrowDownUp, Sparkles
+    Loader2, Wallet, ArrowDownUp, Sparkles
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useVaultDeposit, useVaultWithdraw, useVaultStats } from '../hooks/useVault';
@@ -26,7 +26,6 @@ export function VaultPage() {
     const userBalance = stats.userBalance ?? 0;
     const sharePrice = stats.sharePrice ?? 1;
     const accumulatedFees = stats.accumulatedFees ?? 0;
-    const utilizationRate = stats.utilizationRate ?? 0;
     const availableLiquidity = stats.availableLiquidity ?? 0;
     const userShares = stats.userShares ?? 0;
     const compactSharePrice = formatCompact(sharePrice).replace(/([mbt])$/, (s) => s.toUpperCase());
@@ -82,9 +81,8 @@ export function VaultPage() {
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 <StatCard icon={Lock} label="Total Value Locked" value={formatCompact(tvl)} sublabel="USDC in Vault" loading={statsLoading} />
-                <StatCard icon={PieChart} label="Utilization" value={`${utilizationRate.toFixed(1)}%`} sublabel="Capital Efficiency" valueColor={utilizationRate > 80 ? 'text-orange-400' : 'text-blue-400'} loading={statsLoading} />
                 <StatCard icon={TrendingUp} label="Share Price" value={compactSharePrice} sublabel="USDC per LP" loading={statsLoading} />
                 <StatCard icon={DollarSign} label="Fees Earned" value={formatCompact(accumulatedFees)} sublabel="Protocol Revenue" valueColor="text-emerald-400" loading={statsLoading} />
             </div>
@@ -200,12 +198,6 @@ export function VaultPage() {
                                         <span className="text-xs sm:text-sm text-text-muted">Min Lockup</span>
                                         <span className="text-xs sm:text-sm font-medium text-emerald-400">None</span>
                                     </div>
-                                    {activeTab === 'withdraw' && utilizationRate > 80 && (
-                                        <div className="px-4 py-3 text-orange-400 flex gap-2 items-start">
-                                            <Info className="w-4 h-4 mt-0.5 shrink-0" />
-                                            <span className="text-xs sm:text-sm">High utilization ({utilizationRate.toFixed(1)}%). Withdrawals may be queued.</span>
-                                        </div>
-                                    )}
                                 </div>
 
                                 {/* Action Button */}

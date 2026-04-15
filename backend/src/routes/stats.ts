@@ -1,5 +1,10 @@
 import { Router, Request, Response } from "express";
-import { fetchProtocol, fetchMarkets, fetchProtocolMetrics } from "../services/indexer.js";
+import {
+  fetchProtocol,
+  fetchMarkets,
+  fetchProtocolMetrics,
+  fetchActiveTraders24h,
+} from "../services/indexer.js";
 import { getActiveMarketAddresses } from "../services/activeMarkets.js";
 import type { ProtocolStats, DailyStat, ApiResponse } from "../types/index.js";
 import { toDecimal } from "../utils/format.js";
@@ -8,7 +13,11 @@ const router = Router();
 
 router.get("/", async (_req: Request, res: Response) => {
   try {
-    const [protocol, marketsResult] = await Promise.all([fetchProtocol(), fetchMarkets()]);
+    const [protocol, marketsResult, activeTraders24h] = await Promise.all([
+      fetchProtocol(),
+      fetchMarkets(),
+      fetchActiveTraders24h(),
+    ]);
     let markets = marketsResult;
     const activeSet = await getActiveMarketAddresses();
     if (activeSet && activeSet.size > 0) {
@@ -27,17 +36,30 @@ router.get("/", async (_req: Request, res: Response) => {
       );
       totalOpenInterest = (oi / 1e12).toFixed(6);
     }
-    const totalLiquidations = protocol?.totalLiquidations ? toDecimal(protocol.totalLiquidations) : "0";
+    /** Event count from indexer — not a wei amount; do not pass through `toDecimal`. */
+    const totalLiquidations = protocol?.totalLiquidations ?? "0";
     res.json({
       success: true,
-      data: { totalMarkets, volume24h, totalOpenInterest, totalLiquidations } as ProtocolStats & { totalLiquidations: string },
+      data: {
+        totalMarkets,
+        volume24h,
+        totalOpenInterest,
+        totalLiquidations,
+        activeTraders24h,
+      } as ProtocolStats & { totalLiquidations: string },
     } as ApiResponse<ProtocolStats & { totalLiquidations: string }>);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to fetch stats";
     res.json({
       success: false,
       error: message,
-      data: { totalMarkets: 0, volume24h: "0", totalOpenInterest: "0", totalLiquidations: "0" },
+      data: {
+        totalMarkets: 0,
+        volume24h: "0",
+        totalOpenInterest: "0",
+        totalLiquidations: "0",
+        activeTraders24h: 0,
+      },
     } as ApiResponse<ProtocolStats & { totalLiquidations: string }>);
   }
 });

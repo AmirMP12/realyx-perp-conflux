@@ -39,7 +39,7 @@ npm run preview
 | `VITE_TRADING_CORE_ADDRESS` | required | TradingCore contract |
 | `VITE_VAULT_CORE_ADDRESS` | required | VaultCore contract |
 | `VITE_ORACLE_AGGREGATOR_ADDRESS` | required | OracleAggregator contract |
-| `VITE_POSITION_TOKEN_ADDRESS` | required | PositionToken contract |
+| `VITE_POSITION_TOKEN_ADDRESS` | `0x4368b5741A105c1ACE50ad98581fDa050685fa8B` (testnet; sync with repo `deployment/confluxTestnet.json`) | PositionToken (ERC721); required for position NFT transfer UI |
 | `VITE_MOCK_USDC_ADDRESS` | required (testnet) | Mock USDC address |
 | `VITE_MOCK_MODE` | `false` | UI/testing toggle |
 

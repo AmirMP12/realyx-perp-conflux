@@ -9,10 +9,12 @@ import { usePythOnChainUpdater } from '../../hooks/usePythOnChainUpdater';
 interface ClosePositionModalProps {
     isOpen: boolean;
     onClose: () => void;
+    /** Called after a successful close tx so lists refetch (ids can lag one block). */
+    onCloseSuccess?: () => void;
     position: Position | null;
 }
 
-export function ClosePositionModal({ isOpen, onClose, position }: ClosePositionModalProps) {
+export function ClosePositionModal({ isOpen, onClose, onCloseSuccess, position }: ClosePositionModalProps) {
     const [percentage, setPercentage] = useState(100);
     const { closePosition, loading: closing } = useClosePosition();
     const { partialClose, loading: partialClosing } = usePartialClose();
@@ -49,6 +51,7 @@ export function ClosePositionModal({ isOpen, onClose, position }: ClosePositionM
         }
 
         if (success) {
+            onCloseSuccess?.();
             onClose();
             setPercentage(100);
         }

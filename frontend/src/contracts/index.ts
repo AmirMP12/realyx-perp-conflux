@@ -2,6 +2,7 @@ import type { Address } from "viem";
 import TradingCoreAbi from "../abi/TradingCore.json";
 import VaultCoreAbi from "../abi/VaultCore.json";
 import OracleAggregatorAbi from "../abi/OracleAggregator.json";
+import IPositionTokenAbi from "../abi/IPositionToken.json";
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 
@@ -23,6 +24,8 @@ export const MOCK_USDC_ADDRESS = envAddress(
 export const TRADING_CORE_ABI = TradingCoreAbi as any;
 export const VAULT_ABI = VaultCoreAbi as any;
 export const ORACLE_ABI = OracleAggregatorAbi as any;
+/** Full ABI for position NFT transfers (`safeTransferFrom`, etc.). */
+export const POSITION_TOKEN_ABI = IPositionTokenAbi as any;
 
 export const getContractAddresses = () => ({
     tradingCore: TRADING_CORE_ADDRESS,

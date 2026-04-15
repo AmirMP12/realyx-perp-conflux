@@ -66,7 +66,18 @@ export function TradingPage() {
 
     const fromContractOrApi = (formatted?.price ?? 0) || (market?.indexPrice ?? 0);
     const currentPrice = fromContractOrApi > 0 ? fromContractOrApi : (pythPrice ?? 0);
-    const fundingRate = formatted?.fundingRate ?? market?.fundingRate ?? 0;
+    /** Merge on-chain OI / funding when RPC data is ready (API list often has zeros without indexer). */
+    const displayMarket = useMemo(() => {
+        if (!market || !shouldFetch || isMarketDataLoading || !formatted) return market;
+        return {
+            ...market,
+            longOI: formatted.longOI,
+            shortOI: formatted.shortOI,
+            openInterest: formatted.longOI + formatted.shortOI,
+            fundingRate: formatted.fundingRate,
+        };
+    }, [market, shouldFetch, formatted, isMarketDataLoading]);
+    const fundingRate = displayMarket.fundingRate ?? 0;
     const isLive = !isMarketDataLoading && shouldFetch && currentPrice > 0;
 
     const pushOracleForCurrentMarket = useCallback(async (): Promise<boolean> => {
@@ -100,7 +111,7 @@ export function TradingPage() {
             />
             {/* Header */}
             <MarketHeader
-                market={market}
+                market={displayMarket}
                 markets={markets}
                 currentPrice={currentPrice}
                 fundingRate={fundingRate}
@@ -155,7 +166,7 @@ export function TradingPage() {
                     style={{ maxWidth: `min(100%, ${tradingFormWidth}px)` }}
                 >
                     <TradingForm
-                        market={market}
+                        market={displayMarket}
                         currentPrice={currentPrice}
                         onTradeSuccess={fetchPositions}
                         side={tradeSide}

@@ -9,6 +9,33 @@ import {
 } from './useProgram';
 import { Address } from 'viem';
 
+function readMarketInfoTuple(
+    raw: unknown,
+): { totalLongSize: bigint; totalShortSize: bigint; maxLeverage: bigint } | undefined {
+    if (raw == null) return undefined;
+    if (typeof raw === 'object' && !Array.isArray(raw) && 'totalLongSize' in raw) {
+        const o = raw as { totalLongSize: bigint; totalShortSize: bigint; maxLeverage: bigint };
+        return {
+            totalLongSize: BigInt(o.totalLongSize),
+            totalShortSize: BigInt(o.totalShortSize),
+            maxLeverage: BigInt(o.maxLeverage),
+        };
+    }
+    return undefined;
+}
+
+function readFundingTuple(raw: unknown): { fundingRate: bigint } | undefined {
+    if (raw == null) return undefined;
+    if (typeof raw === 'object' && !Array.isArray(raw) && 'fundingRate' in raw) {
+        const o = raw as { fundingRate: bigint };
+        return { fundingRate: BigInt(o.fundingRate) };
+    }
+    if (Array.isArray(raw) && raw[0] !== undefined && raw[0] !== null) {
+        return { fundingRate: BigInt(raw[0] as bigint) };
+    }
+    return undefined;
+}
+
 export function useMarketData() {
     const { data: tvlData } = useReadContracts({
         contracts: [{
@@ -31,7 +58,7 @@ export function useSingleMarketData(marketAddress?: Address) {
     const oracleEnabled = enabled && !!hasOracle;
 
     // Fetch market info and funding in one batch (core data)
-    const { data: coreData, refetch: refetchCore } = useReadContracts({
+    const { data: coreData, refetch: refetchCore, isPending: corePending } = useReadContracts({
         contracts: [
             {
                 address: TRADING_CORE_ADDRESS,
@@ -68,14 +95,18 @@ export function useSingleMarketData(marketAddress?: Address) {
         }
     });
 
-    const coreLoading = !coreData || !coreData[0] || !coreData[1];
-    const marketInfo = coreData?.[0]?.result as
-        | { totalLongSize: bigint; totalShortSize: bigint; maxLeverage: bigint }
-        | undefined;
-    const fundingState = coreData?.[1]?.result as { fundingRate: bigint } | undefined;
+    const r0 = coreData?.[0];
+    const r1 = coreData?.[1];
+    /** Batch resolves together; `corePending` / undefined `coreData` covers the loading window. */
+    const coreWaiting = enabled && (corePending || coreData === undefined);
+
+    const marketInfo =
+        r0?.status === 'success' && r0.result != null ? readMarketInfoTuple(r0.result) : undefined;
+    const fundingState =
+        r1?.status === 'success' && r1.result != null ? readFundingTuple(r1.result) : undefined;
     const priceData = priceDataResult?.[0]?.result as readonly [bigint, bigint] | undefined;
 
-    if (coreLoading) return { isLoading: true };
+    if (coreWaiting) return { isLoading: true };
 
     return {
         isLoading: false,
