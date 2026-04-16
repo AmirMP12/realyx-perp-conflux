@@ -38,11 +38,11 @@ Realyx aims to cement its status as the premier Perpetual DEX for Real-World Ass
 
 Tracking our growth ensures we remain laser-focused on value aggregation:
 
-| Key Performance Indicator | Target Matrix |
+| Key Performance Indicator | Target Matrix (Bootstrap) |
 |--------|-----------------|
-| **Total Value Locked (TVL)** | $5,000,000+ |
-| **24h Trading Volume** | $50,000,000+ |
-| **Active Traders (Daily)** | 500+ |
-| **Community Member Base** | 10,000+ |
+| **Total Value Locked (TVL)** | $350,000+ |
+| **24h Trading Volume** | $1,000,000+ |
+| **Active Traders (Monthly)** | 300+ |
+| **Community Member Base** | 1,500+ |
 
 *Note: The execution of this strategy will pivot dynamically via community-led decentralized governance.*

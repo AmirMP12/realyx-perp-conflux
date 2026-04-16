@@ -482,7 +482,10 @@ function NotificationSettings({ settings: _ }: { settings: SettingsState }) {
 
 function SecuritySettings({ settings }: { settings: SettingsState }) {
     const onSelect = (key: string, value: boolean) => {
-        if (key === 'requireConfirmation') settings.setRequireConfirmation(value);
+        if (key === 'requireConfirmation') {
+            settings.setRequireConfirmation(value);
+            settings.setConfirmTrades(value);
+        }
         if (key === 'whitelistAddresses') settings.setWhitelistAddresses(value);
     };
 
@@ -596,8 +599,10 @@ function DisplaySettings({ settings }: { settings: SettingsState }) {
                         <button
                             key={currency}
                             onClick={() => onSelect('currency', currency)}
+                            disabled={currency === 'CFX'}
                             className={clsx(
                                 "flex-1 py-3 px-4 rounded-lg text-sm font-medium border transition-all flex items-center justify-center gap-2",
+                                currency === 'CFX' && "opacity-50 cursor-not-allowed",
                                 settings.currency === currency
                                     ? "bg-[var(--primary)]/10 border-[var(--primary)] text-[var(--primary)]"
                                     : "bg-[var(--bg-tertiary)] border-transparent text-text-secondary hover:text-text-primary"

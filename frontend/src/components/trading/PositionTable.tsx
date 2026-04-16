@@ -557,7 +557,7 @@ function PositionRow({
 
     return (
         <tr data-testid="position-row" className="hover:bg-[var(--bg-tertiary)]/30 transition-colors duration-150">
-            <td className="px-4 py-3.5 font-medium text-text-primary">
+            <td className={clsx(cellPad, "font-medium text-text-primary")}>
                 <div className="flex items-center gap-2 min-w-0">
                     {market && <img src={market.image} className="w-6 h-6 rounded-full ring-1 ring-[var(--border-color)]/60 shrink-0" alt="" />}
                     <span className="truncate">{market?.symbol || 'Unknown'}</span>
@@ -569,13 +569,13 @@ function PositionRow({
                     )}
                 </div>
             </td>
-            <td className="px-4 py-3.5 text-right font-mono text-sm tabular-nums text-text-primary">
+            <td className={clsx(cellPad, "text-right font-mono text-sm tabular-nums text-text-primary")}>
                 ${Number(pos.size).toFixed(2)}
             </td>
-            <td className="px-4 py-3.5 text-right font-mono text-sm tabular-nums text-text-primary">
+            <td className={clsx(cellPad, "text-right font-mono text-sm tabular-nums text-text-primary")}>
                 {(Number(pos.size) / (Number(pos.entryPrice) || 1)).toFixed(4)} {market?.symbol}
             </td>
-            <td className="px-4 py-3.5 text-right font-mono text-sm tabular-nums text-text-primary">
+            <td className={clsx(cellPad, "text-right font-mono text-sm tabular-nums text-text-primary")}>
                 <div className="flex items-center justify-end gap-2 group">
                     ${Number(pos.collateral || (pos as any).margin).toFixed(2)}
                     {!isOptimistic && (
@@ -589,24 +589,35 @@ function PositionRow({
                     )}
                 </div>
             </td>
-            <td className="px-4 py-3.5 text-right font-mono text-sm tabular-nums text-text-primary">
+            <td className={clsx(cellPad, "text-right font-mono text-sm tabular-nums text-text-primary")}>
                 {fmtUsdPrice(Number(pos.entryPrice))}
             </td>
-            <td className="px-4 py-3.5 text-right font-mono text-sm tabular-nums text-text-primary">
+            <td className={clsx(cellPad, "text-right font-mono text-sm tabular-nums text-text-primary")}>
                 {fmtUsdPrice(Number(pos.markPrice ?? pos.entryPrice))}
             </td>
-            <td className="px-4 py-3.5 text-right font-mono text-sm tabular-nums text-orange-400">
+            <td className={clsx(cellPad, "text-right font-mono text-sm tabular-nums text-orange-400")}>
                 {fmtUsdPrice(Number(pos.liquidationPrice))}
             </td>
             <td className={clsx(cellPad, "text-right font-mono text-sm tabular-nums", isProfit ? "text-[var(--long)]" : "text-[var(--short)]")}>
-                {isProfit ? '+' : ''}{pnl.toFixed(2)}
-                {settings.showPnlPercent && Number(pos.collateral) > 0 && (
-                    <span className="text-[10px] ml-1 opacity-70">
-                        ({isProfit ? '+' : ''}{((pnl / Number(pos.collateral)) * 100).toFixed(1)}%)
-                    </span>
+                {settings.showPnlPercent && Number(pos.collateral) > 0 ? (
+                    <>
+                        {isProfit ? '+' : ''}{((pnl / Number(pos.collateral)) * 100).toFixed(1)}%
+                        <span className="text-[10px] ml-1 opacity-70">
+                            ({isProfit ? '+' : ''}${Math.abs(pnl).toFixed(2)})
+                        </span>
+                    </>
+                ) : (
+                    <>
+                        {isProfit ? '+' : ''}{pnl.toFixed(2)}
+                        {Number(pos.collateral) > 0 && (
+                            <span className="text-[10px] ml-1 opacity-70">
+                                ({isProfit ? '+' : ''}{((pnl / Number(pos.collateral)) * 100).toFixed(1)}%)
+                            </span>
+                        )}
+                    </>
                 )}
             </td>
-            <td className="px-4 py-3.5 text-right">
+            <td className={clsx(cellPad, "text-right")}>
                 {isOptimistic ? (
                     <span className="text-xs text-text-muted">Confirming...</span>
                 ) : (
@@ -687,8 +698,18 @@ function MobilePositionCard({
                     <span className="text-xs text-text-muted">x{Number(pos.leverage || 10).toFixed(1)}</span>
                     {isOptimistic && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 animate-pulse">Pending</span>}
                 </div>
-                <div className={clsx("font-mono font-bold", isProfit ? "text-[var(--long)]" : "text-[var(--short)]")}>
-                    {isProfit ? '+' : ''}{pnl.toFixed(2)}
+                <div className={clsx("font-mono font-bold flex items-center gap-1.5", isProfit ? "text-[var(--long)]" : "text-[var(--short)]")}>
+                    {settings.showPnlPercent && Number(pos.collateral) > 0 ? (
+                        <>
+                            {isProfit ? '+' : ''}{((pnl / Number(pos.collateral)) * 100).toFixed(1)}%
+                            <span className="text-[10px] opacity-70 font-normal mt-0.5">({isProfit ? '+' : ''}${Math.abs(pnl).toFixed(2)})</span>
+                        </>
+                    ) : (
+                        <>
+                            {isProfit ? '+' : ''}{pnl.toFixed(2)}
+                            {Number(pos.collateral) > 0 && <span className="text-[10px] opacity-70 font-normal mt-0.5">({isProfit ? '+' : ''}{((pnl / Number(pos.collateral)) * 100).toFixed(1)}%)</span>}
+                        </>
+                    )}
                 </div>
             </div>
 

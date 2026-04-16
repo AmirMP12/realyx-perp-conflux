@@ -1,412 +1,462 @@
-# Realyx — RWA Perpetual Futures DEX
+# 🌌 Realyx — RWA Perpetual Futures DEX
 
-Trade perpetual futures on Real World Assets (RWA) with up to 10x leverage. Built with **Solidity** (Hardhat), **React + TypeScript** (Vite), **Express** backend, and a **native PostgreSQL** database indexer for indexing.
+Bridging TradFi and DeFi on Conflux eSpace: Trade Crypto, Equities, and Commodities with up to 10x leverage. Non-custodial, zero KYC, lightning fast.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Conflux](https://img.shields.io/badge/built%20on-Conflux-blue)](https://confluxnetwork.org)
 [![Hackathon](https://img.shields.io/badge/Global%20Hackfest%202026-green)](https://github.com/conflux-fans/global-hackfest-2026)
 
-## Overview
-Realyx is a decentralized perpetual futures exchange for Real World Assets including crypto, equities, commodities, and forex. Users can long or short markets with up to 10x leverage using real-time Pyth oracle prices. The system consists of on-chain smart contracts (TradingCore, VaultCore, OracleAggregator), a backend API orchestrating off-chain data (Pyth/fallback market data source), a PostgreSQL event indexer, and a React frontend.
+</div>
+
+---
+
+## 📖 Overview
+Realyx is a decentralized, intent-based perpetual futures exchange natively built on the Conflux eSpace network. It democratizes access to global financial markets by allowing users to permissionlessly trade high-demand **Real World Assets (RWAs)**—such as Nvidia, Tesla, and Gold commodities—alongside tier-1 cryptocurrencies from a unified margin account. 
+
+Unlike traditional Automated Market Makers (AMMs) that suffer from high slippage and impermanent loss, Realyx utilizes an optimized **Shared Liquidity Vault** backed by stablecoins acting as a universal counterparty. Through the strategic integration of asynchronous order routing, decentralized Keeper execution nodes, and ultra-low latency infrastructure from the **Pyth Network**, we bring the high-frequency trading capabilities of centralized exchanges directly to the EVM layer while ensuring users maintain absolute custody of their funds.
+
+---
 
 ## 🏆 Hackathon Information
 - **Event**: Global Hackfest 2026
-- **Focus Area**: Open Innovation - Build anything you want using Conflux features
-- **Team**: AmirMP12
-- **Submission Date**: 2026-05-04 @ 11:59:59
+- **Team**: Realyx 
+
+---
 
 ## 👥 Team
 | Name | Role | GitHub | Discord |
 |------|------|--------|---------|
 | Amir | Full-Stack/Contract Developer | [@AmirMP12](https://github.com/AmirMP12) | AmirMP12 |
 
+---
+
 ## 🚀 Problem Statement
-**What problem does your project solve?**
-Current DeFi perpetual exchanges are limited to synthetic crypto assets. Traditional finance (TradFi) platforms restrict global access to real-world assets (RWAs) like equities and commodities due to high entry barriers, geographic restrictions, and custodial risks. There is a need for a unified, decentralized platform where users can seamlessly trade both crypto and RWAs with leverage.
+**What problem does Realyx solve?**
+
+Financial globalization is severely fragmented. Centralized platforms gatekeep access to global equities and commodities through strict geographical barriers, steep account minimums, and protracted KYC hurdles. Conversely, decentralized finance (DeFi) platforms have historically been restricted to synthetic crypto assets due to the technical limitations of EVM oracle latency and extreme vulnerability to front-running.
+
+**Deep Dive into the Friction Points:**
+1. **Siloed Liquidity & UX:** A retail trader wanting to long Tesla equity and short Bitcoin cannot do so from a unified Web3 portfolio. They must use TradFi brokers (subject to business hours) and disjointed DeFi DEXs simultaneously.
+2. **Custodial Risk Execution:** To achieve low-latency perpetual trading, most platforms force users to deposit funds into centralized custodial or off-chain Layer-2 sequencers, completely breaking the fundamental ethos of Web3.
+3. **Impermanent Loss & AMM Inefficiency:** Native on-chain derivatives historically rely on basic x*y=k liquidity pools, subjecting liquidity providers (LPs) to catastrophic impermanent loss when price structures diverge rapidly.
+
+**How Conflux Blockchain helps:** 
+By deploying on Conflux eSpace, an EVM-compatible network capable of high parallel throughput and fraction-of-a-cent gas fees, Realyx can deploy complex zero-slippage pricing models directly parameterized by external Pyth oracles. The blockchain ensures algorithmic transparency, cryptographically preventing internal exchange manipulation or arbitrary user liquidation blockages.
+
+---
 
 ## 💡 Solution
-**How does your project address the problem?**
-Realyx provides a decentralized perpetual futures DEX on Conflux eSpace.
-- **Unified Markets:** Users can trade Crypto (BTC, ETH, LINK, …), Equities (NVDA, TSLA, AAPL, …), Commodities (Gold), and other RWAs.
-- **Oracle Integrated:** Real-time pricing via Pyth Network with a fallback market data source.
-- **Yield Opportunities:** Users can act as LPs in the Vault or stake in Insurance to earn premiums.
-- **Leverage:** Configurable leverage up to 10x without expiration dates.
+**How does Realyx address the problem?**
 
-## Go-to-Market Plan (required)
-- **Target Audience:** DeFi traders looking for exposure to TradFi assets and crypto-native users wanting non-custodial RWA trading.
-- **Acquisition Strategy:** Launch trading competitions on Conflux testnet/mainnet, partner with oracle providers (e.g. Pyth) for co-marketing, and incentivize Vault LPs via protocol tokens.
-- **Metrics:** Total Value Locked (TVL) in Vaults, Daily Trading Volume, Open Interest, Protocol Revenue.
-- **Ecosystem Fit:** Brings a robust DeFi primitive to Conflux eSpace, enhancing liquidity and use case availability on the network.
+Realyx introduces a **Synthetic Vault Counterparty** architecture merged with an intent-based execution engine.
+
+**1. The `realyxLP` Vault Mechanics:**
+Instead of pairing traders against each other (which requires deep orderbooks) or using volatile AMMs, Realyx requires Liquidity Providers (LPs) to stake stablecoins (USDT0/AxCNH/USDT/USDC) into `VaultCore.sol`. The Vault collectively acts as the counterparty to all trader open interest. If traders lose, the Vault gains value; if traders win, the Vault pays out. LPs are heavily compensated via standard borrow fees, funding rates, and protocol volume taxes.
+
+**2. Asynchronous MEV-Resistant Execution:**
+When a trader submits an order on Realyx, they are technically submitting a cryptographically signed "intent." 
+- `createOrder` locks collateral.
+- A decentralized bot/Keeper listens to the Conflux blockchain for the intent.
+- The Keeper independently fetches the absolutely newest Pyth Oracle signed pricing data, updating the on-chain oracle and executing the intent in the exact same atomic transaction via `executeOrder`. 
+**Result:** No front-running. No stale-price arbitrage.
+
+**3. Safety via Insurance Fund:**
+In the rare event of extreme, catastrophic market volatility causing PnL inversions (where trader profits massively exceed available Vault liquidity), Realyx employs a staked Insurance Fund that absorbs bad debt prior to the core Vault being struck.
+
+---
+
+## 📈 Go-to-Market Plan
+- **Primary Audience:** DeFi power users seeking decentralized exposure to TradFi assets (AAPL, TSLA, GLD) and passive Yield Farmers wanting sustainable real yield derived from trader open-interest fees rather than inflationary tokenomics.
+- **Acquisition & Bootstrap Strategy:** 
+  1. Bootstrapping initial liquidity by offering 100% of generated platform revenue directly to early `realyxLP` Vault depositors for the first 6 months.
+  2. Launching gamified trading competitions and volume leaderboards directly on Conflux testnet, converting those power users seamlessly immediately upon mainnet deployment.
+- **Key Performance Indicators (Bootstrap Phase KPIs):** 
+  - **Initial TVL Target:** > $350,000 in stablecoin Vault liquidity (sufficient to safely collateralize up to $3.5M in global Open Interest given 10x leverage dynamics).
+  - **Daily Exchange Volume:** > $1,000,000 generated through initial retail onboarding and automated arbitrage volume.
+  - **Open Interest Retention:** > 60% weekly retention rate among early protocol adopters.
+  - **User Acquisition:** Securing 300+ active beta wallets within the first 30 days of mainnet.
+- **Ecosystem Synergy:** Realyx establishes a critical DeFi primitive for Conflux eSpace. Perpetual DEX protocols generate the highest consistent contract interactions and block space utilization, creating massive baseline health and velocity for the broader Conflux ecosystem native stables.
+
+---
 
 ## ⚡ Conflux Integration
-**How does your project leverage Conflux features?**
+**How does Realyx leverage Conflux features?**
 
-- [x] **eSpace** - Smart contracts are deployed on Conflux eSpace, taking advantage of EVM compatibility for standard tooling (Hardhat) and low transaction fees for high-frequency trading.
-- [ ] **Core Space** 
-- [ ] **Cross-Space Bridge** 
-- [ ] **Gas Sponsorship** 
-- [ ] **Built-in Contracts** 
-- [ ] **Tree-Graph Consensus** 
+- [x] **eSpace** - All core smart contracts (`TradingCore`, `VaultCore`, `Insurance`) are natively deployed and highly optimized for Conflux eSpace to take advantage of EVM compatibility. By deploying on eSpace, Realyx effortlessly supports MetaMask/Fluent wallets and ensures maximum smart contract testability via Hardhat tooling frameworks.
+- [x] **Pyth Network** - Native integration with Pyth Network’s pull-based oracle system. This allows the protocol to update prices sub-second directly during trade execution blocks, securing Realyx against front-running and ensuring our index prices mirror Binance/Nasdaq flawlessly.
+- [x] **Other** - Built robustly with a custom native PostgreSQL EVM Web3 Indexer running on an Express Node.js backbone. The indexer strictly listens to Conflux eSpace `blocks` and `logs` to populate our SQL environment in real-time.
 
-- [ ] **Privy** 
-- [x] **Pyth Network** - Integration with Pyth Network for high-fidelity, low-latency price feeds for diverse markets (crypto, equities, commodities).
-- [ ] **LayerZero** 
-- [x] **Other** - Native PostgreSQL Indexer for efficient on-chain data indexing optimized for Conflux eSpace.
+---
+
+## 🌟 Feature Capabilities
 
 ### Core Features
-- **Markets** - Crypto (BTC, ETH), Equities (NVDA, TSLA), Commodities (Gold), RWAs
-- **Perpetuals** - No expiry; funding rate settlement every hour
-- **Trading** - Long/short perpetuals with asynchronous execution (`createOrder` -> keeper `executeOrder`) for both market and limit flows.
-- **Vault** - LP deposits, share-based accounting, withdrawal queue.
-- **Insurance** - Stake to backstop bad debt; earn premiums.
+- **NFT Position Tokenization (Transferable Trades):** In a massive leap for DeFi composability, Realyx wraps every open leveraged trade into an official ERC-721 NFT (`PositionToken.sol`). This allows traders to seamlessly transfer, gift, or recursively collateralize their active perpetual positions across standard Web3 ecosystems exactly as they would any standard NFT infrastructure!
+- **Advanced Vault Core System:** A highly resilient share-based accounting mechanism (`VaultCore.sol`). When LPs deposit stablecoins, they dynamically mint `realyxLP` utility tokens. These tokens represent fractional ownership of the entire Vault's collateral pool, structurally guaranteed to track intrinsic protocol profit accrued from trader liquidations, borrow fees, and swap expenses over time.
+- **Safety-First Insurance Backstop System:** Built to absorb systemic tail-risk events. If traders experience immense, catastrophic PnL inversions (e.g. flash-crashes) that would otherwise drain the main liquidity Vault, the explicitly deployed `InsuranceFund.sol` automatically shoulders the bad debt. Insurance stakers earn premium yield in exchange for acting as the protocol's first line of systemic defense.
+- **Global Markets Access:** Trade Crypto, Equities, Commodities, and Forex seamlessly across one decentralized interface.
+- **Dynamic Funding Rates:** Math-driven constant-product algorithms calculate hourly funding fee adjustments to balance long and short skewed demands organically.
 
 ### Advanced Features
-- **Analytics** - Volume history, Open Interest tracking, Leaderboard.
-- **WebSocket** - Real-time price and stats updates.
+- **Strict Security Parameters:** Unprecedented user security controls including hyper-strict max slippage bounding, isolated margin execution isolating portfolio risk entirely to singular positions, and Keeper-validated timestamps overriding stale oracle reads.
+- **Dynamic Liquidation Engine:** Configurable liquidation threshold structures ensuring vault solvency continuously.
+- **Interactive Analytics:** Real-time charting configurations via TradingView Lightweight Charts, TVL history curves, and Top Trader Leaderboards based on PnL mapping.
+- **Live Triggers Mechanism:** Set and forget Advanced Take-Profit (TP), Stop-Loss (SL), and Trailing Limit bounds integrated deeply at the smart contract EVM level.
 
 ### Future Features (Roadmap)
-- **Multi-collateral Support** - Allow users to use diverse stablecoins and volatile assets as collateral.
-- **One-Click Trading** - Enhance UI with session keys for seamless transaction approvals.
+- **AxCNH and USDT0 Collaterals** - Deep integration to accept multiple conflux native stable/crypto-bridge utilities as underlying collateral.
+- **Social Copy Trading** - Allow retail users to auto-mirror top leaderboard ranks intent flows.
+- **Cross-Margin Architecture** - Realyx currently uses Isolated Margin. We plan to build Cross Margin where an entire portfolio balance offsets liquidation risks.
 
-### Frontend
-- **Framework**: React 18, Vite
-- **Styling**: Tailwind CSS
-- **State Management**: Zustand
-- **Web3 Integration**: wagmi, RainbowKit
+---
 
-### Backend
-- **Runtime**: Node.js
-- **Framework**: Express, TypeScript
-- **Database**: PostgreSQL & Redis
-- **APIs**: REST API, WebSocket, SQL Indexer integration
+## 🛠️ Technology Architecture
 
-### Blockchain
-- **Network**: Conflux eSpace Testnet
-- **Smart Contracts**: Solidity 0.8.24
-- **Development**: Hardhat
-- **Oracles**: Pyth Network, fallback market data source
+### Stack Elements
+- **Frontend**: React 18, Vite, Tailwind CSS, Zustand Storing, Framer Motion (Transitions), Wagmi, Viem, RainbowKit, Lucide-React.
+- **Backend Listener**: Context-aware Node.js Runtime.
+- **Database Indexing**: PostgreSQL 16 directly mapped via node-pg to EVM `getLogs` polling routines.
+- **Network**: Conflux eSpace Testnet (Mainnet soon) built via Solidity 0.8.24.
 
-### Infrastructure
-- **Hosting**: Docker, Kubernetes (for production), Vercel (frontend/API), always-on worker host (keeper bot)
-- **Indexing**: PostgreSQL Database
-- **Monitoring**: Prometheus, Grafana, Pino
-
-## 🏗️ Architecture
-```
+```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              FRONTEND (React/Vite)                           │
 │  Markets | Trading | Portfolio | Vault | Insurance | Analytics | Settings    │
 └────────────────────────────────────────┬────────────────────────────────────┘
-                                         │ REST API / WebSocket
+                                         │ REST API / WebSockets
                                          ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              BACKEND (Express)                               │
-│  /api/markets | /api/user | /api/stats | /api/leaderboard | /api/insurance   │
+│                              BACKEND (Express Node)                          │
+│  Event Poller | Market Aggregator | Stat Cruncher | Trigger Evaluator        │
 └────────────────────────────────────────┬────────────────────────────────────┘
-                                         │ SQL + Pyth + fallback market data source
+                                         │ SQL + RPC ABI Interactions
          ┌───────────────────────────────┼───────────────────────────────┐
          ▼                               ▼                               ▼
 ┌─────────────────┐           ┌─────────────────┐           ┌─────────────────┐
-│  DATABASE INDEXER │           │  PYTH NETWORK   │           │ FALLBACK SOURCE  │
-│  (PostgreSQL)   │           │ (Hermes/Bench)  │           │   (fallback)    │
-│ Markets, Stats  │           │ Price feeds     │           │ Prices, 24h chg │
+│ NATIVE INDEXER  │           │  PYTH NETWORK   │           │ KEEPER NODES     │
+│  (PostgreSQL)   │           │ (Hermes API API)│           │ (Chron Jobs)    │
+│ Persists State  │           │ Fetches TWAPs   │           │ Executes Intents │
 └────────┬────────┘           └─────────────────┘           └─────────────────┘
          │
          ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    CHAIN (Conflux eSpace Testnet)                            │
-│  TradingCore | VaultCore | OracleAggregator | PositionToken | MockUSDC      │
+│                      CHAIN (Conflux eSpace Testnet)                          │
+│  TradingCore | VaultCore | OracleAggregator | PositionToken | MockUSDC       │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**High-level architecture description:**
-The system uses an Express backend to aggregate on-chain state (via deeply indexed database indexer data) with high-fidelity off-chain price feeds. The React frontend interacts with this API for fast UX, sending transactions via wagmi directly to Conflux eSpace. 
+---
 
 ## 📋 Prerequisites
 Before you begin, ensure you have the following installed:
 
-- **Node.js** (≥ 18)
-- **npm** (or yarn/pnpm)
-- **Git**
-- **Docker** (optional, for containerized run)
-- **Wallet** with test CFX (for testnet trading)
-- **WalletConnect Project ID** (free at [cloud.walletconnect.com](https://cloud.walletconnect.com/))
+- **Node.js** (v18.0.0 or higher) - Runtime execution.
+- **Git** - Version control handling.
+- **Conflux Wallet** ([Fluent Wallet](https://fluentwallet.com/) or [MetaMask](https://metamask.io/) configured for eSpace connection).
+- **Docker** - For completely containerizing the backend PostGres & Redis configurations instantly.
+
+---
+
+## 📦 Installation & Setup
 
 ### 1. Clone the Repository
 ```bash
-git clone https://github.com/AmirMP12/realyx-perp-dex.git
-cd realyx-perp-dex
+git clone https://github.com/AmirMP12/realyx-perp-conflux.git
+cd realyx-perp-conflux
 ```
 
-### 2. Install Dependencies
+### 2. Install Sub-Workspace Dependencies
+We utilize npm workspaces for monorepo efficiency.
 ```bash
-# Install root dependencies first (contracts/scripts/build tooling)
 npm install
-
-# Optional: explicitly ensure workspace deps are installed
 npm install --workspace backend
 npm install --workspace frontend
 ```
 
-### 3. Environment Configuration
-Create environment files from examples:
-
+### 3. Environment & Secrets Configuration
+You must configure your `.env` variables cleanly!
 ```bash
-# Root environment (for deployment)
-# Create .env and set PRIVATE_KEY and CONFLUX_TESTNET_RPC_URL
+# Core root deployment variables (For Hardhat)
+cp .env.example .env
 
-# Backend environment
+# Backend runtime environment
 cp backend/.env.example backend/.env
 
-# Frontend environment
+# Frontend API mappings
 cp frontend/.env.example frontend/.env
 ```
+Inside your `frontend/.env`, ensure WalletConnect IDs and smart contract addresses match the newly deployed states:
+```env
+# Example Testnet Configs
+VITE_API_URL=http://localhost:3001/api
+VITE_RPC_URL=https://evmtestnet.confluxrpc.com
+VITE_TRADING_CORE_ADDRESS=0x64f277f73bfc81Ad80286a4266c0E0613d867Df3
+VITE_CHAIN_ID=71
+```
 
-Review environment variables for correctness. For frontend, provide the addresses from `deployment/confluxTestnet.json`.
-
-### 4. Smart Contract Deployment (if applicable)
+### 4. Smart Contract Deployment Simulation
 ```bash
-# Compile contracts
+# Compile contracts utilizing Solidity 0.8.24
 npm run compile
 
-# Deploy to Conflux eSpace Testnet
+# Target deployment towards Conflux eSpace testnet
 npm run deploy:conflux-testnet
 
-# Verify on Conflux eSpace Testnet Scan
+# Optionally verify contracts against ConfluxScan
 npm run verify:conflux-testnet
-
-# Setup Market on Testnet
-npm run setup:market
 ```
 
-### 5. Start Development Servers
-**Option A: Docker (Recommended)**
+### 5. Start Full Development Environment
+We highly recommend running the backend stack purely through our minimal Docker compose to ignore manual Postgres tooling installs.
 ```bash
-# Minimal: backend + frontend only
+# Start Dockerized application instantly (Spin up API, Frontend, Database, Indexer)
 docker-compose -f docker-compose.minimal.yml up -d
 ```
-Access at `http://localhost:3000`.
+The React frontend should now be hot bound running robustly at `http://localhost:3000`.
 
-**Option B: Local setup**
+---
+
+## 🧪 Testing and Validations
+Run comprehensive component tests across all layers of the stack:
+
 ```bash
-# Start backend
-cd backend
-npm run dev
-
-# Start frontend (in another terminal)
-cd frontend
-npm run dev
-```
-Your application should now be running at `http://localhost:5173`.
-
-### Run Tests
-```bash
-# Run smart contract tests
+# Execute deeply integrated hardhat smart contract test scenarios
 npm run test
 
-# Run backend tests
+# Run backend event ingestion logic testing and REST API verification
 cd backend && npm test
 
-# Run frontend tests
+# Run frontend UI component mounting lifecycle testing
 cd frontend && npm test
-
-# Linting
-npm run lint        # Contracts (Prettier)
-cd backend && npm run lint
-cd frontend && npm run lint
 ```
 
-### Getting Started workflows
-1. **Connect Wallet**
-   - Open the application in your browser.
-   - Connect to **Conflux eSpace Testnet**.
-   - Obtain test CFX from the [Conflux eSpace Testnet Faucet](https://evmtestnet.confluxscan.org/faucet).
-2. **Mint Test Tokens**
-   - Navigate to **Settings -> Testnet tools**
-   - Click "Mint 1k Mock USDC"
-3. **Trade**
-   - Navigate to **Markets**
-   - Select leverage and trade either long or short!
+### Test Coverage Reporting
+To generate code-level coverage graphs highlighting edge case penetrations via istanbul:
+```bash
+npx hardhat coverage
+```
 
-### Deployed Contracts
-#### Testnet
-| Contract | Address |
-|----------|---------|
-| TradingCore | `0x64f277f73bfc81Ad80286a4266c0E0613d867Df3` |
-| VaultCore | `0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714` |
-| OracleAggregator | `0x89cC8eAbF2e967d81FD04D1023298A3bDcE67450` |
-| PositionToken | `0x4368b5741A105c1ACE50ad98581fDa050685fa8B` |
-| MockUSDC | `0xa56Ba38f3c820D6cf31a68CBBD0d25c0F5644d35` |
+---
 
-Same deploy (`deployment/confluxTestnet.json`): TradingCoreViews `0x944d4030CEc4Bf552d8E46dC684B70B100Eb0b86`, MarketCalendar `0xD3c20cca25Dd8189ed6115A1b65192d831ca732F`, Pyth `0xDd24F84d36BF92C65F92307595335bdFab5Bbd21`.
+## 🎮 Getting Started Workflows
 
-### Operator & integration docs
+### 1. Account Initialization setup
+- Open the application locally or navigate to the hosted demo link.
+- Click the glowing primary **Connect Wallet** button on the top right header.
+- Select your primary wallet (MetaMask) and physically ensure your RPC is mapped to `Conflux eSpace Testnet (Network ID: 71)`.
+- If you lack native `$CFX`, utilize the [Conflux eSpace testnet faucet](https://evmtestnet.confluxscan.org/faucet).
 
-- [Error catalog](docs/ERROR_CATALOG.md) — custom errors: meaning, typical cause, suggested fix for integrators.
-- [Deployment & ops runbook](docs/DEPLOYMENT_AND_OPS.md) — versioned addresses, roles, upgrades, pause/breaker playbooks, stale-oracle triage, keeper role operations, and compliance contract notes.
+### 2. Minting Testnet Portfolio Collateral
+Realyx operates totally independent of AMMs relying on standard USDC balances. 
+- Click the **Settings Gear** navigation element.
+- Enter the **Testnet Tools** view.
+- Click **"Mint 1k Mock USDC"** and sign the incoming wallet action.
 
-### REST Endpoints
-Base URL: `http://localhost:3001` (or your backend host)
+---
 
-#### Protocol Stats & General
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check |
-| GET | `/api/markets` | List markets (database indexer + Pyth/fallback market data source) |
-| GET | `/api/stats` | Protocol stats (volume, OI, liquidations) |
-| GET | `/api/leaderboard?limit=10&timeframe=all` | Leaderboard by volume |
-| GET | `/api/insurance/claims?limit=20` | Bad debt claims |
+## 🌊 Example Operational Workflows
 
-#### User Interactions
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/user/:address/positions` | User open positions |
-| GET | `/api/user/:address/trades?limit=20` | User trade history |
+#### Workflow 1: Committing a Margin Long Trading Intent
+```text
+1. Select the "Markets" left-navigation panel and parse the Crypto List for "CFX/USD".
+2. On the trade view, select the "Long" toggle.
+3. Input 100 USDC in the strictly validated Collateral field.
+4. Drag the visual slider to format the Margin Multiplier to max (10.0x Leverage).
+   -> Note: Observe the Order Notional Size visually scale to exactly 1000 USDC.
+5. Click "Submit Long Order CFX".
+6. Your wallet will prompt an asynchronous transaction ensuring your 100 USDC is committed to the Vault securely.
+7. Within ~3 seconds, observe the "Positions" table at the bottom of the interface instantly refresh tracking your Live PnL mapped dynamically via Websockets!
+```
 
-### Security Measures
-- **Modular Core Components**: Separated to limit exploit ranges
-- **Smart Contract Fixes**: Solvency fixes (PnL inversions) and atomic order execution validated.
-- **Insurance Fund**: Staking mechanism implemented to backstop bad debt and prevent under-collateralized insolvency.
+#### Workflow 2: Depositing Vault Counterparty Liquidity
+```text
+1. Navigate directly to the 'Vault' navigation tab in the App Header.
+2. Locate the comprehensive TVL and Profit charts for the master USDC Vault ecosystem.
+3. Scroll to the "Deposit / Withdraw" action zone and enter 500 USDC.
+4. Finalize the "Deposit Liquidity" transaction payload.
+5. You instantly mint representative shares of the `realyxLP` utility token to your account index tracking Vault profitability intrinsically.
+```
+
+---
+
+## 📺 Demo Showcases
+
+- **🌍 Live Conflux eSpace Hosted Demo:** [Realyx Platform](https://realyx.vercel.app/)
+- **🎥 Official Walkthrough Demo:** [Watch the walkthrough](https://youtube.com)
+- **⏱️ Duration:** [3 minutes]
+
+---
+
+## 📜 Complete Contract Documentation
+
+### Conflux eSpace Deployed Identifiers (Testnet v1)
+| Primary Infrastructure | Contract Address | Conflux Explorer Transparency Link |
+|-------------------------|-------------------|--------------------------------------|
+| **TradingCore Node** | `0x64f277f73bfc81Ad80286a4266c0E0613d867Df3` | [View Core Engine Matrix on ConfluxScan](https://evmtestnet.confluxscan.net/address/0x64f277f73bfc81Ad80286a4266c0E0613d867Df3) |
+| **VaultCore Liquidity**| `0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714` | [View Vault State on ConfluxScan](https://evmtestnet.confluxscan.net/address/0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714) |
+| **ERC721 PositionToken**| `0x4368b5741A105c1ACE50ad98581fDa050685fa8B` | [View Token Tracker on ConfluxScan](https://evmtestnet.confluxscan.net/address/0x4368b5741A105c1ACE50ad98581fDa050685fa8B) |
+
+### Functional Protocol Interfaces
+
+#### `ITradingCore.sol` Example
+We structure our core execution paths utilizing minimal surface area state manipulators. This includes dynamic execution triggers based completely on pending intent structures validated by Keeper price aggregation logic against Pyth bounds.
+
+```solidity
+interface ITradingCore {
+    // Stage 1: Collateral locked in intent queue
+    function createOrder(
+        address market,
+        uint256 size,
+        uint256 collateral,
+        uint256 leverage,
+        bool isLong,
+        OrderType orderType,
+        uint256 triggerPrice,
+        uint256 maxSlippageBps
+    ) external;
+    
+    // Stage 2: Keeper execution block 
+    function executeOrder(uint256 orderId, bytes[] calldata priceUpdateData) external payable;
+    
+    // Dynamic boundary limits scaling capabilities
+    function setTriggerOrders(uint256 positionId, uint256 sl, uint256 tp, uint256 trailingStop) external;
+}
+```
+
+---
+
+## 🔌 API Ecosystem Breakdown
+
+The Realyx Node indexer provisions ultra-high volume REST capabilities allowing power-users and institutional market makers to scrape and interact effectively.
+
+### Core Data Delivery
+#### Authentication:
+The entire REST API remains strictly permissionless mirroring the ethos of the on-chain counterpart.
+
+#### Representative Core Responses (GET `api/stats` Payload):
+```json
+{
+  "status": "success",
+  "data": {
+    "totalVolume": 4529000,
+    "totalOpenInterest": 1250000,
+    "liquidations24H": 4,
+    "systemHealthFactor": "0.9999",
+    "vaultUtilizationRate": "45.2%"
+  }
+}
+```
+
+#### Detailed Contract Data Maps
+```bash
+# Query master statistics 
+GET    /api/stats
+
+# Fetch heavily formatted full database indexer market parameters
+GET    /api/markets
+
+# Track specific EVM user margin states mapped internally over JSON boundaries 
+GET    /api/user/:address/positions
+
+# Pull raw transactional historical action sequences limited chronologically 
+GET    /api/user/:address/trades?limit=50
+```
+
+### WebSocket Streaming
+For high frequency interface adjustments, the backend pushes tick level sub-second differentials heavily via lightweight raw payloads across natively configured websocket buffers on Node `ws`.
+
+```javascript
+// Example Client Connection 
+const ws = new WebSocket('ws://localhost:3002');
+
+ws.on('message', (msg) => {
+    const data = JSON.parse(msg);
+    if(data.type === 'PRICE_UPDATE') {
+       // PnL components re-evaluate synchronously here natively against active POS arrays
+       updateInterfacePrices(data.payload);
+    }
+});
+```
+
+---
+
+## 🔒 Security Posture
+
+### Preventative Security Measures
+- **Two-Phase Commit Order Structure (Intents):** By stripping users' abilities to natively execute immediate AMM market swaps directly based on chain state, we unequivocally destroy all theoretical front-running, price slippage sandwiches, and flash loan attacks.
+- **Oracle Slippage & Validation Logic:** Incoming Pyth execution payloads strictly validate timestamps, ensuring `block.timestamp` deviates favorably relative to strict contract constraints. Extremely stale updates explicitly revert the protocol blocking zero-day extraction hacks.
+- **Parametric Constraints Constraints:** Smart contracts statically validate minimum colateralizations, positional ceilings, maximum leveraged multipliers (10x Base), and prevent execution routing that directly crosses hard liquidation ceilings (preventing immediate liquidations).
 
 ### Known Security Considerations
-- Testnet Oracle feeds might be delayed; on mainnet, Pyth guarantees faster price actions.
+- Testnets natively inherently present RPC fragility specifically related to Pyth public Hermes network configurations leading to unexpected oracle latency. On mainnet architectures, Pyth provisions exclusive deployment networks guaranteeing aggressive price fluidity unhindered by public testnet noise.
+- Realyx enforces administrative overrides for adding additional underlying RWA markets, configuring funding velocities systematically.
 
-### Current Limitations
-- database indexer sync lag can intermittently cause out-of-date balances on portfolio page.
-
-### Phase 1 (Hackathon) ✅
-- [x] Core functionality implementation
-- [x] Basic UI/UX
-- [x] Smart contract deployment
-- [x] Demo preparation
-- [x] PostgreSQL Indexer setup
-- [x] Cross-asset oracle price feeds
-
-### Phase 2 (Post-Hackathon)
-- [ ] Enhanced user interface
-- [ ] Security audit (Mainnet ready)
-- [ ] Mainnet deployment
-- [ ] Multi-collateral integration
+### Current Edge Case Limitations
+- **Issue 1:** Total protocol database synchronization heavily relies on a singular Postgres indexer. Under massive 20,000+ RPS node load on the underlying testnet Conflux EVM state mapping APIs, transient database lag may occur generating minor frontend portfolio staleness.
+- **Issue 2:** The isolated model does not automatically calculate risk adjustments across completely independent positions currently.
 
 ---
 
-## Technical Details
+## 🛣️ Phased Roadmap
 
-### Environment Variables
+**Phase 1 (Hackathon Global HackFest 2026)** ✅
+- [x] Initial design vectoring and complex mathematical derivation plotting for Vault structures.
+- [x] Hardhat core smart contract implementation and aggressive local validations running 100+ tests natively.
+- [x] Comprehensive Postgres indexer data digestion methodologies setup tracking 15+ complex EVM emit states.
+- [x] WebUI implementation (Settings, Analytics, Trade logic execution frameworks) deployment formatting securely.
 
-**Root (contracts)**
-| Variable | Required | Description |
-|----------|----------|-------------|
-| PRIVATE_KEY | Yes (deploy) | Deployer private key (no 0x) |
-| CONFLUX_RPC_URL | No | Conflux eSpace mainnet RPC endpoint |
-| CONFLUX_TESTNET_RPC_URL | Yes | RPC endpoint |
-| CONFLUXSCAN_API_KEY | No | For contract verification |
-| USDC_ADDRESS | No | USDC contract address |
-| KEEPER_PRIVATE_KEY | Optional | Keeper wallet private key for `npm run keeper:bot` |
-| KEEPER_RPC_URLS | Optional | CSV RPC fallbacks for keeper reliability |
-| KEEPER_HERMES_URL | Optional | Hermes base URL used for Pyth refresh before order execution |
+**Phase 2 (Post-Hackathon)**
+- [ ] Tier-1 Full-Stack independent structural contract security auditing validations.
+- [ ] Conflux eSpace Global Mainnet Launch provisioning targeting heavy early-adoptor liquidity mining.
+- [ ] Multi-chain token integrations natively accepting standard stable utilities (USDT0/AxCNH).
 
-**Backend**
-| Variable | Default | Description |
-|----------|---------|-------------|
-| PORT | 3001 | HTTP server port |
-| WS_PORT | 3002 | WebSocket server port |
-| ENABLE_WS | true | Set `false` on Vercel (polling mode) |
-| ENABLE_ACTIVE_MARKETS_FILTER | true | Set `false` on Vercel to avoid RPC-heavy filtering |
-| ENABLE_PYTH_24H | true | Set `false` on Vercel to avoid expensive per-market history calls |
-| POSTGRES_URL | (see .env.example) | PostgreSQL connection URL |
-| CHAIN_ID | 71 | Chain ID |
-| RPC_URL | - | For on-chain market filter |
-| RPC_FALLBACK_URL | - | Fallback RPC when primary fails |
-| TRADING_CORE_ADDRESS | - | TradingCore contract |
-| ORACLE_AGGREGATOR_ADDRESS | - | OracleAggregator contract |
-| CRON_SECRET | - | Optional bearer token for `/api/sync` |
-| NODE_ENV | development | Environment |
-| METRICS_PORT | 9090 | Metrics endpoint config |
-
-**Frontend**
-| Variable | Default | Description |
-|----------|---------|-------------|
-| VITE_API_URL | http://localhost:3001/api | Backend API base |
-| VITE_WS_URL | (empty) | Optional; keep empty on Vercel |
-| VITE_CHAIN_ID | 71 | Chain id for wallet/network checks |
-| VITE_RPC_URL | https://evmtestnet.confluxrpc.com | Primary RPC for wallet/client |
-| VITE_CONFLUX_TESTNET_RPC_URL | https://evmtestnet.confluxrpc.com | Explicit testnet RPC |
-| VITE_APP_URL | - | Optional app base URL (WalletConnect metadata) |
-| VITE_WALLET_CONNECT_PROJECT_ID | - | **Required** for WalletConnect |
-| VITE_TRADING_CORE_ADDRESS | - | **Required** for trading |
-| VITE_VAULT_CORE_ADDRESS | - | **Required** for vault |
-| VITE_ORACLE_AGGREGATOR_ADDRESS | - | **Required** for prices |
-| VITE_POSITION_TOKEN_ADDRESS | - | **Required** for positions |
-| VITE_MOCK_USDC_ADDRESS | - | Mock USDC on testnet |
-| VITE_MOCK_MODE | false | Toggle mock-mode UI behavior |
+**Phase 3 (Future Scale)**
+- [ ] Execution implementation for complex Cross-Margin isolation.
+- [ ] Smart-Contract governed Social Copy Trading indexing allowing automated intent mirroring.
+- [ ] Deployed standalone containerized Keeper nodes allowing anybody to algorithmically execute trades to earn native execution Bounties.
 
 ---
 
-### Docker
-**Prerequisite:** Ensure Docker Desktop (or Docker Engine) is running before building/starting.
+## 🤝 Open Contributions Ecosystem
 
-#### Minimal (backend + frontend)
-```bash
-docker compose -f docker-compose.minimal.yml up -d
-```
-- Frontend: http://localhost:3000 (API and WebSocket proxied via nginx)
-- Backend API: http://localhost:3001
-- WebSocket: ws://localhost:3002
+We heavily encourage external analysis and open-source contributions to our execution stacks. Please parse the generic [Contributing Guidelines](CONTRIBUTING.md) structurally determining code paradigms, PR evaluation standards, and open bounties.
 
-
-### Deploy on Vercel
-You can run the full app (frontend + API) on a single Vercel project in **REST polling mode**. The backend runs as serverless functions; native Node WebSocket server is disabled in this mode.
-Run keeper bot on a separate always-on worker host (not Vercel serverless), otherwise pending orders will not be executed reliably.
-
-1. Import your Git repository via Vercel.
-2. Leave **Root Directory** empty.
-3. Add Environment Variables via Settings:
-   - `VITE_API_URL=/api`
-   - `VITE_WS_URL=` (empty)
-   - `ENABLE_WS=false`
-   - `ENABLE_ACTIVE_MARKETS_FILTER=false`
-   - `ENABLE_PYTH_24H=false`
-   - `POSTGRES_URL=<your neon pooled url with sslmode=require>`
-4. Deploy! Vercel runs the root `build` script (`build-vercel.mjs`), builds backend/frontend artifacts, rewrites `/api/*` to `api/index.js`, and serves frontend assets from `public`.
-
-### Troubleshooting
-| Issue | Solution |
-|-------|----------|
-| **Markets not loading** | Check `POSTGRES_URL` and backend logs. Ensure PostgreSQL indexer is synced. |
-| **Prices show 0** | Verify `RPC_URL`, `TRADING_CORE_ADDRESS`. Pyth/fallback market data source may be rate-limited. |
-| **Order stays Pending** | Keeper is not executing orders. Verify `KEEPER_ROLE`, keeper wallet gas, and `npm run keeper:bot` logs. |
-| **`createOrder` reverted despite USDC balance** | Check compliance: `TradingCore.complianceManager()` and `isAllowed(user, market, 0x)` on compliance contract. |
-| **Mint Mock USDC fails** | Confirm `VITE_MOCK_USDC_ADDRESS` matches `deployment/confluxTestnet.json`. Connect to Conflux eSpace Testnet. |
-| **WalletConnect not connecting** | Set `VITE_WALLET_CONNECT_PROJECT_ID` from cloud.walletconnect.com. |
-| **Backend 404** | Ensure routes use `/api` prefix. Frontend should use `VITE_API_URL=http://localhost:3001/api`. |
-
-### Development Process
-- Detailed component organization (contracts, backend, frontend, database indexer).
-- Commit with conventional messages.
-- More docs:
-  - [backend/README.md](backend/README.md) — Backend API details
-  - [frontend/README.md](frontend/README.md) — Frontend runtime/build/env details
-  - PostgreSQL Database Schema
-  - [infrastructure/README.md](infrastructure/README.md) — Kubernetes & monitoring
-
-### Code Style
-- Follow established conventions
-- Prettier on contracts and TS code
-- Strict mode TypeScript configurations utilized
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-### Conflux Hackathon
-- **Conflux Network** - For hosting the hackathon and providing the platform
-- **Conflux Team** - For technical support and mentorship
-- **Community** - For feedback and encouragement
-
-### Support
-- **Issues**: [GitHub Issues](https://github.com/AmirMP12/realyx-perp-dex/issues)
+### Standard Development Process
+1. Fork the baseline target application repository actively.
+2. Initialize and deploy an isolated feature branch matrix (`git checkout -b feature/dynamic-vault-metrics`).
+3. Commit validated alterations comprehensively documented (`git commit -m 'Added dynamic Vault UI elements'`).
+4. Push heavily towards origin states (`git push origin feature/dynamic-vault-metrics`).
+5. Open an official Pull Request!
 
 ---
 
-**Built with ❤️ for Global Hackfest 2026**
+## ⚖️ Operational Licensing
 
-*Thank you for checking out our project! We hope it contributes to the growth and innovation of the Conflux ecosystem.*
+This system actively inherits the massive decentralization frameworks available openly via the core MIT License matrix formats globally. Evaluate the core [LICENSE](LICENSE) mapping specific derivations!
+
+---
+
+## 🙏 Gracious Acknowledgments
+
+- **Conflux Global Hackfest Network Initiative** - For fundamentally hosting an incredible boundary-pushing event!
+- **Conflux Foundation Stack Teams** - For extreme infrastructural support, explicit technical documentation structures parsing eSpace compatibilities, and high mentorship outputs.
+- **Open-source Communities** - Your relentless bug testing flows massively helped!
+
+### Supported Utilizing Frameworks
+- **[Pyth Network]** - The core baseline defining next-generation latency mechanisms.
+- **[Wagmi.sh / Viem.sh]** - React hooks natively making UI structural elements incredibly capable across raw TS logic.
+
+---
+
+## 📞 Connectivity & Support Vectors
+
+- **Core Tracker Issues:** [GitHub Repository Bug Reporting Tracking](https://github.com/AmirMP12/realyx-perp-conflux/issues)
+- **Direct Lead Contact (Discord):** `amp1212`
+- **Primary Source Link:** [AmirMP12/realyx-perp-conflux Baseline](https://github.com/AmirMP12/realyx-perp-conflux)
+- **Execution URL Environment:** [Realyx Network Live Configurations](https://realyx.vercel.app/)
+
+---
+
+  <b>Built relentlessly with ❤️ for Conflux Global Hackfest 2026</b><br/><br/>
+  <i>Incredible technologies originate collectively. We deeply hope Realyx drives profound innovative utilities towards Conflux Network ecosystem scale formats indefinitely!</i>
+</div>

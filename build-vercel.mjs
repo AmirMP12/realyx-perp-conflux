@@ -8,7 +8,6 @@ function run(cmd, desc, options = {}) {
   const cwd = options.cwd ?? root;
   console.log(`\n--- ${desc} ---`);
   try {
-    // Capture output so we can see it even if the process fails
     const output = execSync(cmd, { stdio: 'pipe', encoding: 'utf-8', cwd });
     console.log(output);
     console.log(`✅ ${desc} successful.`);

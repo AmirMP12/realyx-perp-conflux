@@ -16,7 +16,9 @@ export function ProtocolStatsBar() {
 
     const backendVolume = parseStat(backendStats?.volume24h);
     const volume24h = backendVolume > 0 ? backendVolume : marketsVolumeFallback;
-    const tvl = vaultStats?.tvl ?? 0;
+    const vaultTvl = vaultStats?.tvl ?? 0;
+    const backendTvl = parseStat(backendStats?.tvl);
+    const tvl = vaultTvl > 0 ? vaultTvl : backendTvl;
     const backendOi = parseStat(backendStats?.totalOpenInterest);
     const oi = backendOi > 0 ? backendOi : marketsOiFallback;
 

@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import { ethers } from "ethers";
 import {
   fetchProtocol,
   fetchMarkets,
@@ -11,12 +12,43 @@ import { toDecimal } from "../utils/format.js";
 
 const router = Router();
 
+// ── Server-side TVL from VaultCore.totalAssets() ──
+let cachedTvl: string = "0";
+let tvlCachedAt = 0;
+const TVL_CACHE_MS = 30_000; // 30s
+
+async function fetchTvlFromChain(): Promise<string> {
+  if (Date.now() - tvlCachedAt < TVL_CACHE_MS && cachedTvl !== "0") {
+    return cachedTvl;
+  }
+  const vaultAddress = (process.env.VAULT_CORE_ADDRESS ?? process.env.DEPLOYED_VAULT_CORE ?? "").trim();
+  const rpcUrl = (process.env.RPC_URL ?? "https://evmtestnet.confluxrpc.com").trim();
+  if (!vaultAddress) return cachedTvl;
+  try {
+    const chainId = parseInt(process.env.CHAIN_ID ?? "71", 10);
+    const provider = new ethers.JsonRpcProvider(rpcUrl, chainId);
+    const contract = new ethers.Contract(vaultAddress, [
+      "function totalAssets() view returns (uint256)",
+    ], provider);
+    const totalAssets = await contract.totalAssets();
+    // totalAssets returns USDC * 1e12, i.e. 18 decimals
+    const tvl = (Number(totalAssets) / 1e18).toFixed(6);
+    cachedTvl = tvl;
+    tvlCachedAt = Date.now();
+    return tvl;
+  } catch (e) {
+    console.warn("[stats] TVL fetch failed:", e instanceof Error ? e.message : e);
+    return cachedTvl;
+  }
+}
+
 router.get("/", async (_req: Request, res: Response) => {
   try {
-    const [protocol, marketsResult, activeTraders24h] = await Promise.all([
+    const [protocol, marketsResult, activeTraders24h, tvl] = await Promise.all([
       fetchProtocol(),
       fetchMarkets(),
       fetchActiveTraders24h(),
+      fetchTvlFromChain().catch(() => "0"),
     ]);
     let markets = marketsResult;
     const activeSet = await getActiveMarketAddresses();
@@ -46,8 +78,9 @@ router.get("/", async (_req: Request, res: Response) => {
         totalOpenInterest,
         totalLiquidations,
         activeTraders24h,
-      } as ProtocolStats & { totalLiquidations: string },
-    } as ApiResponse<ProtocolStats & { totalLiquidations: string }>);
+        tvl,
+      } as ProtocolStats & { totalLiquidations: string; tvl: string },
+    } as ApiResponse<ProtocolStats & { totalLiquidations: string; tvl: string }>);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to fetch stats";
     res.json({
@@ -59,8 +92,9 @@ router.get("/", async (_req: Request, res: Response) => {
         totalOpenInterest: "0",
         totalLiquidations: "0",
         activeTraders24h: 0,
+        tvl: "0",
       },
-    } as ApiResponse<ProtocolStats & { totalLiquidations: string }>);
+    } as ApiResponse<ProtocolStats & { totalLiquidations: string; tvl: string }>);
   }
 });
 

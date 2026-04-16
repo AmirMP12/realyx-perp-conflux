@@ -37,4 +37,4 @@ Transparency is a core tenet of the Realyx protocol. This document outlines acti
 - **Planned Resolution:** Mainnet deployment introduces dynamic, algorithmically enforced Open Interest (OI) ceilings strictly correlated to vault utilization metrics.
 
 ---
-*Encountered a bug not listed here? Please submit an issue via our [GitHub Repository](https://github.com/AmirMP12/realyx-perp-dex) or alert the core team on Discord.*
+*Encountered a bug not listed here? Please submit an issue via our [GitHub Repository](https://github.com/AmirMP12/realyx-perp-conflux) or alert the core team on Discord.*

@@ -51,10 +51,10 @@ function formatUsdStat(value: unknown): string {
 
 function StatCard({ title, value, change, icon, className = '', loading }: StatCardProps) {
     return (
-        <div className={clsx('glass-card min-w-0 overflow-hidden p-4 md:p-6 hover:bg-[var(--bg-tertiary)]/20 transition-colors', className)}>
-            <div className="flex items-center justify-between gap-2 mb-2 min-w-0">
-                <span className="text-text-secondary text-sm font-medium uppercase tracking-wider truncate">{title}</span>
-                <div className="text-[var(--primary)] p-2 bg-[var(--primary)]/10 rounded-lg shrink-0">{icon}</div>
+        <div className={clsx('glass-card min-w-0 overflow-hidden p-4 md:p-6 flex flex-col justify-between h-[110px] md:h-[130px] hover:bg-[var(--bg-tertiary)]/20 transition-colors', className)}>
+            <div className="flex items-start justify-between gap-2 min-w-0">
+                <span className="text-text-secondary text-xs md:text-sm font-medium uppercase tracking-wider truncate leading-tight mt-1">{title}</span>
+                <div className="text-[var(--primary)] p-1.5 md:p-2 bg-[var(--primary)]/10 rounded-lg shrink-0">{icon}</div>
             </div>
             <div
                 className="text-lg sm:text-xl md:text-2xl font-bold text-text-primary font-mono tracking-tight min-w-0 break-words [overflow-wrap:anywhere] leading-tight"
@@ -375,27 +375,31 @@ export default function AnalyticsDashboard() {
             {/* Top Stats Cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard
-                    title="Total Volume (24h)"
-                    value={formatUsdStat(totalVolume)}
-                    icon={<DollarSign className="w-6 h-6" />}
-                    loading={statsLoading}
-                />
-                <StatCard
                     title="Total Value Locked"
-                    value={formatUsdStat(vaultStats?.tvl ?? 0)}
-                    icon={<Activity className="w-6 h-6" />}
-                    loading={vaultLoading}
+                    value={formatUsdStat((() => {
+                        const vTvl = vaultStats?.tvl ?? 0;
+                        const bTvl = parseFloat(backendStats?.tvl ?? '0');
+                        return vTvl > 0 ? vTvl : bTvl;
+                    })())}
+                    icon={<Activity className="w-5 h-5 md:w-6 md:h-6" />}
+                    loading={!vaultStats?.tvl && vaultLoading && statsLoading}
                 />
                 <StatCard
                     title="Open Interest"
                     value={formatUsdStat(realTimeOI)}
-                    icon={<Activity className="w-6 h-6" />}
+                    icon={<Activity className="w-5 h-5 md:w-6 md:h-6" />}
                     loading={marketsLoading}
                 />
                 <StatCard
-                    title="Active Traders (24h)"
+                    title="Total Volume (24h)"
+                    value={formatUsdStat(totalVolume)}
+                    icon={<DollarSign className="w-5 h-5 md:w-6 md:h-6" />}
+                    loading={statsLoading}
+                />
+                <StatCard
+                    title="Active Traders"
                     value={activeTraders24h}
-                    icon={<BarChart2 className="w-6 h-6" />}
+                    icon={<BarChart2 className="w-5 h-5 md:w-6 md:h-6" />}
                     loading={statsLoading}
                 />
             </div>
@@ -424,7 +428,7 @@ export default function AnalyticsDashboard() {
                 {/* Right Column: OI & Leaderboard */}
                 <div className="space-y-6 flex flex-col">
                     {/* Open Interest Chart */}
-                    <div className="h-[350px]">
+                    <div className="min-h-[450px]">
                         <OpenInterestChart
                             longOI={realTimeLongOI}
                             shortOI={realTimeShortOI}

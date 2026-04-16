@@ -209,6 +209,17 @@ export function useVaultStats() {
         query: { refetchInterval: 10000 }
     });
 
+    // ── Loading timeout: don't show skeleton forever if RPC is slow ──
+    const [timedOut, setTimedOut] = useState(false);
+    useEffect(() => {
+        if (!isLoadingTotalAssets) {
+            setTimedOut(false);
+            return;
+        }
+        const timer = setTimeout(() => setTimedOut(true), 5000);
+        return () => clearTimeout(timer);
+    }, [isLoadingTotalAssets]);
+
     // VaultCore.totalAssets() returns internal precision (USDC * 1e12), i.e. 18 decimals.
     const tvl = totalAssets !== undefined ? parseFloat(formatUnits(totalAssets as bigint, 18)) : 0;
     const availableLiquidity = availableLiquidityWei !== undefined ? parseFloat(formatUnits(availableLiquidityWei as bigint, assetDecimals)) : 0;
@@ -231,7 +242,7 @@ export function useVaultStats() {
             isPaused: isPaused ?? false,
             asset: assetAddress ? 'USDC' : 'USDC' // For now default to USDC, but we have the address if needed
         },
-        loading: isLoadingTotalAssets
+        loading: isLoadingTotalAssets && !timedOut
     };
 }
 

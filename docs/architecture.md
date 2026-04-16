@@ -27,7 +27,7 @@ The deterministic pricing router.
 
 ### 4. `PositionToken` (ERC-721)
 A unique NFT representation of leveraged positions.
-- Each open trade mints a soul-bound `PositionToken`.
+- Each open trade mints a fully transferable, composable `PositionToken` NFT mapping your margin.
 - Enables future capabilities like secondary markets for paper trading or composable DeFi integrations.
 
 ---

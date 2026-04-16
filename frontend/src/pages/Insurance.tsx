@@ -117,7 +117,9 @@ export function InsurancePage() {
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 <StatCard icon={DollarSign} label="Insurance Assets" value={formatCompact(insurance.insuranceAssets)} sublabel="Total Capital" loading={insurance.loading} />
                 <StatCard icon={Activity} label="Health Ratio" value={`${insurance.healthRatioPercent.toFixed(2)}%`} sublabel="Solvency Metric" valueColor={insurance.isHealthy ? 'text-emerald-400' : 'text-red-400'} loading={insurance.loading} />
-                <StatCard icon={Activity} label="Liquidations" value={totalLiquidations} sublabel="Protocol Wide" loading={statsLoading} />
+                <div className="col-span-2 lg:col-span-1">
+                    <StatCard icon={Activity} label="Liquidations" value={totalLiquidations} sublabel="Protocol Wide" loading={statsLoading} />
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 items-start">

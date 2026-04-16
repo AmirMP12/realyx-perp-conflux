@@ -106,7 +106,9 @@ export function MarketsPage() {
     const backendOi = parseStat(backendStats?.totalOpenInterest);
     const volume24h = backendVolume > 0 ? backendVolume : marketVolumeFallback;
     const totalOpenInterest = backendOi > 0 ? backendOi : marketOiFallback;
-    const tvl = vaultStats?.tvl ?? 0;
+    const vaultTvl = vaultStats?.tvl ?? 0;
+    const backendTvl = parseStat(backendStats?.tvl);
+    const tvl = vaultTvl > 0 ? vaultTvl : backendTvl;
 
     const handleRefresh = async () => {
         await Promise.all([refetchMarkets(), refetchStats()]);
@@ -135,7 +137,7 @@ export function MarketsPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-4 md:px-0">
                 <StatCard label="24h Volume" value={formatCompact(volume24h)} loading={statsLoading} />
                 <StatCard label="Open Interest" value={formatCompact(totalOpenInterest)} loading={statsLoading} />
-                <StatCard label="Total Value Locked" value={formatCompact(tvl)} loading={vaultLoading} />
+                <StatCard label="Total Value Locked" value={formatCompact(tvl)} loading={tvl === 0 && vaultLoading && statsLoading} />
                 <StatCard label="Total Markets" value={String(apiMarkets.length)} loading={isLoading} />
             </div>
 

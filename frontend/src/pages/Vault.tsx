@@ -84,7 +84,9 @@ export function VaultPage() {
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 <StatCard icon={Lock} label="Total Value Locked" value={formatCompact(tvl)} sublabel="USDC in Vault" loading={statsLoading} />
                 <StatCard icon={TrendingUp} label="Share Price" value={compactSharePrice} sublabel="USDC per LP" loading={statsLoading} />
-                <StatCard icon={DollarSign} label="Fees Earned" value={formatCompact(accumulatedFees)} sublabel="Protocol Revenue" valueColor="text-emerald-400" loading={statsLoading} />
+                <div className="col-span-2 lg:col-span-1">
+                    <StatCard icon={DollarSign} label="Fees Earned" value={formatCompact(accumulatedFees)} sublabel="Protocol Revenue" valueColor="text-emerald-400" loading={statsLoading} />
+                </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 items-start">

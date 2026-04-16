@@ -79,14 +79,6 @@ async function withRetryUnderpriced<T>(
     throw new Error("unreachable");
 }
 
-/**
- * Update an existing listed market on OracleAggregator and TradingCore.
- * Uses current on-chain values; override only the env vars you want to change.
- *
- * Required: DEPLOYED_ORACLE_AGGREGATOR, DEPLOYED_TRADING_CORE, MARKET_ADDRESS
- * Optional: PYTH_FEED_ID, MARKET_ID, MAX_LEVERAGE, MAX_POSITION_SIZE, MAX_EXPOSURE,
- *           MAINTENANCE_MARGIN_BPS, INITIAL_MARGIN_BPS, MAX_STALENESS
- */
 async function main() {
     const oracleAddr = requireEnv("DEPLOYED_ORACLE_AGGREGATOR");
     const tradingCoreAddr = requireEnv("DEPLOYED_TRADING_CORE");

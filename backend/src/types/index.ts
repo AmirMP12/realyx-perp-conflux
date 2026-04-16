@@ -59,6 +59,8 @@ export interface ProtocolStats {
   totalOpenInterest: string;
   /** Distinct wallets with indexed opens/closes/liquidations in the last 24 hours */
   activeTraders24h?: number;
+  /** Server-side TVL from VaultCore.totalAssets() */
+  tvl?: string;
 }
 
 export interface LeaderboardEntry {

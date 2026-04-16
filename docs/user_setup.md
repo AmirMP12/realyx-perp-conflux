@@ -17,8 +17,8 @@ The Realyx architecture relies on modern, containerized environments. Ensure you
 
 Clone the master repository and initiate the monorepo-style package installations:
 ```bash
-git clone https://github.com/AmirMP12/realyx-perp-dex.git
-cd realyx-perp-dex
+git clone https://github.com/AmirMP12/realyx-perp-conflux.git
+cd realyx-perp-conflux
 npm install
 ```
 

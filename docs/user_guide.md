@@ -16,9 +16,9 @@ Before trading, you must connect your Web3 wallet (e.g., **MetaMask**, **Fluent*
 - **Block Explorer**: `https://evmtestnet.confluxscan.org`
 
 ### Acquiring Gas & Test Funds
-To submit transactions, you will need **CFX** for gas fees and **Mock USDC** for trading collateral.
+To submit transactions, you will need **CFX** for gas fees and **Stablecoins (e.g., testnet USDC/USDT0/AxCNH)** for trading collateral.
 1. Obtain native CFX from the [Conflux Faucet](https://evmfaucet.confluxnetwork.org/).
-2. Navigate to **⚙️ Settings -> Testnet Tools** within the Realyx UI to mint complimentary 1k Mock USDC to your wallet.
+2. Navigate to **⚙️ Settings -> Testnet Tools** within the Realyx UI to mint complimentary teststablecoins to your wallet.
 
 ---
 
@@ -36,7 +36,7 @@ To submit transactions, you will need **CFX** for gas fees and **Mock USDC** for
 Once your trade is active, manage risk seamlessly from the **Portfolio** tab:
 - **Adjusting Margin**: Manually deposit additional USDC to boost your Health Factor, staving off volatile liquidations.
 - **Closing Positions**: Click the **Close** action to exit the trade at the current oracle market price and realize your PnL.
-- **Advanced Stop Loss / Take Profit** *(Coming Soon)*: Automate your exits based on predefined trigger prices.
+- **Advanced Stop Loss / Take Profit / Trailing Limits**: Automate your exits based on predefined trigger prices safely on the smart contract.
 
 ---
 

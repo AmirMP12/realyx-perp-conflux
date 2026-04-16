@@ -5,12 +5,6 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/**
- * Copies core contract ABIs from backend into `frontend/src/abi`.
- * The app imports these via `frontend/src/contracts/index.ts`.
- *
- * For a full ABI export from compiled artifacts, prefer: `npm run export-abi`.
- */
 const CORE = ["TradingCore", "VaultCore", "OracleAggregator"];
 
 const backendAbiDir = path.join(__dirname, "..", "backend", "src", "abi");

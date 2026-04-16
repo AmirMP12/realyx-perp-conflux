@@ -15,7 +15,10 @@ export function MobileStickyPriceBar({ symbol, price, change24h, image, onBuyCli
     const isPositive = change24h >= 0;
 
     return (
-        <div className="lg:hidden fixed bottom-[60px] left-0 right-0 z-30 bg-[var(--bg-secondary)] border-t border-[var(--border-color)] px-3 sm:px-4 py-3 flex items-center justify-between gap-2 min-h-[60px] shadow-[0_-8px_24px_rgba(0,0,0,0.35)]">
+        <div 
+            className="lg:hidden fixed left-0 right-0 z-30 bg-[var(--bg-secondary)] border-t border-[var(--border-color)] px-3 sm:px-4 py-3 flex items-center justify-between gap-2 min-h-[60px] shadow-[0_-12px_24px_-12px_rgba(0,0,0,0.35)]"
+            style={{ bottom: 'calc(76px + env(safe-area-inset-bottom, 0px))' }}
+        >
             <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                 {image && (
                     <img src={image} alt={symbol} className="w-8 h-8 rounded-full ring-1 ring-[var(--border-color)] shrink-0" />

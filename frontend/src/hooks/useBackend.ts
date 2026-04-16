@@ -102,6 +102,8 @@ export interface ProtocolStats {
     totalLiquidations?: string;
     /** Distinct wallets with indexed activity in the last 24h (from API DB) */
     activeTraders24h?: number;
+    /** Server-side TVL from VaultCore.totalAssets() (cached) */
+    tvl?: string;
 }
 
 export function useTradeHistory(limit = 20) {
