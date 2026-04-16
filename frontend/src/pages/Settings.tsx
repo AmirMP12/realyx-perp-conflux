@@ -19,7 +19,6 @@ const TESTNET_FAUCET_URL = 'https://efaucet.confluxnetwork.org/';
 
 const CHAIN_NAMES: Record<number, string> = {
     [realyxChains[0].id]: realyxChains[0].name,
-    [realyxChains[1].id]: realyxChains[1].name,
 };
 
 interface SettingsSection {
@@ -163,7 +162,7 @@ export function SettingsPage() {
                     </AnimatePresence>
 
                     {/* Testnet Tools (Only visible on testnets) */}
-                    {(chainId === realyxChains[1].id || !isConnected) && (
+                    {(chainId === realyxChains[0].id || !isConnected) && (
                         <TestnetSettings />
                     )}
                 </div>
@@ -181,7 +180,7 @@ const MOCK_USDC_ABI = [
 
 function getMockUsdcAddress(chainId: number, usdcFromCore: Address | undefined): Address | undefined {
     if (usdcFromCore) return usdcFromCore;
-    if (chainId === realyxChains[1].id) return MOCK_USDC_ADDRESS;
+    if (chainId === realyxChains[0].id) return MOCK_USDC_ADDRESS;
     return undefined;
 }
 
@@ -306,12 +305,12 @@ const TestnetSettings = () => {
                     <span>{buttonLabel}</span>
                 </button>
                 <a
-                    href={chainId === realyxChains[1].id && mintUsdcAddress ? `https://evmtestnet.confluxscan.net/address/${mintUsdcAddress}#writeContract` : '#'}
+                    href={chainId === realyxChains[0].id && mintUsdcAddress ? `https://evmtestnet.confluxscan.net/address/${mintUsdcAddress}#writeContract` : '#'}
                     target="_blank"
                     rel="noopener noreferrer"
                     className={clsx(
                         "btn-secondary py-2 px-4 flex items-center gap-2 text-sm",
-                        (!mintUsdcAddress || chainId !== realyxChains[1].id) && "pointer-events-none opacity-50"
+                        (!mintUsdcAddress || chainId !== realyxChains[0].id) && "pointer-events-none opacity-50"
                     )}
                 >
                     <ExternalLink className="w-4 h-4" />

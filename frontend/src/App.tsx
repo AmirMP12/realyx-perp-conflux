@@ -27,7 +27,7 @@ export default function App() {
     const { isConnected } = useAccount();
     const chainId = useChainId();
 
-    const defaultChainId = realyxChains[1].id;
+    const defaultChainId = realyxChains[0].id;
     const isOnDefaultChain = chainId === defaultChainId;
 
     useEffect(() => {
