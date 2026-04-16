@@ -1,1 +1,0 @@
-import{j as a,C as e}from"./index-BWXb7_cu.js";function o({category:s,size:n="sm"}){const t=s?e[s]??e.CRYPTO:e.CRYPTO,r=n==="xs"?"text-[9px]":"text-[10px]";return a.jsx("span",{className:`inline-flex items-center px-2 py-0.5 rounded font-semibold uppercase tracking-wider border ${r} ${t.className}`,children:t.label})}export{o as C};
