@@ -157,7 +157,7 @@ export async function fetchProtocol(): Promise<Protocol | null> {
     if (!pool) return null;
     const [res, volRes] = await Promise.all([
       pool.query(`SELECT event_type, COUNT(*) as count FROM position_events GROUP BY event_type`),
-      pool.query(PROTOCOL_VOLUME_24H_SQL).catch((e) => {
+      pool.query(PROTOCOL_VOLUME_24H_SQL).catch((e: any) => {
         console.error("Volume query failed:", e);
         return { rows: [{ volume_24h_usd: "0" }] };
       }),
