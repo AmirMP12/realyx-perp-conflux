@@ -93,9 +93,16 @@ export function getPythFeedId(marketAddress) {
 export function getPythTvSymbol(marketAddress) {
     return MARKET_TO_TV_SYMBOL[marketAddress.toLowerCase()] ?? null;
 }
+/** Per-market cache for 24h change % to avoid hammering Benchmarks API on every poll */
+const change24hCache = new Map();
+const CHANGE_24H_CACHE_MS = 5 * 60_000; // 5 min — 24h change doesn't change fast
 /** Compute 24h price change % from Pyth (current vs ~24h ago). */
 export async function fetchPyth24hChange(marketAddress) {
     const addr = marketAddress.toLowerCase();
+    const cached = change24hCache.get(addr);
+    if (cached && Date.now() - cached.at < CHANGE_24H_CACHE_MS) {
+        return cached.value;
+    }
     const symbol = getPythTvSymbol(marketAddress);
     if (!symbol)
         return undefined;
@@ -115,7 +122,9 @@ export async function fetchPyth24hChange(marketAddress) {
     }
     if (!best || best.value <= 0)
         return undefined;
-    return ((current - best.value) / best.value) * 100;
+    const change = ((current - best.value) / best.value) * 100;
+    change24hCache.set(addr, { value: change, at: Date.now() });
+    return change;
 }
 /** Pyth Benchmarks TradingView history: returns { timestamp, value }[] for sparklines. */
 export async function fetchPythPriceHistory(marketAddress, days = 7) {

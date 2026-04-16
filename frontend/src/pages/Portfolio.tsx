@@ -28,11 +28,38 @@ export function PortfolioPage() {
     const { address } = useAccount();
     const isConnected = !!address;
 
-    const { positions, isLoading: positionsLoading, refetch: fetchPositions } = usePositions();
+    const { positions, closedPositions, isLoading: positionsLoading, refetch: fetchPositions } = usePositions();
     const markets = useMarketsStore((s) => s.markets);
     const positionsWithLivePnL = useLivePnL(positions, markets);
 
-    const { trades: tradeHistory, loading: historyLoading, refetch: refetchHistory } = useTradeHistory(50);
+    const { trades: tradeHistoryRaw, loading: historyLoading, refetch: refetchHistory } = useTradeHistory(50);
+
+    const tradeHistory = useMemo(() => {
+        const closedAsTrades = closedPositions.map(p => {
+            const m = markets.find(m => m.marketAddress.toLowerCase() === p.marketAddress.toLowerCase());
+            return {
+                id: Number(p.id),
+                signature: `closed-${p.id}`,
+                market: m?.symbol || p.marketAddress,
+                side: p.isLong ? 'LONG' : 'SHORT' as 'LONG' | 'SHORT',
+                size: p.size,
+                price: p.entryPrice,
+                leverage: Number(p.leverage),
+                fee: '0',
+                pnl: p.pnl,
+                type: 'CLOSE' as const,
+                timestamp: p.openTimestamp ? new Date((p.openTimestamp as number) * 1000).toISOString() : new Date().toISOString()
+            };
+        });
+        const merged = [...closedAsTrades, ...tradeHistoryRaw];
+        const seen = new Set();
+        const deduplicated = merged.filter(t => {
+            if (seen.has(t.signature)) return false;
+            seen.add(t.signature);
+            return true;
+        });
+        return deduplicated.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }, [closedPositions, tradeHistoryRaw, markets]);
     useEffect(() => {
         if (!isConnected) return;
 

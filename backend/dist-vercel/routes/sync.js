@@ -3,9 +3,9 @@ import { ethers } from "ethers";
 import pg from "pg";
 import { config } from "../config.js";
 const TRADING_CORE_SYNC_ABI = [
-    "event PositionOpened(uint256,address,address,bool,uint256,uint256,uint256)",
-    "event PositionClosed(uint256,address,int256,uint256,uint256)",
-    "event PositionLiquidated(uint256,address,uint256,uint256)",
+    "event PositionOpened(uint256 indexed positionId, address indexed trader, address indexed market, bool isLong, uint256 size, uint256 leverage, uint256 entryPrice)",
+    "event PositionClosed(uint256 indexed positionId, address indexed trader, int256 realizedPnL, uint256 exitPrice, uint256 closingFee)",
+    "event PositionLiquidated(uint256 indexed positionId, address indexed liquidator, uint256 liquidationPrice, uint256 liquidationFee)",
 ];
 const router = express.Router();
 let poolInstance = null;
@@ -107,9 +107,27 @@ router.get("/", async (req, res) => {
                 }
                 else if (parsed.name === "PositionClosed") {
                     account = String(parsed.args[1]);
+                    // Look up market_id from the corresponding PositionOpened event
+                    const posId = String(parsed.args[0]);
+                    try {
+                        const openEvt = await getPool().query(`SELECT market_id FROM position_events WHERE event_type = 'PositionOpened' AND (data->>0)::text = $1 LIMIT 1`, [posId]);
+                        if (openEvt.rows.length > 0 && openEvt.rows[0].market_id) {
+                            marketId = openEvt.rows[0].market_id;
+                        }
+                    }
+                    catch { /* best-effort lookup */ }
                 }
                 else if (parsed.name === "PositionLiquidated") {
                     account = String(parsed.args[1]);
+                    // Look up market_id from the corresponding PositionOpened event
+                    const posId = String(parsed.args[0]);
+                    try {
+                        const openEvt = await getPool().query(`SELECT market_id FROM position_events WHERE event_type = 'PositionOpened' AND (data->>0)::text = $1 LIMIT 1`, [posId]);
+                        if (openEvt.rows.length > 0 && openEvt.rows[0].market_id) {
+                            marketId = openEvt.rows[0].market_id;
+                        }
+                    }
+                    catch { /* best-effort lookup */ }
                 }
                 const eventData = JSON.stringify(parsed.args.map(arg => typeof arg === 'bigint' ? arg.toString() : arg));
                 const pool = getPool();

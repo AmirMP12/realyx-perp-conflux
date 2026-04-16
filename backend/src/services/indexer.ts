@@ -265,8 +265,9 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
       let entryPrice = "0";
       let margin = "0";
       let leverage = "1";
+      let args: any[] = [];
       try {
-        const args = JSON.parse(row.data || "[]");
+        args = JSON.parse(row.data || "[]");
         isLong = String(args[3]) === "true";
         size = args[4] || "0";
         leverage = args[5] || "1";
@@ -280,8 +281,8 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
       }
 
       return {
-        id: String(row.id),
-        positionId: String(row.id),
+        id: String(args[0]),
+        positionId: String(args[0]),
         tokenId: String(row.id),
         trader: { id: trader },
         market: { id: row.market_id, marketAddress: row.market_id },
@@ -352,8 +353,9 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
       let price = "0";
       let pnl = "0";
       let marketId = row.market_id || "0x";
+      let args: any[] = [];
       try {
-        const args = JSON.parse(row.data || "[]");
+        args = JSON.parse(row.data || "[]");
         if (row.event_type === "PositionOpened") {
           isLong = String(args[3]) === "true";
           size = args[4] || "0";
@@ -397,7 +399,7 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
 
       return {
         id: String(row.id),
-        position: { positionId: String(row.id) },
+        position: { positionId: String(args[0]) },
         trader: { id: trader },
         market: { id: marketId },
         type,

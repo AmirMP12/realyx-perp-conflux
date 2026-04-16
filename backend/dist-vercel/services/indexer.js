@@ -20,23 +20,26 @@ function getPool() {
     return poolInstance;
 }
 const PROTOCOL_VOLUME_24H_SQL = `
-  SELECT COALESCE(SUM(
-    CASE
-      WHEN o.size_raw IS NOT NULL AND (c.data->>3) IS NOT NULL
-      THEN (o.size_raw * (c.data->>3)::numeric) / POWER(10::numeric, 12)
-      ELSE 0::numeric
-    END
-  ), 0)::text AS total_volume_usd
-  FROM position_events c
-  LEFT JOIN (
+  WITH opened_sizes AS (
     SELECT DISTINCT ON ((data->>0)::text)
       (data->>0)::text AS position_id,
       (data->>4)::numeric AS size_raw
     FROM position_events
     WHERE event_type = 'PositionOpened'
     ORDER BY (data->>0)::text, id ASC
-  ) o ON o.position_id = (c.data->>0)::text
-  WHERE c.event_type = 'PositionClosed'
+  )
+  SELECT COALESCE(SUM(
+    CASE
+      WHEN c.event_type = 'PositionOpened' AND c.data->>4 IS NOT NULL
+        THEN (c.data->>4)::numeric / POWER(10::numeric, 18)
+      WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
+        THEN o.size_raw / POWER(10::numeric, 18)
+      ELSE 0::numeric
+    END
+  ), 0)::text AS volume_24h_usd
+  FROM position_events c
+  LEFT JOIN opened_sizes o ON o.position_id = (c.data->>0)::text
+  WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
     AND c.data IS NOT NULL
     AND c.created_at >= NOW() - INTERVAL '24 hours'
 `;
@@ -52,7 +55,10 @@ export async function fetchProtocol() {
             return null;
         const [res, volRes] = await Promise.all([
             pool.query(`SELECT event_type, COUNT(*) as count FROM position_events GROUP BY event_type`),
-            pool.query(PROTOCOL_VOLUME_24H_SQL).catch(() => ({ rows: [{ total_volume_usd: "0" }] })),
+            pool.query(PROTOCOL_VOLUME_24H_SQL).catch((e) => {
+                console.error("Volume query failed:", e);
+                return { rows: [{ volume_24h_usd: "0" }] };
+            }),
         ]);
         let opened = 0;
         let closed = 0;
@@ -65,7 +71,7 @@ export async function fetchProtocol() {
             if (row.event_type === "PositionLiquidated")
                 liq = parseInt(row.count);
         }
-        const totalVolumeUsd = volRes.rows[0]?.total_volume_usd ?? "0";
+        const totalVolumeUsd = volRes.rows[0]?.volume_24h_usd ?? "0";
         return {
             totalPositionsOpened: String(opened),
             totalPositionsClosed: String(closed),
@@ -146,15 +152,25 @@ export async function fetchUserPositions(traderAddress) {
         const pool = getPool();
         if (!pool)
             return [];
-        const res = await pool.query(`SELECT * FROM position_events WHERE lower(account) = $1 AND event_type = 'PositionOpened' ORDER BY id DESC LIMIT 50`, [trader]);
+        const res = await pool.query(`SELECT o.* 
+       FROM position_events o 
+       WHERE lower(o.account) = $1 
+         AND o.event_type = 'PositionOpened' 
+         AND NOT EXISTS (
+           SELECT 1 FROM position_events c
+           WHERE c.event_type IN ('PositionClosed', 'PositionLiquidated')
+             AND (c.data->>0)::text = (o.data->>0)::text
+         )
+       ORDER BY o.id DESC LIMIT 50`, [trader]);
         return res.rows.map((row) => {
             let isLong = true;
             let size = "0";
             let entryPrice = "0";
             let margin = "0";
             let leverage = "1";
+            let args = [];
             try {
-                const args = JSON.parse(row.data || "[]");
+                args = JSON.parse(row.data || "[]");
                 isLong = String(args[3]) === "true";
                 size = args[4] || "0";
                 leverage = args[5] || "1";
@@ -167,8 +183,8 @@ export async function fetchUserPositions(traderAddress) {
                 /* ignore malformed JSON in position_events.data */
             }
             return {
-                id: String(row.id),
-                positionId: String(row.id),
+                id: String(args[0]),
+                positionId: String(args[0]),
                 tokenId: String(row.id),
                 trader: { id: trader },
                 market: { id: row.market_id, marketAddress: row.market_id },
@@ -200,14 +216,46 @@ export async function fetchUserTrades(traderAddress, limit) {
         const pool = getPool();
         if (!pool)
             return [];
-        const res = await pool.query(`SELECT * FROM position_events WHERE lower(account) = $1 ORDER BY id DESC LIMIT $2`, [trader, Math.min(limit, 200)]);
+        // UNION events where user is account (direct action) OR where user is the trader whose position was liquidated
+        const res = await pool.query(`WITH user_events AS (
+         -- Direct events (Open, Close, self-Liq)
+         SELECT e.*, 
+                o.data AS open_data, 
+                o.market_id AS open_market_id
+         FROM position_events e
+         LEFT JOIN LATERAL (
+           SELECT data, market_id
+           FROM position_events
+           WHERE event_type = 'PositionOpened'
+             AND (data->>0)::text = (e.data->>0)::text
+           ORDER BY id ASC
+           LIMIT 1
+         ) o ON e.event_type IN ('PositionClosed', 'PositionLiquidated')
+         WHERE lower(e.account) = $1
+
+         UNION ALL
+
+         -- Liquidation events where user was the trader but account on record is liquidator
+         SELECT e.*, 
+                o.data AS open_data, 
+                o.market_id AS open_market_id
+         FROM position_events e
+         INNER JOIN position_events o ON o.event_type = 'PositionOpened'
+           AND (o.data->>0)::text = (e.data->>0)::text
+         WHERE e.event_type = 'PositionLiquidated'
+           AND lower(e.account) != $1
+           AND lower(o.account) = $1
+       )
+       SELECT * FROM user_events ORDER BY id DESC LIMIT $2`, [trader, Math.min(limit, 200)]);
         return res.rows.map((row) => {
             let isLong = true;
             let size = "0";
             let price = "0";
             let pnl = "0";
+            let marketId = row.market_id || "0x";
+            let args = [];
             try {
-                const args = JSON.parse(row.data || "[]");
+                args = JSON.parse(row.data || "[]");
                 if (row.event_type === "PositionOpened") {
                     isLong = String(args[3]) === "true";
                     size = args[4] || "0";
@@ -216,7 +264,34 @@ export async function fetchUserTrades(traderAddress, limit) {
                 else if (row.event_type === "PositionClosed") {
                     pnl = args[2] || "0";
                     price = args[3] || "0";
-                    size = "0";
+                    // Resolve isLong and size from the open event
+                    if (row.open_data) {
+                        try {
+                            const openArgs = typeof row.open_data === 'string' ? JSON.parse(row.open_data) : row.open_data;
+                            isLong = String(openArgs[3]) === "true";
+                            size = openArgs[4] || "0";
+                        }
+                        catch { /* ignore */ }
+                    }
+                    // Resolve market_id from open event if current is placeholder
+                    if ((!marketId || marketId === "0x") && row.open_market_id) {
+                        marketId = row.open_market_id;
+                    }
+                }
+                else if (row.event_type === "PositionLiquidated") {
+                    price = args[2] || "0";
+                    // Resolve isLong and size from the open event
+                    if (row.open_data) {
+                        try {
+                            const openArgs = typeof row.open_data === 'string' ? JSON.parse(row.open_data) : row.open_data;
+                            isLong = String(openArgs[3]) === "true";
+                            size = openArgs[4] || "0";
+                        }
+                        catch { /* ignore */ }
+                    }
+                    if ((!marketId || marketId === "0x") && row.open_market_id) {
+                        marketId = row.open_market_id;
+                    }
                 }
             }
             catch {
@@ -229,9 +304,9 @@ export async function fetchUserTrades(traderAddress, limit) {
                 type = "LIQUIDATE";
             return {
                 id: String(row.id),
-                position: { positionId: String(row.id) },
+                position: { positionId: String(args[0]) },
                 trader: { id: trader },
-                market: { id: row.market_id },
+                market: { id: marketId },
                 type,
                 isLong,
                 size,
@@ -282,29 +357,35 @@ export async function fetchLeaderboard(limit, timeframe = "all") {
         WHERE event_type = 'PositionOpened'
         ORDER BY (data->>0)::text, id ASC
       ),
-      close_rows AS (
-        SELECT lower(c.account) AS addr_key, c.account AS address_display,
-               (c.data->>0)::text AS position_id,
-               (c.data->>2)::numeric AS pnl_raw,
-               (c.data->>3)::numeric AS price_raw,
-               c.created_at
-        FROM position_events c
-        WHERE c.event_type = 'PositionClosed' AND c.data IS NOT NULL
-      ),
-      liq_rows AS (
+      all_events AS (
+        -- Every position open is volume
+        SELECT lower(account) AS addr_key, account AS address_display,
+               (data->>0)::text AS position_id,
+               0::numeric AS pnl_raw,
+               created_at
+        FROM position_events
+        WHERE event_type = 'PositionOpened' AND data IS NOT NULL
+
+        UNION ALL
+
+        -- Every position close is volume + pnl
+        SELECT lower(account) AS addr_key, account AS address_display,
+               (data->>0)::text AS position_id,
+               (data->>2)::numeric AS pnl_raw,
+               created_at
+        FROM position_events
+        WHERE event_type = 'PositionClosed' AND data IS NOT NULL
+
+        UNION ALL
+
+        -- Every liquidation is volume (PnL ignored in basic sum)
         SELECT lower(o.account) AS addr_key, o.account AS address_display,
                (c.data->>0)::text AS position_id,
-               NULL::numeric AS pnl_raw,
-               (c.data->>2)::numeric AS price_raw,
+               0::numeric AS pnl_raw,
                c.created_at
         FROM position_events c
         INNER JOIN opened o ON o.position_id = (c.data->>0)::text
         WHERE c.event_type = 'PositionLiquidated' AND c.data IS NOT NULL
-      ),
-      exit_events AS (
-        SELECT * FROM close_rows
-        UNION ALL
-        SELECT * FROM liq_rows
       )
       SELECT
         MAX(e.address_display) AS address,
@@ -312,17 +393,17 @@ export async function fetchLeaderboard(limit, timeframe = "all") {
         COALESCE(SUM(e.pnl_raw), 0)::text AS total_realized_pnl,
         COALESCE(SUM(
           CASE
-            WHEN o.size_raw IS NOT NULL AND e.price_raw IS NOT NULL
-            THEN (o.size_raw * e.price_raw) / POWER(10::numeric, 12)
+            WHEN o.size_raw IS NOT NULL
+            THEN o.size_raw / POWER(10::numeric, 18)
             ELSE 0::numeric
           END
         ), 0)::text AS total_volume_usd
-      FROM exit_events e
+      FROM all_events e
       LEFT JOIN opened o ON o.position_id = e.position_id
       WHERE 1=1
       ${timeFilter}
       GROUP BY e.addr_key
-      ORDER BY COALESCE(SUM(e.pnl_raw), 0) DESC NULLS LAST
+      ORDER BY COALESCE(SUM(e.pnl_raw), 0) DESC, COALESCE(SUM(o.size_raw), 0) DESC
       LIMIT $1
       `, [safeLimit]);
         return res.rows.map((row) => ({

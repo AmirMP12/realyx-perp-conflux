@@ -1,5 +1,6 @@
 import { useAccount, useReadContract, useReadContracts } from 'wagmi';
 import { TRADING_CORE_ADDRESS, TRADING_CORE_ABI } from './useProgram';
+import { POSITION_TOKEN_ADDRESS, POSITION_TOKEN_ABI } from '../contracts';
 import { useCallback, useMemo } from 'react';
 import { formatUnits } from 'viem';
 
@@ -22,6 +23,8 @@ export interface Position {
     liquidationPrice: string;
     stopLossPrice: number;
     takeProfitPrice: number;
+    state?: number;
+    openTimestamp?: number;
 }
 
 export function usePositions() {
@@ -80,10 +83,28 @@ export function usePositions() {
         }
     });
 
+    const ownerContracts = useMemo(() => {
+        if (!ids?.length) return [];
+        return ids.map((id) => ({
+            address: POSITION_TOKEN_ADDRESS,
+            abi: POSITION_TOKEN_ABI,
+            functionName: 'ownerOf',
+            args: [id]
+        }));
+    }, [ids]);
+
+    const { data: ownerData, isLoading: isLoadingOwners, refetch: refetchOwners } = useReadContracts({
+        contracts: ownerContracts as any,
+        query: {
+            enabled: ownerContracts.length > 0,
+            refetchInterval: 10000,
+        }
+    });
+
     const refetch = useCallback(async () => {
         await refetchIds();
-        await Promise.all([refetchPositionDetails(), refetchPnls()]);
-    }, [refetchIds, refetchPositionDetails, refetchPnls]);
+        await Promise.all([refetchPositionDetails(), refetchPnls(), refetchOwners()]);
+    }, [refetchIds, refetchPositionDetails, refetchPnls, refetchOwners]);
 
     const formattedPositions: Position[] = useMemo(() => {
         if (!ids?.length || !positionsData) return [];
@@ -91,6 +112,7 @@ export function usePositions() {
         return ids.map((id, index) => {
             const posResult = positionsData[index];
             const pnlResult = pnlData?.[index];
+            const ownerResult = ownerData?.[index];
 
             if (!posResult || posResult.status !== 'success' || !posResult.result) return null;
 
@@ -98,7 +120,11 @@ export function usePositions() {
             
             const stateRaw = pos.state !== undefined ? pos.state : (pos[12] !== undefined ? pos[12] : POS_STATUS_OPEN);
             const state = Number(stateRaw);
-            if (state !== POS_STATUS_OPEN) return null;
+            
+            const currentOwner = ownerResult?.status === 'success' ? (ownerResult.result as string) : undefined;
+            if (state === POS_STATUS_OPEN && currentOwner && address && currentOwner.toLowerCase() !== address.toLowerCase()) {
+                return null; // Position token transferred to someone else
+            }
 
             const sizeRaw = pos.size !== undefined ? pos.size : pos[0];
             if (sizeRaw === undefined || BigInt(sizeRaw) === 0n) return null;
@@ -108,6 +134,7 @@ export function usePositions() {
             const stopLossRaw = pos.stopLossPrice !== undefined ? pos.stopLossPrice : pos[3];
             const takeProfitRaw = pos.takeProfitPrice !== undefined ? pos.takeProfitPrice : pos[4];
             const marketAddressRaw = pos.market !== undefined ? pos.market : pos[7];
+            const openTimestampRaw = pos.openTimestamp !== undefined ? pos.openTimestamp : pos[8];
             const flagsRaw = pos.flags !== undefined ? pos.flags : pos[10];
 
             const pnlVal = pnlResult && pnlResult.status === 'success' ? (pnlResult.result as any)[0] : 0n;
@@ -148,14 +175,19 @@ export function usePositions() {
                 takeProfitPrice: takeProfitPrice,
                 stopLoss: stopLossPrice > 0 ? stopLossPrice.toFixed(2) : undefined,
                 takeProfit: takeProfitPrice > 0 ? takeProfitPrice.toFixed(2) : undefined,
-                state
+                state,
+                openTimestamp: Number(openTimestampRaw)
             };
         }).filter(Boolean) as Position[];
-    }, [ids, positionsData, pnlData]);
+    }, [ids, positionsData, pnlData, ownerData, address]);
+
+    const activePositions = useMemo(() => formattedPositions.filter(p => p.state === POS_STATUS_OPEN), [formattedPositions]);
+    const closedPositions = useMemo(() => formattedPositions.filter(p => p.state !== POS_STATUS_OPEN), [formattedPositions]);
 
     return {
-        positions: formattedPositions,
-        isLoading: isLoadingIds || isLoadingPositions || isLoadingPnL,
+        positions: activePositions,
+        closedPositions,
+        isLoading: isLoadingIds || isLoadingPositions || isLoadingPnL || isLoadingOwners,
         refetch,
     };
 }

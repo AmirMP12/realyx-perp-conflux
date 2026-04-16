@@ -2,13 +2,14 @@
  * Format number for compact display with dynamic precision:
  * 1-999,000 -> exact number, then m/b/t with trimmed decimals (e.g. 1.2m).
  */
-export function formatCompact(num: number, options?: { prefix?: string; noDollar?: boolean }): string {
+export function formatCompact(num: number | string, options?: { prefix?: string; noDollar?: boolean }): string {
     const prefix = options?.prefix ?? '';
     const noDollar = options?.noDollar ?? false;
     const d = noDollar ? '' : '$';
-    if (!Number.isFinite(num)) return `${prefix}${d}0`;
-    const abs = Math.abs(num);
-    const sign = num < 0 ? '-' : '';
+    const val = Number(num);
+    if (!Number.isFinite(val)) return `${prefix}${d}0`;
+    const abs = Math.abs(val);
+    const sign = val < 0 ? '-' : '';
     const compactValue = (value: number, unit: string) => {
         const formatted = value.toLocaleString(undefined, {
             minimumFractionDigits: 0,

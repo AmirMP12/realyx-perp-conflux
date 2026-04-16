@@ -1,14 +1,46 @@
 import { Router } from "express";
+import { ethers } from "ethers";
 import { fetchProtocol, fetchMarkets, fetchProtocolMetrics, fetchActiveTraders24h, } from "../services/indexer.js";
 import { getActiveMarketAddresses } from "../services/activeMarkets.js";
 import { toDecimal } from "../utils/format.js";
 const router = Router();
+// ── Server-side TVL from VaultCore.totalAssets() ──
+let cachedTvl = "0";
+let tvlCachedAt = 0;
+const TVL_CACHE_MS = 30_000; // 30s
+async function fetchTvlFromChain() {
+    if (Date.now() - tvlCachedAt < TVL_CACHE_MS && cachedTvl !== "0") {
+        return cachedTvl;
+    }
+    const vaultAddress = (process.env.VAULT_CORE_ADDRESS ?? process.env.DEPLOYED_VAULT_CORE ?? "").trim();
+    const rpcUrl = (process.env.RPC_URL ?? "https://evmtestnet.confluxrpc.com").trim();
+    if (!vaultAddress)
+        return cachedTvl;
+    try {
+        const chainId = parseInt(process.env.CHAIN_ID ?? "71", 10);
+        const provider = new ethers.JsonRpcProvider(rpcUrl, chainId);
+        const contract = new ethers.Contract(vaultAddress, [
+            "function totalAssets() view returns (uint256)",
+        ], provider);
+        const totalAssets = await contract.totalAssets();
+        // totalAssets returns USDC * 1e12, i.e. 18 decimals
+        const tvl = (Number(totalAssets) / 1e18).toFixed(6);
+        cachedTvl = tvl;
+        tvlCachedAt = Date.now();
+        return tvl;
+    }
+    catch (e) {
+        console.warn("[stats] TVL fetch failed:", e instanceof Error ? e.message : e);
+        return cachedTvl;
+    }
+}
 router.get("/", async (_req, res) => {
     try {
-        const [protocol, marketsResult, activeTraders24h] = await Promise.all([
+        const [protocol, marketsResult, activeTraders24h, tvl] = await Promise.all([
             fetchProtocol(),
             fetchMarkets(),
             fetchActiveTraders24h(),
+            fetchTvlFromChain().catch(() => "0"),
         ]);
         let markets = marketsResult;
         const activeSet = await getActiveMarketAddresses();
@@ -19,11 +51,17 @@ router.get("/", async (_req, res) => {
             });
         }
         const totalMarkets = markets.length;
-        const volume24h = protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0";
+        let volume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
+        // Fallback: if global volume is 0 but we have markets with potential volume, sum them
+        if (Number(volume24h) === 0 && markets.length > 0) {
+            const sum = markets.reduce((acc, m) => acc + Number(m.volume24h || 0), 0);
+            if (sum > 0)
+                volume24h = sum.toFixed(6);
+        }
         let totalOpenInterest = "0";
         if (markets.length > 0) {
             const oi = markets.reduce((acc, m) => acc + Number(m.totalLongSize) + Number(m.totalShortSize), 0);
-            totalOpenInterest = (oi / 1e12).toFixed(6);
+            totalOpenInterest = (oi / 1e18).toFixed(6);
         }
         /** Event count from indexer — not a wei amount; do not pass through `toDecimal`. */
         const totalLiquidations = protocol?.totalLiquidations ?? "0";
@@ -35,6 +73,7 @@ router.get("/", async (_req, res) => {
                 totalOpenInterest,
                 totalLiquidations,
                 activeTraders24h,
+                tvl,
             },
         });
     }
@@ -49,6 +88,7 @@ router.get("/", async (_req, res) => {
                 totalOpenInterest: "0",
                 totalLiquidations: "0",
                 activeTraders24h: 0,
+                tvl: "0",
             },
         });
     }

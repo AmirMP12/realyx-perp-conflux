@@ -103,25 +103,30 @@ export function usePythOnChainUpdater() {
             setIsPreflight(true);
             try {
                 const oracle = await resolveOracle();
-                const pythAddr = (await publicClient.readContract({
-                    address: oracle,
-                    abi: ORACLE_ABI,
-                    functionName: 'pyth',
-                })) as Address;
-
-                const feedSet = new Map<string, `0x${string}`>();
-                for (const m of markets) {
-                    const cfg = await publicClient.readContract({
+                const [pythAddrResult, ...configs] = await Promise.all([
+                    publicClient.readContract({
                         address: oracle,
                         abi: ORACLE_ABI,
-                        functionName: 'getOracleConfig',
-                        args: [m],
-                    });
+                        functionName: 'pyth',
+                    }),
+                    ...markets.map((m) =>
+                        publicClient.readContract({
+                            address: oracle,
+                            abi: ORACLE_ABI,
+                            functionName: 'getOracleConfig',
+                            args: [m],
+                        })
+                    ),
+                ]);
+                const pythAddr = pythAddrResult as Address;
+
+                const feedSet = new Map<string, `0x${string}`>();
+                configs.forEach((cfg) => {
                     const fid = feedIdFromOracleConfig(cfg);
                     if (fid && fid.toLowerCase() !== ZERO_FEED.toLowerCase()) {
                         feedSet.set(fid.toLowerCase(), fid);
                     }
-                }
+                });
                 const feeds = [...feedSet.values()];
                 if (feeds.length === 0) {
                     toast.error('No Pyth feed configured for this market.');
@@ -134,12 +139,12 @@ export function usePythOnChainUpdater() {
                     return false;
                 }
 
-                const fee = await publicClient.readContract({
+                const fee = (await publicClient.readContract({
                     address: pythAddr,
                     abi: PYTH_ABI,
                     functionName: 'getUpdateFee',
                     args: [updateData],
-                });
+                })) as bigint;
 
                 await writeContractAsync({
                     chainId,

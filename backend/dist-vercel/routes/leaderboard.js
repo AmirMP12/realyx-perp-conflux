@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { fetchLeaderboard } from "../services/indexer.js";
-import { toDecimal } from "../utils/format.js";
+import { toDecimal18 } from "../utils/format.js";
 const router = Router();
 function parseTimeframe(q) {
     const s = String(q ?? "all").toLowerCase().replace(/\s+/g, "");
@@ -20,8 +20,8 @@ router.get("/", async (req, res) => {
         const data = users.map((u, i) => ({
             rank: i + 1,
             wallet: u.address,
-            pnl: toDecimal(u.totalRealizedPnl),
-            volume: toDecimal(u.totalVolumeUsd),
+            pnl: toDecimal18(u.totalRealizedPnl),
+            volume: Number(u.totalVolumeUsd).toFixed(6),
             trades: Number(u.totalTrades) || 0,
         }));
         res.json({ success: true, data });

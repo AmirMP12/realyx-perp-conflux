@@ -39,17 +39,27 @@ async function tryFetchActiveSet(rpcUrl, tradingCoreAddress) {
     const contract = new ethers.Contract(tradingCoreAddress, getTradingCoreAbi(), provider);
     const count = await contract.activeMarketCount();
     const n = Number(count);
+    // Fetch all addresses in parallel instead of sequentially
+    const addrPromises = Array.from({ length: n }, (_, i) => contract.activeMarketAt(i));
+    const addrs = await Promise.all(addrPromises);
     const set = new Set();
-    for (let i = 0; i < n; i++) {
-        const addr = await contract.activeMarketAt(i);
+    for (const addr of addrs) {
         if (addr && typeof addr === "string")
             set.add(addr.toLowerCase());
     }
     return set;
 }
+// ── In-memory cache for active market addresses ──
+const ACTIVE_CACHE_TTL_MS = 30_000; // 30s — market list rarely changes
+let cachedActiveSet = null;
+let cachedActiveAt = 0;
 export async function getActiveMarketAddresses() {
     if (!activeFilterEnabled()) {
         return null;
+    }
+    // Return cached if still fresh
+    if (Date.now() - cachedActiveAt < ACTIVE_CACHE_TTL_MS && cachedActiveSet !== null) {
+        return cachedActiveSet;
     }
     const tradingCoreAddress = (process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE ?? "").trim();
     const urls = getRpcUrls();
@@ -60,8 +70,11 @@ export async function getActiveMarketAddresses() {
     for (const rpcUrl of urls) {
         try {
             const set = await tryFetchActiveSet(rpcUrl, tradingCoreAddress);
-            if (set && set.size >= 0)
+            if (set && set.size >= 0) {
+                cachedActiveSet = set;
+                cachedActiveAt = Date.now();
                 return set;
+            }
         }
         catch (e) {
             const msg = e instanceof Error ? e.message : String(e);

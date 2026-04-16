@@ -40,7 +40,7 @@ export function TradingPage() {
     const [tradeSide, setTradeSide] = useState<'long' | 'short'>('long');
     const { tradingFormWidth, positionPanelHeight } = useLayoutStore();
 
-    const { positions, refetch: fetchPositions, isLoading: positionsLoading } = usePositions();
+    const { positions, closedPositions, refetch: fetchPositions, isLoading: positionsLoading } = usePositions();
     const optimisticPositions = usePositionsStore((s) => s.optimisticPositions);
     const mergedPositions = useMemo(() => {
         const real = positions.map((p) => ({ ...p, isOptimistic: false }));
@@ -48,7 +48,39 @@ export function TradingPage() {
         return [...opt, ...real];
     }, [positions, optimisticPositions]);
     const positionsWithLivePnL = useLivePnL(mergedPositions, markets);
-    const { trades: tradeHistory, loading: historyLoading } = useTradeHistory(20);
+    const { trades: tradeHistoryRaw, loading: historyLoading } = useTradeHistory(20);
+
+    const tradeHistory = useMemo(() => {
+        const closedAsTrades = closedPositions.map(p => {
+            const m = markets.find(m => m.marketAddress.toLowerCase() === p.marketAddress.toLowerCase());
+            return {
+                id: Number(p.id),
+                signature: `closed-${p.id}`,
+                market: m?.symbol || p.marketAddress,
+                side: p.isLong ? 'LONG' : 'SHORT' as 'LONG' | 'SHORT',
+                size: p.size,
+                price: p.entryPrice,
+                leverage: Number(p.leverage),
+                fee: '0',
+                pnl: p.pnl,
+                type: 'CLOSE' as const,
+                timestamp: p.openTimestamp ? new Date((p.openTimestamp as number) * 1000).toISOString() : new Date().toISOString()
+            };
+        });
+        const merged = [...closedAsTrades, ...tradeHistoryRaw];
+        // Deduplicate and sort
+        const seen = new Set();
+        const deduplicated = merged.filter(t => {
+            if (seen.has(t.signature)) return false;
+            // Also deduplicate based on position id if backend returns same close
+            if (typeof t.signature === 'string' && t.signature.startsWith('closed-')) {
+                // If it's local generated one, just keep it, but if backend has a trade for same position we might have duplicate CLOSE events.
+            }
+            seen.add(t.signature);
+            return true;
+        });
+        return deduplicated.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+    }, [closedPositions, tradeHistoryRaw, markets]);
 
     const market = useMemo(() =>
         markets.find(m => m.symbol === marketId) || markets[0]
