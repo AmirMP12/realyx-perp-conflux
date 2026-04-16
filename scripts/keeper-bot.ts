@@ -79,10 +79,7 @@ async function main() {
     const network = process.env.KEEPER_NETWORK || process.env.HARDHAT_NETWORK || "confluxTestnet";
     const deployment = loadDeployment(network);
 
-    const rpcUrl = getEnv(
-        "KEEPER_RPC_URL",
-        process.env.CONFLUX_TESTNET_RPC_URL || process.env.CONFLUX_RPC_URL,
-    );
+    const rpcUrl = getEnv("KEEPER_RPC_URL", process.env.CONFLUX_TESTNET_RPC_URL || process.env.CONFLUX_RPC_URL);
     const privateKey = getEnv("KEEPER_PRIVATE_KEY", process.env.PRIVATE_KEY);
     const tradingCoreAddress =
         process.env.KEEPER_TRADING_CORE_ADDRESS ||
@@ -218,30 +215,30 @@ async function main() {
                     const createdLogs = await withRpcRetry(
                         () =>
                             provider.getLogs({
-                            address: tradingCoreAddress,
-                            fromBlock: from,
-                            toBlock: to,
-                            topics: [createdTopic],
+                                address: tradingCoreAddress,
+                                fromBlock: from,
+                                toBlock: to,
+                                topics: [createdTopic],
                             }),
                         "getLogs:created",
                     );
                     const executedLogs = await withRpcRetry(
                         () =>
                             provider.getLogs({
-                            address: tradingCoreAddress,
-                            fromBlock: from,
-                            toBlock: to,
-                            topics: [executedTopic],
+                                address: tradingCoreAddress,
+                                fromBlock: from,
+                                toBlock: to,
+                                topics: [executedTopic],
                             }),
                         "getLogs:executed",
                     );
                     const cancelledLogs = await withRpcRetry(
                         () =>
                             provider.getLogs({
-                            address: tradingCoreAddress,
-                            fromBlock: from,
-                            toBlock: to,
-                            topics: [cancelledTopic],
+                                address: tradingCoreAddress,
+                                fromBlock: from,
+                                toBlock: to,
+                                topics: [cancelledTopic],
                             }),
                         "getLogs:cancelled",
                     );
@@ -287,7 +284,9 @@ async function main() {
                     } catch (err) {
                         const selector = selectorFromError(err) ?? "n/a";
                         const message = err instanceof Error ? err.message : String(err);
-                        console.warn(`[keeper] execute failed order=${order.id.toString()} selector=${selector} msg=${message}`);
+                        console.warn(
+                            `[keeper] execute failed order=${order.id.toString()} selector=${selector} msg=${message}`,
+                        );
 
                         // If stale price, force refresh and retry once immediately.
                         if (selector === STALE_PRICE_SELECTOR) {
@@ -295,7 +294,9 @@ async function main() {
                                 const refreshed = await refreshPythForMarket(order.market, true);
                                 if (refreshed) {
                                     const retryTx = await tradingCore.executeOrder(order.id, []);
-                                    console.log(`[keeper] retry execute sent order=${order.id.toString()} tx=${retryTx.hash}`);
+                                    console.log(
+                                        `[keeper] retry execute sent order=${order.id.toString()} tx=${retryTx.hash}`,
+                                    );
                                     const retryReceipt = await retryTx.wait();
                                     if (retryReceipt?.status === 1) {
                                         pending.delete(order.id.toString());
@@ -307,7 +308,9 @@ async function main() {
                                 }
                             } catch (retryErr) {
                                 const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
-                                console.warn(`[keeper] stale-price retry failed order=${order.id.toString()} msg=${retryMsg}`);
+                                console.warn(
+                                    `[keeper] stale-price retry failed order=${order.id.toString()} msg=${retryMsg}`,
+                                );
                             }
                         }
 
