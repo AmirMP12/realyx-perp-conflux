@@ -123,23 +123,26 @@ export interface ProtocolMetric {
 }
 
 const PROTOCOL_VOLUME_24H_SQL = `
-  SELECT COALESCE(SUM(
-    CASE
-      WHEN o.size_raw IS NOT NULL
-      THEN o.size_raw / POWER(10::numeric, 18)
-      ELSE 0::numeric
-    END
-  ), 0)::text AS total_volume_usd
-  FROM position_events c
-  LEFT JOIN (
+  WITH opened_sizes AS (
     SELECT DISTINCT ON ((data->>0)::text)
       (data->>0)::text AS position_id,
       (data->>4)::numeric AS size_raw
     FROM position_events
     WHERE event_type = 'PositionOpened'
     ORDER BY (data->>0)::text, id ASC
-  ) o ON o.position_id = (c.data->>0)::text
-  WHERE c.event_type = 'PositionClosed'
+  )
+  SELECT COALESCE(SUM(
+    CASE
+      WHEN c.event_type = 'PositionOpened' AND c.data->>4 IS NOT NULL
+        THEN (c.data->>4)::numeric / POWER(10::numeric, 18)
+      WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
+        THEN o.size_raw / POWER(10::numeric, 18)
+      ELSE 0::numeric
+    END
+  ), 0)::text AS total_volume_usd
+  FROM position_events c
+  LEFT JOIN opened_sizes o ON o.position_id = (c.data->>0)::text
+  WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
     AND c.data IS NOT NULL
     AND c.created_at >= NOW() - INTERVAL '24 hours'
 `;
@@ -240,7 +243,16 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
     const pool = getPool();
     if (!pool) return [];
     const res = await pool.query(
-      `SELECT * FROM position_events WHERE lower(account) = $1 AND event_type = 'PositionOpened' ORDER BY id DESC LIMIT 50`,
+      `SELECT o.* 
+       FROM position_events o 
+       WHERE lower(o.account) = $1 
+         AND o.event_type = 'PositionOpened' 
+         AND NOT EXISTS (
+           SELECT 1 FROM position_events c
+           WHERE c.event_type IN ('PositionClosed', 'PositionLiquidated')
+             AND (c.data->>0)::text = (o.data->>0)::text
+         )
+       ORDER BY o.id DESC LIMIT 50`,
       [trader]
     );
 
@@ -296,22 +308,38 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
   try {
     const pool = getPool();
     if (!pool) return [];
-    // LEFT JOIN close/liquidate events to their open events to resolve isLong, market, and size
+    // UNION events where user is account (direct action) OR where user is the trader whose position was liquidated
     const res = await pool.query(
-      `SELECT e.*,
-              o.data AS open_data,
-              o.market_id AS open_market_id
-       FROM position_events e
-       LEFT JOIN LATERAL (
-         SELECT data, market_id
-         FROM position_events
-         WHERE event_type = 'PositionOpened'
-           AND (data->>0)::text = (e.data->>0)::text
-         ORDER BY id ASC
-         LIMIT 1
-       ) o ON e.event_type IN ('PositionClosed', 'PositionLiquidated')
-       WHERE lower(e.account) = $1
-       ORDER BY e.id DESC LIMIT $2`,
+      `WITH user_events AS (
+         -- Direct events (Open, Close, self-Liq)
+         SELECT e.*, 
+                o.data AS open_data, 
+                o.market_id AS open_market_id
+         FROM position_events e
+         LEFT JOIN LATERAL (
+           SELECT data, market_id
+           FROM position_events
+           WHERE event_type = 'PositionOpened'
+             AND (data->>0)::text = (e.data->>0)::text
+           ORDER BY id ASC
+           LIMIT 1
+         ) o ON e.event_type IN ('PositionClosed', 'PositionLiquidated')
+         WHERE lower(e.account) = $1
+
+         UNION ALL
+
+         -- Liquidation events where user was the trader but account on record is liquidator
+         SELECT e.*, 
+                o.data AS open_data, 
+                o.market_id AS open_market_id
+         FROM position_events e
+         INNER JOIN position_events o ON o.event_type = 'PositionOpened'
+           AND (o.data->>0)::text = (e.data->>0)::text
+         WHERE e.event_type = 'PositionLiquidated'
+           AND lower(e.account) != $1
+           AND lower(o.account) = $1
+       )
+       SELECT * FROM user_events ORDER BY id DESC LIMIT $2`,
       [trader, Math.min(limit, 200)]
     );
 

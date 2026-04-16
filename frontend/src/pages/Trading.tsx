@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import clsx from 'clsx';
 import { Address } from 'viem';
@@ -10,7 +10,6 @@ import { usePythDisplayPrice, getPythFeedId } from '../hooks/usePythPrice';
 import { usePositions } from '../hooks/usePositions';
 import { useLivePnL } from '../hooks/useWebSocket';
 import { useTradeHistory } from '../hooks/useBackend';
-import { usePythOnChainUpdater } from '../hooks/usePythOnChainUpdater';
 
 import { MarketHeader } from '../components/trading/MarketHeader';
 import { TradingForm } from '../components/trading/TradingForm';
@@ -50,7 +49,6 @@ export function TradingPage() {
     }, [positions, optimisticPositions]);
     const positionsWithLivePnL = useLivePnL(mergedPositions, markets);
     const { trades: tradeHistory, loading: historyLoading } = useTradeHistory(20);
-    const { pushLatestForMarkets, isPending: pythPushPending } = usePythOnChainUpdater();
 
     const market = useMemo(() =>
         markets.find(m => m.symbol === marketId) || markets[0]
@@ -79,11 +77,7 @@ export function TradingPage() {
     const fundingRate = displayMarket.fundingRate ?? 0;
     const isLive = !isMarketDataLoading && shouldFetch && currentPrice > 0;
 
-    const pushOracleForCurrentMarket = useCallback(async (): Promise<boolean> => {
-        const m = market?.marketAddress;
-        if (!m || !m.startsWith('0x') || m.length !== 42) return true;
-        return pushLatestForMarkets([m as Address]);
-    }, [market?.marketAddress, pushLatestForMarkets]);
+
 
     if (!market) {
         return (
@@ -105,8 +99,6 @@ export function TradingPage() {
                 currentPrice={currentPrice}
                 fundingRate={fundingRate}
                 isLive={isLive}
-                onPushOraclePrices={shouldFetch ? pushOracleForCurrentMarket : undefined}
-                pushOraclePricesLoading={pythPushPending}
             />
 
             {/* Mobile Controls */}
@@ -160,7 +152,6 @@ export function TradingPage() {
                         onTradeSuccess={fetchPositions}
                         side={tradeSide}
                         onSideChange={setTradeSide}
-                        pushOracleBeforeTrade={shouldFetch ? pushOracleForCurrentMarket : undefined}
                     />
                 </div>
             </div>
