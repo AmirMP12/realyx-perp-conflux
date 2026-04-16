@@ -49,6 +49,8 @@ export interface Market {
   isActive: boolean;
   isListed: boolean;
   updatedAt: string;
+  volume24h?: string;
+  trades24h?: number;
 }
 
 export interface Position {
@@ -235,41 +237,45 @@ export async function fetchMarkets(): Promise<Market[]> {
     // If we have no database, just return onchain
     if (!process.env.POSTGRES_URL || !getPool()) return onchain as Market[];
 
-    // Fetch 24h volume/trades per market from DB
-    const pool = getPool();
-    const statsRes = await pool.query(`
-      WITH opened_sizes AS (
-        SELECT DISTINCT ON ((data->>0)::text)
-          (data->>0)::text AS position_id,
-          (data->>4)::numeric AS size_raw
-        FROM position_events
-        WHERE event_type = 'PositionOpened'
-        ORDER BY (data->>0)::text, id ASC
-      )
-      SELECT 
-        market_id,
-        COALESCE(SUM(
-          CASE
-            WHEN c.event_type = 'PositionOpened' AND c.data->>4 IS NOT NULL
-              THEN (c.data->>4)::numeric / POWER(10::numeric, 18)
-            WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
-              THEN o.size_raw / POWER(10::numeric, 18)
-            ELSE 0::numeric
-          END
-        ), 0)::text AS volume_24h,
-        COUNT(*)::int AS trades_24h
-      FROM position_events c
-      LEFT JOIN opened_sizes o ON o.position_id = (c.data->>0)::text
-      WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
-        AND c.data IS NOT NULL
-        AND c.created_at >= NOW() - INTERVAL '24 hours'
-      GROUP BY market_id
-    `);
-
+    // Fetch 24h volume/trades per market from DB — best effort
     const statsMap = new Map();
-    statsRes.rows.forEach((row: any) => {
-      statsMap.set(row.market_id.toLowerCase(), row);
-    });
+    try {
+      const pool = getPool();
+      const statsRes = await pool.query(`
+        WITH opened_sizes AS (
+          SELECT DISTINCT ON ((data->>0)::text)
+            (data->>0)::text AS position_id,
+            (data->>4)::numeric AS size_raw
+          FROM position_events
+          WHERE event_type = 'PositionOpened'
+          ORDER BY (data->>0)::text, id ASC
+        )
+        SELECT 
+          market_id,
+          COALESCE(SUM(
+            CASE
+              WHEN c.event_type = 'PositionOpened' AND c.data->>4 IS NOT NULL
+                THEN (c.data->>4)::numeric / POWER(10::numeric, 18)
+              WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
+                THEN o.size_raw / POWER(10::numeric, 18)
+              ELSE 0::numeric
+            END
+          ), 0)::text AS volume24h,
+          COUNT(*)::int AS trades24h
+        FROM position_events c
+        LEFT JOIN opened_sizes o ON o.position_id = (c.data->>0)::text
+        WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
+          AND c.data IS NOT NULL
+          AND c.created_at >= NOW() - INTERVAL '24 hours'
+        GROUP BY market_id
+      `);
+
+      statsRes.rows.forEach((row: any) => {
+        statsMap.set(row.market_id.toLowerCase(), row);
+      });
+    } catch (dbErr) {
+      console.warn("[indexer] volume stats query failed:", dbErr);
+    }
 
     // Merge stats into onchain markets
     const merged = onchain.map((m: any) => {
@@ -277,15 +283,15 @@ export async function fetchMarkets(): Promise<Market[]> {
       const s = statsMap.get(addr);
       return {
         ...m,
-        volume24h: s?.volume_24h ?? "0",
-        trades24h: s?.trades_24h ?? 0,
+        volume24h: s?.volume24h ?? "0",
+        trades24h: s?.trades24h ?? 0,
       };
     });
 
     return merged as Market[];
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.warn("[indexer] fetchMarkets indexing failed:", msg);
+    console.warn("[indexer] fetchMarkets critical failure:", msg);
   }
   return [];
 }
@@ -503,10 +509,10 @@ export async function fetchLeaderboard(
         SELECT DISTINCT ON ((data->>0)::text)
           (data->>0)::text AS position_id,
           account,
-          (data->>4)::numeric AS size_raw,
-          (data->>5)::numeric AS leverage_raw
+          COALESCE((data->>4)::numeric, 0) AS size_raw,
+          COALESCE((data->>5)::numeric, 0) AS leverage_raw
         FROM position_events
-        WHERE event_type = 'PositionOpened'
+        WHERE event_type = 'PositionOpened' AND data IS NOT NULL
         ORDER BY (data->>0)::text, id ASC
       ),
       all_events AS (

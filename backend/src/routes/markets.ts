@@ -249,7 +249,7 @@ router.get("/", async (_req: Request, res: Response) => {
         category: getMarketCategory(addr),
         indexPrice,
         lastPrice,
-        volume24h: protocolVolume24h,
+        volume24h: m.volume24h || protocolVolume24h,
         longOI: toDecimal18(m.totalLongSize),
         shortOI: toDecimal18(m.totalShortSize),
         fundingRate: (Number(m.fundingRate) / PRECISION_1E18).toFixed(6),
