@@ -23,6 +23,7 @@ interface TradingFormProps {
     onTradeSuccess?: () => void;
     side?: 'long' | 'short';
     onSideChange?: (side: 'long' | 'short') => void;
+    onPriceRefresh?: () => Promise<void> | void;
 }
 
 export function TradingForm({
@@ -31,6 +32,7 @@ export function TradingForm({
     onTradeSuccess,
     side: controlledSide,
     onSideChange,
+    onPriceRefresh,
 }: TradingFormProps) {
     const { isConnected } = useAccount();
     const settings = useSettingsStore();
@@ -122,6 +124,9 @@ export function TradingForm({
 
     const handleOpenPosition = async () => {
         if (!validateForm()) return;
+        // Absolute latest price refresh before confirming or executing
+        await onPriceRefresh?.();
+        
         if (settings.confirmTrades) {
             setShowTradeConfirmModal(true);
         } else {

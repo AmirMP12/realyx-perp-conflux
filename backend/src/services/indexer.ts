@@ -231,10 +231,61 @@ export async function fetchMarkets(): Promise<Market[]> {
   try {
     const { fetchMarketsOnChain } = await import("./fetchMarketsOnchain.js");
     const onchain = await fetchMarketsOnChain();
-    if (onchain.length > 0) return onchain as Market[];
+    
+    // If we have no database, just return onchain
+    if (!process.env.POSTGRES_URL || !getPool()) return onchain as Market[];
+
+    // Fetch 24h volume/trades per market from DB
+    const pool = getPool();
+    const statsRes = await pool.query(`
+      WITH opened_sizes AS (
+        SELECT DISTINCT ON ((data->>0)::text)
+          (data->>0)::text AS position_id,
+          (data->>4)::numeric AS size_raw
+        FROM position_events
+        WHERE event_type = 'PositionOpened'
+        ORDER BY (data->>0)::text, id ASC
+      )
+      SELECT 
+        market_id,
+        COALESCE(SUM(
+          CASE
+            WHEN c.event_type = 'PositionOpened' AND c.data->>4 IS NOT NULL
+              THEN (c.data->>4)::numeric / POWER(10::numeric, 18)
+            WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
+              THEN o.size_raw / POWER(10::numeric, 18)
+            ELSE 0::numeric
+          END
+        ), 0)::text AS volume_24h,
+        COUNT(*)::int AS trades_24h
+      FROM position_events c
+      LEFT JOIN opened_sizes o ON o.position_id = (c.data->>0)::text
+      WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
+        AND c.data IS NOT NULL
+        AND c.created_at >= NOW() - INTERVAL '24 hours'
+      GROUP BY market_id
+    `);
+
+    const statsMap = new Map();
+    statsRes.rows.forEach((row: any) => {
+      statsMap.set(row.market_id.toLowerCase(), row);
+    });
+
+    // Merge stats into onchain markets
+    const merged = onchain.map((m: any) => {
+      const addr = (m.marketAddress || m.id).toLowerCase();
+      const s = statsMap.get(addr);
+      return {
+        ...m,
+        volume24h: s?.volume_24h ?? "0",
+        trades24h: s?.trades_24h ?? 0,
+      };
+    });
+
+    return merged as Market[];
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.warn("[indexer] fetchMarkets on-chain fallback failed:", msg);
+    console.warn("[indexer] fetchMarkets indexing failed:", msg);
   }
   return [];
 }
@@ -452,7 +503,8 @@ export async function fetchLeaderboard(
         SELECT DISTINCT ON ((data->>0)::text)
           (data->>0)::text AS position_id,
           account,
-          (data->>4)::numeric AS size_raw
+          (data->>4)::numeric AS size_raw,
+          (data->>5)::numeric AS leverage_raw
         FROM position_events
         WHERE event_type = 'PositionOpened'
         ORDER BY (data->>0)::text, id ASC
@@ -478,14 +530,17 @@ export async function fetchLeaderboard(
 
         UNION ALL
 
-        -- Every liquidation is volume (PnL ignored in basic sum)
-        SELECT lower(o.account) AS addr_key, o.account AS address_display,
-               (c.data->>0)::text AS position_id,
-               0::numeric AS pnl_raw,
-               c.created_at
-        FROM position_events c
-        INNER JOIN opened o ON o.position_id = (c.data->>0)::text
-        WHERE c.event_type = 'PositionLiquidated' AND c.data IS NOT NULL
+        -- Every liquidation is loss of margin
+        SELECT lower(e.account) AS addr_key, e.account AS address_display,
+               (e.data->>0)::text AS position_id,
+               CASE 
+                 WHEN o.leverage_raw > 0 THEN -(o.size_raw / (o.leverage_raw / POWER(10::numeric, 18)))
+                 ELSE 0::numeric 
+               END AS pnl_raw,
+               e.created_at
+        FROM position_events e
+        LEFT JOIN opened o ON o.position_id = (e.data->>0)::text
+        WHERE e.event_type = 'PositionLiquidated' AND e.data IS NOT NULL
       )
       SELECT
         MAX(e.address_display) AS address,

@@ -136,13 +136,13 @@ async function main() {
     const marketFeedCache = new Map<string, string>();
     const lastRefreshByMarket = new Map<string, number>();
 
-    process.on('SIGTERM', () => {
-        console.log('[keeper] Received SIGTERM. Web is shutting down the container gracefully...');
+    process.on("SIGTERM", () => {
+        console.log("[keeper] Received SIGTERM. Web is shutting down the container gracefully...");
         process.exit(0);
     });
 
-    process.on('SIGINT', () => {
-        console.log('[keeper] Received SIGINT. Shutting down...');
+    process.on("SIGINT", () => {
+        console.log("[keeper] Received SIGINT. Shutting down...");
         process.exit(0);
     });
 

@@ -31,9 +31,9 @@ export function usePositions() {
     const { address, isConnected } = useAccount();
 
     const { data: positionIds, isLoading: isLoadingIds, refetch: refetchIds } = useReadContract({
-        address: TRADING_CORE_ADDRESS,
-        abi: TRADING_CORE_ABI,
-        functionName: 'getUserPositions',
+        address: POSITION_TOKEN_ADDRESS,
+        abi: POSITION_TOKEN_ABI,
+        functionName: 'getPositionsByOwner',
         args: address ? [address] : undefined,
         query: {
             enabled: !!address && isConnected,

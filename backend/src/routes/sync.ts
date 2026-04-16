@@ -130,16 +130,17 @@ router.get("/", async (req: any, res: any) => {
             }
           } catch { /* best-effort lookup */ }
         } else if (parsed.name === "PositionLiquidated") {
-          account = String(parsed.args[1]);
-          // Look up market_id from the corresponding PositionOpened event
+          // arg[1] is liquidator; we need original trader for the leaderboard
           const posId = String(parsed.args[0]);
+          account = log.address; // fallback
           try {
             const openEvt = await getPool()!.query(
-              `SELECT market_id FROM position_events WHERE event_type = 'PositionOpened' AND (data->>0)::text = $1 LIMIT 1`,
+              `SELECT account, market_id FROM position_events WHERE event_type = 'PositionOpened' AND (data->>0)::text = $1 LIMIT 1`,
               [posId]
             );
-            if (openEvt.rows.length > 0 && openEvt.rows[0].market_id) {
-              marketId = openEvt.rows[0].market_id;
+            if (openEvt.rows.length > 0) {
+              if (openEvt.rows[0].account) account = openEvt.rows[0].account;
+              if (openEvt.rows[0].market_id) marketId = openEvt.rows[0].market_id;
             }
           } catch { /* best-effort lookup */ }
         }

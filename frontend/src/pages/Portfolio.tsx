@@ -16,6 +16,7 @@ import {
 } from 'recharts';
 import { format } from 'date-fns';
 import { usePositions } from '../hooks/usePositions';
+import { useOnChainHistory } from '../hooks/useOnChainHistory';
 import { useLivePnL } from '../hooks/useWebSocket';
 import { useTradeHistory, type TradeHistoryItem } from '../hooks/useBackend';
 import { useMarketsStore } from '../stores';
@@ -28,38 +29,37 @@ export function PortfolioPage() {
     const { address } = useAccount();
     const isConnected = !!address;
 
-    const { positions, closedPositions, isLoading: positionsLoading, refetch: fetchPositions } = usePositions();
+    const { positions, isLoading: positionsLoading, refetch: fetchPositions } = usePositions();
+    const { data: onChainHistory = [] } = useOnChainHistory();
     const markets = useMarketsStore((s) => s.markets);
     const positionsWithLivePnL = useLivePnL(positions, markets);
 
     const { trades: tradeHistoryRaw, loading: historyLoading, refetch: refetchHistory } = useTradeHistory(50);
 
     const tradeHistory = useMemo(() => {
-        const closedAsTrades = closedPositions.map(p => {
-            const m = markets.find(m => m.marketAddress.toLowerCase() === p.marketAddress.toLowerCase());
+        const onChainAsTrades = onChainHistory.map(t => {
+            const m = markets.find(m => m.marketAddress.toLowerCase() === t.market.toLowerCase());
             return {
-                id: Number(p.id),
-                signature: `closed-${p.id}`,
-                market: m?.symbol || p.marketAddress,
-                side: p.isLong ? 'LONG' : 'SHORT' as 'LONG' | 'SHORT',
-                size: p.size,
-                price: p.entryPrice,
-                leverage: Number(p.leverage),
-                fee: '0',
-                pnl: p.pnl,
-                type: 'CLOSE' as const,
-                timestamp: p.openTimestamp ? new Date((p.openTimestamp as number) * 1000).toISOString() : new Date().toISOString()
+                ...t,
+                market: m?.symbol || t.market.slice(0, 8) + '...'
             };
         });
-        const merged = [...closedAsTrades, ...tradeHistoryRaw];
+        
+        const merged = [...onChainAsTrades, ...tradeHistoryRaw];
         const seen = new Set();
         const deduplicated = merged.filter(t => {
-            if (seen.has(t.signature)) return false;
+            if (!t.signature || seen.has(t.signature)) return false;
             seen.add(t.signature);
             return true;
         });
-        return deduplicated.sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    }, [closedPositions, tradeHistoryRaw, markets]);
+        
+        return deduplicated.sort((a, b) => {
+            const timeA = new Date(a.timestamp).getTime();
+            const timeB = new Date(b.timestamp).getTime();
+            if (timeA !== timeB) return timeB - timeA;
+            return (Number(b.id) || 0) - (Number(a.id) || 0);
+        });
+    }, [onChainHistory, tradeHistoryRaw, markets]);
     useEffect(() => {
         if (!isConnected) return;
 
@@ -72,10 +72,12 @@ export function PortfolioPage() {
     const totalPnl = positionsWithLivePnL.reduce((sum, p) => sum + ((p as any).livePnl ?? parseFloat(p.pnl || '0')), 0);
 
     const pnlChartData = useMemo(() => {
-        const closed = tradeHistory.filter((t: TradeHistoryItem) => t.type === 'CLOSE' && t.pnl != null);
-        closed.sort((a: TradeHistoryItem, b: TradeHistoryItem) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        // Correctly aggregate all realized events: CLOSE and LIQUIDATED
+        const realized = tradeHistory.filter((t: TradeHistoryItem) => (t.type === 'CLOSE' || t.type === 'LIQUIDATED') && t.pnl != null);
+        realized.sort((a: TradeHistoryItem, b: TradeHistoryItem) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        
         let cum = 0;
-        return closed.map((t: TradeHistoryItem) => {
+        return realized.map((t: TradeHistoryItem) => {
             cum += parseFloat(t.pnl || '0');
             return {
                 date: format(new Date(t.timestamp), 'MMM d'),
@@ -84,6 +86,13 @@ export function PortfolioPage() {
             };
         });
     }, [tradeHistory]);
+
+    const totalRealizedPnl = tradeHistory.reduce((sum, t) => {
+        if ((t.type === 'CLOSE' || t.type === 'LIQUIDATED') && t.pnl) {
+            return sum + parseFloat(t.pnl);
+        }
+        return sum;
+    }, 0);
     const totalCollateral = positions.reduce((sum, p) => sum + parseFloat(p.collateral || '0'), 0);
     const accountValue = totalCollateral + totalPnl;
     const activePositionsCount = positions.length;
@@ -151,6 +160,13 @@ export function PortfolioPage() {
                             label="Active Positions"
                             value={activePositionsCount.toString()}
                             sublabel={`${tradeHistory.length} historical trades`}
+                        />
+                        <StatCard
+                            icon={totalRealizedPnl >= 0 ? TrendingUp : TrendingDown}
+                            label="Realized PnL"
+                            value={`${totalRealizedPnl >= 0 ? '+' : ''}${formatCompact(totalRealizedPnl)}`}
+                            sublabel="Sum of all closed trades"
+                            valueColor={totalRealizedPnl >= 0 ? 'text-[var(--long)]' : 'text-[var(--short)]'}
                         />
                     </>
                 )}

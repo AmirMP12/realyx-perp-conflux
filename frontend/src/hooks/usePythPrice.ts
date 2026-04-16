@@ -66,7 +66,7 @@ export function usePythDisplayPrice(feedId: string | undefined) {
 
     useEffect(() => {
         fetchPrice();
-        const t = feedId ? setInterval(fetchPrice, 15_000) : undefined;
+        const t = feedId ? setInterval(fetchPrice, 2_000) : undefined;
         return () => { if (t) clearInterval(t); };
     }, [feedId, fetchPrice]);
 

@@ -8,6 +8,7 @@ import { useLayoutStore } from '../stores/layoutStore';
 import { useSingleMarketData } from '../hooks/useMarketData';
 import { usePythDisplayPrice, getPythFeedId } from '../hooks/usePythPrice';
 import { usePositions } from '../hooks/usePositions';
+import { useOnChainHistory } from '../hooks/useOnChainHistory';
 import { useLivePnL } from '../hooks/useWebSocket';
 import { useTradeHistory } from '../hooks/useBackend';
 
@@ -40,47 +41,44 @@ export function TradingPage() {
     const [tradeSide, setTradeSide] = useState<'long' | 'short'>('long');
     const { tradingFormWidth, positionPanelHeight } = useLayoutStore();
 
-    const { positions, closedPositions, refetch: fetchPositions, isLoading: positionsLoading } = usePositions();
+    const { positions, refetch: fetchPositions, isLoading: positionsLoading } = usePositions();
+    const { data: onChainHistory = [] } = useOnChainHistory();
     const optimisticPositions = usePositionsStore((s) => s.optimisticPositions);
+    
     const mergedPositions = useMemo(() => {
         const real = positions.map((p) => ({ ...p, isOptimistic: false }));
         const opt = optimisticPositions.map((p) => ({ ...p, isOptimistic: true }));
         return [...opt, ...real];
     }, [positions, optimisticPositions]);
+    
     const positionsWithLivePnL = useLivePnL(mergedPositions, markets);
     const { trades: tradeHistoryRaw, loading: historyLoading } = useTradeHistory(20);
 
     const tradeHistory = useMemo(() => {
-        const closedAsTrades = closedPositions.map(p => {
-            const m = markets.find(m => m.marketAddress.toLowerCase() === p.marketAddress.toLowerCase());
+        const onChainAsTrades = onChainHistory.map(t => {
+            const m = markets.find(m => m.marketAddress.toLowerCase() === t.market.toLowerCase());
             return {
-                id: Number(p.id),
-                signature: `closed-${p.id}`,
-                market: m?.symbol || p.marketAddress,
-                side: p.isLong ? 'LONG' : 'SHORT' as 'LONG' | 'SHORT',
-                size: p.size,
-                price: p.entryPrice,
-                leverage: Number(p.leverage),
-                fee: '0',
-                pnl: p.pnl,
-                type: 'CLOSE' as const,
-                timestamp: p.openTimestamp ? new Date((p.openTimestamp as number) * 1000).toISOString() : new Date().toISOString()
+                ...t,
+                market: m?.symbol || t.market.slice(0, 8) + '...'
             };
         });
-        const merged = [...closedAsTrades, ...tradeHistoryRaw];
-        // Deduplicate and sort
+        
+        const merged = [...onChainAsTrades, ...tradeHistoryRaw];
         const seen = new Set();
         const deduplicated = merged.filter(t => {
-            if (seen.has(t.signature)) return false;
-            // Also deduplicate based on position id if backend returns same close
-            if (typeof t.signature === 'string' && t.signature.startsWith('closed-')) {
-                // If it's local generated one, just keep it, but if backend has a trade for same position we might have duplicate CLOSE events.
-            }
+            if (!t.signature || seen.has(t.signature)) return false;
             seen.add(t.signature);
             return true;
         });
-        return deduplicated.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-    }, [closedPositions, tradeHistoryRaw, markets]);
+        
+        // Sort by timestamp if available or by ID
+        return deduplicated.sort((a, b) => {
+            const timeA = new Date(a.timestamp).getTime();
+            const timeB = new Date(b.timestamp).getTime();
+            if (timeA !== timeB) return timeB - timeA;
+            return (Number(b.id) || 0) - (Number(a.id) || 0);
+        });
+    }, [onChainHistory, tradeHistoryRaw, markets]);
 
     const market = useMemo(() =>
         markets.find(m => m.symbol === marketId) || markets[0]
@@ -91,10 +89,11 @@ export function TradingPage() {
 
     const { formatted, isLoading: isMarketDataLoading } = useSingleMarketData(shouldFetch ? address as Address : undefined);
     const feedId = getPythFeedId(address, market?.symbol);
-    const { price: pythPrice } = usePythDisplayPrice(feedId);
+    const { price: pythPrice, refetch: refetchPrice } = usePythDisplayPrice(feedId);
 
     const fromContractOrApi = (formatted?.price ?? 0) || (market?.indexPrice ?? 0);
-    const currentPrice = fromContractOrApi > 0 ? fromContractOrApi : (pythPrice ?? 0);
+    // Prioritize Pyth price for real-time speed, fallback to contract/API if Pyth is slow or missing
+    const currentPrice = (pythPrice ?? 0) > 0 ? (pythPrice ?? 0) : fromContractOrApi;
     /** Merge on-chain OI / funding when RPC data is ready (API list often has zeros without indexer). */
     const displayMarket = useMemo(() => {
         if (!market || !shouldFetch || isMarketDataLoading || !formatted) return market;
@@ -181,9 +180,12 @@ export function TradingPage() {
                     <TradingForm
                         market={displayMarket}
                         currentPrice={currentPrice}
-                        onTradeSuccess={fetchPositions}
                         side={tradeSide}
                         onSideChange={setTradeSide}
+                        onPriceRefresh={refetchPrice}
+                        onTradeSuccess={() => {
+                            fetchPositions();
+                        }}
                     />
                 </div>
             </div>
