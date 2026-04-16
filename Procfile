@@ -1,1 +1,1 @@
-worker: npx tsx scripts/keeper-bot.ts
+worker: tsx scripts/keeper-bot.ts

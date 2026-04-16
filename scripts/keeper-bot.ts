@@ -150,9 +150,11 @@ async function main() {
 
     console.log("[keeper] fetching network info...");
     const networkInfo = await withRpcRetry(() => provider.getNetwork(), "getNetwork");
+    console.log(`[keeper] network info fetched: chainId=${networkInfo.chainId}`);
 
     console.log("[keeper] fetching latest block number...");
     const latest = await withRpcRetry(() => provider.getBlockNumber(), "getBlockNumber");
+    console.log(`[keeper] latest block: ${latest}`);
 
     let cursor = BigInt(Math.max(0, latest - Number(lookbackBlocks)));
     const pending = new Map<string, PendingOrder>();
@@ -170,17 +172,23 @@ async function main() {
             `Wallet ${wallet.address} is missing KEEPER_ROLE (${KEEPER_ROLE}) on TradingCore ${tradingCoreAddress}.`,
         );
     }
+    console.log("[keeper] KEEPER_ROLE verified.");
 
     console.log("[keeper] fetching OracleAggregator address...");
     const oracleAggregatorAddress = await withRpcRetry(
         () => tradingCore.oracleAggregator(),
         "tradingCore.oracleAggregator",
     );
+    console.log(`[keeper] oracleAggregator=${oracleAggregatorAddress}`);
     const oracleAggregator = new ethers.Contract(oracleAggregatorAddress, ORACLE_AGGREGATOR_ABI, wallet);
 
     console.log("[keeper] fetching Pyth address...");
     const pythAddress = await withRpcRetry(() => oracleAggregator.pyth(), "oracleAggregator.pyth");
+    console.log(`[keeper] pythAddress=${pythAddress}`);
     const pyth = new ethers.Contract(pythAddress, PYTH_ABI, wallet);
+    
+    console.log("[keeper] initialization complete.");
+    console.log("[keeper] entering main loop...");
 
     async function getFeedIdForMarket(market: string): Promise<string | null> {
         const key = market.toLowerCase();
