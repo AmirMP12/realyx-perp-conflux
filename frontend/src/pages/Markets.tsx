@@ -182,14 +182,14 @@ export function MarketsPage() {
                             ))}
                         </div>
                     </div>
-                    <div className="relative w-full sm:w-72">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+                    <div className="relative w-full sm:w-80 group">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted transition-colors group-focus-within:text-[var(--primary)]" />
                         <input
                             type="text"
                             placeholder="Search markets..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full bg-[var(--bg-tertiary)]/80 border border-[var(--border-color)]/60 focus:border-[var(--border-color-hover)] rounded-xl pl-9 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted outline-none transition-colors"
+                            className="w-full bg-[#0a0a0f]/60 backdrop-blur-md border border-[var(--border-color)]/80 focus:border-[var(--primary)]/40 rounded-xl pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted outline-none transition-all shadow-[inset_0_1px_1px_rgba(0,0,0,0.3)] focus:ring-1 focus:ring-[var(--primary)]/20 hover:bg-[#0a0a0f]/80"
                         />
                     </div>
                 </div>

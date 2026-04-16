@@ -4,9 +4,9 @@ import pg from "pg";
 import { config } from "../config.js";
 
 const TRADING_CORE_SYNC_ABI = [
-  "event PositionOpened(uint256,address,address,bool,uint256,uint256,uint256)",
-  "event PositionClosed(uint256,address,int256,uint256,uint256)",
-  "event PositionLiquidated(uint256,address,uint256,uint256)",
+  "event PositionOpened(uint256 indexed positionId, address indexed trader, address indexed market, bool isLong, uint256 size, uint256 leverage, uint256 entryPrice)",
+  "event PositionClosed(uint256 indexed positionId, address indexed trader, int256 realizedPnL, uint256 exitPrice, uint256 closingFee)",
+  "event PositionLiquidated(uint256 indexed positionId, address indexed liquidator, uint256 liquidationPrice, uint256 liquidationFee)",
 ] as const;
 
 const router = express.Router();

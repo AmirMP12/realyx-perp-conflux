@@ -95,32 +95,43 @@ export function usePositions() {
             if (!posResult || posResult.status !== 'success' || !posResult.result) return null;
 
             const pos = posResult.result as any;
-            const state = pos.state !== undefined ? Number(pos.state) : POS_STATUS_OPEN;
+            
+            const stateRaw = pos.state !== undefined ? pos.state : (pos[12] !== undefined ? pos[12] : POS_STATUS_OPEN);
+            const state = Number(stateRaw);
             if (state !== POS_STATUS_OPEN) return null;
-            if (BigInt(pos.size ?? 0) === 0n) return null;
+
+            const sizeRaw = pos.size !== undefined ? pos.size : pos[0];
+            if (sizeRaw === undefined || BigInt(sizeRaw) === 0n) return null;
+
+            const entryPriceRaw = pos.entryPrice !== undefined ? pos.entryPrice : pos[1];
+            const leverageRaw = pos.leverage !== undefined ? pos.leverage : pos[5];
+            const stopLossRaw = pos.stopLossPrice !== undefined ? pos.stopLossPrice : pos[3];
+            const takeProfitRaw = pos.takeProfitPrice !== undefined ? pos.takeProfitPrice : pos[4];
+            const marketAddressRaw = pos.market !== undefined ? pos.market : pos[7];
+            const flagsRaw = pos.flags !== undefined ? pos.flags : pos[10];
 
             const pnlVal = pnlResult && pnlResult.status === 'success' ? (pnlResult.result as any)[0] : 0n;
 
-            const sizeNum = parseFloat(formatUnits(pos.size, 18));
-            const entryPriceNum = parseFloat(formatUnits(pos.entryPrice, 18));
-            const pnlNum = parseFloat(formatUnits(pnlVal, 6));
+            const sizeNum = parseFloat(formatUnits(sizeRaw, 18));
+            const entryPriceNum = parseFloat(formatUnits(entryPriceRaw, 18));
+            const pnlNum = parseFloat(formatUnits(pnlVal, 18));
             let markPriceNum = entryPriceNum;
             if (sizeNum > 0 && entryPriceNum > 0) {
-                if (pos.flags & 1) { // Long
+                if (Number(flagsRaw) & 1) { // Long
                     markPriceNum = entryPriceNum + (pnlNum * entryPriceNum) / sizeNum;
                 } else { // Short
                     markPriceNum = entryPriceNum - (pnlNum * entryPriceNum) / sizeNum;
                 }
             }
 
-            const stopLossPrice = pos.stopLossPrice != null ? parseFloat(formatUnits(pos.stopLossPrice, 18)) : 0;
-            const takeProfitPrice = pos.takeProfitPrice != null ? parseFloat(formatUnits(pos.takeProfitPrice, 18)) : 0;
-            const leverageNum = (Number(pos.leverage) / 1e18) || 1;
+            const stopLossPrice = stopLossRaw != null ? parseFloat(formatUnits(stopLossRaw, 18)) : 0;
+            const takeProfitPrice = takeProfitRaw != null ? parseFloat(formatUnits(takeProfitRaw, 18)) : 0;
+            const leverageNum = (Number(leverageRaw) / 1e18) || 1;
             const collateralNum = leverageNum > 0 ? sizeNum / leverageNum : 0;
             return {
                 id: id.toString(),
-                sizeRaw: (pos.size as bigint).toString(),
-                marketAddress: pos.market, // DataTypes.Position.market
+                sizeRaw: sizeRaw.toString(),
+                marketAddress: marketAddressRaw, 
                 size: sizeNum.toFixed(4),
                 collateral: collateralNum.toFixed(2),
                 averagePrice: entryPriceNum.toFixed(2),
@@ -128,10 +139,13 @@ export function usePositions() {
                 markPrice: markPriceNum.toFixed(2),
                 pnl: pnlNum.toFixed(2),
                 leverage: leverageNum.toString(),
-                isLong: (pos.flags & 1) === 1,
-                liquidationPrice: formatUnits(pos.liquidationPrice, 18),
-                stopLossPrice,
-                takeProfitPrice,
+                isLong: (Number(flagsRaw) & 1) !== 0,
+                liquidationPrice: "0",
+                stopLossPrice: stopLossPrice,
+                takeProfitPrice: takeProfitPrice,
+                stopLoss: stopLossPrice > 0 ? stopLossPrice.toFixed(2) : undefined,
+                takeProfit: takeProfitPrice > 0 ? takeProfitPrice.toFixed(2) : undefined,
+                state
             };
         }).filter(Boolean) as Position[];
     }, [ids, positionsData, pnlData]);

@@ -774,8 +774,9 @@ export function usePartialClose() {
 
 export function calculatePnL(position: any, currentPrice: number) {
     if (!position) return { pnl: 0, pnlPercent: 0 };
+    if (!position.entryPrice || position.entryPrice === 0) return { pnl: 0, pnlPercent: 0 };
     const diff = position.isLong ? currentPrice - position.entryPrice : position.entryPrice - currentPrice;
-    const pnl = position.size * diff;
+    const pnl = position.size * diff / position.entryPrice;
     const pnlPercent = position.margin > 0 ? (pnl / position.margin) * 100 : 0;
     return { pnl, pnlPercent };
 }

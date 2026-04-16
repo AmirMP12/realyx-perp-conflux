@@ -125,8 +125,8 @@ export interface ProtocolMetric {
 const PROTOCOL_VOLUME_24H_SQL = `
   SELECT COALESCE(SUM(
     CASE
-      WHEN o.size_raw IS NOT NULL AND (c.data->>3) IS NOT NULL
-      THEN (o.size_raw * (c.data->>3)::numeric) / POWER(10::numeric, 36)
+      WHEN o.size_raw IS NOT NULL
+      THEN o.size_raw / POWER(10::numeric, 18)
       ELSE 0::numeric
     END
   ), 0)::text AS total_volume_usd
@@ -454,8 +454,8 @@ export async function fetchLeaderboard(
         COALESCE(SUM(e.pnl_raw), 0)::text AS total_realized_pnl,
         COALESCE(SUM(
           CASE
-            WHEN o.size_raw IS NOT NULL AND e.price_raw IS NOT NULL
-            THEN (o.size_raw * e.price_raw) / POWER(10::numeric, 36)
+            WHEN o.size_raw IS NOT NULL
+            THEN o.size_raw / POWER(10::numeric, 18)
             ELSE 0::numeric
           END
         ), 0)::text AS total_volume_usd

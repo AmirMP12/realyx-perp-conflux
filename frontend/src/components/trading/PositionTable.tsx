@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Edit2, Shield, Wallet, Clock, FileText, ArrowRightLeft } from 'lucide-react';
 import clsx from 'clsx';
 import { Link } from 'react-router-dom';
@@ -167,8 +168,8 @@ export function PositionTable({
                         <>
                             {/* Desktop Table */}
                             <div className="hidden md:block px-2 md:px-3 pb-3">
-                                <div className="rounded-xl border border-[var(--border-color)]/70 bg-[var(--bg-secondary)]/40 overflow-hidden shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                                    <table className="w-full text-left text-sm whitespace-nowrap">
+                                <div className="rounded-xl border border-[var(--border-color)]/70 bg-[var(--bg-secondary)]/40 overflow-x-auto custom-scrollbar shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                                    <table className="w-full min-w-[900px] text-left text-sm whitespace-nowrap">
                                     <thead className="text-[10px] text-text-muted uppercase tracking-wider bg-[var(--bg-tertiary)]/45 sticky top-0 z-10 border-b border-[var(--border-color)]/80">
                                         <tr>
                                             <th className="px-4 py-3 font-semibold">Market</th>
@@ -179,7 +180,7 @@ export function PositionTable({
                                             <th className="px-4 py-3 font-semibold text-right tabular-nums">Mark Price</th>
                                             <th className="px-4 py-3 font-semibold text-right tabular-nums">Liq. Price</th>
                                             <th className="px-4 py-3 font-semibold text-right tabular-nums">PnL</th>
-                                            <th className="px-4 py-3 font-semibold text-right">Action</th>
+                                            <th className="px-4 py-3 font-semibold text-right pr-6">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-[var(--border-color)]/80">
@@ -368,8 +369,9 @@ export function PositionTable({
             </div>
 
             {/* Triggers Modal */}
-            <AnimatePresence>
-                {slTpPosition && (
+            {createPortal(
+                <AnimatePresence>
+                    {slTpPosition && (
                     <div
                         className="fixed inset-0 z-[100] flex items-center justify-center p-4 py-8 sm:py-4 bg-black/75 backdrop-blur-sm overflow-y-auto overscroll-contain"
                         role="presentation"
@@ -503,7 +505,9 @@ export function PositionTable({
                         </motion.div>
                     </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence>,
+            document.body
+            )}
 
             <CollateralEditModal
                 isOpen={!!activeCollateralPos}
@@ -574,7 +578,7 @@ function PositionRow({
                 ${Number(pos.size).toFixed(2)}
             </td>
             <td className={clsx(cellPad, "text-right font-mono text-sm tabular-nums text-text-primary")}>
-                {(Number(pos.size) / (Number(pos.entryPrice) || 1)).toFixed(4)} {market?.symbol}
+                {(Number(pos.size) / (Number(pos.entryPrice) || 1)).toFixed(4)}
             </td>
             <td className={clsx(cellPad, "text-right font-mono text-sm tabular-nums text-text-primary")}>
                 <div className="flex items-center justify-end gap-2 group">
@@ -618,7 +622,7 @@ function PositionRow({
                     </>
                 )}
             </td>
-            <td className={clsx(cellPad, "text-right")}>
+            <td className={clsx(cellPad, "text-right pr-6")}>
                 {isOptimistic ? (
                     <span className="text-xs text-text-muted">Confirming...</span>
                 ) : (

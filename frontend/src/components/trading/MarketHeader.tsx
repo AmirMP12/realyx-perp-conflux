@@ -46,7 +46,7 @@ export function MarketHeader({
     }, []);
 
     return (
-        <div className="relative z-30 flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 border-b border-[var(--border-color)] bg-[var(--bg-secondary)] w-full min-w-0 shadow-[0_1px_0_rgba(0,0,0,0.15)]">
+        <div className="relative z-30 flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 border border-[var(--border-color)]/80 bg-[var(--bg-secondary)]/95 backdrop-blur-md w-fit mx-auto mt-4 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
             {/* Left: Market Selector */}
             <div className="relative" ref={dropdownRef}>
                 <button

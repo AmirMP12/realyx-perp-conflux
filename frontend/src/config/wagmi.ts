@@ -3,7 +3,7 @@ import { connectorsForWallets } from '@rainbow-me/rainbowkit';
 import { RainbowKitWalletConnectParameters } from '@rainbow-me/rainbowkit';
 import { createConfig, http } from 'wagmi';
 import { fallback } from 'viem';
-import { confluxESpace, confluxESpaceTestnet } from 'wagmi/chains';
+import { confluxESpaceTestnet } from 'wagmi/chains';
 
 import {
     injectedWallet,
@@ -77,10 +77,6 @@ const connectors = connectorsForWallets(
 // RainbowKit's "Switch Networks" modal uses `chain.name` for display.
 export const realyxChains = [
     {
-        ...confluxESpace,
-        name: 'eSpace',
-    },
-    {
         ...confluxESpaceTestnet,
         name: 'eSpace Testnet',
     },
@@ -90,12 +86,6 @@ export const config = createConfig({
     connectors,
     chains: realyxChains,
     transports: {
-        [confluxESpace.id]: http(undefined, {
-            // Keep mainnet reads resilient against temporary provider slowness.
-            timeout: 120_000,
-            retryCount: 5,
-            retryDelay: 1_000,
-        }),
         [confluxESpaceTestnet.id]: fallback([
             http(testnetRpcPrimary, {
                 batch: false,

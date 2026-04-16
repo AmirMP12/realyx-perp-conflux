@@ -109,7 +109,8 @@ export function useRealtimePrices() {
     return { connected, markets };
 }
 
-/** Live PnL = (markPrice - entryPrice) * size for long, (entryPrice - markPrice) * size for short */
+/** Live PnL = size * (markPrice - entryPrice) / entryPrice for long, size * (entryPrice - markPrice) / entryPrice for short.
+ *  Matches on-chain PositionMath.calculateUnrealizedPnL where size is USD notional, not asset quantity. */
 export function useLivePnL<T extends { marketAddress: string; entryPrice: string; size: string; isLong: boolean; pnl: string }>(
     positions: T[],
     markets: { marketAddress?: string; indexPrice?: number }[]
@@ -119,7 +120,9 @@ export function useLivePnL<T extends { marketAddress: string; entryPrice: string
         const markPrice = market?.indexPrice ?? parseFloat(pos.entryPrice);
         const entry = parseFloat(pos.entryPrice);
         const size = parseFloat(pos.size);
-        const livePnl = pos.isLong ? (markPrice - entry) * size : (entry - markPrice) * size;
+        const livePnl = entry > 0
+            ? (pos.isLong ? (markPrice - entry) * size / entry : (entry - markPrice) * size / entry)
+            : 0;
         return { ...pos, livePnl, markPrice };
     });
 }
