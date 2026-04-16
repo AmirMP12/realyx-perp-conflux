@@ -1,1 +1,1 @@
-worker: npm run keeper:bot
+worker: npx tsx scripts/keeper-bot.ts

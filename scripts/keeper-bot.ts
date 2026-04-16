@@ -1,5 +1,6 @@
 import "dotenv/config";
 import { ethers } from "ethers";
+import http from "http";
 import { loadDeployment } from "./write-deployment";
 
 type PendingOrder = {
@@ -133,18 +134,35 @@ async function main() {
         throw lastErr;
     }
 
-    const networkInfo = await withRpcRetry(() => provider.getNetwork(), "getNetwork");
-    const latest = await withRpcRetry(() => provider.getBlockNumber(), "getBlockNumber");
-    let cursor = BigInt(Math.max(0, latest - Number(lookbackBlocks)));
-    const pending = new Map<string, PendingOrder>();
     const marketFeedCache = new Map<string, string>();
     const lastRefreshByMarket = new Map<string, number>();
 
+    // Minimal HTTP server to satisfy port-binding health checks
+    const port = process.env.PORT || 8080;
+    http.createServer((_req, res) => {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('Keeper Bot is running\n');
+    }).listen(port, () => {
+        console.log(`[keeper] dummy health-check server listening on port ${port}`);
+    });
+
     console.log("[keeper] starting");
+
+    console.log("[keeper] fetching network info...");
+    const networkInfo = await withRpcRetry(() => provider.getNetwork(), "getNetwork");
+
+    console.log("[keeper] fetching latest block number...");
+    const latest = await withRpcRetry(() => provider.getBlockNumber(), "getBlockNumber");
+
+    let cursor = BigInt(Math.max(0, latest - Number(lookbackBlocks)));
+    const pending = new Map<string, PendingOrder>();
+
     console.log(`[keeper] chainId=${networkInfo.chainId.toString()} rpc=${rpcUrls[rpcIndex]}`);
     console.log(`[keeper] wallet=${wallet.address}`);
     console.log(`[keeper] tradingCore=${tradingCoreAddress}`);
     console.log(`[keeper] startBlock=${cursor.toString()} pollMs=${pollMs}`);
+
+    console.log("[keeper] checking KEEPER_ROLE...");
 
     const hasKeeperRole = await tradingCore.hasRole(KEEPER_ROLE, wallet.address);
     if (!hasKeeperRole) {
@@ -153,11 +171,14 @@ async function main() {
         );
     }
 
+    console.log("[keeper] fetching OracleAggregator address...");
     const oracleAggregatorAddress = await withRpcRetry(
         () => tradingCore.oracleAggregator(),
         "tradingCore.oracleAggregator",
     );
     const oracleAggregator = new ethers.Contract(oracleAggregatorAddress, ORACLE_AGGREGATOR_ABI, wallet);
+
+    console.log("[keeper] fetching Pyth address...");
     const pythAddress = await withRpcRetry(() => oracleAggregator.pyth(), "oracleAggregator.pyth");
     const pyth = new ethers.Contract(pythAddress, PYTH_ABI, wallet);
 
