@@ -1,6 +1,5 @@
 import "dotenv/config";
 import { ethers } from "ethers";
-import http from "http";
 import { loadDeployment } from "./write-deployment";
 
 type PendingOrder = {
@@ -137,13 +136,14 @@ async function main() {
     const marketFeedCache = new Map<string, string>();
     const lastRefreshByMarket = new Map<string, number>();
 
-    // Minimal HTTP server to satisfy port-binding health checks
-    const port = process.env.PORT || 8080;
-    http.createServer((_req, res) => {
-        res.writeHead(200, { 'Content-Type': 'text/plain' });
-        res.end('Keeper Bot is running\n');
-    }).listen(port, () => {
-        console.log(`[keeper] dummy health-check server listening on port ${port}`);
+    process.on('SIGTERM', () => {
+        console.log('[keeper] Received SIGTERM. Web is shutting down the container gracefully...');
+        process.exit(0);
+    });
+
+    process.on('SIGINT', () => {
+        console.log('[keeper] Received SIGINT. Shutting down...');
+        process.exit(0);
     });
 
     console.log("[keeper] starting");
@@ -186,7 +186,7 @@ async function main() {
     const pythAddress = await withRpcRetry(() => oracleAggregator.pyth(), "oracleAggregator.pyth");
     console.log(`[keeper] pythAddress=${pythAddress}`);
     const pyth = new ethers.Contract(pythAddress, PYTH_ABI, wallet);
-    
+
     console.log("[keeper] initialization complete.");
     console.log("[keeper] entering main loop...");
 
