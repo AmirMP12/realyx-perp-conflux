@@ -211,6 +211,7 @@ export function PositionTable({
                                         key={i}
                                         pos={pos}
                                         markets={markets}
+                                        settings={settings}
                                         setActiveCollateralPos={setActiveCollateralPos}
                                         setActiveClosePos={setActiveClosePos}
                                         setActiveTransferPos={setActiveTransferPos}
@@ -667,6 +668,7 @@ function PositionRow({
 function MobilePositionCard({
     pos,
     markets,
+    settings,
     setActiveCollateralPos,
     setActiveClosePos,
     setActiveTransferPos,
