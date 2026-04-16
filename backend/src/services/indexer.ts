@@ -139,7 +139,7 @@ const PROTOCOL_VOLUME_24H_SQL = `
         THEN o.size_raw / POWER(10::numeric, 18)
       ELSE 0::numeric
     END
-  ), 0)::text AS total_volume_usd
+  ), 0)::text AS volume_24h_usd
   FROM position_events c
   LEFT JOIN opened_sizes o ON o.position_id = (c.data->>0)::text
   WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
@@ -157,7 +157,10 @@ export async function fetchProtocol(): Promise<Protocol | null> {
     if (!pool) return null;
     const [res, volRes] = await Promise.all([
       pool.query(`SELECT event_type, COUNT(*) as count FROM position_events GROUP BY event_type`),
-      pool.query(PROTOCOL_VOLUME_24H_SQL).catch(() => ({ rows: [{ total_volume_usd: "0" }] })),
+      pool.query(PROTOCOL_VOLUME_24H_SQL).catch((e) => {
+        console.error("Volume query failed:", e);
+        return { rows: [{ volume_24h_usd: "0" }] };
+      }),
     ]);
     let opened = 0;
     let closed = 0;
@@ -167,7 +170,7 @@ export async function fetchProtocol(): Promise<Protocol | null> {
       if (row.event_type === "PositionClosed") closed = parseInt(row.count);
       if (row.event_type === "PositionLiquidated") liq = parseInt(row.count);
     }
-    const totalVolumeUsd = volRes.rows[0]?.total_volume_usd ?? "0";
+    const totalVolumeUsd = volRes.rows[0]?.volume_24h_usd ?? "0";
     return {
       totalPositionsOpened: String(opened),
       totalPositionsClosed: String(closed),
@@ -452,29 +455,35 @@ export async function fetchLeaderboard(
         WHERE event_type = 'PositionOpened'
         ORDER BY (data->>0)::text, id ASC
       ),
-      close_rows AS (
-        SELECT lower(c.account) AS addr_key, c.account AS address_display,
-               (c.data->>0)::text AS position_id,
-               (c.data->>2)::numeric AS pnl_raw,
-               (c.data->>3)::numeric AS price_raw,
-               c.created_at
-        FROM position_events c
-        WHERE c.event_type = 'PositionClosed' AND c.data IS NOT NULL
-      ),
-      liq_rows AS (
+      all_events AS (
+        -- Every position open is volume
+        SELECT lower(account) AS addr_key, account AS address_display,
+               (data->>0)::text AS position_id,
+               0::numeric AS pnl_raw,
+               created_at
+        FROM position_events
+        WHERE event_type = 'PositionOpened' AND data IS NOT NULL
+
+        UNION ALL
+
+        -- Every position close is volume + pnl
+        SELECT lower(account) AS addr_key, account AS address_display,
+               (data->>0)::text AS position_id,
+               (data->>2)::numeric AS pnl_raw,
+               created_at
+        FROM position_events
+        WHERE event_type = 'PositionClosed' AND data IS NOT NULL
+
+        UNION ALL
+
+        -- Every liquidation is volume (PnL ignored in basic sum)
         SELECT lower(o.account) AS addr_key, o.account AS address_display,
                (c.data->>0)::text AS position_id,
-               NULL::numeric AS pnl_raw,
-               (c.data->>2)::numeric AS price_raw,
+               0::numeric AS pnl_raw,
                c.created_at
         FROM position_events c
         INNER JOIN opened o ON o.position_id = (c.data->>0)::text
         WHERE c.event_type = 'PositionLiquidated' AND c.data IS NOT NULL
-      ),
-      exit_events AS (
-        SELECT * FROM close_rows
-        UNION ALL
-        SELECT * FROM liq_rows
       )
       SELECT
         MAX(e.address_display) AS address,
@@ -487,12 +496,12 @@ export async function fetchLeaderboard(
             ELSE 0::numeric
           END
         ), 0)::text AS total_volume_usd
-      FROM exit_events e
+      FROM all_events e
       LEFT JOIN opened o ON o.position_id = e.position_id
       WHERE 1=1
       ${timeFilter}
       GROUP BY e.addr_key
-      ORDER BY COALESCE(SUM(e.pnl_raw), 0) DESC NULLS LAST
+      ORDER BY COALESCE(SUM(e.pnl_raw), 0) DESC, COALESCE(SUM(o.size_raw), 0) DESC
       LIMIT $1
       `,
       [safeLimit],

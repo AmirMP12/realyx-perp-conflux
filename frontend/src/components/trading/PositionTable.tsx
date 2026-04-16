@@ -9,6 +9,7 @@ import { Position } from '../../hooks/usePositions';
 import { useSetStopLoss, useSetTakeProfit, useSetTrailingStop, useCancelOrder } from '../../hooks/useProgram';
 import { usePendingOrders, getOrderTypeLabel } from '../../hooks/usePendingOrders';
 import { useSettingsStore } from '../../stores/settingsStore';
+import { usePositionsStore } from '../../stores';
 import { showToast } from '../ui/Toast';
 import { TradeHistoryItem } from '../../hooks/useBackend';
 import { CollateralEditModal } from './CollateralEditModal';
@@ -61,6 +62,7 @@ export function PositionTable({
     fetchPositions
 }: PositionTableProps) {
     const settings = useSettingsStore();
+    const { removePosition } = usePositionsStore();
     const cellPad = settings.compactMode ? 'px-3 py-1.5' : 'px-4 py-3';
     const [activeTab, setActiveTab] = useState<'positions' | 'orders' | 'history' | 'trades'>('positions');
 
@@ -558,6 +560,8 @@ export function PositionTable({
                 isOpen={!!activeTransferPos}
                 onClose={() => setActiveTransferPos(null)}
                 onSuccess={() => {
+                    const id = activeTransferPos?.id;
+                    if (id) removePosition(id);
                     void fetchPositions();
                     setTimeout(() => void fetchPositions(), 2000);
                 }}

@@ -26,7 +26,7 @@ export function ClosePositionModal({ isOpen, onClose, onCloseSuccess, position }
     const isFullClose = percentage === 100;
 
     const size = parseFloat(position.size);
-    const pnl = parseFloat(position.pnl);
+    const pnl = parseFloat((position as any).livePnl ?? position.pnl);
 
     const closeSize = size * (percentage / 100);
     const estimatedPnL = pnl * (percentage / 100);

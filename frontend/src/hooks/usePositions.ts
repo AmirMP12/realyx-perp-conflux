@@ -126,6 +126,9 @@ export function usePositions() {
 
             const stopLossPrice = stopLossRaw != null ? parseFloat(formatUnits(stopLossRaw, 18)) : 0;
             const takeProfitPrice = takeProfitRaw != null ? parseFloat(formatUnits(takeProfitRaw, 18)) : 0;
+            const liquidationPriceRaw = pos.liquidationPrice !== undefined ? pos.liquidationPrice : (pos[2] !== undefined ? pos[2] : 0n);
+            const liquidationPriceNum = parseFloat(formatUnits(liquidationPriceRaw, 18));
+
             const leverageNum = (Number(leverageRaw) / 1e18) || 1;
             const collateralNum = leverageNum > 0 ? sizeNum / leverageNum : 0;
             return {
@@ -138,9 +141,9 @@ export function usePositions() {
                 entryPrice: entryPriceNum.toFixed(2),
                 markPrice: markPriceNum.toFixed(2),
                 pnl: pnlNum.toFixed(2),
-                leverage: leverageNum.toString(),
+                leverage: leverageNum.toFixed(1),
                 isLong: (Number(flagsRaw) & 1) !== 0,
-                liquidationPrice: "0",
+                liquidationPrice: liquidationPriceNum.toFixed(4),
                 stopLossPrice: stopLossPrice,
                 takeProfitPrice: takeProfitPrice,
                 stopLoss: stopLossPrice > 0 ? stopLossPrice.toFixed(2) : undefined,

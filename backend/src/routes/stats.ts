@@ -59,7 +59,14 @@ router.get("/", async (_req: Request, res: Response) => {
       });
     }
     const totalMarkets = markets.length;
-    const volume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
+    let volume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
+    
+    // Fallback: if global volume is 0 but we have markets with potential volume, sum them
+    if (Number(volume24h) === 0 && markets.length > 0) {
+        const sum = markets.reduce((acc, m) => acc + Number((m as any).volume24h || 0), 0);
+        if (sum > 0) volume24h = sum.toFixed(6);
+    }
+
     let totalOpenInterest = "0";
     if (markets.length > 0) {
       const oi = markets.reduce(
