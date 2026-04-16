@@ -46,26 +46,28 @@ export function MarketHeader({
     }, []);
 
     return (
-        <div className="relative z-30 flex items-center justify-between gap-2 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 border border-[var(--border-color)]/80 bg-[var(--bg-secondary)]/95 backdrop-blur-md w-fit mx-auto mt-4 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+        <div className="relative z-30 flex items-center justify-between gap-3 px-3 sm:px-5 lg:px-6 py-2.5 sm:py-4 border border-[var(--border-color)]/80 bg-[var(--bg-secondary)]/95 backdrop-blur-md w-[calc(100%-1rem)] sm:w-fit mx-auto mt-4 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
             {/* Left: Market Selector */}
             <div className="relative" ref={dropdownRef}>
                 <button
                     type="button"
                     onClick={() => setDropdownOpen(!dropdownOpen)}
-                    className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-2 -ml-2 rounded-xl hover:bg-[var(--bg-tertiary)]/55 transition-colors duration-200 min-h-[44px] touch-manipulation group min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40"
+                    className="flex items-center gap-2.5 px-2 py-1.5 -ml-1.5 rounded-xl hover:bg-[var(--bg-tertiary)]/55 transition-colors duration-200 min-h-[44px] touch-manipulation group min-w-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40"
                     aria-expanded={dropdownOpen}
                     aria-haspopup="listbox"
                 >
-                    <div className="relative">
-                        <img src={market.image} alt={market.name} className="w-10 h-10 rounded-full ring-2 ring-[var(--border-color)]/80 group-hover:ring-[var(--border-color-hover)] transition-colors" />
+                    <div className="relative shrink-0">
+                        <img src={market.image} alt={market.name} className="w-9 h-9 sm:w-10 sm:h-10 rounded-full ring-2 ring-[var(--border-color)]/80 group-hover:ring-[var(--border-color-hover)] transition-colors" />
                     </div>
                     <div className="flex flex-col items-start gap-0.5 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <span data-testid="market-symbol" className="font-bold text-base sm:text-xl text-text-primary leading-none tracking-tight truncate max-w-[140px] sm:max-w-none">{market.symbol}</span>
-                            <CategoryTag category={market.category} size="xs" />
-                            <ChevronDown className={clsx("w-4 h-4 text-text-muted transition-transform duration-200", dropdownOpen && "rotate-180")} />
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                            <span data-testid="market-symbol" className="font-bold text-sm sm:text-xl text-text-primary leading-tight tracking-tight truncate max-w-[80px] xs:max-w-[120px] sm:max-w-none">{market.symbol}</span>
+                            <div className="shrink-0 scale-90 sm:scale-100 origin-left">
+                                <CategoryTag category={market.category} size="xs" />
+                            </div>
+                            <ChevronDown className={clsx("w-3.5 h-3.5 sm:w-4 sm:h-4 text-text-muted transition-transform duration-200 shrink-0", dropdownOpen && "rotate-180")} />
                         </div>
-                        <span data-testid="market-name" className="text-xs text-text-muted">{market.name}</span>
+                        <span data-testid="market-name" className="text-[10px] sm:text-xs text-text-muted truncate max-w-full">{market.name}</span>
                     </div>
                 </button>
 
@@ -73,8 +75,8 @@ export function MarketHeader({
                 <div
                     role="listbox"
                     className={clsx(
-                        "absolute top-full left-0 mt-2 w-72 max-w-[calc(100vw-2rem)] bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl z-[100] overflow-hidden transition-all duration-200",
-                        dropdownOpen ? "opacity-100 visible" : "opacity-0 invisible pointer-events-none"
+                        "absolute top-full left-0 sm:left-auto sm:right-0 mt-3 w-72 max-w-[calc(100vw-2rem)] bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl shadow-2xl z-[100] overflow-hidden transition-all duration-200",
+                        dropdownOpen ? "opacity-100 visible translate-y-0" : "opacity-0 invisible pointer-events-none -translate-y-2"
                     )}
                 >
                     <div className="max-h-[300px] overflow-y-auto custom-scrollbar">

@@ -16,7 +16,6 @@ import { MarketHeader } from '../components/trading/MarketHeader';
 import { TradingForm } from '../components/trading/TradingForm';
 import { PositionTable } from '../components/trading/PositionTable';
 import { MobileControls } from '../components/trading/MobileControls';
-import { MobileStickyPriceBar } from '../components/trading/MobileStickyPriceBar';
 import { TradingViewWidget } from '../components/TradingViewWidget';
 import { MARKET_DISPLAY_FALLBACK } from '../config/markets';
 
@@ -99,16 +98,6 @@ export function TradingPage() {
 
     return (
         <div className="flex flex-col gap-4 pb-24 lg:pb-0 min-w-0 w-full overflow-x-hidden">
-            {/* Mobile sticky price bar */}
-            <MobileStickyPriceBar
-                symbol={market.symbol}
-                price={currentPrice}
-                change24h={market.change24h ?? 0}
-                marketId={market.id}
-                image={market.image}
-                onBuyClick={() => { setTradeSide('long'); setActiveTab('trade'); }}
-                onSellClick={() => { setTradeSide('short'); setActiveTab('trade'); }}
-            />
             {/* Header */}
             <MarketHeader
                 market={displayMarket}

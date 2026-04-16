@@ -247,64 +247,83 @@ export function PositionTable({
                             <p className="text-sm text-text-secondary mt-1 text-center">Limit and stop orders will appear here</p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0">
-                            <table className="w-full min-w-[400px] text-left text-sm whitespace-nowrap">
-                                <thead className="text-xs text-text-muted uppercase tracking-wider bg-[var(--bg-tertiary)]/30 sticky top-0 z-10">
-                                    <tr>
-                                        <th className="px-4 py-2 font-medium">Order ID</th>
-                                        <th className="px-4 py-2 font-medium">Type</th>
-                                        <th className="px-4 py-2 font-medium">Market</th>
-                                        <th className="px-4 py-2 font-medium text-right">Status</th>
-                                        <th className="px-4 py-2 font-medium text-right">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[var(--border-color)]">
-                                    {pendingOrders.map((order) => {
-                                        const market = markets.find(m => m.marketAddress?.toLowerCase() === order.market?.toLowerCase());
-                                        return (
-                                            <tr key={order.orderId.toString()} className="hover:bg-[var(--bg-tertiary)]/40 transition-colors duration-150">
-                                                <td className="px-4 py-3 font-mono text-text-primary">
-                                                    #{order.orderId.toString()}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <span className={clsx(
-                                                        "text-xs font-bold px-1.5 py-0.5 rounded",
-                                                        order.orderType <= 1
-                                                            ? "text-blue-400 bg-blue-500/10"
-                                                            : "text-amber-400 bg-amber-500/10"
-                                                    )}>
-                                                        {getOrderTypeLabel(order.orderType)}
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-text-primary">
-                                                    <div className="flex items-center gap-2">
-                                                        {market && <img src={market.image} className="w-4 h-4 rounded-full" alt="" />}
-                                                        {market?.symbol || order.market.slice(0, 8) + '...'}
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    <span className="text-xs font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
-                                                        Pending
-                                                    </span>
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    <button
-                                                        onClick={async () => {
-                                                            const ok = await cancelOrder(order.orderId);
-                                                            if (ok) refetchOrders();
-                                                        }}
-                                                        disabled={cancellingOrder}
-                                                        className="text-xs font-bold text-[var(--short)] hover:text-red-300 bg-[var(--short)]/10 hover:bg-[var(--short)]/20 px-2 py-1 rounded transition-colors disabled:opacity-50"
-                                                    >
-                                                        {cancellingOrder ? 'Cancelling...' : 'Cancel'}
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
+                        <>
+                            {/* Desktop Orders */}
+                            <div className="hidden md:block overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0">
+                                <table className="w-full min-w-[400px] text-left text-sm whitespace-nowrap">
+                                    <thead className="text-xs text-text-muted uppercase tracking-wider bg-[var(--bg-tertiary)]/30 sticky top-0 z-10">
+                                        <tr>
+                                            <th className="px-4 py-2 font-medium">Order ID</th>
+                                            <th className="px-4 py-2 font-medium">Type</th>
+                                            <th className="px-4 py-2 font-medium">Market</th>
+                                            <th className="px-4 py-2 font-medium text-right">Status</th>
+                                            <th className="px-4 py-2 font-medium text-right">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-[var(--border-color)]">
+                                        {pendingOrders.map((order) => {
+                                            const market = markets.find(m => m.marketAddress?.toLowerCase() === order.market?.toLowerCase());
+                                            return (
+                                                <tr key={order.orderId.toString()} className="hover:bg-[var(--bg-tertiary)]/40 transition-colors duration-150">
+                                                    <td className="px-4 py-3 font-mono text-text-primary">
+                                                        #{order.orderId.toString()}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <span className={clsx(
+                                                            "text-xs font-bold px-1.5 py-0.5 rounded",
+                                                            order.orderType <= 1
+                                                                ? "text-blue-400 bg-blue-500/10"
+                                                                : "text-amber-400 bg-amber-500/10"
+                                                        )}>
+                                                            {getOrderTypeLabel(order.orderType)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-text-primary">
+                                                        <div className="flex items-center gap-2">
+                                                            {market && <img src={market.image} className="w-4 h-4 rounded-full" alt="" />}
+                                                            {market?.symbol || order.market.slice(0, 8) + '...'}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        <span className="text-xs font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
+                                                            Pending
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right">
+                                                        <button
+                                                            onClick={async () => {
+                                                                const ok = await cancelOrder(order.orderId);
+                                                                if (ok) refetchOrders();
+                                                            }}
+                                                            disabled={cancellingOrder}
+                                                            className="text-xs font-bold text-[var(--short)] hover:text-red-300 bg-[var(--short)]/10 hover:bg-[var(--short)]/20 px-2 py-1 rounded transition-colors disabled:opacity-50"
+                                                        >
+                                                            {cancellingOrder ? 'Cancelling...' : 'Cancel'}
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Mobile Orders */}
+                            <div className="md:hidden px-3 pb-3 space-y-3">
+                                {pendingOrders.map((order) => (
+                                    <MobileOrderCard
+                                        key={order.orderId.toString()}
+                                        order={order}
+                                        markets={markets}
+                                        onCancel={async () => {
+                                            const ok = await cancelOrder(order.orderId);
+                                            if (ok) refetchOrders();
+                                        }}
+                                        cancelling={cancellingOrder}
+                                    />
+                                ))}
+                            </div>
+                        </>
                     )
                 )}
 
@@ -329,41 +348,51 @@ export function PositionTable({
                             <p className="text-sm text-text-secondary mt-1 text-center">Your completed trades will appear here</p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0">
-                            <table className="w-full min-w-[320px] text-left text-sm whitespace-nowrap">
-                                <thead className="text-xs text-text-muted uppercase tracking-wider bg-[var(--bg-tertiary)]/30 sticky top-0 z-10">
-                                    <tr>
-                                        <th className="px-4 py-2 font-medium">Time</th>
-                                        <th className="px-4 py-2 font-medium">Action</th>
-                                        <th className="px-4 py-2 font-medium text-right">Price</th>
-                                        <th className="px-4 py-2 font-medium text-right">PnL</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[var(--border-color)]">
-                                    {tradeHistory.map((t) => (
-                                        <tr key={t.id} className="hover:bg-[var(--bg-tertiary)]/40 transition-colors duration-150">
-                                            <td className="px-4 py-3 text-text-muted">
-                                                {new Date(t.timestamp).toLocaleTimeString()} <span className="text-[10px]">{new Date(t.timestamp).toLocaleDateString()}</span>
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex flex-col">
-                                                    <span className={clsx("font-medium", t.side === 'LONG' ? "text-[var(--long)]" : "text-[var(--short)]")}>
-                                                        {t.side} {t.market}
-                                                    </span>
-                                                    <span className="text-[10px] text-text-muted">{t.type}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-3 text-right font-mono text-sm tabular-nums text-text-primary">
-                                                {fmtUsdPrice(parseFloat(t.price))}
-                                            </td>
-                                            <td className={clsx("px-4 py-3 text-right font-mono", t.pnl && parseFloat(t.pnl) >= 0 ? "text-[var(--long)]" : "text-[var(--short)]")}>
-                                                {t.pnl ? (parseFloat(t.pnl) >= 0 ? '+' : '') + parseFloat(t.pnl).toFixed(2) : '-'}
-                                            </td>
+                        <>
+                            {/* Desktop History */}
+                            <div className="hidden md:block overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0">
+                                <table className="w-full min-w-[320px] text-left text-sm whitespace-nowrap">
+                                    <thead className="text-xs text-text-muted uppercase tracking-wider bg-[var(--bg-tertiary)]/30 sticky top-0 z-10">
+                                        <tr>
+                                            <th className="px-4 py-2 font-medium">Time</th>
+                                            <th className="px-4 py-2 font-medium">Action</th>
+                                            <th className="px-4 py-2 font-medium text-right">Price</th>
+                                            <th className="px-4 py-2 font-medium text-right">PnL</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody className="divide-y divide-[var(--border-color)]">
+                                        {tradeHistory.map((t) => (
+                                            <tr key={t.id} className="hover:bg-[var(--bg-tertiary)]/40 transition-colors duration-150">
+                                                <td className="px-4 py-3 text-text-muted">
+                                                    {new Date(t.timestamp).toLocaleTimeString()} <span className="text-[10px]">{new Date(t.timestamp).toLocaleDateString()}</span>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex flex-col">
+                                                        <span className={clsx("font-medium", t.side === 'LONG' ? "text-[var(--long)]" : "text-[var(--short)]")}>
+                                                            {t.side} {t.market}
+                                                        </span>
+                                                        <span className="text-[10px] text-text-muted">{t.type}</span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3 text-right font-mono text-sm tabular-nums text-text-primary">
+                                                    {fmtUsdPrice(parseFloat(t.price))}
+                                                </td>
+                                                <td className={clsx("px-4 py-3 text-right font-mono", t.pnl && parseFloat(t.pnl) >= 0 ? "text-[var(--long)]" : "text-[var(--short)]")}>
+                                                    {t.pnl ? (parseFloat(t.pnl) >= 0 ? '+' : '') + parseFloat(t.pnl).toFixed(2) : '-'}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Mobile History */}
+                            <div className="md:hidden px-3 pb-3 space-y-3">
+                                {tradeHistory.map((t) => (
+                                    <MobileHistoryCard key={t.id} t={t} />
+                                ))}
+                            </div>
+                        </>
                     )
                 )}
             </div>
@@ -692,102 +721,169 @@ function MobilePositionCard({
     const trBps = (pos as any).trailingStopBps ? parseFloat((pos as any).trailingStopBps.toString()) : 0;
 
     return (
-        <div data-testid="position-card" className="p-4 sm:p-5 bg-[var(--bg-secondary)]/60 rounded-2xl border border-[var(--border-color)]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-            {/* Header */}
+        <div data-testid="position-card" className="p-4 bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-color)]/70 shadow-lg">
+            {/* Header: Market and PnL */}
+            <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-2.5 min-w-0">
+                    {market && (
+                        <div className="relative shrink-0">
+                            <img src={market.image} className="w-8 h-8 rounded-full ring-2 ring-[var(--border-color)]" alt="" />
+                            <div className={clsx(
+                                "absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-[var(--bg-secondary)]",
+                                pos.isLong ? "bg-[var(--long)]" : "bg-[var(--short)]"
+                            )} />
+                        </div>
+                    )}
+                    <div className="flex flex-col min-w-0">
+                        <div className="flex items-center gap-1.5">
+                            <span className="font-bold text-text-primary truncate leading-tight">{market?.symbol || 'Unknown'}</span>
+                            {isOptimistic && <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" title="Pending" />}
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className={clsx("text-[10px] font-bold uppercase tracking-wider", pos.isLong ? "text-[var(--long)]" : "text-[var(--short)]")}>
+                                {pos.isLong ? 'Long' : 'Short'}
+                            </span>
+                            <span className="text-[10px] text-text-muted font-mono bg-[var(--bg-tertiary)] px-1 rounded">
+                                {Number(pos.leverage || 10).toFixed(1)}x
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div className="text-right shrink-0">
+                    <div className={clsx("font-mono font-bold text-sm", isProfit ? "text-[var(--long)]" : "text-[var(--short)]")}>
+                        {isProfit ? '+' : ''}{settings.showPnlPercent && Number(pos.collateral) > 0 
+                            ? ((pnl / Number(pos.collateral)) * 100).toFixed(2) + '%'
+                            : '$' + Math.abs(pnl).toFixed(2)}
+                    </div>
+                    {settings.showPnlPercent && Number(pos.collateral) > 0 && (
+                        <div className="text-[10px] text-text-muted font-mono">
+                            {isProfit ? '+' : '-'}${Math.abs(pnl).toFixed(2)}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Stats: Improved Grid/Flex combo to prevent overlap */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 mb-5 px-0.5">
+                {[
+                    { label: 'Net Value', value: `$${netValue.toFixed(2)}`, valueClass: 'text-text-primary' },
+                    { label: 'Collateral', value: `$${Number(pos.collateral || (pos as any).margin).toFixed(2)}`, valueClass: 'text-text-primary', onClick: isOptimistic ? undefined : () => setActiveCollateralPos(pos), hasIcon: !isOptimistic },
+                    { label: 'Entry Price', value: fmtUsdPrice(Number(pos.entryPrice)), valueClass: 'text-text-secondary' },
+                    { label: 'Mark Price', value: fmtUsdPrice(Number(pos.markPrice ?? pos.entryPrice)), valueClass: 'text-[var(--primary)]' },
+                    { label: 'Liq. Price', value: fmtUsdPrice(Number(pos.liquidationPrice)), valueClass: 'text-orange-400', fullWidth: true },
+                ].map((item) => (
+                    <div key={item.label} className={clsx("flex flex-col gap-1", item.fullWidth && "col-span-2")}>
+                        <span className="text-[10px] uppercase font-bold tracking-widest text-text-muted">{item.label}</span>
+                        {item.onClick ? (
+                            <button onClick={item.onClick} className={clsx("flex items-center gap-1 font-mono text-sm tabular-nums text-left", item.valueClass)}>
+                                {item.value} {item.hasIcon && <Edit2 size={10} className="text-text-muted" />}
+                            </button>
+                        ) : (
+                            <span className={clsx("font-mono text-sm tabular-nums truncate", item.valueClass)} title={item.value}>{item.value}</span>
+                        )}
+                    </div>
+                ))}
+            </div>
+
+            {/* Actions: Sturdy, clear buttons */}
+            <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
+                    <button
+                        onClick={() => {
+                            setSlTpPosition({
+                                id: Number(pos.id),
+                                stopLossPrice: slPrice,
+                                takeProfitPrice: tpPrice,
+                                trailingStopBps: trBps,
+                                symbol: market?.symbol || 'Position',
+                                isLong: !!pos.isLong,
+                            });
+                            setSlTpStopLoss(slPrice > 0 ? formatPriceWithPrecision(slPrice) : '');
+                            setSlTpTakeProfit(tpPrice > 0 ? formatPriceWithPrecision(tpPrice) : '');
+                            setTrailingStop(trBps > 0 ? trBps.toString() : '');
+                        }}
+                        disabled={isOptimistic}
+                        className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-tertiary)]/50 text-text-primary text-xs font-bold hover:bg-[var(--bg-tertiary)] transition-colors disabled:opacity-50"
+                    >
+                        <Shield size={14} /> Triggers
+                    </button>
+                    <button
+                        onClick={() => setActiveClosePos(pos)}
+                        disabled={isOptimistic}
+                        className="py-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-tertiary)]/50 hover:bg-rose-500/10 hover:text-rose-500 text-text-primary text-xs font-bold transition-colors disabled:opacity-50"
+                    >
+                        Close Position
+                    </button>
+                </div>
+                <button
+                    type="button"
+                    onClick={() => setActiveTransferPos(pos)}
+                    disabled={isOptimistic}
+                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-tertiary)]/50 text-text-primary text-xs font-bold hover:bg-[var(--bg-tertiary)] transition-colors disabled:opacity-50"
+                >
+                    <ArrowRightLeft size={14} /> Transfer Position
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function MobileOrderCard({ order, markets, onCancel, cancelling }: any) {
+    const market = markets.find((m: any) => m.marketAddress?.toLowerCase() === order.market?.toLowerCase());
+    return (
+        <div className="p-4 bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-color)]/70">
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                    {market && <img src={market.image} className="w-6 h-6 rounded-full ring-1 ring-[var(--border-color)]/60" alt="" />}
+                    {market && <img src={market.image} className="w-5 h-5 rounded-full" alt="" />}
                     <span className="font-bold text-text-primary">{market?.symbol || 'Unknown'}</span>
-                    <span className={clsx("text-xs font-bold px-1.5 py-0.5 rounded ml-1", pos.isLong ? "text-[var(--long)] bg-[var(--long)]/10" : "text-[var(--short)] bg-[var(--short)]/10")}>
-                        {pos.isLong ? 'Long' : 'Short'}
+                    <span className={clsx(
+                        "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                        order.orderType <= 1 ? "text-blue-400 bg-blue-500/10" : "text-amber-400 bg-amber-500/10"
+                    )}>
+                        {getOrderTypeLabel(order.orderType)}
                     </span>
-                    <span className="text-xs text-text-muted">x{Number(pos.leverage || 10).toFixed(1)}</span>
-                    {isOptimistic && <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 animate-pulse">Pending</span>}
                 </div>
-                <div className={clsx("font-mono font-bold flex items-center gap-1.5", isProfit ? "text-[var(--long)]" : "text-[var(--short)]")}>
-                    {settings.showPnlPercent && Number(pos.collateral) > 0 ? (
-                        <>
-                            {isProfit ? '+' : ''}{((pnl / Number(pos.collateral)) * 100).toFixed(1)}%
-                            <span className="text-[10px] opacity-70 font-normal mt-0.5">({isProfit ? '+' : ''}${Math.abs(pnl).toFixed(2)})</span>
-                        </>
-                    ) : (
-                        <>
-                            {isProfit ? '+' : ''}{pnl.toFixed(2)}
-                            {Number(pos.collateral) > 0 && <span className="text-[10px] opacity-70 font-normal mt-0.5">({isProfit ? '+' : ''}{((pnl / Number(pos.collateral)) * 100).toFixed(1)}%)</span>}
-                        </>
-                    )}
+                <span className="text-[10px] font-mono text-text-muted">ID: #{order.orderId.toString()}</span>
+            </div>
+            <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">
+                    Pending Confirmation
+                </span>
+                <button
+                    onClick={onCancel}
+                    disabled={cancelling}
+                    className="text-xs font-bold text-[var(--short)] hover:underline disabled:opacity-50"
+                >
+                    {cancelling ? 'Cancelling...' : 'Cancel Order'}
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function MobileHistoryCard({ t }: any) {
+    const isProfit = t.pnl && parseFloat(t.pnl) >= 0;
+    return (
+        <div className="p-4 bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-color)]/70">
+            <div className="flex items-start justify-between mb-2">
+                <div>
+                    <div className={clsx("font-bold text-sm", t.side === 'LONG' ? "text-[var(--long)]" : "text-[var(--short)]")}>
+                        {t.side} {t.market}
+                    </div>
+                    <div className="text-[10px] text-text-muted mt-0.5">{t.type}</div>
+                </div>
+                <div className="text-right">
+                    <div className={clsx("font-mono font-bold text-sm", isProfit ? "text-[var(--long)]" : "text-[var(--short)]")}>
+                        {t.pnl ? (isProfit ? '+' : '') + parseFloat(t.pnl).toFixed(2) : '-'}
+                    </div>
+                    <div className="text-[10px] text-text-muted font-mono">
+                        {new Date(t.timestamp).toLocaleTimeString()}
+                    </div>
                 </div>
             </div>
-
-            {/* Grid Stats */}
-            <div className="grid grid-cols-2 gap-y-3 gap-x-4 text-sm mb-4">
-                <div className="flex justify-between gap-2 min-w-0">
-                    <span className="text-text-secondary shrink-0">Net Value</span>
-                    <span className="text-text-primary font-mono tabular-nums text-right">${netValue.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between gap-2 min-w-0">
-                    <span className="text-text-secondary shrink-0">Collateral</span>
-                    {isOptimistic ? (
-                        <span className="text-text-primary font-mono tabular-nums text-right">${Number(pos.collateral || (pos as any).margin).toFixed(2)}</span>
-                    ) : (
-                        <button onClick={() => setActiveCollateralPos(pos)} className="flex items-center gap-1 text-text-primary font-mono tabular-nums text-right underline decoration-dashed decoration-text-muted/50 min-w-0">
-                            ${Number(pos.collateral || (pos as any).margin).toFixed(2)} <Edit2 size={10} className="text-text-muted shrink-0" />
-                        </button>
-                    )}
-                </div>
-                <div className="flex justify-between gap-2 min-w-0">
-                    <span className="text-text-secondary shrink-0">Entry Price</span>
-                    <span className="text-text-primary font-mono text-sm tabular-nums text-right">{fmtUsdPrice(Number(pos.entryPrice))}</span>
-                </div>
-                <div className="flex justify-between gap-2 min-w-0">
-                    <span className="text-text-secondary shrink-0">Mark Price</span>
-                    <span className="text-text-primary font-mono text-sm tabular-nums text-right">{fmtUsdPrice(Number(pos.markPrice ?? pos.entryPrice))}</span>
-                </div>
-                <div className="flex justify-between gap-2 min-w-0">
-                    <span className="text-text-secondary shrink-0">Liq. Price</span>
-                    <span className="text-orange-400 font-mono text-sm tabular-nums text-right">{fmtUsdPrice(Number(pos.liquidationPrice))}</span>
-                </div>
-            </div>
-
-            {/* Actions */}
-            <div className="grid grid-cols-2 gap-3">
-                {isOptimistic ? (
-                    <div className="col-span-2 py-2 text-center text-xs text-text-muted">Confirming...</div>
-                ) : (
-                    <>
-                        <button
-                            onClick={() => {
-                                setSlTpPosition({
-                                    id: Number(pos.id),
-                                    stopLossPrice: slPrice,
-                                    takeProfitPrice: tpPrice,
-                                    trailingStopBps: trBps,
-                                    symbol: market?.symbol || 'Position',
-                                    isLong: !!pos.isLong,
-                                });
-                                setSlTpStopLoss(slPrice > 0 ? formatPriceWithPrecision(slPrice) : '');
-                                setSlTpTakeProfit(tpPrice > 0 ? formatPriceWithPrecision(tpPrice) : '');
-                                setTrailingStop(trBps > 0 ? trBps.toString() : '');
-                            }}
-                            className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/50 text-text-primary text-sm font-medium hover:bg-[var(--bg-tertiary)] transition-colors"
-                        >
-                            <Shield size={14} /> Triggers
-                        </button>
-                        <button
-                            onClick={() => setActiveClosePos(pos)}
-                            className="py-2.5 rounded-xl border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/50 hover:bg-[var(--primary)] text-text-primary hover:text-white text-sm font-semibold transition-colors"
-                        >
-                            Close Position
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveTransferPos(pos)}
-                            className="col-span-2 flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/50 text-text-primary text-sm font-medium hover:bg-[var(--bg-tertiary)] transition-colors"
-                        >
-                            <ArrowRightLeft size={14} /> Transfer position
-                        </button>
-                    </>
-                )}
+            <div className="flex justify-between items-center mt-3 pt-3 border-t border-[var(--border-color)]/30">
+                <span className="text-xs text-text-secondary">Execute Price</span>
+                <span className="text-sm font-mono text-text-primary">{fmtUsdPrice(parseFloat(t.price))}</span>
             </div>
         </div>
     );
