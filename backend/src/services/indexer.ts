@@ -126,24 +126,24 @@ export interface ProtocolMetric {
 
 const PROTOCOL_VOLUME_24H_SQL = `
   WITH opened_sizes AS (
-    SELECT DISTINCT ON ((data->>0)::text)
-      (data->>0)::text AS position_id,
-      (data->>4)::numeric AS size_raw
+    SELECT DISTINCT ON ((data::jsonb->>0)::text)
+      (data::jsonb->>0)::text AS position_id,
+      (data::jsonb->>4)::numeric AS size_raw
     FROM position_events
     WHERE event_type = 'PositionOpened'
-    ORDER BY (data->>0)::text, id ASC
+    ORDER BY (data::jsonb->>0)::text, id ASC
   )
   SELECT COALESCE(SUM(
     CASE
-      WHEN c.event_type = 'PositionOpened' AND c.data->>4 IS NOT NULL
-        THEN (c.data->>4)::numeric / POWER(10::numeric, 18)
+      WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
+        THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
       WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
         THEN o.size_raw / POWER(10::numeric, 18)
       ELSE 0::numeric
     END
   ), 0)::text AS volume_24h_usd
   FROM position_events c
-  LEFT JOIN opened_sizes o ON o.position_id = (c.data->>0)::text
+  LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
   WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
     AND c.data IS NOT NULL
     AND c.created_at >= NOW() - INTERVAL '24 hours'
@@ -243,19 +243,19 @@ export async function fetchMarkets(): Promise<Market[]> {
       const pool = getPool();
       const statsRes = await pool.query(`
         WITH opened_sizes AS (
-          SELECT DISTINCT ON ((data->>0)::text)
-            (data->>0)::text AS position_id,
-            (data->>4)::numeric AS size_raw
+          SELECT DISTINCT ON ((data::jsonb->>0)::text)
+            (data::jsonb->>0)::text AS position_id,
+            (data::jsonb->>4)::numeric AS size_raw
           FROM position_events
           WHERE event_type = 'PositionOpened'
-          ORDER BY (data->>0)::text, id ASC
+          ORDER BY (data::jsonb->>0)::text, id ASC
         )
         SELECT 
           market_id,
           COALESCE(SUM(
             CASE
-              WHEN c.event_type = 'PositionOpened' AND c.data->>4 IS NOT NULL
-                THEN (c.data->>4)::numeric / POWER(10::numeric, 18)
+              WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
+                THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
               WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
                 THEN o.size_raw / POWER(10::numeric, 18)
               ELSE 0::numeric
@@ -263,7 +263,7 @@ export async function fetchMarkets(): Promise<Market[]> {
           ), 0)::text AS volume24h,
           COUNT(*)::int AS trades24h
         FROM position_events c
-        LEFT JOIN opened_sizes o ON o.position_id = (c.data->>0)::text
+        LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
         WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
           AND c.data IS NOT NULL
           AND c.created_at >= NOW() - INTERVAL '24 hours'
@@ -506,19 +506,19 @@ export async function fetchLeaderboard(
     const res = await pool.query(
       `
       WITH opened AS (
-        SELECT DISTINCT ON ((data->>0)::text)
-          (data->>0)::text AS position_id,
+        SELECT DISTINCT ON ((data::jsonb->>0)::text)
+          (data::jsonb->>0)::text AS position_id,
           account,
-          COALESCE((data->>4)::numeric, 0) AS size_raw,
-          COALESCE((data->>5)::numeric, 0) AS leverage_raw
+          COALESCE((data::jsonb->>4)::numeric, 0) AS size_raw,
+          COALESCE((data::jsonb->>5)::numeric, 0) AS leverage_raw
         FROM position_events
         WHERE event_type = 'PositionOpened' AND data IS NOT NULL
-        ORDER BY (data->>0)::text, id ASC
+        ORDER BY (data::jsonb->>0)::text, id ASC
       ),
       all_events AS (
         -- Every position open is volume
         SELECT lower(account) AS addr_key, account AS address_display,
-               (data->>0)::text AS position_id,
+               (data::jsonb->>0)::text AS position_id,
                0::numeric AS pnl_raw,
                created_at
         FROM position_events
@@ -528,8 +528,8 @@ export async function fetchLeaderboard(
 
         -- Every position close is volume + pnl
         SELECT lower(account) AS addr_key, account AS address_display,
-               (data->>0)::text AS position_id,
-               (data->>2)::numeric AS pnl_raw,
+               (data::jsonb->>0)::text AS position_id,
+               (data::jsonb->>2)::numeric AS pnl_raw,
                created_at
         FROM position_events
         WHERE event_type = 'PositionClosed' AND data IS NOT NULL
@@ -538,14 +538,14 @@ export async function fetchLeaderboard(
 
         -- Every liquidation is loss of margin
         SELECT lower(e.account) AS addr_key, e.account AS address_display,
-               (e.data->>0)::text AS position_id,
+               (e.data::jsonb->>0)::text AS position_id,
                CASE 
                  WHEN o.leverage_raw > 0 THEN -(o.size_raw / (o.leverage_raw / POWER(10::numeric, 18)))
                  ELSE 0::numeric 
                END AS pnl_raw,
                e.created_at
         FROM position_events e
-        LEFT JOIN opened o ON o.position_id = (e.data->>0)::text
+        LEFT JOIN opened o ON o.position_id = (e.data::jsonb->>0)::text
         WHERE e.event_type = 'PositionLiquidated' AND e.data IS NOT NULL
       )
       SELECT
