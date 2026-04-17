@@ -19,7 +19,11 @@ router.get("/", async (req: Request, res: Response) => {
     return res.json({ error: "No DB connection string configured" });
   }
 
-  let dbStatus: any = { connected: true };
+  let dbStatus: any = { 
+    connected: true,
+    tradingCore: (process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE ?? "NOT SET"),
+    rpcUrl: process.env.RPC_URL ?? "Using default",
+  };
   try {
     const rawRes = await pool.query("SELECT COUNT(*) FROM position_events");
     dbStatus.totalPositionEvents = rawRes.rows[0].count;
