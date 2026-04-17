@@ -134,7 +134,7 @@ export function TradingPage() {
 
             <div className="flex-1 flex flex-col gap-4 min-h-0 relative">
                 {/* Top Row: Chart & Form */}
-                <div className="flex flex-col lg:flex-row gap-4 w-full">
+                <div className="flex flex-col lg:flex-row gap-4 w-full lg:h-[720px]">
                     {/* Left/Center: Chart Area */}
                     <div
                         className={clsx(
@@ -165,7 +165,7 @@ export function TradingPage() {
                             }}
                         />
 
-                        <div className="hidden lg:block">
+                        <div className="hidden lg:flex flex-1 min-h-0">
                             <MarketSentiment 
                                 longOI={displayMarket.longOI ?? 0} 
                                 shortOI={displayMarket.shortOI ?? 0} 
