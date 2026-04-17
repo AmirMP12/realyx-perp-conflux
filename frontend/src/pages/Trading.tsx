@@ -16,7 +16,6 @@ import { MarketHeader } from '../components/trading/MarketHeader';
 import { TradingForm } from '../components/trading/TradingForm';
 import { PositionTable } from '../components/trading/PositionTable';
 import { MobileControls } from '../components/trading/MobileControls';
-import { MarketSentiment } from '../components/trading/MarketSentiment';
 import { TradingViewWidget } from '../components/TradingViewWidget';
 import { applyMarketDisplayFallback } from '../utils/market';
 
@@ -163,15 +162,8 @@ export function TradingPage() {
                             onTradeSuccess={() => {
                                 fetchPositions();
                             }}
+                            className="flex-1"
                         />
-
-                        <div className="hidden lg:flex flex-1 min-h-0">
-                            <MarketSentiment 
-                                longOI={displayMarket.longOI ?? 0} 
-                                shortOI={displayMarket.shortOI ?? 0} 
-                                symbol={displayMarket.symbol} 
-                            />
-                        </div>
                     </div>
                 </div>
 

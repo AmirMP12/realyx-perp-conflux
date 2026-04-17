@@ -24,6 +24,7 @@ interface TradingFormProps {
     side?: 'long' | 'short';
     onSideChange?: (side: 'long' | 'short') => void;
     onPriceRefresh?: () => Promise<void> | void;
+    className?: string;
 }
 
 export function TradingForm({
@@ -33,6 +34,7 @@ export function TradingForm({
     side: controlledSide,
     onSideChange,
     onPriceRefresh,
+    className,
 }: TradingFormProps) {
     const { isConnected } = useAccount();
     const settings = useSettingsStore();
@@ -193,7 +195,7 @@ export function TradingForm({
     };
 
     return (
-        <div className="flex flex-col glass-panel-elevated rounded-2xl overflow-hidden shadow-[0_24px_50px_rgba(0,0,0,0.4)] h-full">
+        <div className={clsx("flex flex-col glass-panel-elevated rounded-2xl overflow-hidden shadow-[0_24px_50px_rgba(0,0,0,0.4)] h-full", className)}>
             {/* Tabs */}
             <div className="flex p-2.5 gap-2 shrink-0">
                 <button
