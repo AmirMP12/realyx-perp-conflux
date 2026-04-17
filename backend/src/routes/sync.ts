@@ -62,7 +62,7 @@ router.get("/", async (req: any, res: any) => {
     await initDB();
 
     const authHeader = req.headers.authorization;
-    const { key } = req.query;
+    const { key, fromBlock: fromBlockQuery } = req.query;
     if (process.env.CRON_SECRET && 
         authHeader !== `Bearer ${process.env.CRON_SECRET}` && 
         key !== "force") {
@@ -81,7 +81,6 @@ router.get("/", async (req: any, res: any) => {
     }
 
     const iface = new ethers.Interface(TRADING_CORE_SYNC_ABI);
-    const { key, fromBlock: fromBlockQuery } = req.query;
 
     let startBlock = 248000000; // Reset to 248M (April 14th deployment) to avoid scanning empty history
     const stateResult = await pool.query(`SELECT last_synced_block FROM indexer_state WHERE key = 'trading_core'`);
