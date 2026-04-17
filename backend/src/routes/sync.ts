@@ -63,9 +63,9 @@ router.get("/", async (req: any, res: any) => {
 
     const authHeader = req.headers.authorization;
     const { key, fromBlock: fromBlockQuery } = req.query;
-    if (process.env.CRON_SECRET && 
-        authHeader !== `Bearer ${process.env.CRON_SECRET}` && 
-        key !== "force") {
+    if (process.env.CRON_SECRET &&
+      authHeader !== `Bearer ${process.env.CRON_SECRET}` &&
+      key !== "force") {
       return res.status(401).json({ success: false, error: "Unauthorized cron request. Hint: Use ?key=force to manually trigger during setup." });
     }
 
@@ -97,7 +97,7 @@ router.get("/", async (req: any, res: any) => {
       return res.json({ success: true, message: "Already up to date", latestBlock, startBlock });
     }
 
-    const toBlock = Math.min(startBlock + 10000, latestBlock);
+    const toBlock = Math.min(startBlock + 1000, latestBlock); // Reduced to 1k to avoid timeouts
 
     const targetTopics = [
       "PositionOpened(uint256,address,address,bool,uint256,uint256,uint256)",
@@ -173,8 +173,8 @@ router.get("/", async (req: any, res: any) => {
       [toBlock]
     );
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       eventsSynced: eventsInserted,
       scannedFromChunk: startBlock,
       scannedToChunk: toBlock,
