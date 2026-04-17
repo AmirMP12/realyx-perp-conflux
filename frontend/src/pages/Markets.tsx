@@ -347,8 +347,8 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
                 </div>
             </td>
             <td className="px-6 py-3 text-right">
-                <div className={clsx("font-mono text-[13px]", market.fundingRate >= 0 ? "text-[var(--long)]" : "text-[var(--short)]")}>
-                    {(market.fundingRate * 100).toFixed(4)}%
+                <div className={clsx("font-mono text-[13px]", market.fundingRate > 0 ? "text-[var(--short)]" : (market.fundingRate < 0 ? "text-[var(--long)]" : "text-amber-400"))}>
+                    {market.fundingRate > 0 ? '+' : ''}{((market.fundingRate * 100) / 8).toFixed(4)}%
                 </div>
             </td>
             <td className="px-6 py-3 text-right">
@@ -400,9 +400,9 @@ function MobileMarketCard({ market, isFavorite, toggleFavorite }: { market: Disp
                     <span>
                         Vol: <span className="text-text-primary font-mono">{formatCompact(market.volume24h)}</span>
                     </span>
-                    <span>
-                        Funding: <span className={clsx("font-mono", market.fundingRate >= 0 ? "text-[var(--long)]" : "text-[var(--short)]")}>{(market.fundingRate * 100).toFixed(4)}%</span>
-                    </span>
+                        Funding: <span className={clsx("font-mono", market.fundingRate > 0 ? "text-[var(--short)]" : (market.fundingRate < 0 ? "text-[var(--long)]" : "text-amber-400"))}>
+                            {market.fundingRate > 0 ? '+' : ''}{((market.fundingRate * 100) / 8).toFixed(4)}%
+                        </span>
                     <div className="w-[60px] h-[20px] shrink-0">
                         <Sparkline data={prices} width={60} height={20} />
                     </div>

@@ -142,6 +142,7 @@ async function _fetchMarketsOnChainImpl(): Promise<OnchainMarketRow[]> {
         const longOI = BigInt(info.totalLongSize || 0);
         const shortOI = BigInt(info.totalShortSize || 0);
         const liveFundingRate = calculateInstantFundingRate(longOI, shortOI);
+        const normalizedFundingRate = (Number(liveFundingRate) / 1e18).toString();
 
         out.push({
           id: addr.toLowerCase(),
@@ -153,7 +154,7 @@ async function _fetchMarketsOnChainImpl(): Promise<OnchainMarketRow[]> {
           totalShortSize: toStr(info.totalShortSize),
           totalLongCost: toStr(info.totalLongCost),
           totalShortCost: toStr(info.totalShortCost),
-          fundingRate: toStr(liveFundingRate), // Use calculated live rate
+          fundingRate: normalizedFundingRate, // Normalized decimal string
           cumulativeFunding: fund ? toStr(fund.cumulativeFunding) : "0",
           lastFundingTime: fund ? toStr(fund.lastSettlement) : "0",
           longOpenInterest: toStr(longOI),
