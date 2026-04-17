@@ -82,7 +82,7 @@ router.get("/", async (req: any, res: any) => {
 
     const iface = new ethers.Interface(TRADING_CORE_SYNC_ABI);
 
-    let startBlock = 90000000; // Lowered from 160M to ensure we don't skip deployment events
+    let startBlock = 248000000; // Reset to 248M (April 14th deployment) to avoid scanning empty history
     const stateResult = await pool.query(`SELECT last_synced_block FROM indexer_state WHERE key = 'trading_core'`);
     if (stateResult.rows.length > 0) {
       startBlock = Number(stateResult.rows[0].last_synced_block) + 1;
@@ -93,7 +93,7 @@ router.get("/", async (req: any, res: any) => {
       return res.json({ success: true, message: "Already up to date", latestBlock });
     }
 
-    const toBlock = Math.min(startBlock + 2000, latestBlock);
+    const toBlock = Math.min(startBlock + 50000, latestBlock);
 
     const targetTopics = [
       "PositionOpened(uint256,address,address,bool,uint256,uint256,uint256)",
