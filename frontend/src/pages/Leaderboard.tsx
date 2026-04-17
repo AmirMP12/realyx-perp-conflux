@@ -17,6 +17,12 @@ function safeUsd(n: string | number): number {
     return Number.isFinite(x) ? x : 0;
 }
 
+function truncateAddress(address: string) {
+    if (!address) return '—';
+    if (address.length <= 13) return address;
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}
+
 export function LeaderboardPage() {
     const [timeframe, setTimeframe] = useState<LeaderboardTimeframe>('all');
     const { entries, loading, error } = useLeaderboard(50, timeframe);
@@ -31,7 +37,7 @@ export function LeaderboardPage() {
     return (
         <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6 lg:space-y-8">
             {/* Header */}
-            <div className="flex flex-col md:flex-row justify-between items-end gap-6 text-center md:text-left">
+            <div className="flex flex-col md:flex-row justify-between items-center md:items-end gap-6 text-center md:text-left">
                 <div>
                     <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-text-primary mb-2 flex items-center gap-3 justify-center md:justify-start">
                         <Trophy className="w-7 h-7 sm:w-8 sm:h-8 lg:w-10 lg:h-10 text-yellow-400" />
@@ -68,8 +74,8 @@ export function LeaderboardPage() {
                 </p>
             ) : null}
 
-            {/* Top 3 Cards (Hidden on mobile, shown on md+) */}
-            <div className="hidden md:grid md:grid-cols-3 gap-4 sm:gap-6 mb-6 lg:mb-8">
+            {/* Top 3 Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 lg:mb-8">
                 {loading
                     ? Array.from({ length: 3 }).map((_, i) => (
                           <div key={i} className="glass-panel p-4 sm:p-6 space-y-4">
@@ -94,9 +100,9 @@ export function LeaderboardPage() {
                           >
                               <div className="flex justify-between items-start mb-4">
                                   <div className="p-2 rounded-lg bg-[var(--bg-primary)]">{getRankIcon(entry.rank)}</div>
-                                  <div className="bg-[var(--bg-tertiary)] px-2 py-1 rounded text-xs text-text-muted font-mono truncate max-w-[140px]">
-                                      {entry.wallet || '—'}
-                                  </div>
+                                   <div className="bg-[var(--bg-tertiary)] px-2 py-1 rounded text-xs text-text-muted font-mono">
+                                       {truncateAddress(entry.wallet)}
+                                   </div>
                               </div>
                               <div className="space-y-1">
                                   <div className="text-sm text-text-secondary">Net PnL</div>
@@ -160,9 +166,10 @@ export function LeaderboardPage() {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-2">
-                                                <div className="w-6 h-6 rounded bg-gradient-to-br from-indigo-500 to-purple-500" />
-                                                <span className="font-mono text-sm text-[var(--primary)] font-medium">{entry.wallet}</span>
-                                            </div>
+                                                 <div className="w-6 h-6 rounded bg-gradient-to-br from-indigo-500 to-purple-500" />
+                                                 <span className="font-mono text-sm text-[var(--primary)] font-medium md:hidden">{truncateAddress(entry.wallet)}</span>
+                                                 <span className="font-mono text-sm text-[var(--primary)] font-medium hidden md:inline">{entry.wallet}</span>
+                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
                                             <span className={clsx(
@@ -206,10 +213,10 @@ export function LeaderboardPage() {
                                         <div className="w-8 h-8 flex items-center justify-center">
                                             {getRankIcon(entry.rank)}
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-6 h-6 rounded bg-gradient-to-br from-indigo-500 to-purple-500" />
-                                            <span className="font-mono text-sm text-[var(--primary)] font-bold">{entry.wallet}</span>
-                                        </div>
+                                         <div className="flex items-center gap-2">
+                                             <div className="w-6 h-6 rounded bg-gradient-to-br from-indigo-500 to-purple-500" />
+                                             <span className="font-mono text-sm text-[var(--primary)] font-bold">{truncateAddress(entry.wallet)}</span>
+                                         </div>
                                     </div>
                                     <div className={clsx(
                                         "font-mono font-bold text-lg",

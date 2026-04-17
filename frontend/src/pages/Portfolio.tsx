@@ -21,6 +21,7 @@ import { useLivePnL } from '../hooks/useWebSocket';
 import { useTradeHistory, type TradeHistoryItem } from '../hooks/useBackend';
 import { useMarketsStore } from '../stores';
 import { formatCompact } from '../utils/format';
+import { mapMarketsWithFallback } from '../utils/market';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { PositionTable } from '../components/trading/PositionTable';
 import { Skeleton } from '../components/ui';
@@ -31,14 +32,15 @@ export function PortfolioPage() {
 
     const { positions, isLoading: positionsLoading, refetch: fetchPositions } = usePositions();
     const { data: onChainHistory = [] } = useOnChainHistory();
-    const markets = useMarketsStore((s) => s.markets);
+    const rawMarkets = useMarketsStore((s) => s.markets);
+    const markets = useMemo(() => mapMarketsWithFallback(rawMarkets), [rawMarkets]);
     const positionsWithLivePnL = useLivePnL(positions, markets);
 
     const { trades: tradeHistoryRaw, loading: historyLoading, refetch: refetchHistory } = useTradeHistory(50);
 
     const tradeHistory = useMemo(() => {
         const onChainAsTrades = onChainHistory.map(t => {
-            const m = markets.find(m => m.marketAddress.toLowerCase() === t.market.toLowerCase());
+            const m = markets.find(m => (m.marketAddress || '').toLowerCase() === (t.market || '').toLowerCase());
             return {
                 ...t,
                 market: m?.symbol || t.market.slice(0, 8) + '...'

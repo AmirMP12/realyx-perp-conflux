@@ -162,7 +162,7 @@ export function PositionTable({
                             </div>
                             <p className="font-semibold text-text-primary">No open positions</p>
                             <p className="text-sm text-text-secondary mt-1 text-center">Open a position to get started</p>
-                            <Link to="/trade" className="mt-6 px-6 py-2.5 bg-[var(--primary)] text-white font-medium rounded-lg hover:opacity-90 transition-opacity">
+                            <Link to="/trade?tab=trade" className="mt-6 px-6 py-2.5 bg-[var(--primary)] text-white font-medium rounded-lg hover:opacity-90 transition-opacity">
                                 Trade
                             </Link>
                         </div>

@@ -10,18 +10,9 @@ import { useMarketPriceHistory } from '../hooks/useMarketPriceHistory';
 import { formatCompact, formatPriceWithPrecision } from '../utils/format';
 import { Skeleton } from '../components/ui/Skeleton';
 
-import { MARKET_DISPLAY_FALLBACK } from '../config/markets';
+import { applyMarketDisplayFallback } from '../utils/market';
 import { CategoryTag } from '../components/ui/CategoryTag';
 
-function marketDisplayName(m: { marketAddress: string; name: string; symbol: string; image?: string }) {
-    const key = m.marketAddress?.toLowerCase();
-    const fallback = key ? MARKET_DISPLAY_FALLBACK[key] : null;
-    return {
-        name: fallback?.name ?? m.name,
-        symbol: fallback?.symbol ?? m.symbol,
-        image: fallback?.image ?? m.image ?? "",
-    };
-}
 
 interface DisplayMarket {
     id: string;
@@ -64,7 +55,7 @@ export function MarketsPage() {
     ];
 
     const displayMarkets: DisplayMarket[] = apiMarkets.map(m => {
-        const display = marketDisplayName({ ...m, image: m.image ?? "" });
+        const display = applyMarketDisplayFallback({ ...m, image: m.image ?? "" });
         return {
             id: m.id,
             name: display.name,
@@ -326,7 +317,7 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
                     <Link to={`/trade/${market.symbol}`} className="flex items-center gap-3">
                         <img src={market.image} alt={market.symbol} className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/70" />
                         <div>
-                            <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
                                 <span className="font-bold text-text-primary text-sm">{market.symbol}</span>
                                 <CategoryTag category={market.category} size="xs" />
                             </div>
@@ -387,7 +378,7 @@ function MobileMarketCard({ market, isFavorite, toggleFavorite }: { market: Disp
                 <div className="flex items-center gap-3">
                     <img src={market.image} alt={market.symbol} className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)]" />
                     <div>
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
                             <span className="font-bold text-text-primary text-sm">{market.symbol}</span>
                             <CategoryTag category={market.category} size="xs" />
                         </div>

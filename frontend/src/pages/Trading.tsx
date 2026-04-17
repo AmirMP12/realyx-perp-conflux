@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useParams, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { Address } from 'viem';
 
@@ -17,20 +17,7 @@ import { TradingForm } from '../components/trading/TradingForm';
 import { PositionTable } from '../components/trading/PositionTable';
 import { MobileControls } from '../components/trading/MobileControls';
 import { TradingViewWidget } from '../components/TradingViewWidget';
-import { MARKET_DISPLAY_FALLBACK } from '../config/markets';
-
-function applyMarketDisplayFallback<T extends { marketAddress?: string; name: string; symbol: string; image?: string }>(market: T): T {
-    const key = market.marketAddress?.toLowerCase();
-    const fallback = key ? MARKET_DISPLAY_FALLBACK[key] : undefined;
-    if (!fallback) return market;
-
-    return {
-        ...market,
-        name: fallback.name,
-        symbol: fallback.symbol,
-        image: fallback.image,
-    };
-}
+import { applyMarketDisplayFallback } from '../utils/market';
 
 export function TradingPage() {
     const { marketId } = useParams();
@@ -40,6 +27,15 @@ export function TradingPage() {
     const [activeTab, setActiveTab] = useState<'chart' | 'trade' | 'positions'>('chart');
     const [tradeSide, setTradeSide] = useState<'long' | 'short'>('long');
     const { positionPanelHeight } = useLayoutStore();
+    const { search } = useLocation();
+
+    useEffect(() => {
+        const params = new URLSearchParams(search);
+        const tab = params.get('tab');
+        if (tab === 'trade' || tab === 'chart' || tab === 'positions') {
+            setActiveTab(tab as any);
+        }
+    }, [search]);
 
     const { positions, refetch: fetchPositions, isLoading: positionsLoading } = usePositions();
     const { data: onChainHistory = [] } = useOnChainHistory();
@@ -122,7 +118,7 @@ export function TradingPage() {
     }
 
     return (
-        <div className="flex flex-col gap-4 pb-24 lg:pb-0 min-w-0 w-full overflow-x-hidden">
+        <div className="flex flex-col gap-3 lg:gap-4 pb-24 lg:pb-0 min-w-0 w-full lg:h-[calc(100vh-160px)] overflow-x-hidden">
             {/* Header */}
             <MarketHeader
                 market={displayMarket}
@@ -141,7 +137,7 @@ export function TradingPage() {
                     {/* Left/Center: Chart Area */}
                     <div
                         className={clsx(
-                            "flex-1 glass-panel glass-panel-elevated relative overflow-hidden rounded-xl h-[65vh] lg:h-[500px]",
+                            "flex-1 glass-panel glass-panel-elevated relative overflow-hidden rounded-xl h-[400px] sm:h-[500px] lg:h-full min-h-[400px]",
                             activeTab !== 'chart' && "hidden lg:block"
                         )}
                     >
@@ -173,10 +169,10 @@ export function TradingPage() {
                 {/* Bottom Row: Positions Table (Full Width) */}
                 <div
                     className={clsx(
-                        "w-full glass-panel min-h-[300px] flex flex-col rounded-xl overflow-hidden transition-all duration-300 shadow-xl border border-[var(--border-color)]/60",
+                        "w-full glass-panel lg:flex-1 min-h-[300px] flex flex-col rounded-xl overflow-hidden transition-all duration-300 shadow-xl border border-[var(--border-color)]/60",
                         activeTab !== 'positions' && "hidden lg:flex"
                     )}
-                    style={{ minHeight: positionPanelHeight }}
+                    style={{ minHeight: activeTab === 'positions' ? positionPanelHeight : undefined }}
                 >
                     <PositionTable
                         positions={positionsWithLivePnL}
