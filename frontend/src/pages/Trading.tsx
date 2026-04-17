@@ -16,6 +16,7 @@ import { MarketHeader } from '../components/trading/MarketHeader';
 import { TradingForm } from '../components/trading/TradingForm';
 import { PositionTable } from '../components/trading/PositionTable';
 import { MobileControls } from '../components/trading/MobileControls';
+import { MarketSentiment } from '../components/trading/MarketSentiment';
 import { TradingViewWidget } from '../components/TradingViewWidget';
 import { applyMarketDisplayFallback } from '../utils/market';
 
@@ -163,6 +164,14 @@ export function TradingPage() {
                                 fetchPositions();
                             }}
                         />
+
+                        <div className="hidden lg:block">
+                            <MarketSentiment 
+                                longOI={displayMarket.longOI ?? 0} 
+                                shortOI={displayMarket.shortOI ?? 0} 
+                                symbol={displayMarket.symbol} 
+                            />
+                        </div>
                     </div>
                 </div>
 
