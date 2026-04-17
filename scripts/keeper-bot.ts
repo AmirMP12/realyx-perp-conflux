@@ -92,8 +92,8 @@ async function main() {
 
     const pollMs = toMsFromSeconds(process.env.KEEPER_POLL_INTERVAL_SECONDS, 3);
     const minPriceRefreshMs = toMsFromSeconds(process.env.KEEPER_MIN_PRICE_REFRESH_SECONDS, 20);
-    const lookbackBlocks = BigInt(Math.max(1, Number(process.env.KEEPER_LOOKBACK_BLOCKS ?? "20000")));
-    const blockChunkSize = BigInt(Math.max(100, Number(process.env.KEEPER_BLOCK_CHUNK_SIZE ?? "4000")));
+    const lookbackBlocks = BigInt(Math.max(1, Number(process.env.KEEPER_LOOKBACK_BLOCKS ?? "5000")));
+    const blockChunkSize = BigInt(Math.max(100, Number(process.env.KEEPER_BLOCK_CHUNK_SIZE ?? "500")));
     const hermesBase = (process.env.KEEPER_HERMES_URL || "https://hermes.pyth.network").replace(/\/+$/, "");
     const rpcRetryBaseDelayMs = Math.max(100, Number(process.env.KEEPER_RPC_RETRY_BASE_DELAY_MS ?? "300"));
 
@@ -166,7 +166,10 @@ async function main() {
 
     console.log("[keeper] checking KEEPER_ROLE...");
 
-    const hasKeeperRole = await tradingCore.hasRole(KEEPER_ROLE, wallet.address);
+    const hasKeeperRole = await withRpcRetry(
+        () => tradingCore.hasRole(KEEPER_ROLE, wallet.address),
+        "tradingCore.hasRole",
+    );
     if (!hasKeeperRole) {
         throw new Error(
             `Wallet ${wallet.address} is missing KEEPER_ROLE (${KEEPER_ROLE}) on TradingCore ${tradingCoreAddress}.`,

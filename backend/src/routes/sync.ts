@@ -97,7 +97,7 @@ router.get("/", async (req: any, res: any) => {
       return res.json({ success: true, message: "Already up to date", latestBlock, startBlock });
     }
 
-    const toBlock = Math.min(startBlock + 1000, latestBlock); // Reduced to 1k to avoid timeouts
+    const toBlock = Math.min(startBlock + 250, latestBlock); // Reduced to 250 blocks to avoid aggressive gateway timeouts
 
     const targetTopics = [
       "PositionOpened(uint256,address,address,bool,uint256,uint256,uint256)",
