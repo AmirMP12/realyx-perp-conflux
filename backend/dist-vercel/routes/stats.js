@@ -3,6 +3,7 @@ import { ethers } from "ethers";
 import { fetchProtocol, fetchMarkets, fetchProtocolMetrics, fetchActiveTraders24h, } from "../services/indexer.js";
 import { getActiveMarketAddresses } from "../services/activeMarkets.js";
 import { toDecimal18 } from "../utils/format.js";
+import { checkAndSync } from "./sync.js";
 const router = Router();
 // ── Server-side TVL from VaultCore.totalAssets() ──
 let cachedTvl = "0";
@@ -35,64 +36,68 @@ async function fetchTvlFromChain() {
     }
 }
 router.get("/", async (_req, res) => {
+    // Trigger background sync if data is stale (lazy sync)
+    checkAndSync();
     try {
-        const [protocol, marketsResult, activeTraders24h, tvl] = await Promise.all([
-            fetchProtocol(),
+        fetchProtocol(),
             fetchMarkets(),
             fetchActiveTraders24h(),
             fetchTvlFromChain().catch(() => "0"),
-        ]);
-        let markets = marketsResult;
-        const activeSet = await getActiveMarketAddresses();
-        if (activeSet && activeSet.size > 0) {
-            markets = markets.filter((m) => {
-                const addr = typeof m.marketAddress === "string" ? m.marketAddress : String(m.marketAddress);
-                return activeSet.has(addr.toLowerCase());
-            });
-        }
-        const totalMarkets = markets.length;
-        let volume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
-        // Fallback: if global volume is 0 but we have markets with potential volume, sum them
-        if (Number(volume24h) === 0 && markets.length > 0) {
-            const sum = markets.reduce((acc, m) => acc + Number(m.volume24h || 0), 0);
-            if (sum > 0)
-                volume24h = sum.toFixed(6);
-        }
-        let totalOpenInterest = "0";
-        if (markets.length > 0) {
-            const oi = markets.reduce((acc, m) => acc + Number(m.totalLongSize) + Number(m.totalShortSize), 0);
-            totalOpenInterest = (oi / 1e18).toFixed(6);
-        }
-        /** Event count from indexer — not a wei amount; do not pass through `toDecimal`. */
-        const totalLiquidations = protocol?.totalLiquidations ?? "0";
-        res.json({
-            success: true,
-            data: {
-                totalMarkets,
-                volume24h,
-                totalOpenInterest,
-                totalLiquidations,
-                activeTraders24h,
-                tvl,
-            },
-        });
+        ;
     }
-    catch (e) {
-        const message = e instanceof Error ? e.message : "Failed to fetch stats";
-        res.json({
-            success: false,
-            error: message,
-            data: {
-                totalMarkets: 0,
-                volume24h: "0",
-                totalOpenInterest: "0",
-                totalLiquidations: "0",
-                activeTraders24h: 0,
-                tvl: "0",
-            },
-        });
-    }
+    finally { }
 });
+let markets = marketsResult;
+const activeSet = await getActiveMarketAddresses();
+if (activeSet && activeSet.size > 0) {
+    markets = markets.filter((m) => {
+        const addr = typeof m.marketAddress === "string" ? m.marketAddress : String(m.marketAddress);
+        return activeSet.has(addr.toLowerCase());
+    });
+}
+const totalMarkets = markets.length;
+let volume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
+// Fallback: if global volume is 0 but we have markets with potential volume, sum them
+if (Number(volume24h) === 0 && markets.length > 0) {
+    const sum = markets.reduce((acc, m) => acc + Number(m.volume24h || 0), 0);
+    if (sum > 0)
+        volume24h = sum.toFixed(6);
+}
+let totalOpenInterest = "0";
+if (markets.length > 0) {
+    const oi = markets.reduce((acc, m) => acc + Number(m.totalLongSize) + Number(m.totalShortSize), 0);
+    totalOpenInterest = (oi / 1e18).toFixed(6);
+}
+/** Event count from indexer — not a wei amount; do not pass through `toDecimal`. */
+const totalLiquidations = protocol?.totalLiquidations ?? "0";
+res.json({
+    success: true,
+    data: {
+        totalMarkets,
+        volume24h,
+        totalOpenInterest,
+        totalLiquidations,
+        activeTraders24h,
+        tvl,
+    },
+});
+try { }
+catch (e) {
+    const message = e instanceof Error ? e.message : "Failed to fetch stats";
+    res.json({
+        success: false,
+        error: message,
+        data: {
+            totalMarkets: 0,
+            volume24h: "0",
+            totalOpenInterest: "0",
+            totalLiquidations: "0",
+            activeTraders24h: 0,
+            tvl: "0",
+        },
+    });
+}
+;
 router.get("/history", async (_req, res) => {
     try {
         const metrics = await fetchProtocolMetrics(90, "day");

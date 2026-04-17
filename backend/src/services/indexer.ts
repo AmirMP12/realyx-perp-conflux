@@ -629,6 +629,11 @@ export async function fetchProtocolMetrics(
               THEN o.size_raw
             ELSE 0::numeric
           END AS volume_raw,
+          CASE
+            WHEN c.event_type = 'PositionClosed' AND c.data::jsonb->>4 IS NOT NULL
+              THEN (c.data::jsonb->>4)::numeric
+            ELSE 0::numeric
+          END AS fees_raw,
           1 as trade_count
         FROM position_events c
         LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
@@ -639,6 +644,7 @@ export async function fetchProtocolMetrics(
         ts::text as timestamp_text,
         (EXTRACT(EPOCH FROM ts))::bigint as timestamp_unix,
         COALESCE(SUM(volume_raw), 0)::text as volume_usd_raw,
+        COALESCE(SUM(fees_raw), 0)::text as fees_usd_raw,
         SUM(trade_count)::bigint as trades_count
       FROM event_metrics
       GROUP BY ts
@@ -652,7 +658,7 @@ export async function fetchProtocolMetrics(
       periodType,
       volumeUsd: row.volume_usd_raw,
       tradesCount: String(row.trades_count),
-      feesUsd: "0",
+      feesUsd: row.fees_usd_raw,
       liquidationsCount: "0",
       openInterestLong: "0",
       openInterestShort: "0",

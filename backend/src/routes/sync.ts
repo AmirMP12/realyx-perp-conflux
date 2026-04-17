@@ -45,8 +45,11 @@ async function initDB() {
       );
       CREATE TABLE IF NOT EXISTS indexer_state (
         key VARCHAR(50) PRIMARY KEY,
-        last_synced_block BIGINT NOT NULL
+        last_synced_block BIGINT NOT NULL,
+        last_synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
+      -- Ensure column exists if table was already created
+      ALTER TABLE indexer_state ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
     `);
   } catch (error) {
     console.error("Failed to initialize database:", error);
@@ -114,8 +117,10 @@ export async function runSync(options?: { fromBlock?: number }) {
   }
 
   await pool.query(
-    `INSERT INTO indexer_state (key, last_synced_block) VALUES ('trading_core', $1)
-     ON CONFLICT (key) DO UPDATE SET last_synced_block = EXCLUDED.last_synced_block`,
+    `INSERT INTO indexer_state (key, last_synced_block, last_synced_at) VALUES ('trading_core', $1, NOW())
+     ON CONFLICT (key) DO UPDATE SET 
+       last_synced_block = EXCLUDED.last_synced_block,
+       last_synced_at = NOW()`,
     [finalTo]
   );
 
@@ -127,6 +132,26 @@ export async function runSync(options?: { fromBlock?: number }) {
     latestBlock,
     iterations
   };
+}
+
+/** Triggered by API traffic when Crons are unavailable. */
+export async function checkAndSync() {
+  const pool = getPool();
+  if (!pool) return;
+  try {
+    const res = await pool.query(`SELECT last_synced_at FROM indexer_state WHERE key = 'trading_core'`);
+    const lastSync = res.rows[0]?.last_synced_at;
+    const now = new Date();
+    
+    // If no sync yet or last sync > 2 mins ago
+    if (!lastSync || (now.getTime() - new Date(lastSync).getTime() > 2 * 60 * 1000)) {
+      console.log("[lazy-sync] Data is stale, triggering background sync...");
+      // Run it in the background without awaiting to keep API response fast
+      runSync().catch(err => console.error("[lazy-sync] failure:", err));
+    }
+  } catch (err) {
+    console.error("[lazy-sync] check failure:", err);
+  }
 }
 
 async function processLogs(logs: any[], iface: ethers.Interface, pool: pg.Pool) {
