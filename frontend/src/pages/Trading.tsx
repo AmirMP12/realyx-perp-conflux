@@ -118,7 +118,7 @@ export function TradingPage() {
     }
 
     return (
-        <div className="flex flex-col gap-3 lg:gap-4 pb-24 lg:pb-0 min-w-0 w-full lg:min-h-[calc(100vh-130px)] lg:h-[calc(100vh-130px)] lg:overflow-hidden translate-z-0">
+        <div className="flex flex-col gap-3 lg:gap-4 pb-24 lg:pb-10 min-w-0 w-full overflow-x-hidden translate-z-0">
             {/* Header */}
             <MarketHeader
                 market={displayMarket}
