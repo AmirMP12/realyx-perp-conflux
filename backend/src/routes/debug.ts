@@ -31,6 +31,9 @@ router.get("/", async (req: Request, res: Response) => {
     const last24h = await pool.query("SELECT COUNT(*) FROM position_events WHERE created_at >= NOW() - INTERVAL '24 hours'");
     dbStatus.last24hEvents = last24h.rows[0].count;
 
+    const state = await pool.query("SELECT last_synced_block FROM indexer_state WHERE key = 'trading_core'");
+    dbStatus.lastSyncedBlock = state.rows[0] ? state.rows[0].last_synced_block : "None";
+
     const sample = await pool.query("SELECT * FROM position_events LIMIT 1");
     dbStatus.sampleRow = sample.rows[0] ? sample.rows[0] : null;
 
