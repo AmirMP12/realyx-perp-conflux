@@ -86,13 +86,31 @@ export function useVaultDeposit() {
         setLoading(true);
         try {
             const wei = parseUnits(amount.toFixed(assetDecimals), assetDecimals);
-            await writeContractAsync({
-                chainId,
-                address: usdcAddress,
-                abi: ERC20_ABI,
-                functionName: 'approve',
-                args: [VAULT_CORE_ADDRESS, (2n ** 256n) - 1n],
-            });
+            
+            // Check allowance first to skip approve tx if possible
+            const [currentAllowance, coreUsdcAddress] = await Promise.all([
+                publicClient?.readContract({
+                    address: usdcAddress, abi: ERC20_ABI,
+                    functionName: 'allowance', args: [address, VAULT_CORE_ADDRESS]
+                }),
+                publicClient?.readContract({
+                    address: VAULT_CORE_ADDRESS, abi: VAULT_ABI,
+                    functionName: 'asset',
+                })
+            ]) as [bigint | undefined, Address | undefined];
+
+            if (!currentAllowance || currentAllowance < wei) {
+                const hash = await writeContractAsync({
+                    chainId,
+                    address: usdcAddress,
+                    abi: ERC20_ABI,
+                    functionName: 'approve',
+                    args: [VAULT_CORE_ADDRESS, (2n ** 256n) - 1n],
+                });
+                toast.loading("Approving USDC...");
+                if (publicClient) await publicClient.waitForTransactionReceipt({ hash });
+            }
+
             await writeContractAsync({
                 chainId,
                 address: VAULT_CORE_ADDRESS,

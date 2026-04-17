@@ -191,17 +191,15 @@ export function useCreateOrder() {
         triggerPriceWei?: string; // 18 decimals; required for LIMIT_*
     }) => {
         if (!address) throw new Error('Wallet not connected');
-        if (!publicClient && minExecutionFeeWei == null) {
-            throw new Error('Execution fee not loaded yet. Please wait a moment.');
-        }
-        const latestMinExecutionFee = (publicClient
+        // Use existing state if available, otherwise fetch.
+        const baseFee = (minExecutionFeeWei as bigint | undefined) ?? (publicClient
             ? await publicClient.readContract({
                 address: TRADING_CORE_ADDRESS,
                 abi: TRADING_CORE_ABI,
                 functionName: 'minExecutionFee',
             })
-            : minExecutionFeeWei) as bigint | undefined;
-        const baseFee = (latestMinExecutionFee ?? (minExecutionFeeWei as bigint | undefined) ?? 0n);
+            : 0n) as bigint;
+
         // Add a small safety buffer to avoid stale minExecutionFee reverts.
         const fee = (baseFee * 110n) / 100n;
 
@@ -318,12 +316,22 @@ export function useOpenPosition() {
                 throw new Error('Limit and stop orders require a trigger price');
             }
 
-            const marketInfo = await publicClient.readContract({
-                address: TRADING_CORE_ADDRESS,
-                abi: TRADING_CORE_ABI,
-                functionName: 'getMarketInfo',
-                args: [params.market as Address]
-            }) as any;
+            // Parallelize preliminary reads to reduce latency
+            const [marketInfo, accountCode, coreOracleAddress, coreUsdcAddress] = await Promise.all([
+                publicClient.readContract({
+                    address: TRADING_CORE_ADDRESS, abi: TRADING_CORE_ABI,
+                    functionName: 'getMarketInfo', args: [params.market as Address]
+                }),
+                publicClient.getCode({ address }),
+                publicClient.readContract({
+                    address: TRADING_CORE_ADDRESS, abi: TRADING_CORE_ABI,
+                    functionName: 'oracleAggregator',
+                }),
+                publicClient.readContract({
+                    address: TRADING_CORE_ADDRESS, abi: TRADING_CORE_ABI,
+                    functionName: 'usdc',
+                })
+            ]) as [any, string | undefined, Address, Address];
 
             if (!marketInfo || !marketInfo.isListed) {
                 throw new Error(`Market ${params.market} is not registered in the protocol.`);
@@ -331,85 +339,60 @@ export function useOpenPosition() {
             if (!marketInfo.isActive) {
                 throw new Error('Market is temporarily paused. Please try again later.');
             }
-            const accountCode = await publicClient.getCode({ address });
             if (accountCode && accountCode !== '0x') {
                 throw new Error('Smart-contract wallets are not supported for createOrder on this deployment. Please use an EOA wallet.');
             }
 
-            const coreOracleAddress = await publicClient.readContract({
-                address: TRADING_CORE_ADDRESS,
-                abi: TRADING_CORE_ABI,
-                functionName: 'oracleAggregator',
-            }) as Address;
-            const actionAllowed = await publicClient.readContract({
-                address: coreOracleAddress,
-                abi: ORACLE_ABI,
-                functionName: 'isActionAllowed',
-                args: [params.market as Address, 0],
-            }) as boolean;
+            // Next batch of parallel reads
+            const [actionAllowed, walletUsdcBalance] = await Promise.all([
+                publicClient.readContract({
+                    address: coreOracleAddress, abi: ORACLE_ABI,
+                    functionName: 'isActionAllowed', args: [params.market as Address, 0],
+                }),
+                publicClient.readContract({
+                    address: coreUsdcAddress, abi: ERC20_ABI,
+                    functionName: 'balanceOf', args: [address],
+                })
+            ]) as [boolean, bigint];
+
             if (!actionAllowed) {
                 throw new Error('Trading is temporarily blocked by circuit breaker for this market.');
             }
 
             const sizeNum = parseFloat(params.size);
             const leverageNum = parseFloat(params.leverage);
-
-            // sizeDelta is in USDC – it IS the notional value, not an asset quantity.
             const notionalValue = sizeNum;
-
-            // The smart contract assesses an opening fee (0.05% taker + min $0.10).
             const baseMargin = leverageNum > 0 ? notionalValue / leverageNum : sizeNum;
             const estimatedOpeningFee = Math.max(0.10, notionalValue * 0.0005);
             const marginUSDC = baseMargin + estimatedOpeningFee;
 
             const sizeDelta6 = parseUnits(sizeNum.toFixed(6), 6);
-            const collateralDelta6 = parseUnits(marginUSDC.toFixed(6), 6); // USDC precision
-            const triggerPriceWei = isLimit && triggerPriceStr
-                ? parseUnits(triggerPriceStr, 18).toString()
-                : undefined;
+            const collateralDelta6 = parseUnits(marginUSDC.toFixed(6), 6);
+            const triggerPriceWei = isLimit && triggerPriceStr ? parseUnits(triggerPriceStr, 18).toString() : undefined;
 
-            if (usdcAddress) {
-                const coreUsdcAddress = await publicClient.readContract({
-                    address: TRADING_CORE_ADDRESS,
-                    abi: TRADING_CORE_ABI,
-                    functionName: 'usdc',
-                }) as Address;
-                if (coreUsdcAddress.toLowerCase() !== usdcAddress.toLowerCase()) {
-                    throw new Error('USDC contract mismatch detected. Please refresh and reconnect wallet.');
-                }
+            if (walletUsdcBalance < collateralDelta6) {
+                throw new Error('Insufficient USDC balance for this margin amount.');
+            }
 
-                const walletUsdcBalance = await publicClient.readContract({
+            let currentAllowance = allowance;
+            if (currentAllowance === undefined) {
+                const { data } = await refetchAllowance();
+                currentAllowance = data as bigint | undefined;
+            }
+
+            if (!currentAllowance || currentAllowance < collateralDelta6) {
+                setStep('APPROVING');
+                const hash = await writeContractAsync({
+                    chainId,
                     address: coreUsdcAddress,
                     abi: ERC20_ABI,
-                    functionName: 'balanceOf',
-                    args: [address],
-                }) as bigint;
-                if (walletUsdcBalance < collateralDelta6) {
-                    throw new Error('Insufficient USDC balance for this margin amount.');
-                }
-
-                const requiredCollateral = collateralDelta6;
-                let currentAllowance = allowance;
-                if (currentAllowance === undefined) {
-                    const { data } = await refetchAllowance();
-                    currentAllowance = data as bigint | undefined;
-                }
-
-                if (!currentAllowance || currentAllowance < requiredCollateral) {
-                    setStep('APPROVING');
-                    const hash = await writeContractAsync({
-                        chainId,
-                        address: usdcAddress,
-                        abi: ERC20_ABI,
-                        functionName: 'approve',
-                        args: [TRADING_CORE_ADDRESS, (2n ** 256n) - 1n]
-                    });
-                    
-                    toast.loading("Waiting for approval confirmation...");
-                    await publicClient.waitForTransactionReceipt({ hash });
-                    toast.success("USDC approved successfully");
-                    await refetchAllowance();
-                }
+                    functionName: 'approve',
+                    args: [TRADING_CORE_ADDRESS, (2n ** 256n) - 1n]
+                });
+                toast.loading("Waiting for approval confirmation...");
+                await publicClient.waitForTransactionReceipt({ hash });
+                toast.success("USDC approved successfully");
+                await refetchAllowance();
             }
 
             setStep('REVEALING');
