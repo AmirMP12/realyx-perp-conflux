@@ -152,6 +152,12 @@ router.get("/", async (req: any, res: any) => {
       return inserted;
     }
 
+    const targetTopics = [
+      "PositionOpened(uint256,address,address,bool,uint256,uint256,uint256)",
+      "PositionClosed(uint256,address,int256,uint256,uint256)",
+      "PositionLiquidated(uint256,address,uint256,uint256)"
+    ].map(sig => ethers.id(sig));
+
     let iterations = 0;
     let totalSynced = 0;
     let currentStart = startBlock;
