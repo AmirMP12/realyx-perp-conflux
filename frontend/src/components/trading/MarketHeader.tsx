@@ -115,7 +115,20 @@ export function MarketHeader({
                     { label: 'Price', value: <PriceTicker value={currentPrice} prefix="$" decimals={2} className="text-text-primary font-semibold" />, valueClass: 'text-text-primary' },
                     { label: '24h Change', value: `${isPositive ? '+' : ''}${change24h.toFixed(2)}%`, valueClass: isPositive ? 'text-[var(--long)]' : 'text-[var(--short)]' },
                     { label: '24h Vol', value: formatCompact(market.volume24h ?? 0), valueClass: 'text-text-secondary' },
-                    { label: 'Funding / 1h', value: <><span>{`${(typeof fundingRate === 'number' ? fundingRate : parseFloat(String(fundingRate) || '0')).toFixed(4)}%`}</span><FundingCountdown /></>, valueClass: 'text-amber-400' },
+                    {
+                        label: 'Funding / 1h',
+                        value: (
+                            <>
+                                <span className={clsx(
+                                    fundingRate > 0 ? "text-[var(--short)]" : (fundingRate < 0 ? "text-[var(--long)]" : "text-amber-400")
+                                )}>
+                                    {fundingRate > 0 ? '+' : ''}{((fundingRate * 100) / 8).toFixed(4)}%
+                                </span>
+                                <FundingCountdown />
+                            </>
+                        ),
+                        valueClass: ''
+                    },
                     { label: 'Open Interest', value: formatCompact(market.openInterest ?? 0), valueClass: 'text-text-secondary' },
                 ].map((stat, i) => (
                     <StatItem

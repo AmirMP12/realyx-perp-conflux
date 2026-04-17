@@ -59,6 +59,22 @@ let cachedMarkets: OnchainMarketRow[] = [];
 let cachedAt = 0;
 let fetchInProgress: Promise<OnchainMarketRow[]> | null = null;
 
+const BASE_FUNDING_RATE = 100000000000000n; // 1e14
+const PRECISION = 1000000000000000000n; // 1e18
+
+function calculateInstantFundingRate(longOI: bigint, shortOI: bigint): bigint {
+  const totalOI = longOI + shortOI;
+  if (totalOI === 0n) return 0n;
+
+  if (longOI >= shortOI) {
+    const imbalance = ((longOI - shortOI) * PRECISION) / totalOI;
+    return (BASE_FUNDING_RATE * imbalance) / PRECISION;
+  } else {
+    const imbalance = ((shortOI - longOI) * PRECISION) / totalOI;
+    return -((BASE_FUNDING_RATE * imbalance) / PRECISION);
+  }
+}
+
 /**
  * When Postgres markets indexer is empty, load live OI / funding / sizes from TradingCore RPC.
  * Fixes API consumers seeing volume24h / OI / funding all zero on Vercel or without DB.
@@ -120,6 +136,13 @@ async function _fetchMarketsOnChainImpl(): Promise<OnchainMarketRow[]> {
         const info = infos[i];
         const fund = funds[i];
         if (!info) continue;
+
+        // Calculate live funding rate if the on-chain one is zero (not yet settled)
+        // or just always provide a live estimate for consistency.
+        const longOI = BigInt(info.totalLongSize || 0);
+        const shortOI = BigInt(info.totalShortSize || 0);
+        const liveFundingRate = calculateInstantFundingRate(longOI, shortOI);
+
         out.push({
           id: addr.toLowerCase(),
           marketAddress: addr,
@@ -130,11 +153,11 @@ async function _fetchMarketsOnChainImpl(): Promise<OnchainMarketRow[]> {
           totalShortSize: toStr(info.totalShortSize),
           totalLongCost: toStr(info.totalLongCost),
           totalShortCost: toStr(info.totalShortCost),
-          fundingRate: fund ? toStr(fund.fundingRate) : "0",
+          fundingRate: toStr(liveFundingRate), // Use calculated live rate
           cumulativeFunding: fund ? toStr(fund.cumulativeFunding) : "0",
           lastFundingTime: fund ? toStr(fund.lastSettlement) : "0",
-          longOpenInterest: fund ? toStr(fund.longOpenInterest) : "0",
-          shortOpenInterest: fund ? toStr(fund.shortOpenInterest) : "0",
+          longOpenInterest: toStr(longOI),
+          shortOpenInterest: toStr(shortOI),
           isActive: Boolean(info.isActive),
           isListed: Boolean(info.isListed),
           updatedAt: new Date().toISOString(),

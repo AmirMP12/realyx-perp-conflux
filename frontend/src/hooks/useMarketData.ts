@@ -108,6 +108,18 @@ export function useSingleMarketData(marketAddress?: Address) {
 
     if (coreWaiting) return { isLoading: true };
 
+    const longOI = marketInfo ? Number(marketInfo.totalLongSize) / 1e18 : 0;
+    const shortOI = marketInfo ? Number(marketInfo.totalShortSize) / 1e18 : 0;
+    const totalOI = longOI + shortOI;
+
+    // Calculate live funding rate based on BASE_FUNDING_RATE = 1e14 (0.0001 or 0.01%)
+    let liveFundingRate = fundingState ? Number(fundingState.fundingRate) / 1e18 : 0;
+    if (totalOI > 0) {
+        const baseRate = 0.0001; // 1e14 / 1e18
+        const imbalance = (longOI - shortOI) / totalOI;
+        liveFundingRate = baseRate * imbalance;
+    }
+
     return {
         isLoading: false,
         raw: {
@@ -116,10 +128,10 @@ export function useSingleMarketData(marketAddress?: Address) {
             priceData: priceData ?? null
         },
         formatted: {
-            longOI: marketInfo ? Number(marketInfo.totalLongSize) / 1e18 : 0,
-            shortOI: marketInfo ? Number(marketInfo.totalShortSize) / 1e18 : 0,
+            longOI,
+            shortOI,
             maxLeverage: marketInfo ? Number(marketInfo.maxLeverage) : 0,
-            fundingRate: fundingState ? Number(fundingState.fundingRate) / 1e18 : 0,
+            fundingRate: liveFundingRate,
             price: priceData ? Number(priceData[0]) / 1e18 : 0,
             confidence: priceData ? Number(priceData[1]) / 1e18 : 0
         },

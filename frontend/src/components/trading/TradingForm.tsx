@@ -193,9 +193,9 @@ export function TradingForm({
     };
 
     return (
-        <div className="flex flex-col glass-panel-elevated rounded-2xl overflow-hidden shadow-[0_24px_50px_rgba(0,0,0,0.4)]">
+        <div className="flex flex-col glass-panel-elevated rounded-2xl overflow-hidden shadow-[0_24px_50px_rgba(0,0,0,0.4)] h-full">
             {/* Tabs */}
-            <div className="flex p-3 gap-2">
+            <div className="flex p-2.5 gap-2 shrink-0">
                 <button
                     type="button"
                     onClick={() => setSide('long')}
@@ -375,7 +375,7 @@ export function TradingForm({
                 )}
             </AnimatePresence>
 
-            <div className="p-4 space-y-4 min-w-0 flex-1">
+            <div className="px-3.5 py-4 space-y-4 min-w-0 flex-1 overflow-y-auto custom-scrollbar overflow-x-hidden">
                 {/* Trigger Price Input */}
                 {(orderType === 'limit' || orderType === 'stop') && (
                     <div className="rounded-xl p-3 border border-[var(--border-color)]/80 bg-[var(--bg-tertiary)]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
@@ -400,14 +400,14 @@ export function TradingForm({
                 )}
 
                 {/* Amount Input */}
-                <div className="rounded-xl p-4 border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/40 focus-within:border-[var(--primary)]/55 focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all shadow-sm">
+                <div className="rounded-xl p-3.5 border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/40 focus-within:border-[var(--primary)]/55 focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all shadow-sm overflow-hidden">
                     <div className="flex justify-between items-center text-xs text-text-secondary mb-2">
                         <span>Margin (USDC)</span>
                         <span className="tabular-nums">
                             Balance: {balanceLoading ? '…' : (usdcBalance != null ? usdcBalance.toFixed(2) : '0.00')} USDC
                         </span>
                     </div>
-                    <div className="flex items-center gap-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/70 px-3 py-2 focus-within:border-[var(--primary)]/50 transition-colors">
+                    <div className="flex items-center gap-2 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-color)]/70 px-2.5 py-1.5 focus-within:border-[var(--primary)]/50 transition-colors">
                         <input
                             type="number"
                             inputMode="decimal"
@@ -453,7 +453,7 @@ export function TradingForm({
                 </div>
 
                 {/* Leverage Slider */}
-                <div className="rounded-xl p-4 border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/40 shadow-sm">
+                <div className="rounded-xl p-3.5 border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/40 shadow-sm overflow-hidden">
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 text-xs text-text-secondary mb-2">
                         <GuidedTooltip id="leverage" title="Leverage" content="Higher leverage amplifies both gains and losses. Your position can be liquidated if price moves against you.">
                             <span>Leverage</span>
@@ -512,7 +512,7 @@ export function TradingForm({
 
                 {/* Liquidation distance */}
                 {sizeNum > 0 && (
-                    <div className="rounded-xl p-4 border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/40 shadow-sm">
+                    <div className="rounded-xl p-3.5 border border-[var(--border-color)]/60 bg-[var(--bg-tertiary)]/40 shadow-sm overflow-hidden">
                         <div className="flex justify-between text-xs text-text-secondary mb-1">
                             <span>Liquidation distance</span>
                             <span className="text-orange-400 font-medium">
@@ -536,7 +536,7 @@ export function TradingForm({
                 )}
 
                 {/* Summary */}
-                <div className="space-y-2.5 p-4 border border-amber-500/20 bg-amber-500/5 rounded-xl shadow-sm">
+                <div className="space-y-2 p-3.5 border border-amber-500/20 bg-amber-500/5 rounded-xl shadow-sm overflow-hidden">
                     <SummaryRow label="Margin Mode" value="Isolated" valueClass="text-amber-400" />
                     <SummaryRow label="Collateral" value={`$${margin || '0.00'}`} />
                     <SummaryRow label="Entry Price" value={`$${formatPriceWithPrecision(currentPrice)}`} />
@@ -547,7 +547,7 @@ export function TradingForm({
             </div>
 
             {/* Action Button */}
-            <div className="p-4 border-t border-[var(--border-color)]/80 bg-[var(--bg-secondary)]">
+            <div className="p-3.5 border-t border-[var(--border-color)]/80 bg-[var(--bg-secondary)] shrink-0">
                 {isConnected ? (
                     <button
                         type="button"
