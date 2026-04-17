@@ -1,7 +1,7 @@
 import { useAccount, useReadContract, useWriteContract, usePublicClient } from 'wagmi';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from "react-hot-toast";
-import { formatUnits, parseAbiItem, parseUnits, type Log } from 'viem';
+import { formatUnits, parseAbiItem, parseUnits, type Log, type Address } from 'viem';
 import { useQuery } from '@tanstack/react-query';
 import { VAULT_CORE_ADDRESS, VAULT_ABI, useUSDC } from './useProgram';
 
@@ -72,6 +72,7 @@ export function useVaultDeposit() {
     const { writeContractAsync } = useWriteContract();
     const { address: usdcAddress } = useUSDC();
     const assetDecimals = useVaultAssetDecimals();
+    const publicClient = usePublicClient();
     const [loading, setLoading] = useState(false);
 
     const deposit = async (amount: number) => {
@@ -88,7 +89,7 @@ export function useVaultDeposit() {
             const wei = parseUnits(amount.toFixed(assetDecimals), assetDecimals);
             
             // Check allowance first to skip approve tx if possible
-            const [currentAllowance, coreUsdcAddress] = await Promise.all([
+            const [currentAllowance] = await Promise.all([
                 publicClient?.readContract({
                     address: usdcAddress, abi: ERC20_ABI,
                     functionName: 'allowance', args: [address, VAULT_CORE_ADDRESS]

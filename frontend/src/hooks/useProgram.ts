@@ -242,7 +242,6 @@ export function useCreateOrder() {
 }
 
 export function useOpenPosition() {
-    const { address: usdcAddress } = useUSDC();
     const { address, chainId } = useAccount();
     const { writeContractAsync } = useWriteContract();
     const { createOrder } = useCreateOrder();
