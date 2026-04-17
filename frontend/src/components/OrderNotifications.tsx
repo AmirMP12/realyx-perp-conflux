@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, type CSSProperties } from 'react';
 import { useAccount } from 'wagmi';
 import toast from 'react-hot-toast';
+import { formatPriceWithPrecision } from '../utils/format';
 
 const WS_URL = (import.meta.env.VITE_WS_URL ?? "").trim() || (import.meta.env.DEV ? "ws://localhost:3002" : "");
 
@@ -120,7 +121,7 @@ export function useOrderNotifications() {
                     filledSize: data.filledSize,
                     executionPrice: data.executionPrice,
                     timestamp,
-                    message: `Order #${data.orderId} executed at $${data.executionPrice?.toFixed(2)} `
+                    message: `Order #${data.orderId} executed at $${formatPriceWithPrecision(data.executionPrice || 0)} `
                 };
             case 'OrderPartiallyFilled':
                 return {

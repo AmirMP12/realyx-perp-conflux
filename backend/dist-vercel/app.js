@@ -12,6 +12,7 @@ import insuranceRouter from "./routes/insurance.js";
 import healthRouter from "./routes/health.js";
 import syncRouter from "./routes/sync.js";
 import pythRefreshRouter from "./routes/pythRefresh.js";
+import debugRouter from "./routes/debug.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
 import { metricsMiddleware } from "./middleware/metrics.js";
 const logger = pino({
@@ -37,6 +38,7 @@ app.use("/api/leaderboard", leaderboardRouter);
 app.use("/api/insurance", insuranceRouter);
 app.use("/api/sync", syncRouter);
 app.use("/api/pyth-refresh", pythRefreshRouter);
+app.use("/api/debug", debugRouter);
 app.use((_req, res) => {
     res.status(404).json({ success: false, error: "Not found" });
 });

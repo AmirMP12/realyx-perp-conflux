@@ -143,13 +143,13 @@ export function TradingForm({
                 marketAddress: market.marketAddress || market.id,
                 size: notionalValue.toFixed(4),
                 collateral: margin,
-                averagePrice: currentPrice.toFixed(2),
-                entryPrice: currentPrice.toFixed(2),
-                markPrice: currentPrice.toFixed(2),
+                averagePrice: currentPrice.toString(),
+                entryPrice: currentPrice.toString(),
+                markPrice: currentPrice.toString(),
                 pnl: '0',
                 leverage: leverage.toString(),
                 isLong: side === 'long',
-                liquidationPrice: estLiqPrice.toFixed(2),
+                liquidationPrice: estLiqPrice.toString(),
                 stopLossPrice: 0,
                 takeProfitPrice: 0,
             });
@@ -595,13 +595,13 @@ export function TradingForm({
                                 <SummaryRow label="Notional Size" value={`$${notionalValue.toFixed(2)}`} />
                                 <SummaryRow label="Leverage" value={`${leverage}x`} />
                                 <SummaryRow label="Total Margin" value={`$${margin}`} />
-                                <SummaryRow label="Entry Price" value={`$${currentPrice.toFixed(2)}`} />
+                                <SummaryRow label="Entry Price" value={`$${formatPriceWithPrecision(currentPrice)}`} />
                                 <div className="border-t border-[var(--border-color)] pt-3 mt-3 space-y-2">
                                     <SummaryRow label="Est. Fee (0.1%)" value={`$${tradingFee.toFixed(2)}`} />
                                     <SummaryRow label="Max Slippage" value={`${settings.maxSlippage}%`} />
                                 </div>
                                 <div className="border-t border-[var(--border-color)] pt-3 mt-3 space-y-2">
-                                    <SummaryRow label="Liq. Price" value={`$${estLiqPrice.toFixed(2)}`} valueClass="text-orange-400" />
+                                    <SummaryRow label="Liq. Price" value={`$${formatPriceWithPrecision(estLiqPrice)}`} valueClass="text-orange-400" />
                                     <SummaryRow
                                         label="Liq. Risk"
                                         value={`${(side === 'long'

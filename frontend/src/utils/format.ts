@@ -38,7 +38,12 @@ export function formatPrice(value: number, decimals = 2): string {
  */
 export function formatPriceWithPrecision(value: number): string {
     const absValue = Math.abs(value);
-    const decimals = (absValue > 0 && absValue < 1) ? 4 : 2;
+    let decimals = 2;
+    if (absValue > 0 && absValue < 0.01) {
+        decimals = 6;
+    } else if (absValue > 0 && absValue < 1) {
+        decimals = 4;
+    }
     return value.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 

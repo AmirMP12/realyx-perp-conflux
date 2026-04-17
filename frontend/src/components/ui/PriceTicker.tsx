@@ -33,7 +33,14 @@ export function PriceTicker({
         return () => clearTimeout(t);
     }, [value, flashDuration]);
 
-    const effectiveDecimals = (decimals === 2 && Math.abs(value) > 0 && Math.abs(value) < 1) ? 4 : decimals;
+    let effectiveDecimals = decimals;
+    if (decimals === 2) {
+        if (Math.abs(value) > 0 && Math.abs(value) < 0.01) {
+            effectiveDecimals = 6;
+        } else if (Math.abs(value) > 0 && Math.abs(value) < 1) {
+            effectiveDecimals = 4;
+        }
+    }
 
     return (
         <motion.span
