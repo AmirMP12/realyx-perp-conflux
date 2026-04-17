@@ -79,7 +79,7 @@ router.get("/", async (req: any, res: any) => {
 
     const iface = new ethers.Interface(TRADING_CORE_SYNC_ABI);
 
-    let startBlock = 160000000;
+    let startBlock = 90000000; // Lowered from 160M to ensure we don't skip deployment events
     const stateResult = await pool.query(`SELECT last_synced_block FROM indexer_state WHERE key = 'trading_core'`);
     if (stateResult.rows.length > 0) {
       startBlock = Number(stateResult.rows[0].last_synced_block) + 1;
