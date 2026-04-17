@@ -2,7 +2,7 @@ import { Router } from "express";
 import { ethers } from "ethers";
 import { fetchProtocol, fetchMarkets, fetchProtocolMetrics, fetchActiveTraders24h, } from "../services/indexer.js";
 import { getActiveMarketAddresses } from "../services/activeMarkets.js";
-import { toDecimal } from "../utils/format.js";
+import { toDecimal18 } from "../utils/format.js";
 const router = Router();
 // ── Server-side TVL from VaultCore.totalAssets() ──
 let cachedTvl = "0";
@@ -101,10 +101,10 @@ router.get("/history", async (_req, res) => {
             const date = new Date(ts).toISOString().slice(0, 10);
             return {
                 date,
-                volume: toDecimal(m.volumeUsd),
+                volume: toDecimal18(m.volumeUsd),
                 trades: Number(m.tradesCount) || 0,
-                fees: toDecimal(m.feesUsd),
-                pnl: "0", // ProtocolMetric does not expose daily pnl
+                fees: toDecimal18(m.feesUsd),
+                pnl: "0.00", // ProtocolMetric does not expose daily pnl
             };
         });
         res.json({ success: true, data });

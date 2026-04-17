@@ -53,148 +53,148 @@ async function initDB() {
   }
 }
 
+export async function runSync(options?: { fromBlock?: number }) {
+  const pool = getPool();
+  if (!pool) {
+    throw new Error("Database not configured");
+  }
+  await initDB();
+
+  const provider = new ethers.JsonRpcProvider(config.rpcUrl, config.chainId);
+
+  const tradingCoreAddress = (process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE ?? "").trim();
+  if (!tradingCoreAddress) {
+    throw new Error("TRADING_CORE_ADDRESS or DEPLOYED_TRADING_CORE not set in .env");
+  }
+
+  const iface = new ethers.Interface(TRADING_CORE_SYNC_ABI);
+
+  let startBlock = 248000000; // Reset to 248M (April 14th deployment) to avoid scanning empty history
+  const stateResult = await pool.query(`SELECT last_synced_block FROM indexer_state WHERE key = 'trading_core'`);
+  if (stateResult.rows.length > 0) {
+    startBlock = Number(stateResult.rows[0].last_synced_block) + 1;
+  }
+
+  if (options?.fromBlock !== undefined) {
+    startBlock = options.fromBlock;
+  }
+
+  const latestBlock = await provider.getBlockNumber();
+  if (startBlock > latestBlock) {
+    return { success: true, message: "Already up to date", latestBlock, startBlock };
+  }
+
+  const targetTopics = [
+    "PositionOpened(uint256,address,address,bool,uint256,uint256,uint256)",
+    "PositionClosed(uint256,address,int256,uint256,uint256)",
+    "PositionLiquidated(uint256,address,uint256,uint256)"
+  ].map(sig => ethers.id(sig));
+
+  let iterations = 0;
+  let totalSynced = 0;
+  let currentStart = startBlock;
+  let finalTo = startBlock - 1;
+  const CHUNK = 20000;
+  const MAX_ITER = 5;
+
+  while (iterations < MAX_ITER && currentStart <= latestBlock) {
+    const currentTo = Math.min(currentStart + CHUNK, latestBlock);
+    const batchLogs = await provider.getLogs({
+      address: tradingCoreAddress,
+      fromBlock: currentStart,
+      toBlock: currentTo,
+      topics: [targetTopics]
+    });
+
+    totalSynced += await processLogs(batchLogs, iface, pool);
+    finalTo = currentTo;
+    if (currentTo >= latestBlock) break;
+    currentStart = currentTo + 1;
+    iterations++;
+  }
+
+  await pool.query(
+    `INSERT INTO indexer_state (key, last_synced_block) VALUES ('trading_core', $1)
+     ON CONFLICT (key) DO UPDATE SET last_synced_block = EXCLUDED.last_synced_block`,
+    [finalTo]
+  );
+
+  return {
+    success: true,
+    eventsSynced: totalSynced,
+    scannedFrom: startBlock,
+    scannedTo: finalTo,
+    latestBlock,
+    iterations
+  };
+}
+
+async function processLogs(logs: any[], iface: ethers.Interface, pool: pg.Pool) {
+  let inserted = 0;
+  for (const log of logs) {
+    try {
+      const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+      if (!parsed) continue;
+
+      let account = log.address;
+      let marketId = "0x";
+      if (parsed.name === "PositionOpened") {
+        account = String(parsed.args[1]);
+        marketId = String(parsed.args[2]);
+      } else if (parsed.name === "PositionClosed") {
+        account = String(parsed.args[1]);
+        const posId = String(parsed.args[0]);
+        try {
+          const openEvt = await pool.query(
+            `SELECT market_id FROM position_events WHERE event_type = 'PositionOpened' AND (data::jsonb->>0)::text = $1 LIMIT 1`,
+            [posId]
+          );
+          if (openEvt.rows.length > 0 && openEvt.rows[0].market_id) {
+            marketId = openEvt.rows[0].market_id;
+          }
+        } catch { }
+      } else if (parsed.name === "PositionLiquidated") {
+        const posId = String(parsed.args[0]);
+        account = log.address;
+        try {
+          const openEvt = await pool.query(
+            `SELECT account, market_id FROM position_events WHERE event_type = 'PositionOpened' AND (data::jsonb->>0)::text = $1 LIMIT 1`,
+            [posId]
+          );
+          if (openEvt.rows.length > 0) {
+            if (openEvt.rows[0].account) account = openEvt.rows[0].account;
+            if (openEvt.rows[0].market_id) marketId = openEvt.rows[0].market_id;
+          }
+        } catch { }
+      }
+
+      const eventData = JSON.stringify(parsed.args.map(arg => typeof arg === 'bigint' ? arg.toString() : arg));
+      await pool.query(
+        `INSERT INTO position_events (account, market_id, event_type, block_number, tx_hash, data) 
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [account, marketId, parsed.name, log.blockNumber, log.transactionHash, eventData]
+      );
+      inserted++;
+    } catch (err) {
+      console.error("Parse error", err);
+    }
+  }
+  return inserted;
+}
+
 router.get("/", async (req: any, res: any) => {
   try {
-    const pool = getPool();
-    if (!pool) {
-      return res.status(500).json({ success: false, error: "Database not configured" });
-    }
-    await initDB();
-
     const authHeader = req.headers.authorization;
     const { key, fromBlock: fromBlockQuery } = req.query;
     if (process.env.CRON_SECRET &&
       authHeader !== `Bearer ${process.env.CRON_SECRET}` &&
       key !== "force") {
-      return res.status(401).json({ success: false, error: "Unauthorized cron request. Hint: Use ?key=force to manually trigger during setup." });
+      return res.status(401).json({ success: false, error: "Unauthorized cron request." });
     }
 
-
-    const provider = new ethers.JsonRpcProvider(config.rpcUrl, config.chainId);
-
-    const tradingCoreAddress = (process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE ?? "").trim();
-    if (!tradingCoreAddress) {
-      return res.status(500).json({
-        success: false,
-        error: "TRADING_CORE_ADDRESS or DEPLOYED_TRADING_CORE not set in .env",
-      });
-    }
-
-    const iface = new ethers.Interface(TRADING_CORE_SYNC_ABI);
-
-    let startBlock = 248000000; // Reset to 248M (April 14th deployment) to avoid scanning empty history
-    const stateResult = await pool.query(`SELECT last_synced_block FROM indexer_state WHERE key = 'trading_core'`);
-    if (stateResult.rows.length > 0) {
-      startBlock = Number(stateResult.rows[0].last_synced_block) + 1;
-    }
-
-    if (fromBlockQuery) {
-      startBlock = parseInt(fromBlockQuery as string, 10);
-    }
-
-    const latestBlock = await provider.getBlockNumber();
-    if (startBlock > latestBlock) {
-      return res.json({ success: true, message: "Already up to date", latestBlock, startBlock });
-    }
-
-    const toBlock = Math.min(startBlock + 20000, latestBlock);
-
-    async function processLogs(logs: any[], iface: ethers.Interface, pool: pg.Pool) {
-      let inserted = 0;
-      for (const log of logs) {
-        try {
-          const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
-          if (!parsed) continue;
-
-          let account = log.address;
-          let marketId = "0x";
-          if (parsed.name === "PositionOpened") {
-            account = String(parsed.args[1]);
-            marketId = String(parsed.args[2]);
-          } else if (parsed.name === "PositionClosed") {
-            account = String(parsed.args[1]);
-            const posId = String(parsed.args[0]);
-            try {
-              const openEvt = await pool.query(
-                `SELECT market_id FROM position_events WHERE event_type = 'PositionOpened' AND (data::jsonb->>0)::text = $1 LIMIT 1`,
-                [posId]
-              );
-              if (openEvt.rows.length > 0 && openEvt.rows[0].market_id) {
-                marketId = openEvt.rows[0].market_id;
-              }
-            } catch { }
-          } else if (parsed.name === "PositionLiquidated") {
-            const posId = String(parsed.args[0]);
-            account = log.address;
-            try {
-              const openEvt = await pool.query(
-                `SELECT account, market_id FROM position_events WHERE event_type = 'PositionOpened' AND (data::jsonb->>0)::text = $1 LIMIT 1`,
-                [posId]
-              );
-              if (openEvt.rows.length > 0) {
-                if (openEvt.rows[0].account) account = openEvt.rows[0].account;
-                if (openEvt.rows[0].market_id) marketId = openEvt.rows[0].market_id;
-              }
-            } catch { }
-          }
-
-          const eventData = JSON.stringify(parsed.args.map(arg => typeof arg === 'bigint' ? arg.toString() : arg));
-          await pool.query(
-            `INSERT INTO position_events (account, market_id, event_type, block_number, tx_hash, data) 
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [account, marketId, parsed.name, log.blockNumber, log.transactionHash, eventData]
-          );
-          inserted++;
-        } catch (err) {
-          console.error("Parse error", err);
-        }
-      }
-      return inserted;
-    }
-
-    const targetTopics = [
-      "PositionOpened(uint256,address,address,bool,uint256,uint256,uint256)",
-      "PositionClosed(uint256,address,int256,uint256,uint256)",
-      "PositionLiquidated(uint256,address,uint256,uint256)"
-    ].map(sig => ethers.id(sig));
-
-    let iterations = 0;
-    let totalSynced = 0;
-    let currentStart = startBlock;
-    let finalTo = startBlock - 1;
-    const CHUNK = 20000;
-    const MAX_ITER = 5;
-
-    while (iterations < MAX_ITER && currentStart <= latestBlock) {
-      const currentTo = Math.min(currentStart + CHUNK, latestBlock);
-      const batchLogs = await provider.getLogs({
-        address: tradingCoreAddress,
-        fromBlock: currentStart,
-        toBlock: currentTo,
-        topics: [targetTopics]
-      });
-
-      totalSynced += await processLogs(batchLogs, iface, pool);
-      finalTo = currentTo;
-      if (currentTo >= latestBlock) break;
-      currentStart = currentTo + 1;
-      iterations++;
-    }
-
-    await pool.query(
-      `INSERT INTO indexer_state (key, last_synced_block) VALUES ('trading_core', $1)
-       ON CONFLICT (key) DO UPDATE SET last_synced_block = EXCLUDED.last_synced_block`,
-      [finalTo]
-    );
-
-    res.json({
-      success: true,
-      eventsSynced: totalSynced,
-      scannedFrom: startBlock,
-      scannedTo: finalTo,
-      latestBlock,
-      iterations
-    });
+    const fromBlock = fromBlockQuery ? parseInt(fromBlockQuery as string, 10) : undefined;
+    const result = await runSync({ fromBlock });
+    res.json(result);
 
   } catch (error) {
     console.error("Sync error:", error);

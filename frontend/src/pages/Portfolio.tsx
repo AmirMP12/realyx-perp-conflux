@@ -123,11 +123,11 @@ export function PortfolioPage() {
             </div>
 
             {/* Stats Overview */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 {positionsLoading ? (
                     <>
-                        {[1, 2, 3, 4].map((i) => (
-                            <div key={i} className="glass-panel p-5">
+                        {[1, 2, 3, 4, 5].map((i, idx) => (
+                            <div key={i} className={clsx("glass-panel p-5", idx === 4 && "col-span-2 md:col-span-1 lg:col-span-1")}>
                                 <Skeleton className="h-4 w-24 mb-3" />
                                 <Skeleton className="h-8 w-32 mb-2" />
                                 <Skeleton className="h-3 w-full" />
@@ -136,38 +136,23 @@ export function PortfolioPage() {
                     </>
                 ) : (
                     <>
-                        <StatCard
-                            icon={DollarSign}
-                            label="Account Value"
-                            value={formatCompact(accountValue)}
-                            sublabel="Collateral + Unrealized PnL"
-                        />
-                        <StatCard
-                            icon={Wallet}
-                            label="Total Collateral"
-                            value={formatCompact(totalCollateral)}
-                            sublabel="Locked in positions"
-                        />
-                        <StatCard
-                            icon={totalPnl >= 0 ? TrendingUp : TrendingDown}
-                            label="Unrealized PnL"
-                            value={`${totalPnl >= 0 ? '+' : ''}${formatCompact(totalPnl)}`}
-                            sublabel={`${totalCollateral > 0 ? ((totalPnl / totalCollateral) * 100).toFixed(2) : '0.00'}% Return`}
-                            valueColor={totalPnl >= 0 ? 'text-[var(--long)]' : 'text-[var(--short)]'}
-                        />
-                        <StatCard
-                            icon={History}
-                            label="Active Positions"
-                            value={activePositionsCount.toString()}
-                            sublabel={`${tradeHistory.length} historical trades`}
-                        />
-                        <StatCard
-                            icon={totalRealizedPnl >= 0 ? TrendingUp : TrendingDown}
-                            label="Realized PnL"
-                            value={`${totalRealizedPnl >= 0 ? '+' : ''}${formatCompact(totalRealizedPnl)}`}
-                            sublabel="Sum of all closed trades"
-                            valueColor={totalRealizedPnl >= 0 ? 'text-[var(--long)]' : 'text-[var(--short)]'}
-                        />
+                        {([
+                            { icon: DollarSign, label: "Account Value", value: formatCompact(accountValue), sublabel: "Collateral + Unrealized PnL" },
+                            { icon: Wallet, label: "Total Collateral", value: formatCompact(totalCollateral), sublabel: "Locked in positions" },
+                            { icon: totalPnl >= 0 ? TrendingUp : TrendingDown, label: "Unrealized PnL", value: `${totalPnl >= 0 ? '+' : ''}${formatCompact(totalPnl)}`, sublabel: `${totalCollateral > 0 ? ((totalPnl / totalCollateral) * 100).toFixed(2) : '0.00'}% Return`, valueColor: totalPnl >= 0 ? 'text-[var(--long)]' : 'text-[var(--short)]' },
+                            { icon: History, label: "Active Positions", value: activePositionsCount.toString(), sublabel: `${tradeHistory.length} historical trades` },
+                            { icon: totalRealizedPnl >= 0 ? TrendingUp : TrendingDown, label: "Realized PnL", value: `${totalRealizedPnl >= 0 ? '+' : ''}${formatCompact(totalRealizedPnl)}`, sublabel: "Sum of all closed trades", valueColor: totalRealizedPnl >= 0 ? 'text-[var(--long)]' : 'text-[var(--short)]' }
+                        ]).map((card, idx) => (
+                            <div key={idx} className={clsx(idx === 4 && "col-span-2 md:col-span-1 lg:col-span-1")}>
+                                <StatCard
+                                    icon={card.icon}
+                                    label={card.label}
+                                    value={card.value}
+                                    sublabel={card.sublabel}
+                                    valueColor={card.valueColor}
+                                />
+                            </div>
+                        ))}
                     </>
                 )}
             </div>

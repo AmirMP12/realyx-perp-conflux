@@ -41,7 +41,7 @@ export function MarketHeader({
     }, []);
 
     return (
-        <div className="relative z-30 flex items-center justify-between gap-3 px-3 sm:px-5 lg:px-6 py-2.5 sm:py-4 border border-[var(--border-color)]/80 bg-[var(--bg-secondary)]/95 backdrop-blur-md w-[calc(100%-1rem)] sm:w-fit mx-auto mt-4 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)]">
+        <div className="relative z-30 flex items-center justify-between gap-3 px-4 lg:px-6 py-2 sm:py-3 border-b border-[var(--border-color)]/80 bg-[var(--bg-secondary)]/95 backdrop-blur-md w-full shadow-lg">
             {/* Left: Market Selector */}
             <div className="relative" ref={dropdownRef}>
                 <button
@@ -159,9 +159,9 @@ function StatItem({
 }) {
     return (
         <div className={clsx(
-            "flex flex-col items-start px-5 py-2",
-            !isFirst && "border-l border-[var(--border-color)]",
-            !isLast && "pr-5"
+            "flex flex-col items-start px-4 py-1",
+            !isFirst && "border-l border-[var(--border-color)]/60",
+            !isLast && "pr-4"
         )}>
             <span className="text-[10px] uppercase tracking-[0.12em] text-text-muted font-medium mb-1">{label}</span>
             <div className={clsx("flex flex-col gap-0.5 text-sm font-mono font-semibold tabular-nums leading-tight", valueClass)}>

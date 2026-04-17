@@ -39,7 +39,7 @@ export function TradingPage() {
 
     const [activeTab, setActiveTab] = useState<'chart' | 'trade' | 'positions'>('chart');
     const [tradeSide, setTradeSide] = useState<'long' | 'short'>('long');
-    const { tradingFormWidth, positionPanelHeight } = useLayoutStore();
+    const { positionPanelHeight } = useLayoutStore();
 
     const { positions, refetch: fetchPositions, isLoading: positionsLoading } = usePositions();
     const { data: onChainHistory = [] } = useOnChainHistory();
@@ -135,14 +135,14 @@ export function TradingPage() {
             {/* Mobile Controls */}
             <MobileControls activeTab={activeTab} setActiveTab={setActiveTab} />
 
-            <div className="flex-1 flex flex-col lg:flex-row gap-4 min-h-0 relative">
-                {/* Left Column: Chart & Positions */}
-                <div className={clsx("flex-1 flex flex-col gap-4 min-w-0", activeTab !== 'chart' && activeTab !== 'positions' && "hidden lg:flex")}>
-                    {/* Chart Area — 65vh mobile (TradingView needs explicit height), 400px standard desktop */}
+            <div className="flex-1 flex flex-col gap-4 min-h-0 relative">
+                {/* Top Row: Chart & Form */}
+                <div className="flex flex-col lg:flex-row gap-4 w-full">
+                    {/* Left/Center: Chart Area */}
                     <div
                         className={clsx(
-                            "glass-panel glass-panel-elevated relative overflow-hidden rounded-xl h-[65vh] lg:h-[400px]",
-                            activeTab === 'positions' && "hidden lg:block"
+                            "flex-1 glass-panel glass-panel-elevated relative overflow-hidden rounded-xl h-[65vh] lg:h-[500px]",
+                            activeTab !== 'chart' && "hidden lg:block"
                         )}
                     >
                         <div className="w-full h-full absolute inset-0">
@@ -150,42 +150,41 @@ export function TradingPage() {
                         </div>
                     </div>
 
-                    {/* Positions Table */}
+                    {/* Right: Trading Form */}
                     <div
                         className={clsx(
-                            "glass-panel min-h-[200px] flex flex-col rounded-xl overflow-hidden transition-[height] duration-300",
-                            activeTab === 'positions' && "lg:flex h-auto"
+                            "w-full lg:w-[420px] shrink-0 flex flex-col gap-4",
+                            activeTab !== 'trade' && "hidden lg:flex"
                         )}
-                        style={{ minHeight: positionPanelHeight }}
                     >
-                        <PositionTable
-                            positions={positionsWithLivePnL}
-                            positionsLoading={positionsLoading}
-                            tradeHistory={tradeHistory}
-                            historyLoading={historyLoading}
-                            markets={markets}
-                            fetchPositions={fetchPositions}
+                        <TradingForm
+                            market={displayMarket}
+                            currentPrice={currentPrice}
+                            side={tradeSide}
+                            onSideChange={setTradeSide}
+                            onPriceRefresh={refetchPrice}
+                            onTradeSuccess={() => {
+                                fetchPositions();
+                            }}
                         />
                     </div>
                 </div>
 
-                {/* Right Column: Trading Form */}
+                {/* Bottom Row: Positions Table (Full Width) */}
                 <div
                     className={clsx(
-                        "w-full flex flex-col gap-4 shrink-0 transition-[width] duration-300 mx-auto lg:mx-0",
-                        activeTab !== 'trade' && "hidden lg:flex"
+                        "w-full glass-panel min-h-[300px] flex flex-col rounded-xl overflow-hidden transition-all duration-300 shadow-xl border border-[var(--border-color)]/60",
+                        activeTab !== 'positions' && "hidden lg:flex"
                     )}
-                    style={{ maxWidth: `min(100%, ${tradingFormWidth}px)` }}
+                    style={{ minHeight: positionPanelHeight }}
                 >
-                    <TradingForm
-                        market={displayMarket}
-                        currentPrice={currentPrice}
-                        side={tradeSide}
-                        onSideChange={setTradeSide}
-                        onPriceRefresh={refetchPrice}
-                        onTradeSuccess={() => {
-                            fetchPositions();
-                        }}
+                    <PositionTable
+                        positions={positionsWithLivePnL}
+                        positionsLoading={positionsLoading}
+                        tradeHistory={tradeHistory}
+                        historyLoading={historyLoading}
+                        markets={markets}
+                        fetchPositions={fetchPositions}
                     />
                 </div>
             </div>

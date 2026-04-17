@@ -8,7 +8,7 @@ import {
 } from "../services/indexer.js";
 import { getActiveMarketAddresses } from "../services/activeMarkets.js";
 import type { ProtocolStats, DailyStat, ApiResponse } from "../types/index.js";
-import { toDecimal } from "../utils/format.js";
+import { toDecimal, toDecimal18 } from "../utils/format.js";
 
 const router = Router();
 
@@ -113,10 +113,10 @@ router.get("/history", async (_req: Request, res: Response) => {
       const date = new Date(ts).toISOString().slice(0, 10);
       return {
         date,
-        volume: toDecimal(m.volumeUsd),
+        volume: toDecimal18(m.volumeUsd),
         trades: Number(m.tradesCount) || 0,
-        fees: toDecimal(m.feesUsd),
-        pnl: "0", // ProtocolMetric does not expose daily pnl
+        fees: toDecimal18(m.feesUsd),
+        pnl: "0.00", // ProtocolMetric does not expose daily pnl
       };
     });
     res.json({ success: true, data } as ApiResponse<DailyStat[]>);

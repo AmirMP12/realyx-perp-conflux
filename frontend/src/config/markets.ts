@@ -1,9 +1,9 @@
 /** Asset category labels and styles for filter recognition */
 export const CATEGORY_CONFIG: Record<string, { label: string; className: string }> = {
-    CRYPTO: { label: "Crypto", className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
-    STOCK: { label: "Equities", className: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
-    COMMODITY: { label: "Commodities", className: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
-    FOREX: { label: "Forex", className: "bg-violet-500/15 text-violet-400 border-violet-500/30" },
+    CRYPTO: { label: "Crypto", className: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" },
+    STOCK: { label: "Equities", className: "bg-sky-500/10 text-sky-400 border-sky-500/20" },
+    COMMODITY: { label: "Commodities", className: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
+    FOREX: { label: "Forex", className: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20" },
 };
 
 export const MARKET_DISPLAY_FALLBACK: Record<string, { name: string; symbol: string; image: string }> = {

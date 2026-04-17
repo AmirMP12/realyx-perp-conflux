@@ -82,7 +82,9 @@ export function MarketsPage() {
     }).sort((a, b) => {
         if (a.symbol === 'CFX-USD') return -1;
         if (b.symbol === 'CFX-USD') return 1;
-        return 0;
+        // Secondary sort by volume
+        if (b.volume24h !== a.volume24h) return b.volume24h - a.volume24h;
+        return a.symbol.localeCompare(b.symbol);
     });
 
 
@@ -306,8 +308,8 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
     const isPositive = market.change24h >= 0;
 
     return (
-        <tr className="hover:bg-[var(--bg-tertiary)]/35 transition-colors duration-150 group">
-            <td className="px-6 py-4">
+        <tr className="hover:bg-[var(--bg-tertiary)]/40 transition-all duration-200 group border-b border-[var(--border-color)]/30 last:border-0">
+            <td className="px-6 py-3">
                 <div className="flex items-center gap-3">
                     <button
                         onClick={(e) => {
@@ -338,27 +340,27 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
                     ${formatPriceWithPrecision(market.indexPrice)}
                 </div>
             </td>
-            <td className="px-6 py-4 text-right">
+            <td className="px-6 py-3 text-right">
                 <div className={clsx("font-mono font-medium", isPositive ? "text-[var(--long)]" : "text-[var(--short)]")}>
                     {isPositive ? '+' : ''}{market.change24h.toFixed(2)}%
                 </div>
             </td>
-            <td className="px-6 py-4 text-right text-text-secondary font-mono text-sm">
+            <td className="px-6 py-3 text-right text-text-secondary/80 font-mono text-[13px]">
                 {formatCompact(market.volume24h)}
             </td>
-            <td className="px-6 py-4 text-right font-mono text-sm">
-                <div className="text-text-primary">{formatCompact(market.longOI + market.shortOI)}</div>
+            <td className="px-6 py-3 text-right font-mono text-[13px]">
+                <div className="text-text-primary/90">{formatCompact(market.longOI + market.shortOI)}</div>
                 <div className="flex h-1 w-full bg-[var(--bg-tertiary)] rounded-full mt-1.5 overflow-hidden max-w-[80px] ml-auto">
                     <div className="bg-[var(--long)] h-full" style={{ width: `${(market.longOI / (market.longOI + market.shortOI || 1)) * 100}%` }} />
                     <div className="bg-[var(--short)] h-full" style={{ width: `${(market.shortOI / (market.longOI + market.shortOI || 1)) * 100}%` }} />
                 </div>
             </td>
-            <td className="px-6 py-4 text-right">
-                <div className={clsx("font-mono text-sm", market.fundingRate >= 0 ? "text-[var(--long)]" : "text-[var(--short)]")}>
+            <td className="px-6 py-3 text-right">
+                <div className={clsx("font-mono text-[13px]", market.fundingRate >= 0 ? "text-[var(--long)]" : "text-[var(--short)]")}>
                     {(market.fundingRate * 100).toFixed(4)}%
                 </div>
             </td>
-            <td className="px-6 py-4 text-right">
+            <td className="px-6 py-3 text-right">
                 <div className="w-[100px] h-[30px] ml-auto">
                     <Sparkline data={prices} width={100} height={30} />
                 </div>

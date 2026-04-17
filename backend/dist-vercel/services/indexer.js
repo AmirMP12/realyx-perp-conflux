@@ -486,6 +486,66 @@ export async function fetchLeaderboard(limit, timeframe = "all") {
 export async function fetchBadDebtClaims(_limit) {
     return [];
 }
-export async function fetchProtocolMetrics(_limit, _periodType = "day") {
-    return [];
+export async function fetchProtocolMetrics(limit, periodType = "day") {
+    if (!process.env.POSTGRES_URL)
+        return [];
+    try {
+        const pool = getPool();
+        if (!pool)
+            return [];
+        const interval = periodType === "day" ? "1 day" : "1 hour";
+        const trunc = periodType === "day" ? "day" : "hour";
+        const res = await pool.query(`
+      WITH opened_sizes AS (
+        SELECT DISTINCT ON ((data::jsonb->>0)::text)
+          (data::jsonb->>0)::text AS position_id,
+          (data::jsonb->>4)::numeric AS size_raw
+        FROM position_events
+        WHERE event_type = 'PositionOpened'
+        ORDER BY (data::jsonb->>0)::text, id ASC
+      ),
+      event_metrics AS (
+        SELECT 
+          date_trunc('${trunc}', c.created_at) as ts,
+          CASE
+            WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
+              THEN (c.data::jsonb->>4)::numeric
+            WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
+              THEN o.size_raw
+            ELSE 0::numeric
+          END AS volume_raw,
+          1 as trade_count
+        FROM position_events c
+        LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
+        WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
+          AND c.created_at >= NOW() - INTERVAL '${limit} ${periodType}s'
+      )
+      SELECT 
+        ts::text as timestamp_text,
+        (EXTRACT(EPOCH FROM ts))::bigint as timestamp_unix,
+        COALESCE(SUM(volume_raw), 0)::text as volume_usd_raw,
+        SUM(trade_count)::bigint as trades_count
+      FROM event_metrics
+      GROUP BY ts
+      ORDER BY ts DESC
+      LIMIT $1
+    `, [limit]);
+        return res.rows.map((row) => ({
+            id: row.timestamp_text,
+            period: "daily",
+            periodType,
+            volumeUsd: row.volume_usd_raw,
+            tradesCount: String(row.trades_count),
+            feesUsd: "0",
+            liquidationsCount: "0",
+            openInterestLong: "0",
+            openInterestShort: "0",
+            tvl: "0",
+            timestamp: String(row.timestamp_unix),
+        }));
+    }
+    catch (e) {
+        console.error("[indexer] fetchProtocolMetrics error:", e);
+        return [];
+    }
 }

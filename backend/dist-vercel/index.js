@@ -1,6 +1,7 @@
 import { config } from "./config.js";
 import { app, logger } from "./app.js";
 import { startWsServer } from "./wsServer.js";
+import { runSync } from "./routes/sync.js";
 app.listen(config.port, () => {
     const rpcSet = Boolean(process.env.RPC_URL?.trim());
     const tradingCoreSet = Boolean((process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE)?.trim());
@@ -17,4 +18,20 @@ if (enableWs) {
 }
 else {
     logger.info("WebSocket server disabled (ENABLE_WS=false or Vercel runtime); frontend should use polling mode.");
+}
+// Background indexing loop (auto-sync)
+// Only run if not on Vercel (Production uses Vercel Crons)
+if (!process.env.VERCEL) {
+    const SYNC_INTERVAL = 2 * 60 * 1000; // 2 minutes
+    logger.info({ intervalMs: SYNC_INTERVAL }, "Starting background sync loop");
+    setInterval(async () => {
+        try {
+            logger.debug("Starting background auto-sync...");
+            const result = await runSync();
+            logger.info({ eventsSynced: result.eventsSynced, scannedTo: result.scannedTo }, "Background sync completed");
+        }
+        catch (err) {
+            logger.error({ err }, "Background sync failed");
+        }
+    }, SYNC_INTERVAL);
 }
