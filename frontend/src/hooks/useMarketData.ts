@@ -13,6 +13,8 @@ function readMarketInfoTuple(
     raw: unknown,
 ): { totalLongSize: bigint; totalShortSize: bigint; maxLeverage: bigint } | undefined {
     if (raw == null) return undefined;
+
+    // Case 1: Object with named properties
     if (typeof raw === 'object' && !Array.isArray(raw) && 'totalLongSize' in raw) {
         const o = raw as { totalLongSize: bigint; totalShortSize: bigint; maxLeverage: bigint };
         return {
@@ -21,18 +23,35 @@ function readMarketInfoTuple(
             maxLeverage: BigInt(o.maxLeverage),
         };
     }
+
+    // Case 2: Array (tuple) - Common on Conflux / older RPCs
+    // Market struct: longOI is index 8, shortOI is index 9, maxLeverage is index 7
+    if (Array.isArray(raw) && raw.length >= 10) {
+        return {
+            totalLongSize: BigInt(raw[8]),
+            totalShortSize: BigInt(raw[9]),
+            maxLeverage: BigInt(raw[7]),
+        };
+    }
+
     return undefined;
 }
 
 function readFundingTuple(raw: unknown): { fundingRate: bigint } | undefined {
     if (raw == null) return undefined;
+    
+    // Case 1: Object with named properties
     if (typeof raw === 'object' && !Array.isArray(raw) && 'fundingRate' in raw) {
         const o = raw as { fundingRate: bigint };
         return { fundingRate: BigInt(o.fundingRate) };
     }
-    if (Array.isArray(raw) && raw[0] !== undefined && raw[0] !== null) {
+    
+    // Case 2: Array (tuple)
+    // FundingState struct: fundingRate is index 0
+    if (Array.isArray(raw) && raw.length > 0 && raw[0] !== undefined && raw[0] !== null) {
         return { fundingRate: BigInt(raw[0] as bigint) };
     }
+    
     return undefined;
 }
 
