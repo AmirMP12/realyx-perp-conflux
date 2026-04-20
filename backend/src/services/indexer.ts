@@ -144,7 +144,7 @@ const PROTOCOL_VOLUME_24H_SQL = `
         THEN o.size_raw / POWER(10::numeric, 18)
       ELSE 0::numeric
     END
-  ), 0)::text AS volume_24h_usd
+  ), 0)::numeric AS volume_24h_usd
   FROM position_events c
   LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
   WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
@@ -255,7 +255,7 @@ export async function fetchMarkets(): Promise<Market[]> {
           ORDER BY (data::jsonb->>0)::text, id ASC
         )
         SELECT 
-          COALESCE(NULLIF(c.market_id, '0x'), o.open_market_id) AS market_id,
+          COALESCE(NULLIF(c.market_id, '0x'), NULLIF(o.open_market_id, '0x')) AS market_id,
           COALESCE(SUM(
             CASE
               WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
@@ -276,7 +276,7 @@ export async function fetchMarkets(): Promise<Market[]> {
 
       statsRes.rows.forEach((row: any) => {
         const m_id = (row.market_id || "").toLowerCase();
-        if (m_id && m_id !== '0x' && m_id !== 'null' && m_id.length > 10) {
+        if (m_id && m_id !== '0x' && m_id !== 'null' && m_id.length > 20) {
           statsMap.set(m_id, row);
         }
       });

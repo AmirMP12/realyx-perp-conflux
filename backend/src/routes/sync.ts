@@ -161,34 +161,27 @@ async function processLogs(logs: any[], iface: ethers.Interface, pool: pg.Pool) 
       const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
       if (!parsed) continue;
 
-      let account = log.address;
       let marketId = "0x";
       if (parsed.name === "PositionOpened") {
         account = String(parsed.args[1]);
         marketId = String(parsed.args[2]);
-      } else if (parsed.name === "PositionClosed") {
-        account = String(parsed.args[1]);
+      } else if (parsed.name === "PositionClosed" || parsed.name === "PositionLiquidated") {
         const posId = String(parsed.args[0]);
-        try {
-          const openEvt = await pool.query(
-            `SELECT market_id FROM position_events WHERE event_type = 'PositionOpened' AND (data::jsonb->>0)::text = $1 LIMIT 1`,
-            [posId]
-          );
-          if (openEvt.rows.length > 0 && openEvt.rows[0].market_id) {
-            marketId = openEvt.rows[0].market_id;
-          }
-        } catch { /* ignore */ }
-      } else if (parsed.name === "PositionLiquidated") {
-        const posId = String(parsed.args[0]);
-        account = log.address;
+        if (parsed.name === "PositionClosed") account = String(parsed.args[1]);
+        else account = log.address; // liquidator by default
+
         try {
           const openEvt = await pool.query(
             `SELECT account, market_id FROM position_events WHERE event_type = 'PositionOpened' AND (data::jsonb->>0)::text = $1 LIMIT 1`,
             [posId]
           );
           if (openEvt.rows.length > 0) {
-            if (openEvt.rows[0].account) account = openEvt.rows[0].account;
-            if (openEvt.rows[0].market_id) marketId = openEvt.rows[0].market_id;
+            if (openEvt.rows[0].market_id && openEvt.rows[0].market_id !== "0x") {
+              marketId = openEvt.rows[0].market_id;
+            }
+            if (openEvt.rows[0].account) {
+              account = openEvt.rows[0].account; // Always use the original trader account for volume tracking
+            }
           }
         } catch { /* ignore */ }
       }
