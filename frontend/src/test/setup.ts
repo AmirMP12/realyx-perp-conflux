@@ -220,7 +220,6 @@ vi.mock('recharts', () => {
 });
 
 vi.mock('@tanstack/react-query', () => {
-    const React = require('react');
     return {
         useQuery: vi.fn(() => ({ data: undefined, isLoading: false, refetch: vi.fn() })),
         useMutation: vi.fn(() => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false })),
