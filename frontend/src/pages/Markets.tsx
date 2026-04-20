@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Star, AlertTriangle, Search } from 'lucide-react';
 import clsx from 'clsx';
