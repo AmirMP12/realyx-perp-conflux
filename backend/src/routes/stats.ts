@@ -67,7 +67,8 @@ router.get("/", async (_req: Request, res: Response) => {
     const totalMarkets = (markets.length === 0 && totalMarketsBeforeFilter > 0) 
       ? totalMarketsBeforeFilter 
       : markets.length;
-    let volume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
+    let volume24h = protocol?.volume24hUsd ? Number(protocol.volume24hUsd).toFixed(6) : "0";
+    let cumulativeVolumeUsd = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
     
     // Fallback: if global volume is 0 but we have markets with potential volume, sum them
     if (Number(volume24h) === 0 && markets.length > 0) {
@@ -90,6 +91,7 @@ router.get("/", async (_req: Request, res: Response) => {
       data: {
         totalMarkets,
         volume24h,
+        cumulativeVolumeUsd,
         totalOpenInterest,
         totalLiquidations,
         activeTraders24h,

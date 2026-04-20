@@ -22,12 +22,11 @@ export function getPool() {
     });
     return poolInstance;
 }
-const PROTOCOL_VOLUME_24H_SQL = `
+const PROTOCOL_CUMULATIVE_VOLUME_SQL = `
   WITH opened_sizes AS (
     SELECT DISTINCT ON ((data::jsonb->>0)::text)
       (data::jsonb->>0)::text AS position_id,
-      (data::jsonb->>4)::numeric AS size_raw,
-      (data::jsonb->>2)::text AS open_market_id
+      (data::jsonb->>4)::numeric AS size_raw
     FROM position_events
     WHERE event_type = 'PositionOpened'
     ORDER BY (data::jsonb->>0)::text, id ASC
@@ -42,32 +41,60 @@ const PROTOCOL_VOLUME_24H_SQL = `
           THEN o.size_raw / POWER(10::numeric, 18)
         ELSE 0::numeric
       END
-    ), 0)::numeric AS volume_24h_usd
+    ), 0)::numeric AS volume_usd
+  FROM position_events c
+  LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
+  WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
+    AND c.data IS NOT NULL
+`;
+const PROTOCOL_VOLUME_24H_SQL = `
+  WITH opened_sizes AS (
+    SELECT DISTINCT ON ((data::jsonb->>0)::text)
+      (data::jsonb->>0)::text AS position_id,
+      (data::jsonb->>4)::numeric AS size_raw
+    FROM position_events
+    WHERE event_type = 'PositionOpened'
+    ORDER BY (data::jsonb->>0)::text, id ASC
+  )
+  SELECT 
+    COALESCE(SUM(
+      CASE
+        WHEN c.size_usd > 0 THEN c.size_usd
+        WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
+          THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
+        WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
+          THEN o.size_raw / POWER(10::numeric, 18)
+        ELSE 0::numeric
+      END
+    ), 0)::numeric AS volume_usd
   FROM position_events c
   LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
   WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
     AND c.data IS NOT NULL
     AND (
-      (c.block_time IS NOT NULL AND c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint)
-      OR 
-      (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '24 hours')
+      c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint
+      OR (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '5 minutes')
     )
 `;
 export async function fetchProtocol() {
     if (!process.env.POSTGRES_URL) {
         if (process.env.NODE_ENV === 'test')
-            return { totalVolumeUsd: "5000", totalFeesUsd: "100", tvl: "1000", totalTrades: "10", totalPositionsOpened: "5", totalPositionsClosed: "4", totalLiquidations: "1" };
+            return { totalVolumeUsd: "50000", volume24hUsd: "5000", totalFeesUsd: "100", tvl: "1000", totalTrades: "10", totalPositionsOpened: "5", totalPositionsClosed: "4", totalLiquidations: "1" };
         return null;
     }
     try {
         const pool = getPool();
         if (!pool)
             return null;
-        const [res, volRes] = await Promise.all([
+        const [res, vol24Res, volTotalRes] = await Promise.all([
             pool.query(`SELECT event_type, COUNT(*) as count FROM position_events GROUP BY event_type`),
             pool.query(PROTOCOL_VOLUME_24H_SQL).catch((e) => {
-                console.error("Volume query failed:", e);
-                return { rows: [{ volume_24h_usd: "0" }] };
+                console.error("Volume 24h query failed:", e);
+                return { rows: [{ volume_usd: "0" }] };
+            }),
+            pool.query(PROTOCOL_CUMULATIVE_VOLUME_SQL).catch((e) => {
+                console.error("Volume total query failed:", e);
+                return { rows: [{ volume_usd: "0" }] };
             }),
         ]);
         let opened = 0;
@@ -81,12 +108,14 @@ export async function fetchProtocol() {
             if (row.event_type === "PositionLiquidated")
                 liq = parseInt(row.count);
         }
-        const totalVolumeUsd = String(volRes.rows[0]?.volume_24h_usd ?? "0");
+        const volume24hUsd = String(vol24Res.rows[0]?.volume_usd ?? "0");
+        const totalVolumeUsd = String(volTotalRes.rows[0]?.volume_usd ?? "0");
         return {
             totalPositionsOpened: String(opened),
             totalPositionsClosed: String(closed),
             totalTrades: String(opened + closed + liq),
             totalVolumeUsd,
+            volume24hUsd,
             totalFeesUsd: "0",
             totalLiquidations: String(liq),
             tvl: "0",
@@ -141,72 +170,103 @@ export async function fetchActiveTraders24h() {
         return 0;
     }
 }
+import { MARKET_META } from "../constants/markets.js";
 export async function fetchMarkets() {
     try {
         const { fetchMarketsOnChain } = await import("./fetchMarketsOnchain.js");
-        const onchain = await fetchMarketsOnChain();
-        // If we have no database, just return onchain
-        if (!process.env.POSTGRES_URL || !getPool())
-            return onchain;
-        // Fetch 24h volume/trades per market from DB — best effort
+        const onchainRaw = await fetchMarketsOnChain();
+        const onchainMap = new Map(onchainRaw.map(m => [m.marketAddress.toLowerCase(), m]));
+        const pool = getPool();
+        const hasDB = Boolean(process.env.POSTGRES_URL && pool);
+        // Fetch 24h stats from DB
         const statsMap = new Map();
-        try {
-            const pool = getPool();
-            const statsRes = await pool.query(`
-        WITH opened_sizes AS (
-          SELECT DISTINCT ON ((data::jsonb->>0)::text)
-            (data::jsonb->>0)::text AS position_id,
-            (data::jsonb->>4)::numeric AS size_raw,
-            (data::jsonb->>2)::text AS open_market_id
-          FROM position_events
-          WHERE event_type = 'PositionOpened'
-          ORDER BY (data::jsonb->>0)::text, id ASC
-        )
-        SELECT 
-          COALESCE(
-            NULLIF(c.market_id, '0x'), 
-            NULLIF(o.open_market_id, '0x'), 
-            NULLIF((c.data::jsonb->>2)::text, '0x')
-          ) AS market_id,
-          COALESCE(SUM(
-            CASE
-              WHEN c.size_usd > 0 THEN c.size_usd
-              WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
-                THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
-              WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
-                THEN o.size_raw / POWER(10::numeric, 18)
-              ELSE 0::numeric
-            END
-          ), 0)::text AS volume24h,
-          COUNT(*)::int AS trades24h
-        FROM position_events c
-        LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
-        WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
-          AND c.data IS NOT NULL
-          AND (
-            (c.block_time IS NOT NULL AND c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '25 hours'))::bigint)
-            OR 
-            (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '25 hours')
+        if (hasDB) {
+            try {
+                const statsRes = await pool.query(`
+          WITH opened_sizes AS (
+            SELECT DISTINCT ON ((data::jsonb->>0)::text)
+              (data::jsonb->>0)::text AS position_id,
+              (data::jsonb->>4)::numeric AS size_raw,
+              (data::jsonb->>2)::text AS open_market_id
+            FROM position_events
+            WHERE event_type = 'PositionOpened'
+            ORDER BY (data::jsonb->>0)::text, id ASC
           )
-        GROUP BY 1
-      `);
-            statsRes.rows.forEach((row) => {
-                const m_id = (row.market_id || "").toLowerCase();
-                // Relax checks slightly during catch-up phase
-                if (m_id && m_id !== '0x' && m_id !== 'null' && m_id.length > 30) {
-                    statsMap.set(m_id, row);
-                }
-            });
+          SELECT 
+            LOWER(CASE 
+              WHEN c.market_id IS NOT NULL AND c.market_id <> '0x' THEN c.market_id
+              WHEN c.event_type = 'PositionOpened' THEN (c.data->>2)::text
+              ELSE o.open_market_id
+            END) AS market_id,
+            COALESCE(SUM(
+              CASE
+                WHEN c.size_usd > 0 THEN c.size_usd
+                WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
+                  THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
+                WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
+                  THEN o.size_raw / POWER(10::numeric, 18)
+                ELSE 0::numeric
+              END
+            ), 0)::text AS volume24h,
+            COUNT(*)::int AS trades24h
+          FROM position_events c
+          LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
+          WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
+            AND c.data IS NOT NULL
+            AND (
+              c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '25 hours'))::bigint
+              OR (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '5 minutes')
+            )
+          GROUP BY 1
+        `);
+                statsRes.rows.forEach((row) => {
+                    const m_id = String(row.market_id || "").toLowerCase().trim();
+                    if (m_id && m_id !== "0x") {
+                        statsMap.set(m_id, row);
+                    }
+                });
+            }
+            catch (e) {
+                console.error("Market-volume query failed:", e);
+            }
         }
-        catch (dbErr) {
-            console.warn("[indexer] volume stats query failed:", dbErr);
-        }
-        // Merge stats into onchain markets
-        const merged = onchain.map((m) => {
-            const addr = (m.marketAddress || m.id).toLowerCase();
+        // 1. Start with the "source of truth" addresses (on-chain + static metadata + database-active)
+        const allAddresses = new Set([
+            ...onchainMap.keys(),
+            ...Object.keys(MARKET_META).map(a => a.toLowerCase()),
+            ...statsMap.keys()
+        ]);
+        // 2. Build the final list by merging data for each address
+        const merged = Array.from(allAddresses).map(addr => {
+            const oc = onchainMap.get(addr);
             const s = statsMap.get(addr);
+            // If we have on-chain data, use it as base. Otherwise, create a skeleton.
+            if (oc) {
+                return {
+                    ...oc,
+                    volume24h: s?.volume24h ?? "0",
+                    trades24h: s?.trades24h ?? 0,
+                };
+            }
+            // Skeleton for data not currently in active on-chain list
             return {
-                ...m,
+                id: addr,
+                marketAddress: addr,
+                maxLeverage: "30",
+                maxPositionSize: "0",
+                maxTotalExposure: "0",
+                totalLongSize: "0",
+                totalShortSize: "0",
+                totalLongCost: "0",
+                totalShortCost: "0",
+                fundingRate: "0",
+                cumulativeFunding: "0",
+                lastFundingTime: "0",
+                longOpenInterest: "0",
+                shortOpenInterest: "0",
+                isActive: true,
+                isListed: true,
+                updatedAt: new Date().toISOString(),
                 volume24h: s?.volume24h ?? "0",
                 trades24h: s?.trades24h ?? 0,
             };

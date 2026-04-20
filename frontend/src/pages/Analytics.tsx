@@ -390,8 +390,7 @@ export default function AnalyticsDashboard() {
                 </div>
             )}
 
-            {/* Top Stats Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 <StatCard
                     title="Total Value Locked"
                     value={formatUsdStat((() => {
@@ -409,8 +408,14 @@ export default function AnalyticsDashboard() {
                     loading={marketsLoading}
                 />
                 <StatCard
-                    title="Total Volume (24h)"
+                    title="24h Volume"
                     value={formatUsdStat(totalVolume)}
+                    icon={<DollarSign className="w-5 h-5 md:w-6 md:h-6" />}
+                    loading={statsLoading}
+                />
+                <StatCard
+                    title="Total Volume"
+                    value={formatUsdStat(backendStats?.cumulativeVolumeUsd ?? 0)}
                     icon={<DollarSign className="w-5 h-5 md:w-6 md:h-6" />}
                     loading={statsLoading}
                 />

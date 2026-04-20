@@ -28,7 +28,8 @@ export interface Protocol {
   totalPositionsOpened: string;
   totalPositionsClosed: string;
   totalTrades: string;
-  totalVolumeUsd: string;
+  totalVolumeUsd: string; // Cumulative
+  volume24hUsd: string;   // Real 24h
   totalFeesUsd: string;
   totalLiquidations: string;
   tvl: string;
@@ -127,12 +128,11 @@ export interface ProtocolMetric {
   timestamp: string;
 }
 
-const PROTOCOL_VOLUME_24H_SQL = `
+const PROTOCOL_CUMULATIVE_VOLUME_SQL = `
   WITH opened_sizes AS (
     SELECT DISTINCT ON ((data::jsonb->>0)::text)
       (data::jsonb->>0)::text AS position_id,
-      (data::jsonb->>4)::numeric AS size_raw,
-      (data::jsonb->>2)::text AS open_market_id
+      (data::jsonb->>4)::numeric AS size_raw
     FROM position_events
     WHERE event_type = 'PositionOpened'
     ORDER BY (data::jsonb->>0)::text, id ASC
@@ -147,31 +147,60 @@ const PROTOCOL_VOLUME_24H_SQL = `
           THEN o.size_raw / POWER(10::numeric, 18)
         ELSE 0::numeric
       END
-    ), 0)::numeric AS volume_24h_usd
+    ), 0)::numeric AS volume_usd
+  FROM position_events c
+  LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
+  WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
+    AND c.data IS NOT NULL
+`;
+
+const PROTOCOL_VOLUME_24H_SQL = `
+  WITH opened_sizes AS (
+    SELECT DISTINCT ON ((data::jsonb->>0)::text)
+      (data::jsonb->>0)::text AS position_id,
+      (data::jsonb->>4)::numeric AS size_raw
+    FROM position_events
+    WHERE event_type = 'PositionOpened'
+    ORDER BY (data::jsonb->>0)::text, id ASC
+  )
+  SELECT 
+    COALESCE(SUM(
+      CASE
+        WHEN c.size_usd > 0 THEN c.size_usd
+        WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
+          THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
+        WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
+          THEN o.size_raw / POWER(10::numeric, 18)
+        ELSE 0::numeric
+      END
+    ), 0)::numeric AS volume_usd
   FROM position_events c
   LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
   WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
     AND c.data IS NOT NULL
     AND (
-      (c.block_time IS NOT NULL AND c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint)
-      OR 
-      (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '24 hours')
+      c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint
+      OR (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '5 minutes')
     )
 `;
 
 export async function fetchProtocol(): Promise<Protocol | null> {
   if (!process.env.POSTGRES_URL) {
-    if (process.env.NODE_ENV === 'test') return { totalVolumeUsd: "5000", totalFeesUsd: "100", tvl: "1000", totalTrades: "10", totalPositionsOpened: "5", totalPositionsClosed: "4", totalLiquidations: "1" };
+    if (process.env.NODE_ENV === 'test') return { totalVolumeUsd: "50000", volume24hUsd: "5000", totalFeesUsd: "100", tvl: "1000", totalTrades: "10", totalPositionsOpened: "5", totalPositionsClosed: "4", totalLiquidations: "1" };
     return null;
   }
   try {
     const pool = getPool();
     if (!pool) return null;
-    const [res, volRes] = await Promise.all([
+    const [res, vol24Res, volTotalRes] = await Promise.all([
       pool.query(`SELECT event_type, COUNT(*) as count FROM position_events GROUP BY event_type`),
       pool.query(PROTOCOL_VOLUME_24H_SQL).catch((e: any) => {
-        console.error("Volume query failed:", e);
-        return { rows: [{ volume_24h_usd: "0" }] };
+        console.error("Volume 24h query failed:", e);
+        return { rows: [{ volume_usd: "0" }] };
+      }),
+      pool.query(PROTOCOL_CUMULATIVE_VOLUME_SQL).catch((e: any) => {
+        console.error("Volume total query failed:", e);
+        return { rows: [{ volume_usd: "0" }] };
       }),
     ]);
     let opened = 0;
@@ -182,12 +211,14 @@ export async function fetchProtocol(): Promise<Protocol | null> {
       if (row.event_type === "PositionClosed") closed = parseInt(row.count);
       if (row.event_type === "PositionLiquidated") liq = parseInt(row.count);
     }
-    const totalVolumeUsd = String(volRes.rows[0]?.volume_24h_usd ?? "0");
+    const volume24hUsd = String(vol24Res.rows[0]?.volume_usd ?? "0");
+    const totalVolumeUsd = String(volTotalRes.rows[0]?.volume_usd ?? "0");
     return {
       totalPositionsOpened: String(opened),
       totalPositionsClosed: String(closed),
       totalTrades: String(opened + closed + liq),
       totalVolumeUsd,
+      volume24hUsd,
       totalFeesUsd: "0",
       totalLiquidations: String(liq),
       tvl: "0",
@@ -286,9 +317,8 @@ export async function fetchMarkets(): Promise<Market[]> {
           WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
             AND c.data IS NOT NULL
             AND (
-              (c.block_time IS NOT NULL AND c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '25 hours'))::bigint)
-              OR 
-              (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '25 hours')
+              c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '25 hours'))::bigint
+              OR (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '5 minutes')
             )
           GROUP BY 1
         `);

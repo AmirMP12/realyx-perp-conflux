@@ -46,6 +46,7 @@ router.get("/", async (_req, res) => {
             fetchTvlFromChain(),
         ]);
         let markets = marketsResult;
+        const totalMarketsBeforeFilter = markets.length;
         const activeSet = await getActiveMarketAddresses();
         if (activeSet && activeSet.size > 0) {
             markets = markets.filter((m) => {
@@ -53,8 +54,12 @@ router.get("/", async (_req, res) => {
                 return activeSet.has(addr.toLowerCase());
             });
         }
-        const totalMarkets = markets.length;
-        let volume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
+        // If filtering removed everything but we know there are markets, fall back to pre-filter count
+        const totalMarkets = (markets.length === 0 && totalMarketsBeforeFilter > 0)
+            ? totalMarketsBeforeFilter
+            : markets.length;
+        let volume24h = protocol?.volume24hUsd ? Number(protocol.volume24hUsd).toFixed(6) : "0";
+        let cumulativeVolumeUsd = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
         // Fallback: if global volume is 0 but we have markets with potential volume, sum them
         if (Number(volume24h) === 0 && markets.length > 0) {
             const sum = markets.reduce((acc, m) => acc + Number(m.volume24h || 0), 0);
@@ -73,6 +78,7 @@ router.get("/", async (_req, res) => {
             data: {
                 totalMarkets,
                 volume24h,
+                cumulativeVolumeUsd,
                 totalOpenInterest,
                 totalLiquidations,
                 activeTraders24h,

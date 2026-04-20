@@ -120,7 +120,8 @@ export function startWsServer() {
             totalOI += Number(m.totalLongSize) + Number(m.totalShortSize);
         }
         broadcast("stats_update", {
-            volume24h: protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0",
+            volume24h: protocol?.volume24hUsd ? toDecimal(protocol.volume24hUsd) : "0",
+            cumulativeVolumeUsd: protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0",
             totalOpenInterest: (totalOI / 1e12).toFixed(6),
             totalMarkets: filtered.length,
         });

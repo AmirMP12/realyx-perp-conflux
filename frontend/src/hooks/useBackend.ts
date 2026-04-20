@@ -98,6 +98,7 @@ export interface BackendPosition {
 export interface ProtocolStats {
     totalMarkets: number;
     volume24h: string;
+    cumulativeVolumeUsd: string;
     totalOpenInterest: string;
     totalLiquidations?: string;
     /** Distinct wallets with indexed activity in the last 24h (from API DB) */
