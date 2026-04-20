@@ -239,15 +239,18 @@ export async function fetchActiveTraders24h(): Promise<number> {
   }
 }
 
+import { MARKET_META } from "../constants/markets.js";
+
 export async function fetchMarkets(): Promise<Market[]> {
   try {
     const { fetchMarketsOnChain } = await import("./fetchMarketsOnchain.js");
-    let onchain = await fetchMarketsOnChain();
+    const onchainRaw = await fetchMarketsOnChain();
+    const onchainMap = new Map(onchainRaw.map(m => [m.marketAddress.toLowerCase(), m]));
     
     const pool = getPool();
     const hasDB = Boolean(process.env.POSTGRES_URL && pool);
 
-    // Fetch 24h volume/trades per market from DB — best effort
+    // Fetch 24h stats from DB
     const statsMap = new Map();
     if (hasDB) {
       try {
@@ -301,9 +304,29 @@ export async function fetchMarkets(): Promise<Market[]> {
       }
     }
 
-    // If we have no onchain markets but have database stats, create "virtual" markets from stats
-    if (onchain.length === 0 && statsMap.size > 0) {
-      onchain = Array.from(statsMap.keys()).map(addr => ({
+    // 1. Start with the "source of truth" addresses (on-chain + static metadata + database-active)
+    const allAddresses = new Set([
+      ...onchainMap.keys(),
+      ...Object.keys(MARKET_META).map(a => a.toLowerCase()),
+      ...statsMap.keys()
+    ]);
+
+    // 2. Build the final list by merging data for each address
+    const merged: Market[] = Array.from(allAddresses).map(addr => {
+      const oc = onchainMap.get(addr);
+      const s = statsMap.get(addr);
+      
+      // If we have on-chain data, use it as base. Otherwise, create a skeleton.
+      if (oc) {
+        return {
+          ...oc,
+          volume24h: s?.volume24h ?? "0",
+          trades24h: s?.trades24h ?? 0,
+        };
+      }
+
+      // Skeleton for data not currently in active on-chain list
+      return {
         id: addr,
         marketAddress: addr,
         maxLeverage: "30",
@@ -321,21 +344,12 @@ export async function fetchMarkets(): Promise<Market[]> {
         isActive: true,
         isListed: true,
         updatedAt: new Date().toISOString(),
-      })) as any[];
-    }
-
-    // Merge stats into markets
-    const merged = onchain.map((m: any) => {
-      const mAddr = (m.marketAddress || m.id || "").toLowerCase().trim();
-      const s = statsMap.get(mAddr);
-      return {
-        ...m,
         volume24h: s?.volume24h ?? "0",
         trades24h: s?.trades24h ?? 0,
-      };
+      } as Market;
     });
 
-    return merged as Market[];
+    return merged;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.warn("[indexer] fetchMarkets critical failure:", msg);
