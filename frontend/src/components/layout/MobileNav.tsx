@@ -1,16 +1,8 @@
-import { Link, useLocation } from 'react-router-dom';
-import { LayoutGrid, CandlestickChart, Wallet, Coins, Menu, BarChart2, Trophy, Share2, Shield, Settings, X, Sparkles } from 'lucide-react';
-import clsx from 'clsx';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 export function MobileNav() {
     const location = useLocation();
-    const { search } = useLocation();
-    const isModalOpen = useMemo(() => {
-        const p = new URLSearchParams(search);
-        return p.has('close') || p.has('edit_collateral') || p.has('transfer');
-    }, [search]);
     const [isMoreOpen, setIsMoreOpen] = useState(false);
 
     const navItems = [
@@ -23,10 +15,7 @@ export function MobileNav() {
 
     return (
         <>
-            <nav className={clsx(
-                "lg:hidden fixed bottom-0 left-0 right-0 z-50 pb-safe transition-opacity duration-300",
-                isModalOpen ? "pointer-events-none opacity-0" : "pointer-events-none"
-            )}>
+            <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 pb-safe pointer-events-none">
                 <div className="mx-3 mb-2 pointer-events-auto rounded-2xl border border-[var(--border-color)] bg-[var(--bg-secondary)] shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
                     <div className="flex items-center justify-around h-[62px] px-2">
                     {navItems.map((item) => {

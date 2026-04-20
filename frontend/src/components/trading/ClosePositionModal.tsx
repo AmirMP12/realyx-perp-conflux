@@ -60,7 +60,7 @@ export function ClosePositionModal({ isOpen, onClose, onCloseSuccess, position }
     };
 
     return (
-        <Dialog open={isOpen} onClose={onClose} className="relative z-[999]">
+        <Dialog open={isOpen} onClose={onClose} className="relative z-[100]">
             <DialogBackdrop transition className="fixed inset-0 bg-black/75 backdrop-blur-sm transition duration-200 ease-out data-closed:opacity-0" aria-hidden="true" />
 
             <div className="fixed inset-0 flex items-center justify-center p-4">
