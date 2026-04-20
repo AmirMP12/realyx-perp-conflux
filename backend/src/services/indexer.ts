@@ -179,7 +179,7 @@ const PROTOCOL_VOLUME_24H_SQL = `
   WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
     AND c.data IS NOT NULL
     AND (
-      c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint
+      COALESCE(c.block_time, EXTRACT(EPOCH FROM c.created_at)) >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))
     )
 `;
 
@@ -316,7 +316,7 @@ export async function fetchMarkets(): Promise<Market[]> {
           WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
             AND c.data IS NOT NULL
             AND (
-              c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '25 hours'))::bigint
+              COALESCE(c.block_time, EXTRACT(EPOCH FROM c.created_at)) >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))
             )
           GROUP BY 1
         `);
