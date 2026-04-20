@@ -18,7 +18,6 @@ import { useBackendStats, useLeaderboard, useDailyStats, useMarkets, Leaderboard
 import { Skeleton } from '../components/ui';
 import { formatCompact } from '../utils/format';
 import { useAllMarketsOnChainData } from '../hooks/useMarketData';
-import { useMarketsStore } from '../stores';
 import { Address } from 'viem';
 
 interface DailyStats {
