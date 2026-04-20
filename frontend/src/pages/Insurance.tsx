@@ -144,6 +144,7 @@ export function InsurancePage() {
                             {(['stake', 'unstake'] as const).map((tab) => (
                                 <button
                                     key={tab}
+                                    data-testid={`insurance-tab-${tab}`}
                                     onClick={() => setActiveTab(tab)}
                                     className={clsx(
                                         'flex-1 relative py-2.5 text-sm font-bold rounded-lg transition-colors z-10',
@@ -180,7 +181,7 @@ export function InsurancePage() {
                                         <span className="text-text-secondary">Amount (USDC Value)</span>
                                         <span className="text-text-secondary">
                                             Bal:{' '}
-                                            <span className="text-text-primary font-mono cursor-pointer hover:text-[var(--primary)] transition-colors" onClick={handleMax}>
+                                            <span className="text-text-primary font-mono cursor-pointer hover:text-[var(--primary)] transition-colors" data-testid="max-label" onClick={handleMax}>
                                                 {activeTab === 'stake'
                                                     ? (balanceLoading ? '...' : formatCompact(usdcBalance))
                                                     : (insurance.loading ? '...' : formatCompact(insurance.userInsuranceBalance))
@@ -211,6 +212,7 @@ export function InsurancePage() {
                                         <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 sm:gap-3">
                                             <button
                                                 onClick={handleMax}
+                                                data-testid="max-button"
                                                 className="text-[10px] sm:text-xs font-bold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 px-2 py-1 rounded-md transition-colors"
                                             >
                                                 MAX
@@ -292,6 +294,7 @@ export function InsurancePage() {
                                     <motion.button
                                         whileHover={!isActionDisabled ? { scale: 1.01 } : undefined}
                                         whileTap={!isActionDisabled ? { scale: 0.98 } : undefined}
+                                        data-testid="insurance-action-btn"
                                         onClick={handleAction}
                                         disabled={isActionDisabled}
                                         className={clsx(

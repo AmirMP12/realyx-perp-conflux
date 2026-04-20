@@ -209,6 +209,7 @@ export function VaultPage() {
                                         whileTap={!isActionDisabled ? { scale: 0.98 } : undefined}
                                         onClick={handleAction}
                                         disabled={isActionDisabled}
+                                        data-testid="vault-action-btn"
                                         className={clsx(
                                             "w-full py-3.5 sm:py-4 rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 transition-all",
                                             isActionDisabled

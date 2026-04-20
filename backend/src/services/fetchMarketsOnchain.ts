@@ -1,6 +1,5 @@
 import { readFileSync } from "fs";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
 import { ethers } from "ethers";
 
 /** Matches `indexer.Market` for `/markets` route mapping. */
@@ -24,13 +23,12 @@ export interface OnchainMarketRow {
   updatedAt: string;
 }
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+
 
 const DEFAULT_TESTNET_RPCS = ["https://evmtestnet.confluxrpc.com", "https://evmtestnet.confluxrpc.org"];
 const DEFAULT_MAINNET_RPCS = ["https://evm.confluxrpc.com"];
 
-function getRpcUrls(): string[] {
+export function getRpcUrls(): string[] {
   const primary = (process.env.RPC_URL ?? "").trim();
   const fallbackEnv = (process.env.RPC_FALLBACK_URL ?? "").trim();
   const urls: string[] = primary ? [primary] : [];
@@ -42,11 +40,12 @@ function getRpcUrls(): string[] {
 }
 
 function loadTradingCoreAbi(): ethers.InterfaceAbi {
-  const abiPath = join(__dirname, "../abi/TradingCore.json");
+  // Use path relative to process.cwd() for universal compatibility in tests and prod
+  const abiPath = join(process.cwd(), "src/abi/TradingCore.json");
   return JSON.parse(readFileSync(abiPath, "utf8")) as ethers.InterfaceAbi;
 }
 
-function toStr(n: unknown): string {
+export function toStr(n: unknown): string {
   if (n == null) return "0";
   if (typeof n === "bigint") return n.toString();
   if (typeof n === "number") return Number.isFinite(n) ? String(Math.trunc(n)) : "0";
@@ -62,7 +61,7 @@ let fetchInProgress: Promise<OnchainMarketRow[]> | null = null;
 const BASE_FUNDING_RATE = 100000000000000n; // 1e14
 const PRECISION = 1000000000000000000n; // 1e18
 
-function calculateInstantFundingRate(longOI: bigint, shortOI: bigint): bigint {
+export function calculateInstantFundingRate(longOI: bigint, shortOI: bigint): bigint {
   const totalOI = longOI + shortOI;
   if (totalOI === 0n) return 0n;
 
@@ -99,7 +98,7 @@ export async function fetchMarketsOnChain(): Promise<OnchainMarketRow[]> {
   }
 }
 
-async function _fetchMarketsOnChainImpl(): Promise<OnchainMarketRow[]> {
+export async function _fetchMarketsOnChainImpl(): Promise<OnchainMarketRow[]> {
   const tradingCoreAddress = (process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE ?? "").trim();
   if (!tradingCoreAddress) return [];
 

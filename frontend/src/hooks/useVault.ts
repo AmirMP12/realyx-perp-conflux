@@ -32,7 +32,7 @@ function pickLatestLog(logs: Log[]): Log | undefined {
     return logs.reduce((best, cur) => (compareLogOrder(cur, best) > 0 ? cur : best));
 }
 
-function messageForUnstakeRevert(err: unknown): string | undefined {
+export function messageForUnstakeRevert(err: unknown): string | undefined {
     const walk = (x: unknown): string | undefined => {
         if (!x || typeof x !== 'object') return undefined;
         const o = x as { data?: unknown; cause?: unknown };

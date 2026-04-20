@@ -58,7 +58,7 @@ function revertDataHex(err: unknown): string | null {
     return walk(err);
 }
 
-function closeTxErrorMessage(err: unknown): string {
+export function closeTxErrorMessage(err: unknown): string {
     const data = revertDataHex(err);
     if (data?.startsWith(STALE_PRICE_SELECTOR)) {
         return 'Oracle price is stale (Pyth publish time is too old for this network). Update feeds on the oracle / run your price keeper, then retry the close.';
@@ -191,18 +191,22 @@ export function useCreateOrder() {
         triggerPriceWei?: string; // 18 decimals; required for LIMIT_*
     }) => {
         if (!address) throw new Error('Wallet not connected');
-        // Use existing state if available, otherwise fetch.
-        const baseFee = (minExecutionFeeWei as bigint | undefined) ?? (publicClient
-            ? await publicClient.readContract({
+        let baseFee: bigint;
+        if (minExecutionFeeWei !== undefined && minExecutionFeeWei !== null) {
+            baseFee = BigInt(minExecutionFeeWei as any);
+        } else if (publicClient) {
+            const result = await publicClient.readContract({
                 address: TRADING_CORE_ADDRESS,
                 abi: TRADING_CORE_ABI,
                 functionName: 'minExecutionFee',
-            })
-            : 0n) as bigint;
+            });
+            baseFee = BigInt(result as any || 0);
+        } else {
+            baseFee = 0n;
+        }
 
         // Add a small safety buffer to avoid stale minExecutionFee reverts.
         const fee = (baseFee * 110n) / 100n;
-
         const orderType = params.orderType ?? OrderType.MARKET_INCREASE;
         const triggerPriceWei = orderType === OrderType.LIMIT_INCREASE || orderType === OrderType.LIMIT_DECREASE
             ? BigInt(params.triggerPriceWei ?? '0')
@@ -251,45 +255,6 @@ export function useOpenPosition() {
     const [isLoading, setIsLoading] = useState(false);
     const [step, setStep] = useState<'IDLE' | 'APPROVING' | 'COMMITTING' | 'WAITING' | 'REVEALING'>('IDLE');
 
-    const decodeCreateOrderRevert = (err: any): string | null => {
-        const known: Record<string, string> = {
-            '0xc8561601': 'Execution fee is too low. Please retry in a few seconds.',
-            '0x6b59e4ed': 'Trading is temporarily blocked by risk circuit breaker for this market.',
-            '0x3a23d825': 'Insufficient collateral for this position size/leverage.',
-            '0xb521771a': 'Market is currently not active.',
-            '0xaf610693': 'Invalid order parameters for current market conditions.',
-            '0x8199f5f3': 'Slippage exceeded. Increase slippage tolerance or retry.',
-            '0xf073bef9': 'Smart-contract wallets are blocked for trading actions (FlashLoanDetected). Please use a regular EOA wallet.',
-            '0xa74c1c5f': 'You are submitting actions too quickly. Wait a few seconds and retry.',
-            '0xa0e1accb': 'Compliance check failed for this market/account.',
-            '0x0b5f6bf0': 'This market is currently closed.',
-            '0xd0ad2225': 'Protocol health guard is active. New increase orders are temporarily disabled.',
-            '0x1ab7da6b': 'Transaction deadline expired. Please retry.',
-            '0xb28e83a9': 'Oracle sources are currently insufficient for this market.',
-        };
-
-        const raw = JSON.stringify(err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
-        const match = raw.match(/0x[a-fA-F0-9]{8,}/);
-        if (!match) return null;
-        const selector = match[0].slice(0, 10).toLowerCase();
-        return known[selector] ?? null;
-    };
-
-    const mapRevertToMessage = (err: any): string => {
-        const decoded = decodeCreateOrderRevert(err);
-        if (decoded) return decoded;
-
-        const text = `${err?.shortMessage ?? ''} ${err?.message ?? ''} ${err?.details ?? ''}`.toLowerCase();
-        if (text.includes('executionfeetoolow')) return 'Execution fee is too low. Please retry in a few seconds.';
-        if (text.includes('breakeractive')) return 'Trading is temporarily blocked by risk circuit breaker for this market.';
-        if (text.includes('insufficientcollateral')) return 'Insufficient collateral for this position size/leverage.';
-        if (text.includes('marketnotactive')) return 'Market is currently not active.';
-        if (text.includes('transfer amount exceeds balance') || text.includes('erc20')) return 'Insufficient token balance or allowance for collateral transfer.';
-        if (text.includes('the contract function "createorder" reverted')) {
-            return 'Order creation reverted on-chain. Common causes: insufficient USDC/allowance, low execution fee, or market circuit breaker.';
-        }
-        return err?.shortMessage || err?.message || 'Failed to submit order';
-    };
 
     const executePosition = async (
         params: Omit<OpenPositionParams, 'isCrossMargin' | 'collateralType' | 'deadline' | 'expectedPrice' | 'maxSlippageBps' | 'stopLossPrice' | 'takeProfitPrice' | 'trailingStopBps'> & {
@@ -419,6 +384,46 @@ export function useOpenPosition() {
 
     return { executePosition, isLoading, step };
 }
+
+export const decodeCreateOrderRevert = (err: any): string | null => {
+    const known: Record<string, string> = {
+            '0xc8561601': 'Execution fee is too low. Please retry in a few seconds.',
+            '0x6b59e4ed': 'Trading is temporarily blocked by risk circuit breaker for this market.',
+            '0x3a23d825': 'Insufficient collateral for this position size/leverage.',
+            '0xb521771a': 'Market is currently not active.',
+            '0xaf610693': 'Invalid order parameters for current market conditions.',
+            '0x8199f5f3': 'Slippage exceeded. Increase slippage tolerance or retry.',
+            '0xf073bef9': 'Smart-contract wallets are blocked for trading actions (FlashLoanDetected). Please use a regular EOA wallet.',
+            '0xa74c1c5f': 'You are submitting actions too quickly. Wait a few seconds and retry.',
+            '0xa0e1accb': 'Compliance check failed for this market/account.',
+            '0x0b5f6bf0': 'This market is currently closed.',
+            '0xd0ad2225': 'Protocol health guard is active. New increase orders are temporarily disabled.',
+            '0x1ab7da6b': 'Transaction deadline expired. Please retry.',
+            '0xb28e83a9': 'Oracle sources are currently insufficient for this market.',
+        };
+
+        const raw = JSON.stringify(err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
+        const match = raw.match(/0x[a-fA-F0-9]{8,}/);
+        if (!match) return null;
+        const selector = match[0].slice(0, 10).toLowerCase();
+        return known[selector] ?? null;
+};
+
+export const mapRevertToMessage = (err: any): string => {
+    const decoded = decodeCreateOrderRevert(err);
+    if (decoded) return decoded;
+
+    const text = `${err?.shortMessage ?? ''} ${err?.message ?? ''} ${err?.details ?? ''}`.toLowerCase();
+    if (text.includes('executionfeetoolow')) return 'Execution fee is too low. Please retry in a few seconds.';
+    if (text.includes('breakeractive')) return 'Trading is temporarily blocked by risk circuit breaker for this market.';
+    if (text.includes('insufficientcollateral')) return 'Insufficient collateral for this position size/leverage.';
+    if (text.includes('marketnotactive')) return 'Market is currently not active.';
+    if (text.includes('transfer amount exceeds balance') || text.includes('erc20')) return 'Insufficient token balance or allowance for collateral transfer.';
+    if (text.includes('the contract function "createorder" reverted')) {
+        return 'Order creation reverted on-chain. Common causes: insufficient USDC/allowance, low execution fee, or market circuit breaker.';
+    }
+    return err?.shortMessage || err?.message || 'Failed to submit order';
+};
 
 export function useAddCollateral() {
     const { chainId } = useAccount();

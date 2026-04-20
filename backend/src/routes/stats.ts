@@ -8,7 +8,7 @@ import {
 } from "../services/indexer.js";
 import { getActiveMarketAddresses } from "../services/activeMarkets.js";
 import type { ProtocolStats, DailyStat, ApiResponse } from "../types/index.js";
-import { toDecimal, toDecimal18 } from "../utils/format.js";
+import { toDecimal18 } from "../utils/format.js";
 import { checkAndSync } from "./sync.js";
 
 const router = Router();
@@ -52,7 +52,7 @@ router.get("/", async (_req: Request, res: Response) => {
       fetchProtocol(),
       fetchMarkets(),
       fetchActiveTraders24h(),
-      fetchTvlFromChain().catch(() => "0"),
+      fetchTvlFromChain(),
     ]);
     let markets = marketsResult;
     const activeSet = await getActiveMarketAddresses();

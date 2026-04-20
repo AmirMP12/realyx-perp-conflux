@@ -9,7 +9,7 @@ jest.mock('../services/pyth.js', () => ({
   })
 }));
 
-jest.mock('../services/subgraph.js', () => ({
+jest.mock('../services/indexer.js', () => ({
   fetchMarkets: (jest as any).fn().mockResolvedValue([
     {
       marketAddress: '0x0000000000000000000000000000000000000001',

@@ -1,9 +1,9 @@
 import request from 'supertest';
 import { jest } from '@jest/globals';
 import { app } from '../app.js';
-import * as subgraph from '../services/subgraph.js';
+import * as subgraph from '../services/indexer.js';
 
-jest.mock('../services/subgraph.js');
+jest.mock('../services/indexer.js');
 
 describe('User Tracking REST API', () => {
   beforeEach(() => {

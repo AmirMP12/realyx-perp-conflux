@@ -19,7 +19,7 @@ router.get("/", async (req: Request, res: Response) => {
     return res.json({ error: "No DB connection string configured" });
   }
 
-  let dbStatus: any = { 
+  const dbStatus: any = { 
     connected: true,
     tradingCore: (process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE ?? "NOT SET"),
     rpcUrl: process.env.RPC_URL ?? "Using default",

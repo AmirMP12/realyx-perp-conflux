@@ -16,27 +16,15 @@ import {
     calculatePnL,
     MOCK_USDC_ADDRESS,
 } from '../useProgram';
-import { useReadContract, useAccount, useWriteContract } from 'wagmi';
+import { useReadContract, useAccount, useWriteContract, usePublicClient } from 'wagmi';
 
-// Mock wagmi
-vi.mock('wagmi', () => ({
-    useAccount: vi.fn(() => ({ address: '0xUser', isConnected: true, chainId: 1 })),
-    useReadContract: vi.fn(() => ({ data: undefined, isLoading: false, refetch: vi.fn() })),
-    useWriteContract: vi.fn(() => ({ writeContractAsync: vi.fn(), isPending: false })),
-    usePublicClient: vi.fn(() => ({ readContract: vi.fn() })),
-}));
+// wagmi is mocked globally in setup.ts
 
-// Mock react-hot-toast
-vi.mock('react-hot-toast', () => ({
-    default: {
-        success: vi.fn(),
-        error: vi.fn(),
-    }
-}));
+// react-hot-toast is mocked globally in setup.ts
 
 // Mock useSound
 vi.mock('../useSound', () => ({
-    useSound: () => ({ playSuccess: vi.fn(), playError: vi.fn() }),
+    useSound: vi.fn(() => ({ playSuccess: vi.fn(), playError: vi.fn() })),
 }));
 
 describe('useProgram hooks - Full Coverage', () => {
@@ -61,7 +49,11 @@ describe('useProgram hooks - Full Coverage', () => {
 
     describe('useUSDCBalance', () => {
         it('returns formatted balance', () => {
-            (useReadContract as any).mockReturnValue({ data: BigInt(2000000), isLoading: false });
+            (useReadContract as any).mockImplementation(({ functionName }: any) => {
+                if (functionName === 'decimals') return { data: 6, isLoading: false };
+                if (functionName === 'balanceOf') return { data: BigInt(2000000), isLoading: false };
+                return { data: undefined, isLoading: false };
+            });
             const { result } = renderHook(() => useUSDCBalance());
             expect(result.current.balance).toBe(2);
         });
@@ -71,8 +63,11 @@ describe('useProgram hooks - Full Coverage', () => {
         it('calls writeContractAsync with correct args', async () => {
             const mockWrite = vi.fn().mockResolvedValue('0xHash');
             (useWriteContract as any).mockReturnValue({ writeContractAsync: mockWrite, isPending: false });
-            (useReadContract as any).mockReturnValue({ data: BigInt(50000) }); // minFee
-
+            (useReadContract as any).mockImplementation(({ functionName }: any) => {
+                if (functionName === 'decimals') return { data: 6 };
+                if (functionName === 'minExecutionFee') return { data: BigInt(50000) };
+                return { data: undefined };
+            });
             const { result } = renderHook(() => useCreateOrder());
             await act(async () => {
                 await result.current.createOrder({
@@ -91,8 +86,24 @@ describe('useProgram hooks - Full Coverage', () => {
     describe('useOpenPosition', () => {
         it('handles the full multi-step execution', async () => {
             const mockWrite = vi.fn().mockResolvedValue('0xHash');
-            (useWriteContract as any).mockReturnValue({ writeContractAsync: mockWrite, isPending: false });
-            (useReadContract as any).mockReturnValue({ data: BigInt(50000) });
+            const mockRead = vi.fn().mockImplementation(({ functionName }: any) => {
+                if (functionName === 'getMarketInfo') return { isListed: true, isActive: true };
+                if (functionName === 'oracleAggregator') return '0xOracle';
+                if (functionName === 'usdc') return '0xUSDC';
+                if (functionName === 'isActionAllowed') return true;
+                if (functionName === 'balanceOf') return BigInt(1000 * 1e6);
+                if (functionName === 'minExecutionFee') return BigInt(50000);
+                return null;
+            });
+
+            vi.mocked(useWriteContract).mockReturnValue({ writeContractAsync: mockWrite, isPending: false } as any);
+            vi.mocked(usePublicClient).mockReturnValue({ 
+                readContract: mockRead,
+                simulateContract: vi.fn().mockImplementation((args: any) => Promise.resolve({ request: args })),
+                getCode: vi.fn().mockResolvedValue('0x'),
+                waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: 'success' })
+            } as any);
+            vi.mocked(useReadContract).mockReturnValue({ data: BigInt(50000), isLoading: false, refetch: vi.fn() } as any);
 
             const { result } = renderHook(() => useOpenPosition());
             
@@ -219,8 +230,8 @@ describe('useProgram hooks - Full Coverage', () => {
         it('calculates long pnl', () => {
             const p = { size: 1, entryPrice: 100, margin: 10, isLong: true };
             const { pnl, pnlPercent } = calculatePnL(p, 110);
-            expect(pnl).toBe(10);
-            expect(pnlPercent).toBe(100);
+            expect(pnl).toBe(0.1);
+            expect(pnlPercent).toBe(1);
         });
     });
 });

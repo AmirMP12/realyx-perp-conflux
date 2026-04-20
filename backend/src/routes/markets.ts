@@ -4,7 +4,7 @@ import { getActiveMarketAddresses } from "../services/activeMarkets.js";
 import { fetchCoinGeckoPrices, getCoinGeckoIdForMarket, fetchPriceHistory } from "../services/coingecko.js";
 import { fetchPythPrices, fetchPyth24hChange, getPythTvSymbol, fetchPythPriceHistory, fetchPythPriceHistoryHermes, getPythFeedId } from "../services/pyth.js";
 import type { BackendMarket, ApiResponse } from "../types/index.js";
-import { toDecimal, toDecimal18, PRECISION_1E18 } from "../utils/format.js";
+import { toDecimal18, PRECISION_1E18 } from "../utils/format.js";
 
 const router = Router();
 const ENABLE_PYTH_24H = process.env.ENABLE_PYTH_24H != null
@@ -150,8 +150,13 @@ function buildFallbackMarkets(): BackendMarket[] {
 // ── Response-level cache for /markets ──
 let marketsResponseCache: { data: BackendMarket[]; fallback?: boolean } | null = null;
 let marketsResponseCachedAt = 0;
-const MARKETS_RESPONSE_TTL_MS = 5_000; // 5s — first request computes, subsequent polls get cache
-let marketsResponseInFlight: Promise<void> | null = null;
+const MARKETS_RESPONSE_TTL_MS = 5_000;
+
+export function clearMarketsCache() {
+  marketsResponseCache = null;
+  marketsResponseCachedAt = 0;
+}
+
 
 router.get("/", async (_req: Request, res: Response) => {
   // Serve from cache if fresh

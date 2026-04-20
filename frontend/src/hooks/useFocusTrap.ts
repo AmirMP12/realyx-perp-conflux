@@ -10,9 +10,7 @@ export function useFocusTrap(isActive: boolean) {
     if (!isActive) return;
     const el = containerRef.current;
     if (!el) return;
-    const focusable = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-      (n) => n.offsetParent != null
-    );
+    const focusable = Array.from(el.querySelectorAll<HTMLElement>(FOCUSABLE));
     if (focusable.length === 0) return;
 
     const first = focusable[0];

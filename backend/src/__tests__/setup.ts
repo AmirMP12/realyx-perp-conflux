@@ -1,3 +1,11 @@
+import { jest } from "@jest/globals";
+
+// SILENCE ALL CONSOLE OUTPUT BY DEFAULT
+console.log = () => {};
+console.info = () => {};
+console.warn = () => {};
+console.error = () => {};
+
 const mockMarket = {
     id: "0x986a383f6de4a24dd3f524f0f93546229b58265f",
     marketAddress: "0x986a383f6de4a24dd3f524f0f93546229b58265f",
@@ -91,10 +99,9 @@ const mockMetric = {
         return Promise.resolve({
             ok: true,
             status: 200,
-            json: async () => ({ 
-                "bitcoin": { usd: 20000, usd_24h_change: 1.5 },
-                prices: [[1600000000, 20000]]
-            })
+            json: async () => ([
+                { id: "bitcoin", symbol: "btc", current_price: 20000, price_change_percentage_24h: 1.5, total_volume: 1000000 }
+            ])
         });
     }
 
@@ -105,10 +112,23 @@ const mockMetric = {
     });
 });
 
-jest.mock("../middleware/rateLimit.js", () => ({
-    rateLimit: (req: any, res: any, next: any) => next()
-}));
+// Mock pg (Postgres)
+jest.mock("pg", () => {
+    const mPool = {
+      query: jest.fn().mockResolvedValue({ rows: [] }),
+      on: jest.fn(),
+      end: jest.fn(),
+      connect: jest.fn().mockResolvedValue({
+        query: jest.fn().mockResolvedValue({ rows: [] }),
+        release: jest.fn(),
+      }),
+    };
+    return {
+      default: {
+          Pool: jest.fn(() => mPool),
+      },
+      Pool: jest.fn(() => mPool),
+    };
+});
 
-jest.mock("../services/activeMarkets.js", () => ({
-    getActiveMarketAddresses: jest.fn().mockResolvedValue(new Set(["0x986a383f6de4a24dd3f524f0f93546229b58265f"]))
-}));
+// DO NOT MOCK specific services here as they have their own unit tests

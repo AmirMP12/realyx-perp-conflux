@@ -234,7 +234,7 @@ export function MarketsPage() {
                                 <tbody className="divide-y divide-[var(--border-color)]/70">
                                     {filteredMarkets.map((market) => (
                                         <MarketRow
-                                            key={market.id}
+                                            key={`${market.id}-${market.marketAddress}`}
                                             market={market}
                                             isFavorite={favorites.includes(market.id)}
                                             toggleFavorite={toggleFavorite}
@@ -248,7 +248,7 @@ export function MarketsPage() {
                         <div className="md:hidden divide-y divide-[var(--border-color)]">
                             {filteredMarkets.map((market) => (
                                 <MobileMarketCard
-                                    key={market.id}
+                                    key={`mobile-${market.id}-${market.marketAddress}`}
                                     market={market}
                                     isFavorite={favorites.includes(market.id)}
                                     toggleFavorite={toggleFavorite}
@@ -307,6 +307,7 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
                             e.preventDefault();
                             toggleFavorite(market.id);
                         }}
+                        data-testid={`favorite-toggle-${market.id}`}
                         className={clsx(
                             "p-1.5 rounded hover:bg-[var(--bg-tertiary)] transition-colors",
                             isFavorite ? "text-amber-400" : "text-text-muted hover:text-amber-400"

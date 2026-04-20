@@ -2,10 +2,10 @@ import request from 'supertest';
 import { jest } from '@jest/globals';
 import { app } from '../app.js';
 import * as activeMarkets from '../services/activeMarkets.js';
-import * as subServices from '../services/subgraph.js';
+import * as subServices from '../services/indexer.js';
 
 jest.mock('../services/activeMarkets.js');
-jest.mock('../services/subgraph.js');
+jest.mock('../services/indexer.js');
 jest.mock('../services/coingecko.js', () => ({
   fetchCoinGeckoPrices: jest.fn().mockResolvedValue({}),
   getCoinGeckoIdForMarket: jest.fn().mockReturnValue(null)
@@ -38,10 +38,17 @@ describe('Markets API', () => {
   });
 
   it('should return fallback data on subgraph failures', async () => {
+    // Advance time by 10 seconds to bypass cache (TTL is 5s)
+    const realDateNow = Date.now;
+    jest.spyOn(Date, 'now').mockReturnValue(realDateNow() + 10_000);
+
     (subServices.fetchMarkets as any).mockRejectedValue(new Error('SubGraph Down'));
     const res = await request(app).get('/api/markets');
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.fallback).toBe(true);
+
+    // Restore Date.now
+    (Date.now as any).mockRestore();
   });
 });

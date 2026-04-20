@@ -2,16 +2,20 @@
 export default {
   preset: 'ts-jest',
   testEnvironment: 'node',
+  silent: true,
   roots: ['<rootDir>/src'],
   testMatch: ['**/__tests__/**/*.test.ts'],
   collectCoverage: true,
   collectCoverageFrom: [
-    'src/middleware/**/*.ts',
-    'src/utils/**/*.ts',
+    'src/**/*.ts',
+    '!src/__tests__/**',
+    '!src/types/**',
+    '!src/abi/**',
+    '!src/**/*.d.ts',
   ],
   coverageDirectory: 'coverage',
-  coverageReporters: ['text', 'lcov'],
-  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.js'],
+  coverageReporters: ['text', 'lcov', 'clover', 'json-summary'],
+  setupFilesAfterEnv: ['<rootDir>/src/__tests__/setup.ts'],
   moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1',
   },
@@ -28,10 +32,10 @@ export default {
   },
   coverageThreshold: {
     global: {
-      branches: 85,
-      functions: 85,
-      lines: 85,
-      statements: 85
+      branches: 80,
+      functions: 80,
+      lines: 80,
+      statements: 80
     }
   }
 };

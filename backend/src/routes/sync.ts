@@ -177,7 +177,7 @@ async function processLogs(logs: any[], iface: ethers.Interface, pool: pg.Pool) 
           if (openEvt.rows.length > 0 && openEvt.rows[0].market_id) {
             marketId = openEvt.rows[0].market_id;
           }
-        } catch { }
+        } catch { /* ignore */ }
       } else if (parsed.name === "PositionLiquidated") {
         const posId = String(parsed.args[0]);
         account = log.address;
@@ -190,7 +190,7 @@ async function processLogs(logs: any[], iface: ethers.Interface, pool: pg.Pool) 
             if (openEvt.rows[0].account) account = openEvt.rows[0].account;
             if (openEvt.rows[0].market_id) marketId = openEvt.rows[0].market_id;
           }
-        } catch { }
+        } catch { /* ignore */ }
       }
 
       const eventData = JSON.stringify(parsed.args.map(arg => typeof arg === 'bigint' ? arg.toString() : arg));

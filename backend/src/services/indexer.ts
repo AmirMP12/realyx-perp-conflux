@@ -2,7 +2,10 @@ import pg from "pg";
 const { Pool } = pg;
 
 let poolInstance: any = null;
-function getPool(): any {
+export function resetPool(): void {
+  poolInstance = null;
+}
+export function getPool(): any {
   if (poolInstance) return poolInstance;
   if (!process.env.POSTGRES_URL) return null;
   
@@ -479,7 +482,7 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
 
 export type LeaderboardTimeframe = "all" | "24h" | "7d";
 
-function leaderboardTimeFilter(timeframe: LeaderboardTimeframe, tableAlias: string): string {
+export function leaderboardTimeFilter(timeframe: LeaderboardTimeframe, tableAlias: string): string {
   if (timeframe === "24h") return `AND ${tableAlias}.created_at >= NOW() - INTERVAL '24 hours'`;
   if (timeframe === "7d") return `AND ${tableAlias}.created_at >= NOW() - INTERVAL '7 days'`;
   return "";
@@ -607,7 +610,7 @@ export async function fetchProtocolMetrics(
     const pool = getPool();
     if (!pool) return [];
 
-    const interval = periodType === "day" ? "1 day" : "1 hour";
+
     const trunc = periodType === "day" ? "day" : "hour";
 
     const res = await pool.query(`

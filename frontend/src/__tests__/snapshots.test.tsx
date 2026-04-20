@@ -23,6 +23,11 @@ vi.mock('../contracts/index', () => ({
     VAULT_CORE_ADDRESS: '0x222',
     ORACLE_AGGREGATOR_ADDRESS: '0x333',
     POSITION_TOKEN_ADDRESS: '0x444',
+    MOCK_USDC_ADDRESS: '0x555',
+    TRADING_CORE_ABI: [],
+    VAULT_ABI: [],
+    ORACLE_ABI: [],
+    POSITION_TOKEN_ABI: [],
 }));
 
 // Mock useProgram with all exports
@@ -35,6 +40,7 @@ vi.mock('../hooks/useProgram', () => ({
     TRADING_CORE_ABI: [],
     ORACLE_ABI: [],
     VAULT_ABI: [],
+    POSITION_TOKEN_ABI: [],
     OrderType: { MARKET_INCREASE: 0, MARKET_DECREASE: 1, LIMIT_INCREASE: 2, LIMIT_DECREASE: 3 },
     useUSDC: vi.fn(() => ({ address: '0x555' })),
     useUSDCBalance: vi.fn(() => ({ balance: 0, loading: false })),
@@ -52,10 +58,42 @@ vi.mock('../hooks/useProgram', () => ({
     calculatePnL: vi.fn(() => ({ pnl: 0, pnlPercent: 0 })),
 }));
 
+vi.mock('../hooks/usePositions', () => ({
+    usePositions: vi.fn(() => ({ positions: [], loading: false, refetch: vi.fn() })),
+}));
+
+vi.mock('../hooks/useOnChainHistory', () => ({
+    useOnChainHistory: vi.fn(() => ({ data: [], isLoading: false, refetch: vi.fn() })),
+}));
+
 vi.mock('../hooks/usePendingOrders', () => ({
     usePendingOrders: vi.fn(() => ({ orders: [], loading: false, refetch: vi.fn() })),
     getOrderTypeLabel: vi.fn(),
 }));
+
+vi.mock('../stores', () => {
+    const mockPositionsState = {
+        optimisticPositions: [],
+        addOptimisticPosition: vi.fn(),
+        removePosition: vi.fn(),
+    };
+    const mockMarketsState = {
+        markets: [{ symbol: 'BTC-USD', marketAddress: '0x111', image: '', indexPrice: 50000 }],
+        favorites: [],
+        toggleFavorite: vi.fn(),
+        setMarkets: vi.fn(),
+        loading: false,
+    };
+    const mockLayoutState = {
+        positionPanelHeight: 300,
+    };
+
+    return {
+        usePositionsStore: vi.fn((sel) => sel ? sel(mockPositionsState) : mockPositionsState),
+        useMarketsStore: vi.fn((sel) => sel ? sel(mockMarketsState) : mockMarketsState),
+        useLayoutStore: vi.fn((sel) => sel ? sel(mockLayoutState) : mockLayoutState),
+    };
+});
 
 vi.mock('../hooks/useBackend', () => ({
     useMarkets: vi.fn(() => ({ loading: false, error: null, markets: [] })),

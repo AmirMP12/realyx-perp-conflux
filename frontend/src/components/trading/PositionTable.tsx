@@ -808,6 +808,7 @@ function MobilePositionCard({
                         }}
                         disabled={isOptimistic}
                         className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-tertiary)]/50 text-text-primary text-xs font-bold hover:bg-[var(--bg-tertiary)] transition-colors disabled:opacity-50"
+                        data-testid="mobile-trigger-btn"
                     >
                         <Shield size={14} /> Triggers
                     </button>
@@ -824,6 +825,7 @@ function MobilePositionCard({
                     onClick={() => setActiveTransferPos(pos)}
                     disabled={isOptimistic}
                     className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-tertiary)]/50 text-text-primary text-xs font-bold hover:bg-[var(--bg-tertiary)] transition-colors disabled:opacity-50"
+                    data-testid="mobile-transfer-btn"
                 >
                     <ArrowRightLeft size={14} /> Transfer Position
                 </button>

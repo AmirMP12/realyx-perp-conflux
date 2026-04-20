@@ -78,7 +78,7 @@ export function MarketHeader({
                         {[...markets].sort((a, b) => (b.volume24h || 0) - (a.volume24h || 0)).map(m => (
                             <button
                                 type="button"
-                                key={m.id}
+                                key={`${m.id}-${m.marketAddress}`}
                                 onClick={() => {
                                     navigate(`/trade/${m.symbol}`);
                                     setDropdownOpen(false);

@@ -96,7 +96,7 @@ export default function App() {
 
 function PageLoader() {
     return (
-        <div className="flex items-center justify-center min-h-[40vh]" aria-busy="true">
+        <div className="flex items-center justify-center min-h-[40vh]" aria-busy="true" data-testid="page-loader">
             <div className="w-8 h-8 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin" />
         </div>
     );

@@ -27,11 +27,18 @@ describe("Active Markets Service", () => {
     });
 
     it("should handle RPC failure", async () => {
+        // Advance time by 60 seconds to bypass cache (TTL is 30s)
+        const realDateNow = Date.now;
+        jest.spyOn(Date, 'now').mockReturnValue(realDateNow() + 60_000);
+
         // Mock Contract to throw
         (ethers.Contract as any).mockImplementation(() => ({
             activeMarketCount: jest.fn().mockRejectedValue(new Error("RPC Error"))
         }));
         const set = await getActiveMarketAddresses();
         expect(set).toBeNull();
+
+        // Restore Date.now
+        (Date.now as any).mockRestore();
     });
 });

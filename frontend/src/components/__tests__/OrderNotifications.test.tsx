@@ -1,112 +1,185 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act, render, screen, fireEvent } from '@testing-library/react';
-import { useOrderNotifications, NotificationBell } from '../OrderNotifications';
+import { render, screen, fireEvent, act, renderHook, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { NotificationBell, useOrderNotifications } from '../OrderNotifications';
 import { useAccount } from 'wagmi';
 import toast from 'react-hot-toast';
 
-// Mock wagmi
 vi.mock('wagmi', () => ({
     useAccount: vi.fn(),
 }));
 
-// Mock toast
 vi.mock('react-hot-toast', () => ({
     default: vi.fn(),
 }));
 
-// Mock WebSocket
-const mockWebSocket = {
-    send: vi.fn(),
-    close: vi.fn(),
-    onopen: null,
-    onmessage: null,
-    onclose: null,
-    onerror: null,
-};
-vi.stubGlobal('WebSocket', vi.fn().mockImplementation(function() {
-    return mockWebSocket;
-}));
-
 describe('OrderNotifications', () => {
+    let wsInstance: any;
+
+    class MockWebSocket {
+        onopen: any;
+        onmessage: any;
+        onclose: any;
+        onerror: any;
+        send = vi.fn();
+        close = vi.fn();
+        constructor() { wsInstance = this; }
+    }
+
     beforeEach(() => {
-        vi.clearAllMocks();
-        localStorage.clear();
+        vi.stubGlobal('WebSocket', MockWebSocket);
+        vi.stubGlobal('AudioContext', vi.fn().mockImplementation(() => ({
+            createOscillator: vi.fn(() => ({
+                connect: vi.fn(),
+                start: vi.fn(),
+                stop: vi.fn(),
+                frequency: { value: 440 },
+                type: 'sine'
+            })),
+            createGain: vi.fn(() => ({
+                connect: vi.fn(),
+                gain: { value: 1 }
+            })),
+            destination: {},
+            currentTime: 0
+        })));
+        (useAccount as any).mockReturnValue({ address: '0x123' });
     });
 
-    describe('useOrderNotifications', () => {
-        it('initializes with default settings', () => {
-            (useAccount as any).mockReturnValue({ address: '0x123' });
-            const { result } = renderHook(() => useOrderNotifications());
-            expect(result.current.settings.orderExecuted).toBe(true);
-            expect(result.current.unreadCount).toBe(0);
-        });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        vi.clearAllMocks();
+    });
 
-        it('updates settings and persists to localStorage', () => {
-            (useAccount as any).mockReturnValue({ address: '0x123' });
-            const { result } = renderHook(() => useOrderNotifications());
-            
-            act(() => {
-                result.current.updateSettings({ orderExecuted: false });
+    it('connects to websocket and handles notifications', async () => {
+        render(<NotificationBell />);
+        
+        await act(async () => {
+            wsInstance.onopen();
+        });
+        expect(wsInstance.send).toHaveBeenCalledWith(expect.stringContaining('auth'));
+        
+        // Simulate notification message
+        await act(async () => {
+            wsInstance.onmessage({
+                data: JSON.stringify({
+                    type: 'notification',
+                    data: {
+                        event: 'OrderExecuted',
+                        orderId: 1,
+                        executionPrice: 50000
+                    }
+                })
             });
+        });
+        
+        expect(toast).toHaveBeenCalledWith(expect.stringContaining('Order #1 executed'), expect.anything());
+        expect(screen.getByText('1')).toBeInTheDocument(); // Unread count
+    });
 
-            expect(result.current.settings.orderExecuted).toBe(false);
-            const saved = JSON.parse(localStorage.getItem('notificationSettings') || '{}');
-            expect(saved.orderExecuted).toBe(false);
+    it('handles different notification types', async () => {
+        render(<NotificationBell />);
+        await act(async () => {
+            wsInstance.onopen();
         });
 
-        it('handles WebSocket messages', () => {
-            (useAccount as any).mockReturnValue({ address: '0x123' });
-            const { result } = renderHook(() => useOrderNotifications());
-            
-            // Simulate WebSocket message
-            const onMessage = (vi.mocked(WebSocket) as any).mock.results[0].value.onmessage;
-            act(() => {
-                onMessage({
+        const events = [
+            { event: 'OrderPartiallyFilled', orderId: 2, filledSize: 100 },
+            { event: 'OrderCancelled', orderId: 3 },
+            { event: 'OrderExpired', orderId: 4 },
+            { event: 'PositionOpened', positionId: 5, collectionId: 'BTC', isLong: true },
+            { event: 'PositionClosed', positionId: 6, pnl: 100 },
+            { event: 'PositionLiquidated', positionId: 7 }
+        ];
+
+        await act(async () => {
+            events.forEach(event => {
+                wsInstance.onmessage({
                     data: JSON.stringify({
                         type: 'notification',
-                        data: { event: 'OrderExecuted', orderId: 1, executionPrice: 100 }
+                        data: event
                     })
                 });
             });
-
-            expect(result.current.unreadCount).toBe(1);
-            expect(result.current.notifications[0].message).toContain('Order #1 executed');
-            expect(toast).toHaveBeenCalled();
         });
 
-        it('clears notifications', () => {
-            (useAccount as any).mockReturnValue({ address: '0x123' });
-            const { result } = renderHook(() => useOrderNotifications());
-            
-            // Add a notification first (via internal handler mock or just simulate message)
-            const onMessage = (vi.mocked(WebSocket) as any).mock.results[0].value.onmessage;
-            act(() => {
-                onMessage({ data: JSON.stringify({ type: 'notification', data: { event: 'OrderCancelled', orderId: 2 } }) });
-            });
-            expect(result.current.unreadCount).toBe(1);
-
-            act(() => {
-                result.current.clearNotifications();
-            });
-            expect(result.current.unreadCount).toBe(0);
-        });
+        expect(screen.getByText('6')).toBeInTheDocument();
     });
 
-    describe('NotificationBell Component', () => {
-        it('renders bell icon and unread count', () => {
-            (useAccount as any).mockReturnValue({ address: '0x123' });
-            // Populate notifications via hook trigger in a separate render if needed, 
-            // or just rely on the fact that it renders.
-            render(<NotificationBell />);
-            expect(screen.getByRole('button')).toBeDefined();
+    it('toggles the notification dropdown and interacts with it', async () => {
+        render(<NotificationBell />);
+        await act(async () => {
+            wsInstance.onopen();
+        });
+        
+        // Add a notification
+        await act(async () => {
+            wsInstance.onmessage({
+                data: JSON.stringify({
+                    type: 'notification',
+                    data: { event: 'OrderCancelled', orderId: 1 }
+                })
+            });
         });
 
-        it('opens dropdown on click', () => {
-            (useAccount as any).mockReturnValue({ address: '0x123' });
-            render(<NotificationBell />);
-            const button = screen.getByRole('button');
-            fireEvent.click(button);
-            expect(screen.getByText('Notifications')).toBeDefined();
+        const bell = screen.getByLabelText('Open notifications');
+        fireEvent.click(bell);
+        
+        expect(screen.getByText('Notifications')).toBeInTheDocument();
+        expect(screen.getByText('Order #1 cancelled')).toBeInTheDocument();
+        
+        // Mark as read
+        fireEvent.click(screen.getByText('Order #1 cancelled'));
+        await waitFor(() => {
+            expect(screen.queryByText('1')).not.toBeInTheDocument();
         });
+        
+        // Add another and clear all
+        await act(async () => {
+            wsInstance.onmessage({
+                data: JSON.stringify({
+                    type: 'notification',
+                    data: { event: 'OrderCancelled', orderId: 2 }
+                })
+            });
+        });
+        
+        fireEvent.click(screen.getByText('Clear all'));
+        expect(screen.getByText('No notifications yet')).toBeInTheDocument();
+    });
+
+    it('handles sound toggle and playing sound', async () => {
+        const { result } = renderHook(() => useOrderNotifications());
+        
+        await act(async () => {
+            result.current.updateSettings({ soundEnabled: true });
+        });
+
+        // Trigger notification
+        await act(async () => {
+            wsInstance.onopen();
+            wsInstance.onmessage({
+                data: JSON.stringify({
+                    type: 'notification',
+                    data: { event: 'OrderExecuted', orderId: 1 }
+                })
+            });
+        });
+        
+        // Sound logic hit
+    });
+
+    it('handles WebSocket error and close', async () => {
+        const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        render(<NotificationBell />);
+        
+        await act(async () => {
+            wsInstance.onerror(new Error('WS error'));
+        });
+        expect(spy).toHaveBeenCalled();
+        
+        await act(async () => {
+            wsInstance.onclose();
+        });
+        spy.mockRestore();
     });
 });

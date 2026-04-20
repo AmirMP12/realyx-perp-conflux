@@ -2,11 +2,12 @@ import request from 'supertest';
 import { jest } from '@jest/globals';
 import { app } from '../app.js';
 
-jest.mock('../services/subgraph.js', () => ({
+jest.mock('../services/indexer.js', () => ({
   fetchMarkets: jest.fn().mockResolvedValue([]),
   fetchProtocol: jest.fn().mockResolvedValue({}),
   fetchUserPositions: jest.fn().mockResolvedValue([]),
-  fetchUserTrades: jest.fn().mockResolvedValue([]),
+  fetchProtocolMetrics: jest.fn().mockResolvedValue([]),
+  fetchUserTradeHistory: jest.fn().mockResolvedValue([]),
 }));
 
 describe('API Routes Coverage', () => {

@@ -258,7 +258,7 @@ export function useDailyStats() {
 
 export type LeaderboardTimeframe = 'all' | '24h' | '7d';
 
-function normalizeLeaderboardEntries(raw: unknown): LeaderboardEntry[] {
+export function normalizeLeaderboardEntries(raw: unknown): LeaderboardEntry[] {
     if (!Array.isArray(raw)) return [];
     return raw.map((row, i) => {
         const o = row && typeof row === 'object' ? (row as Record<string, unknown>) : {};
