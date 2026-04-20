@@ -47,7 +47,11 @@ const PROTOCOL_VOLUME_24H_SQL = `
   LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
   WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
     AND c.data IS NOT NULL
-    AND c.created_at >= NOW() - INTERVAL '24 hours'
+    AND (
+      (c.block_time IS NOT NULL AND c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint)
+      OR 
+      (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '24 hours')
+    )
 `;
 export async function fetchProtocol() {
     if (!process.env.POSTGRES_URL) {
@@ -175,7 +179,11 @@ export async function fetchMarkets() {
         LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
         WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
           AND c.data IS NOT NULL
-          AND c.created_at >= NOW() - INTERVAL '24 hours'
+          AND (
+            (c.block_time IS NOT NULL AND c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint)
+            OR 
+            (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '24 hours')
+          )
         GROUP BY 1
       `);
             statsRes.rows.forEach((row) => {

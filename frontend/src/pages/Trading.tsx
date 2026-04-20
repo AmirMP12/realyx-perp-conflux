@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { Address } from 'viem';
@@ -24,18 +24,22 @@ export function TradingPage() {
     const rawMarkets = useMarketsStore((s) => s.markets);
     const markets = useMemo(() => rawMarkets.map(applyMarketDisplayFallback), [rawMarkets]);
 
-    const [activeTab, setActiveTab] = useState<'chart' | 'trade' | 'positions'>('chart');
+    const { search } = useLocation();
+    const params = useMemo(() => new URLSearchParams(search), [search]);
+    const activeTab = useMemo(() => {
+        const t = params.get('tab');
+        if (t === 'trade' || t === 'positions') return t;
+        return 'chart';
+    }, [params]);
+
+    const setActiveTab = (tab: 'chart' | 'trade' | 'positions') => {
+        const newParams = new URLSearchParams(search);
+        newParams.set('tab', tab);
+        window.history.replaceState(null, '', `${window.location.pathname}?${newParams.toString()}`);
+    };
+
     const [tradeSide, setTradeSide] = useState<'long' | 'short'>('long');
     const { positionPanelHeight } = useLayoutStore();
-    const { search } = useLocation();
-
-    useEffect(() => {
-        const params = new URLSearchParams(search);
-        const tab = params.get('tab');
-        if (tab === 'trade' || tab === 'chart' || tab === 'positions') {
-            setActiveTab(tab as any);
-        }
-    }, [search]);
 
     const { positions, refetch: fetchPositions, isLoading: positionsLoading } = usePositions();
     const { data: onChainHistory = [] } = useOnChainHistory();

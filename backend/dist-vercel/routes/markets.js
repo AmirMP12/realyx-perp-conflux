@@ -4,6 +4,7 @@ import { getActiveMarketAddresses } from "../services/activeMarkets.js";
 import { fetchCoinGeckoPrices, getCoinGeckoIdForMarket, fetchPriceHistory } from "../services/coingecko.js";
 import { fetchPythPrices, fetchPyth24hChange, getPythTvSymbol, fetchPythPriceHistory, fetchPythPriceHistoryHermes, getPythFeedId } from "../services/pyth.js";
 import { toDecimal18, PRECISION_1E18 } from "../utils/format.js";
+import { checkAndSync } from "./sync.js";
 const router = Router();
 const ENABLE_PYTH_24H = process.env.ENABLE_PYTH_24H != null
     ? /^(1|true|yes)$/i.test(process.env.ENABLE_PYTH_24H)
@@ -146,6 +147,8 @@ export function clearMarketsCache() {
     marketsResponseCachedAt = 0;
 }
 router.get("/", async (_req, res) => {
+    // Ensure sync is fresh in serverless env
+    await checkAndSync();
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');

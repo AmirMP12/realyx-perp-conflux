@@ -51,7 +51,7 @@ export function CollateralEditModal({ isOpen, onClose, position }: CollateralEdi
     const withdrawInvalid = mode === 'withdraw' && amountNum > currentCollateral;
 
     return (
-        <Dialog open={isOpen} onClose={onClose} className="relative z-[100]">
+        <Dialog open={isOpen} onClose={onClose} className="relative z-[999]">
             <DialogBackdrop
                 transition
                 className="fixed inset-0 bg-black/75 backdrop-blur-sm transition duration-200 ease-out data-closed:opacity-0"

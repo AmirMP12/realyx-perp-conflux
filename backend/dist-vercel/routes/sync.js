@@ -40,7 +40,8 @@ async function initDB() {
         block_number BIGINT NOT NULL,
         tx_hash VARCHAR(66) NOT NULL,
         data JSONB,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        block_time BIGINT
       );
       CREATE TABLE IF NOT EXISTS indexer_state (
         key VARCHAR(50) PRIMARY KEY,
@@ -48,6 +49,7 @@ async function initDB() {
         last_synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
       ALTER TABLE position_events ADD COLUMN IF NOT EXISTS size_usd NUMERIC DEFAULT 0;
+      ALTER TABLE position_events ADD COLUMN IF NOT EXISTS block_time BIGINT;
     `);
     }
     catch (error) {
@@ -103,7 +105,7 @@ export async function runSync(options) {
             toBlock: currentTo,
             topics: [targetTopics]
         });
-        totalSynced += await processLogs(batchLogs, iface, pool);
+        totalSynced += await processLogs(batchLogs, iface, pool, provider);
         finalTo = currentTo;
         if (currentTo >= latestBlock)
             break;
@@ -124,27 +126,28 @@ export async function runSync(options) {
         isCaughtUp: finalTo >= latestBlock
     };
 }
-/** Triggered by API traffic when Crons are unavailable. */
-export async function checkAndSync() {
-    const pool = getPool();
-    if (!pool)
-        return;
+const blockTimeCache = new Map();
+async function getBlockTime(blockNumber, provider) {
+    const cached = blockTimeCache.get(blockNumber);
+    if (cached)
+        return cached;
     try {
-        const res = await pool.query(`SELECT last_synced_at FROM indexer_state WHERE key = 'trading_core'`);
-        const lastSync = res.rows[0]?.last_synced_at;
-        const now = new Date();
-        // If no sync yet or last sync > 30s ago
-        if (!lastSync || (now.getTime() - new Date(lastSync).getTime() > 30 * 1000)) {
-            console.log("[lazy-sync] Data is stale, starting catch-up pulse...");
-            // Await the sync pulse so Vercel doesn't kill the process before it makes progress
-            await runSync().catch(err => console.error("[lazy-sync] failure:", err));
+        const block = await provider.getBlock(blockNumber);
+        const t = block?.timestamp ?? Math.floor(Date.now() / 1000);
+        blockTimeCache.set(blockNumber, t);
+        // Keep cache reasonable size
+        if (blockTimeCache.size > 1000) {
+            const firstKey = blockTimeCache.keys().next().value;
+            if (firstKey !== undefined)
+                blockTimeCache.delete(firstKey);
         }
+        return t;
     }
-    catch (err) {
-        console.error("[lazy-sync] check failure:", err);
+    catch {
+        return Math.floor(Date.now() / 1000);
     }
 }
-async function processLogs(logs, iface, pool) {
+async function processLogs(logs, iface, pool, provider) {
     let inserted = 0;
     for (const log of logs) {
         try {
@@ -154,6 +157,7 @@ async function processLogs(logs, iface, pool) {
             let account = log.address;
             let marketId = "0x";
             let sizeUsd = "0";
+            const blockTime = await getBlockTime(log.blockNumber, provider);
             if (parsed.name === "PositionOpened") {
                 account = String(parsed.args[1]);
                 marketId = String(parsed.args[2]);
@@ -180,8 +184,8 @@ async function processLogs(logs, iface, pool) {
                 catch { /* ignore */ }
             }
             const eventData = JSON.stringify(parsed.args.map(arg => typeof arg === 'bigint' ? arg.toString() : arg));
-            await pool.query(`INSERT INTO position_events (account, market_id, size_usd, event_type, block_number, tx_hash, data) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`, [account, marketId, sizeUsd, parsed.name, log.blockNumber, log.transactionHash, eventData]);
+            await pool.query(`INSERT INTO position_events (account, market_id, size_usd, event_type, block_number, tx_hash, data, block_time) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, [account, marketId, sizeUsd, parsed.name, log.blockNumber, log.transactionHash, eventData, blockTime]);
             inserted++;
         }
         catch (err) {
@@ -189,6 +193,26 @@ async function processLogs(logs, iface, pool) {
         }
     }
     return inserted;
+}
+/** Triggered by API traffic when Crons are unavailable. */
+export async function checkAndSync() {
+    const pool = getPool();
+    if (!pool)
+        return;
+    try {
+        const res = await pool.query(`SELECT last_synced_at FROM indexer_state WHERE key = 'trading_core'`);
+        const lastSync = res.rows[0]?.last_synced_at;
+        const now = new Date();
+        // If no sync yet or last sync > 30s ago
+        if (!lastSync || (now.getTime() - new Date(lastSync).getTime() > 30 * 1000)) {
+            console.log("[lazy-sync] Data is stale, starting catch-up pulse...");
+            // Await the sync pulse so Vercel doesn't kill the process before it makes progress
+            await runSync().catch(err => console.error("[lazy-sync] failure:", err));
+        }
+    }
+    catch (err) {
+        console.error("[lazy-sync] check failure:", err);
+    }
 }
 router.get("/", async (req, res) => {
     try {

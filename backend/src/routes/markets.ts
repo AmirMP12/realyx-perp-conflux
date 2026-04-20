@@ -5,6 +5,7 @@ import { fetchCoinGeckoPrices, getCoinGeckoIdForMarket, fetchPriceHistory } from
 import { fetchPythPrices, fetchPyth24hChange, getPythTvSymbol, fetchPythPriceHistory, fetchPythPriceHistoryHermes, getPythFeedId } from "../services/pyth.js";
 import type { BackendMarket, ApiResponse } from "../types/index.js";
 import { toDecimal18, PRECISION_1E18 } from "../utils/format.js";
+import { checkAndSync } from "./sync.js";
 
 const router = Router();
 const ENABLE_PYTH_24H = process.env.ENABLE_PYTH_24H != null
@@ -159,6 +160,9 @@ export function clearMarketsCache() {
 
 
 router.get("/", async (_req: Request, res: Response) => {
+  // Ensure sync is fresh in serverless env
+  await checkAndSync();
+
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');

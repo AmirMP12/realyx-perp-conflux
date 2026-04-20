@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Edit2, Shield, Wallet, Clock, FileText, ArrowRightLeft } from 'lucide-react';
 import clsx from 'clsx';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { useMemo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Market } from '../../services/markets';
 import { Position } from '../../hooks/usePositions';
@@ -67,9 +68,26 @@ export function PositionTable({
     const [activeTab, setActiveTab] = useState<'positions' | 'orders' | 'history' | 'trades'>('positions');
 
     const [slTpPosition, setSlTpPosition] = useState<SlTpModalState | null>(null);
+    const { search } = useLocation();
     const [activeCollateralPos, setActiveCollateralPos] = useState<Position | null>(null);
-    const [activeClosePos, setActiveClosePos] = useState<Position | null>(null);
     const [activeTransferPos, setActiveTransferPos] = useState<Position | null>(null);
+
+    const activeClosePos = useMemo(() => {
+        const p = new URLSearchParams(search);
+        const id = p.get('close');
+        if (!id) return null;
+        return positions.find(pos => String(pos.id) === id) || null;
+    }, [search, positions]);
+
+    const setActiveClosePos = (pos: Position | null) => {
+        const p = new URLSearchParams(search);
+        if (pos) {
+            p.set('close', String(pos.id));
+        } else {
+            p.delete('close');
+        }
+        window.history.replaceState(null, '', `${window.location.pathname}?${p.toString()}`);
+    };
 
     const { orders: pendingOrders, loading: ordersLoading, refetch: refetchOrders } = usePendingOrders();
 

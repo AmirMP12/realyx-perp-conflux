@@ -37,7 +37,7 @@ async function fetchTvlFromChain() {
 }
 router.get("/", async (_req, res) => {
     // Trigger background sync if data is stale (lazy sync)
-    checkAndSync();
+    await checkAndSync();
     try {
         const [protocol, marketsResult, activeTraders24h, tvl] = await Promise.all([
             fetchProtocol(),
