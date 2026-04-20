@@ -43,7 +43,7 @@ router.get("/", async (_req, res) => {
             fetchProtocol(),
             fetchMarkets(),
             fetchActiveTraders24h(),
-            fetchTvlFromChain().catch(() => "0"),
+            fetchTvlFromChain(),
         ]);
         let markets = marketsResult;
         const activeSet = await getActiveMarketAddresses();

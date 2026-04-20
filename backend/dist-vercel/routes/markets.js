@@ -140,9 +140,15 @@ function buildFallbackMarkets() {
 // ── Response-level cache for /markets ──
 let marketsResponseCache = null;
 let marketsResponseCachedAt = 0;
-const MARKETS_RESPONSE_TTL_MS = 5_000; // 5s — first request computes, subsequent polls get cache
-let marketsResponseInFlight = null;
+const MARKETS_RESPONSE_TTL_MS = 5_000;
+export function clearMarketsCache() {
+    marketsResponseCache = null;
+    marketsResponseCachedAt = 0;
+}
 router.get("/", async (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     // Serve from cache if fresh
     if (marketsResponseCache && Date.now() - marketsResponseCachedAt < MARKETS_RESPONSE_TTL_MS) {
         return res.json({
@@ -157,7 +163,6 @@ router.get("/", async (_req, res) => {
             const fallback = buildFallbackMarkets();
             try {
                 const [protocol, cgPrices, pythPrices] = await Promise.all([fetchProtocol(), fetchCoinGeckoPrices(), fetchPythPrices()]);
-                const protocolVolume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
                 const pythChanges = ENABLE_PYTH_24H
                     ? await Promise.all(fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined)))
                     : fallback.map(() => undefined);
@@ -174,7 +179,7 @@ router.get("/", async (_req, res) => {
                     const pythPrice = pythPrices[addr];
                     if (pythPrice != null && pythPrice > 0)
                         indexPrice = String(pythPrice);
-                    return { ...m, indexPrice, lastPrice: indexPrice, volume24h: protocolVolume24h, ...(change24h !== undefined && { change24h }) };
+                    return { ...m, indexPrice, lastPrice: indexPrice, volume24h: "0", ...(change24h !== undefined && { change24h }) };
                 });
                 marketsResponseCache = { data: enriched, fallback: true };
                 marketsResponseCachedAt = Date.now();
@@ -198,7 +203,6 @@ router.get("/", async (_req, res) => {
         ]);
         const cgPrices = cgPricesRaw;
         const pythPrices = pythPricesRaw;
-        const protocolVolume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
         const pythChanges = ENABLE_PYTH_24H
             ? await Promise.all(markets.map((m) => {
                 const a = (typeof m.marketAddress === "string" ? m.marketAddress : String(m.marketAddress)).toLowerCase();
@@ -235,7 +239,7 @@ router.get("/", async (_req, res) => {
                 category: getMarketCategory(addr),
                 indexPrice,
                 lastPrice,
-                volume24h: m.volume24h || protocolVolume24h,
+                volume24h: m.volume24h || "0",
                 longOI: toDecimal18(m.totalLongSize),
                 shortOI: toDecimal18(m.totalShortSize),
                 fundingRate: (Number(m.fundingRate) / PRECISION_1E18).toFixed(6),
@@ -257,7 +261,6 @@ router.get("/", async (_req, res) => {
                 fetchCoinGeckoPrices().catch(() => ({})),
                 fetchPythPrices().catch(() => ({}))
             ]);
-            const protocolVolume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
             const pythChanges = ENABLE_PYTH_24H
                 ? await Promise.all(fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined)))
                 : fallback.map(() => undefined);
@@ -275,7 +278,7 @@ router.get("/", async (_req, res) => {
                 }
                 if (pyth[addr] != null && pyth[addr] > 0)
                     indexPrice = String(pyth[addr]);
-                return { ...m, indexPrice, lastPrice: indexPrice, volume24h: protocolVolume24h, ...(change24h !== undefined && { change24h }) };
+                return { ...m, indexPrice, lastPrice: indexPrice, volume24h: "0", ...(change24h !== undefined && { change24h }) };
             });
             return res.json({ success: true, data: enriched, fallback: true });
         }

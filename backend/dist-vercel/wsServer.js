@@ -31,6 +31,8 @@ export function startWsServer() {
     const clients = new Set();
     wss.on("connection", (ws, req) => {
         clients.add(ws);
+        ws.isAlive = true;
+        ws.on("pong", () => { ws.isAlive = true; });
         const ip = req.socket.remoteAddress ?? "unknown";
         if (!isTestEnv)
             console.info(`[ws] Client connected, total: ${clients.size}, ip: ${ip}`);
@@ -62,7 +64,13 @@ export function startWsServer() {
             const ch = ws.channels;
             if (channel && ch && ch.length > 0 && !ch.includes(channel))
                 return;
-            ws.send(payload);
+            try {
+                ws.send(payload);
+            }
+            catch (err) {
+                if (!isTestEnv)
+                    console.error("[ws] send error:", err);
+            }
         });
     }
     let lastMarkets = [];
@@ -117,12 +125,21 @@ export function startWsServer() {
             totalMarkets: filtered.length,
         });
     }
+    const heartbeatInterval = setInterval(() => {
+        clients.forEach((ws) => {
+            if (ws.isAlive === false)
+                return ws.terminate();
+            ws.isAlive = false;
+            ws.ping();
+        });
+    }, 30_000);
     const interval = setInterval(poll, POLL_MS);
     poll();
     if (!isTestEnv)
         console.info(`[ws] Server listening on port ${config.wsPort}`);
     return () => {
         clearInterval(interval);
+        clearInterval(heartbeatInterval);
         wss.close();
     };
 }

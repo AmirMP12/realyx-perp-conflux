@@ -7,7 +7,7 @@ const maxRequests = 100; // per IP per window
 const maxWsPerIp = 10;
 const apiCount = new Map();
 const wsCount = new Map();
-function getClientIp(req) {
+export function getClientIp(req) {
     const forwarded = req.headers?.["x-forwarded-for"];
     if (typeof forwarded === "string")
         return forwarded.split(",")[0]?.trim() ?? "unknown";
@@ -37,6 +37,9 @@ export function apiRateLimit(req, _res, next) {
     }
     entry.count++;
     if (entry.count > maxRequests) {
+        if (_res.status) {
+            return _res.status(429).json({ success: false, error: "Too many requests" });
+        }
         const err = new Error("Too Many Requests");
         err.status = 429;
         return next(err);

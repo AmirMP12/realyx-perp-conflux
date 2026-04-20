@@ -230,14 +230,6 @@ export function useCreateOrder() {
             value: fee,
         } as const;
 
-        // Preflight simulation provides clearer revert reasons before wallet signing.
-        if (publicClient) {
-            await publicClient.simulateContract({
-                ...request,
-                account: address,
-            });
-        }
-
         const orderId = await writeContractAsync(request);
         return orderId;
     };
@@ -280,7 +272,7 @@ export function useOpenPosition() {
                 throw new Error('Limit and stop orders require a trigger price');
             }
 
-            // Parallelize preliminary reads to reduce latency
+            // 1. Parallelize preliminary reads to reduce latency
             const [marketInfo, accountCode, coreOracleAddress, coreUsdcAddress] = await Promise.all([
                 publicClient.readContract({
                     address: TRADING_CORE_ADDRESS, abi: TRADING_CORE_ABI,
@@ -307,8 +299,8 @@ export function useOpenPosition() {
                 throw new Error('Smart-contract wallets are not supported for createOrder on this deployment. Please use an EOA wallet.');
             }
 
-            // Next batch of parallel reads
-            const [actionAllowed, walletUsdcBalance] = await Promise.all([
+            // 2. Parallelize next batch of reads (actionAllowed and balance)
+            const [actionAllowed, walletUsdcBalance, currentAllow] = await Promise.all([
                 publicClient.readContract({
                     address: coreOracleAddress, abi: ORACLE_ABI,
                     functionName: 'isActionAllowed', args: [params.market as Address, 0],
@@ -316,8 +308,14 @@ export function useOpenPosition() {
                 publicClient.readContract({
                     address: coreUsdcAddress, abi: ERC20_ABI,
                     functionName: 'balanceOf', args: [address],
-                })
-            ]) as [boolean, bigint];
+                }),
+                allowance === undefined 
+                    ? publicClient.readContract({
+                        address: coreUsdcAddress, abi: ERC20_ABI,
+                        functionName: 'allowance', args: [address, TRADING_CORE_ADDRESS],
+                      })
+                    : Promise.resolve(allowance)
+            ]) as [boolean, bigint, bigint];
 
             if (!actionAllowed) {
                 throw new Error('Trading is temporarily blocked by circuit breaker for this market.');
@@ -338,11 +336,7 @@ export function useOpenPosition() {
                 throw new Error('Insufficient USDC balance for this margin amount.');
             }
 
-            let currentAllowance = allowance;
-            if (currentAllowance === undefined) {
-                const { data } = await refetchAllowance();
-                currentAllowance = data as bigint | undefined;
-            }
+            let currentAllowance = currentAllow;
 
             if (!currentAllowance || currentAllowance < collateralDelta6) {
                 setStep('APPROVING');
@@ -445,7 +439,6 @@ export function useAddCollateral() {
 export function useClosePosition() {
     const { chainId, address } = useAccount();
     const { writeContractAsync, isPending } = useWriteContract();
-    const publicClient = usePublicClient();
     const { playSuccess, playError } = useSound();
 
     const closePosition = async (positionId: string | number | bigint) => {
@@ -459,35 +452,6 @@ export function useClosePosition() {
                 return false;
             }
             const id = toPositionId(positionId);
-            try {
-                if (publicClient) {
-                    const [minDur, pos] = await Promise.all([
-                        publicClient.readContract({
-                            address: TRADING_CORE_ADDRESS,
-                            abi: TRADING_CORE_ABI,
-                            functionName: 'minPositionDuration',
-                        }),
-                        publicClient.readContract({
-                            address: TRADING_CORE_ADDRESS,
-                            abi: TRADING_CORE_ABI,
-                            functionName: 'getPosition',
-                            args: [id],
-                        }),
-                    ]);
-                    if (minDur != null && pos != null && typeof pos === 'object' && 'openTimestamp' in pos) {
-                        const openTs = (pos as { openTimestamp: bigint }).openTimestamp;
-                        const now = BigInt(Math.floor(Date.now() / 1000));
-                        const minD = BigInt(minDur as bigint);
-                        if (now < openTs + minD) {
-                            const wait = Number(openTs + minD - now);
-                            toast.error(`Minimum open time not met. Try again in about ${Math.max(1, wait)}s.`);
-                            return false;
-                        }
-                    }
-                }
-            } catch {
-                /* optional preflight */
-            }
             const deadline = BigInt(Math.floor(Date.now() / 1000) + CLOSE_TX_DEADLINE_SEC);
             const params = {
                 positionId: id,

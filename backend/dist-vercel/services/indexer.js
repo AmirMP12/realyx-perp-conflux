@@ -1,7 +1,10 @@
 import pg from "pg";
 const { Pool } = pg;
 let poolInstance = null;
-function getPool() {
+export function resetPool() {
+    poolInstance = null;
+}
+export function getPool() {
     if (poolInstance)
         return poolInstance;
     if (!process.env.POSTGRES_URL)
@@ -23,20 +26,23 @@ const PROTOCOL_VOLUME_24H_SQL = `
   WITH opened_sizes AS (
     SELECT DISTINCT ON ((data::jsonb->>0)::text)
       (data::jsonb->>0)::text AS position_id,
-      (data::jsonb->>4)::numeric AS size_raw
+      (data::jsonb->>4)::numeric AS size_raw,
+      (data::jsonb->>2)::text AS open_market_id
     FROM position_events
     WHERE event_type = 'PositionOpened'
     ORDER BY (data::jsonb->>0)::text, id ASC
   )
-  SELECT COALESCE(SUM(
-    CASE
-      WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
-        THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
-      WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
-        THEN o.size_raw / POWER(10::numeric, 18)
-      ELSE 0::numeric
-    END
-  ), 0)::text AS volume_24h_usd
+  SELECT 
+    COALESCE(SUM(
+      CASE
+        WHEN c.size_usd > 0 THEN c.size_usd
+        WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
+          THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
+        WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
+          THEN o.size_raw / POWER(10::numeric, 18)
+        ELSE 0::numeric
+      END
+    ), 0)::numeric AS volume_24h_usd
   FROM position_events c
   LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
   WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
@@ -71,7 +77,7 @@ export async function fetchProtocol() {
             if (row.event_type === "PositionLiquidated")
                 liq = parseInt(row.count);
         }
-        const totalVolumeUsd = volRes.rows[0]?.volume_24h_usd ?? "0";
+        const totalVolumeUsd = String(volRes.rows[0]?.volume_24h_usd ?? "0");
         return {
             totalPositionsOpened: String(opened),
             totalPositionsClosed: String(closed),
@@ -147,15 +153,16 @@ export async function fetchMarkets() {
           SELECT DISTINCT ON ((data::jsonb->>0)::text)
             (data::jsonb->>0)::text AS position_id,
             (data::jsonb->>4)::numeric AS size_raw,
-            market_id AS open_market_id
+            (data::jsonb->>2)::text AS open_market_id
           FROM position_events
           WHERE event_type = 'PositionOpened'
           ORDER BY (data::jsonb->>0)::text, id ASC
         )
         SELECT 
-          COALESCE(NULLIF(c.market_id, '0x'), o.open_market_id) AS market_id,
+          COALESCE(NULLIF(c.market_id, '0x'), NULLIF(o.open_market_id, '0x')) AS market_id,
           COALESCE(SUM(
             CASE
+              WHEN c.size_usd > 0 THEN c.size_usd
               WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
                 THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
               WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
@@ -172,7 +179,10 @@ export async function fetchMarkets() {
         GROUP BY 1
       `);
             statsRes.rows.forEach((row) => {
-                statsMap.set(row.market_id.toLowerCase(), row);
+                const m_id = (row.market_id || "").toLowerCase();
+                if (m_id && m_id !== '0x' && m_id !== 'null' && m_id.length > 20) {
+                    statsMap.set(m_id, row);
+                }
             });
         }
         catch (dbErr) {
@@ -376,7 +386,7 @@ export async function fetchUserTrades(traderAddress, limit) {
         return [];
     }
 }
-function leaderboardTimeFilter(timeframe, tableAlias) {
+export function leaderboardTimeFilter(timeframe, tableAlias) {
     if (timeframe === "24h")
         return `AND ${tableAlias}.created_at >= NOW() - INTERVAL '24 hours'`;
     if (timeframe === "7d")
@@ -493,7 +503,6 @@ export async function fetchProtocolMetrics(limit, periodType = "day") {
         const pool = getPool();
         if (!pool)
             return [];
-        const interval = periodType === "day" ? "1 day" : "1 hour";
         const trunc = periodType === "day" ? "day" : "hour";
         const res = await pool.query(`
       WITH opened_sizes AS (

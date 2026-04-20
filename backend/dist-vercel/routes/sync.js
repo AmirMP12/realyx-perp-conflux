@@ -47,8 +47,7 @@ async function initDB() {
         last_synced_block BIGINT NOT NULL,
         last_synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
-      -- Ensure column exists if table was already created
-      ALTER TABLE indexer_state ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+      ALTER TABLE position_events ADD COLUMN IF NOT EXISTS size_usd NUMERIC DEFAULT 0;
     `);
     }
     catch (error) {
@@ -147,38 +146,35 @@ async function processLogs(logs, iface, pool) {
                 continue;
             let account = log.address;
             let marketId = "0x";
+            let sizeUsd = "0";
             if (parsed.name === "PositionOpened") {
                 account = String(parsed.args[1]);
                 marketId = String(parsed.args[2]);
+                sizeUsd = (Number(parsed.args[4]) / 1e18).toFixed(18);
             }
-            else if (parsed.name === "PositionClosed") {
-                account = String(parsed.args[1]);
+            else if (parsed.name === "PositionClosed" || parsed.name === "PositionLiquidated") {
                 const posId = String(parsed.args[0]);
+                if (parsed.name === "PositionClosed")
+                    account = String(parsed.args[1]);
+                else
+                    account = log.address; // liquidator by default
                 try {
-                    const openEvt = await pool.query(`SELECT market_id FROM position_events WHERE event_type = 'PositionOpened' AND (data::jsonb->>0)::text = $1 LIMIT 1`, [posId]);
-                    if (openEvt.rows.length > 0 && openEvt.rows[0].market_id) {
-                        marketId = openEvt.rows[0].market_id;
-                    }
-                }
-                catch { }
-            }
-            else if (parsed.name === "PositionLiquidated") {
-                const posId = String(parsed.args[0]);
-                account = log.address;
-                try {
-                    const openEvt = await pool.query(`SELECT account, market_id FROM position_events WHERE event_type = 'PositionOpened' AND (data::jsonb->>0)::text = $1 LIMIT 1`, [posId]);
+                    const openEvt = await pool.query(`SELECT account, market_id, size_usd FROM position_events WHERE event_type = 'PositionOpened' AND (data::jsonb->>0)::text = $1 LIMIT 1`, [posId]);
                     if (openEvt.rows.length > 0) {
+                        if (openEvt.rows[0].market_id && openEvt.rows[0].market_id !== "0x") {
+                            marketId = openEvt.rows[0].market_id;
+                        }
                         if (openEvt.rows[0].account)
                             account = openEvt.rows[0].account;
-                        if (openEvt.rows[0].market_id)
-                            marketId = openEvt.rows[0].market_id;
+                        if (openEvt.rows[0].size_usd)
+                            sizeUsd = openEvt.rows[0].size_usd;
                     }
                 }
-                catch { }
+                catch { /* ignore */ }
             }
             const eventData = JSON.stringify(parsed.args.map(arg => typeof arg === 'bigint' ? arg.toString() : arg));
-            await pool.query(`INSERT INTO position_events (account, market_id, event_type, block_number, tx_hash, data) 
-         VALUES ($1, $2, $3, $4, $5, $6)`, [account, marketId, parsed.name, log.blockNumber, log.transactionHash, eventData]);
+            await pool.query(`INSERT INTO position_events (account, market_id, size_usd, event_type, block_number, tx_hash, data) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`, [account, marketId, sizeUsd, parsed.name, log.blockNumber, log.transactionHash, eventData]);
             inserted++;
         }
         catch (err) {

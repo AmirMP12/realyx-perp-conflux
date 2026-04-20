@@ -62,6 +62,26 @@ export function TradingForm({
     const [sizeError, setSizeError] = useState('');
     const [triggerError, setTriggerError] = useState('');
 
+    // Restore pending trade state from sessionStorage on mount (fixes mobile reloads)
+    useEffect(() => {
+        try {
+            const saved = sessionStorage.getItem('pending_trade');
+            if (saved) {
+                const data = JSON.parse(saved);
+                if (data.marketId === market.id || data.marketAddress === market.marketAddress) {
+                    if (data.size) setSize(data.size);
+                    if (data.leverage) setLeverage(data.leverage);
+                    if (data.side) setSide(data.side);
+                    if (data.orderType) setOrderType(data.orderType);
+                    if (data.triggerPrice) setTriggerPrice(data.triggerPrice);
+                }
+                sessionStorage.removeItem('pending_trade');
+            }
+        } catch (e) {
+            console.warn('Failed to restore pending trade:', e);
+        }
+    }, [market.id, market.marketAddress]);
+
     useEffect(() => {
         setLeverage(settings.defaultLeverage);
     }, [settings.defaultLeverage]);
@@ -140,6 +160,18 @@ export function TradingForm({
         const tempId = `opt-${Date.now()}`;
 
         try {
+            // Persist trade state for mobile recovery
+            sessionStorage.setItem('pending_trade', JSON.stringify({
+                marketId: market.id,
+                marketAddress: market.marketAddress,
+                size,
+                leverage,
+                side,
+                orderType,
+                triggerPrice,
+                timestamp: Date.now()
+            }));
+
             addOptimisticPosition({
                 tempId,
                 marketAddress: market.marketAddress || market.id,
@@ -171,6 +203,7 @@ export function TradingForm({
 
             if (success) {
                 removeOptimisticPosition(tempId);
+                sessionStorage.removeItem('pending_trade');
                 playSuccess();
                 onTradeSuccess?.();
                 showToast('success', 'Position Opened', `${side === 'long' ? 'Long' : 'Short'} ${market.symbol} opened successfully`);
