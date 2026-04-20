@@ -37,11 +37,48 @@ router.get("/", async (req: Request, res: Response) => {
     const state = await pool.query("SELECT last_synced_block, last_synced_at FROM indexer_state WHERE key = 'trading_core'");
     dbStatus.indexerState = state.rows[0] ? state.rows[0] : "None";
 
-    const latest = await pool.query("SELECT id, event_type, market_id, block_number, block_time, created_at FROM position_events ORDER BY id DESC LIMIT 5");
-    dbStatus.latestEvents = latest.rows;
+    const latestOpenEvent = await pool.query("SELECT * FROM position_events WHERE event_type = 'PositionOpened' ORDER BY id DESC LIMIT 1");
+    dbStatus.latestOpenEvent = latestOpenEvent.rows[0] || null;
 
-    const sampleOpen = await pool.query("SELECT * FROM position_events WHERE event_type = 'PositionOpened' ORDER BY id DESC LIMIT 1");
-    dbStatus.latestOpenEvent = sampleOpen.rows[0] || null;
+    const rawVolumeStats = await pool.query(`
+      WITH opened_sizes AS (
+        SELECT DISTINCT ON ((data::jsonb->>0)::text)
+          (data::jsonb->>0)::text AS position_id,
+          (data::jsonb->>4)::numeric AS size_raw,
+          (data::jsonb->>2)::text AS open_market_id
+        FROM position_events
+        WHERE event_type = 'PositionOpened'
+        ORDER BY (data::jsonb->>0)::text, id ASC
+      )
+      SELECT 
+        LOWER(CASE 
+          WHEN c.market_id IS NOT NULL AND c.market_id <> '0x' THEN c.market_id
+          WHEN c.event_type = 'PositionOpened' THEN (c.data->>2)::text
+          ELSE o.open_market_id
+        END) AS market_id,
+        COALESCE(SUM(
+          CASE
+            WHEN c.size_usd > 0 THEN c.size_usd
+            WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
+              THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
+            WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
+              THEN o.size_raw / POWER(10::numeric, 18)
+            ELSE 0::numeric
+          END
+        ), 0)::text AS volume24h,
+        COUNT(*)::int AS trades24h
+      FROM position_events c
+      LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
+      WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
+        AND c.data IS NOT NULL
+        AND (
+          (c.block_time IS NOT NULL AND c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '25 hours'))::bigint)
+          OR 
+          (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '25 hours')
+        )
+      GROUP BY 1
+    `);
+    dbStatus.rawVolumeStats = rawVolumeStats.rows;
   } catch (err) {
     dbStatus.error = String(err);
     if (err instanceof Error && err.stack) dbStatus.stack = err.stack;

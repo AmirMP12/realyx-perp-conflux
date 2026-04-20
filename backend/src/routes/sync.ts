@@ -190,12 +190,12 @@ async function processLogs(logs: any[], iface: ethers.Interface, pool: pg.Pool, 
       }
 
       if (parsed.name === "PositionOpened") {
-        account = String(parsed.args[1]);
-        marketId = String(parsed.args[2]);
+        account = String(parsed.args[1]).toLowerCase();
+        marketId = String(parsed.args[2]).toLowerCase();
         sizeUsd = (Number(parsed.args[4]) / 1e18).toFixed(18);
       } else if (parsed.name === "PositionClosed" || parsed.name === "PositionLiquidated") {
         const posId = String(parsed.args[0]);
-        if (parsed.name === "PositionClosed") account = String(parsed.args[1]);
+        if (parsed.name === "PositionClosed") account = String(parsed.args[1]).toLowerCase();
 
         try {
           // Robust resolution: try column first, then JSON fallback
@@ -207,8 +207,10 @@ async function processLogs(logs: any[], iface: ethers.Interface, pool: pg.Pool, 
           );
           if (openEvt.rows.length > 0) {
             const row = openEvt.rows[0];
-            marketId = (row.market_id && row.market_id !== "0x") ? row.market_id : String(row.data[2] || "0x");
-            account = row.account || account;
+            marketId = (row.market_id && row.market_id !== "0x") 
+              ? row.market_id.toLowerCase() 
+              : String(Array.isArray(row.data) ? row.data[2] : row.data?.market || "0x").toLowerCase();
+            account = row.account ? row.account.toLowerCase() : account;
           }
         } catch { /* ignore */ }
       }
