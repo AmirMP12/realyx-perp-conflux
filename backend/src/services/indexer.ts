@@ -131,12 +131,14 @@ const PROTOCOL_VOLUME_24H_SQL = `
   WITH opened_sizes AS (
     SELECT DISTINCT ON ((data::jsonb->>0)::text)
       (data::jsonb->>0)::text AS position_id,
-      (data::jsonb->>4)::numeric AS size_raw
+      (data::jsonb->>4)::numeric AS size_raw,
+      (data::jsonb->>2)::text AS open_market_id
     FROM position_events
     WHERE event_type = 'PositionOpened'
     ORDER BY (data::jsonb->>0)::text, id ASC
   )
-  SELECT COALESCE(SUM(
+  SELECT 
+    COALESCE(SUM(
     CASE
       WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
         THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
@@ -249,7 +251,7 @@ export async function fetchMarkets(): Promise<Market[]> {
           SELECT DISTINCT ON ((data::jsonb->>0)::text)
             (data::jsonb->>0)::text AS position_id,
             (data::jsonb->>4)::numeric AS size_raw,
-            market_id AS open_market_id
+            (data::jsonb->>2)::text AS open_market_id
           FROM position_events
           WHERE event_type = 'PositionOpened'
           ORDER BY (data::jsonb->>0)::text, id ASC
