@@ -180,7 +180,6 @@ const PROTOCOL_VOLUME_24H_SQL = `
     AND c.data IS NOT NULL
     AND (
       c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint
-      OR (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '5 minutes')
     )
 `;
 
@@ -318,7 +317,6 @@ export async function fetchMarkets(): Promise<Market[]> {
             AND c.data IS NOT NULL
             AND (
               c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '25 hours'))::bigint
-              OR (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '5 minutes')
             )
           GROUP BY 1
         `);

@@ -390,7 +390,7 @@ export default function AnalyticsDashboard() {
                 </div>
             )}
 
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <StatCard
                     title="Total Value Locked"
                     value={formatUsdStat((() => {
@@ -423,6 +423,7 @@ export default function AnalyticsDashboard() {
                     title="Active Traders"
                     value={activeTraders24h}
                     icon={<BarChart2 className="w-5 h-5 md:w-6 md:h-6" />}
+                    className="sm:col-span-2 lg:col-span-1"
                     loading={statsLoading}
                 />
             </div>
