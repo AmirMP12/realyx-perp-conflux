@@ -1,5 +1,5 @@
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 // We need to import the functions to test. Since they are inside useProgram.ts 
 // and might not be exported, let's check if we should export them or test them 
 // via the hook.
@@ -8,11 +8,11 @@ import { describe, it, expect, vi } from 'vitest';
 // as requested by the user, which is a common practice for internal logic testing.
 
 import { 
-    // @ts-ignore - these will be exported in the next step
+    // @ts-expect-error - Internal functions not exported in type definition
     closeTxErrorMessage, 
-    // @ts-ignore
+    // @ts-expect-error - Internal functions not exported in type definition
     decodeCreateOrderRevert, 
-    // @ts-ignore
+    // @ts-expect-error - Internal functions not exported in type definition
     mapRevertToMessage 
 } from '../useProgram';
 

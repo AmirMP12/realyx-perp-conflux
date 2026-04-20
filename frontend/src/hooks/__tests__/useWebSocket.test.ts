@@ -37,6 +37,7 @@ describe('useWebSocket', () => {
         readyState = MockWebSocket.OPEN;
 
         constructor(public url: string) {
+            // eslint-disable-next-line @typescript-eslint/no-this-alias
             wsInstance = this;
         }
     }

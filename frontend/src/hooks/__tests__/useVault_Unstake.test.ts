@@ -1,6 +1,6 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { useInsuranceUnstakeStatus, messageForUnstakeRevert } from '../useVault';
 import { useAccount, useReadContract, usePublicClient } from 'wagmi';
 import { useQuery } from '@tanstack/react-query';

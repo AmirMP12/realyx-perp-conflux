@@ -9,6 +9,8 @@ import { Sparkline } from '../components/Sparkline';
 import { useMarketPriceHistory } from '../hooks/useMarketPriceHistory';
 import { formatCompact, formatPriceWithPrecision } from '../utils/format';
 import { Skeleton } from '../components/ui/Skeleton';
+import { useAllMarketsOnChainData } from '../hooks/useMarketData';
+import { Address } from 'viem';
 
 import { applyMarketDisplayFallback } from '../utils/market';
 import { CategoryTag } from '../components/ui/CategoryTag';
@@ -54,29 +56,38 @@ export function MarketsPage() {
         { id: 'FOREX', label: 'Forex' },
     ];
 
-    const displayMarkets: DisplayMarket[] = apiMarkets.map(m => {
-        const display = applyMarketDisplayFallback({ ...m, image: m.image ?? "" });
-        return {
-            id: m.id,
-            name: display.name,
-            symbol: display.symbol,
-            indexPrice: parseFloat(String(m.indexPrice)),
-            volume24h: parseFloat(String(m.volume24h)),
-            longOI: parseFloat(String(m.longOI)),
-            shortOI: parseFloat(String(m.shortOI)),
-            fundingRate: parseFloat(String(m.fundingRate)),
-            change24h: m.change24h ?? 0,
-            marketAddress: m.marketAddress,
-            image: display.image,
-            category: (m as any).category || 'CRYPTO',
-        };
-    }).sort((a, b) => {
-        if (a.symbol === 'CFX-USD') return -1;
-        if (b.symbol === 'CFX-USD') return 1;
-        // Secondary sort by volume
-        if (b.volume24h !== a.volume24h) return b.volume24h - a.volume24h;
-        return a.symbol.localeCompare(b.symbol);
-    });
+    const marketAddresses = useMemo(() =>
+        apiMarkets.map(m => m.marketAddress as Address).filter(addr => !!addr && addr !== '0x...' && addr !== '0x0000000000000000000000000000000000000000')
+    , [apiMarkets]);
+
+    const { data: onChainData } = useAllMarketsOnChainData(marketAddresses);
+
+    const displayMarkets: DisplayMarket[] = useMemo(() => {
+        return apiMarkets.map(m => {
+            const display = applyMarketDisplayFallback({ ...m, image: m.image ?? "" });
+            const onChain = onChainData[m.marketAddress.toLowerCase()];
+
+            return {
+                id: m.id,
+                name: display.name,
+                symbol: display.symbol,
+                indexPrice: parseFloat(String(m.indexPrice)),
+                volume24h: parseFloat(String(m.volume24h)),
+                longOI: onChain ? onChain.longOI : parseFloat(String(m.longOI)),
+                shortOI: onChain ? onChain.shortOI : parseFloat(String(m.shortOI)),
+                fundingRate: onChain ? onChain.fundingRate : parseFloat(String(m.fundingRate)),
+                change24h: m.change24h ?? 0,
+                marketAddress: m.marketAddress,
+                image: display.image,
+                category: (m as any).category || 'CRYPTO',
+            };
+        }).sort((a, b) => {
+            if (a.symbol === 'CFX-USD') return -1;
+            if (b.symbol === 'CFX-USD') return 1;
+            if (b.volume24h !== a.volume24h) return b.volume24h - a.volume24h;
+            return a.symbol.localeCompare(b.symbol);
+        });
+    }, [apiMarkets, onChainData]);
 
 
     const filteredMarkets = displayMarkets.filter(m => {
@@ -98,7 +109,13 @@ export function MarketsPage() {
     const backendVolume = parseStat(backendStats?.volume24h);
     const backendOi = parseStat(backendStats?.totalOpenInterest);
     const volume24h = backendVolume > 0 ? backendVolume : marketVolumeFallback;
-    const totalOpenInterest = backendOi > 0 ? backendOi : marketOiFallback;
+    
+    const totalOpenInterest = useMemo(() => {
+        const onChainTotal = Object.values(onChainData).reduce((acc, val) => acc + val.longOI + val.shortOI, 0);
+        if (onChainTotal > 0) return onChainTotal;
+        return backendOi > 0 ? backendOi : marketOiFallback;
+    }, [onChainData, backendOi, marketOiFallback]);
+
     const vaultTvl = vaultStats?.tvl ?? 0;
     const backendTvl = parseStat(backendStats?.tvl);
     const tvl = vaultTvl > 0 ? vaultTvl : backendTvl;

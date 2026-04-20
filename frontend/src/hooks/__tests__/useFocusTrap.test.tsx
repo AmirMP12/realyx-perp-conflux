@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import { useFocusTrap } from '../useFocusTrap';
 import React from 'react';
@@ -18,7 +18,7 @@ describe('useFocusTrap', () => {
   it('traps focus when active', () => {
     const { getByText, getByTestId } = render(<TestComponent active={true} />);
     const btn1 = getByText('Button 1');
-    const input = getByTestId('input');
+    getByTestId('input');
     const link = getByText('Link 1');
 
     // Initial focus

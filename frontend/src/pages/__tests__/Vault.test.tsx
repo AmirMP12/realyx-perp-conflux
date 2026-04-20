@@ -33,11 +33,11 @@ vi.mock('../../components/ui', () => ({
 vi.mock('framer-motion', () => ({
     motion: {
         div: ({ children, ...props }: any) => {
-            const { layoutId, layout, initial, animate, exit, transition, variants, ...rest } = props;
+            const { layoutId: _layoutId, layout: _layout, initial: _initial, animate: _animate, exit: _exit, transition: _transition, variants: _variants, ...rest } = props;
             return <div {...rest}>{children}</div>;
         },
         button: ({ children, ...props }: any) => {
-            const { whileHover, whileTap, layoutId, layout, initial, animate, exit, transition, variants, ...rest } = props;
+            const { whileHover: _whileHover, whileTap: _whileTap, layoutId: _layoutId, layout: _layout, initial: _initial, animate: _animate, exit: _exit, transition: _transition, variants: _variants, ...rest } = props;
             return <button {...rest}>{children}</button>;
         },
     },

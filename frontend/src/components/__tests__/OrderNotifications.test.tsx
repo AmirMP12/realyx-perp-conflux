@@ -15,18 +15,21 @@ vi.mock('react-hot-toast', () => ({
 describe('OrderNotifications', () => {
     let wsInstance: any;
 
-    class MockWebSocket {
-        onopen: any;
-        onmessage: any;
-        onclose: any;
-        onerror: any;
-        send = vi.fn();
-        close = vi.fn();
-        constructor() { wsInstance = this; }
-    }
+    const createMockWS = () => {
+        const mock: any = {
+            onopen: null,
+            onmessage: null,
+            onclose: null,
+            onerror: null,
+            send: vi.fn(),
+            close: vi.fn(),
+        };
+        wsInstance = mock;
+        return mock;
+    };
 
     beforeEach(() => {
-        vi.stubGlobal('WebSocket', MockWebSocket);
+        vi.stubGlobal('WebSocket', vi.fn().mockImplementation(createMockWS));
         vi.stubGlobal('AudioContext', vi.fn().mockImplementation(() => ({
             createOscillator: vi.fn(() => ({
                 connect: vi.fn(),

@@ -1,0 +1,131 @@
+﻿
+> realyx-frontend@1.0.0 lint
+> eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0
+
+
+C:\Users\amir2\Desktop\realyx\frontend\src\__tests__\App.test.tsx
+  2:26  warning  'fireEvent' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  2:37  warning  'waitFor' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  2:46  warning  'act' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\components\__tests__\OrderNotifications.test.tsx
+  25:25  error  Unexpected aliasing of 'this' to local variable  @typescript-eslint/no-this-alias
+
+C:\Users\amir2\Desktop\realyx\frontend\src\components\__tests__\Orderbook.test.tsx
+  2:32  warning  'vi' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\components\__tests__\PythChart.test.tsx
+  73:17  warning  'container' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\components\__tests__\WalletConnect.test.tsx
+  2:32  warning  'vi' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\components\layout\__tests__\MobileNav.test.tsx
+  2:32  warning  'vi' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\components\trading\__tests__\TradingForm.test.tsx
+  3:37  warning  'waitFor' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  9:10  warning  'showToast' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\components\ui\__tests__\Tooltip.test.tsx
+  1:32  warning  'vi' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\hooks\__tests__\useBackend.test.ts
+  257:53  warning  'queryFn' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\hooks\__tests__\useFocusTrap.test.tsx
+   1:32  warning  'vi' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+   1:36  warning  'beforeEach' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  21:11  warning  'input' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\hooks\__tests__\useOnChainHistory.test.ts
+    1:22  warning  'waitFor' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+   58:17  warning  'result' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  111:17  warning  'result' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  134:17  warning  'result' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\hooks\__tests__\useProgram_Errors.test.ts
+   2:32  warning  'vi' is defined but never used. Allowed unused vars must match /^_/u                                                 @typescript-eslint/no-unused-vars
+  11:5   error    Use "@ts-expect-error" instead of "@ts-ignore", as "@ts-ignore" will do nothing if the following line is error-free  @typescript-eslint/ban-ts-comment
+  13:5   error    Use "@ts-expect-error" instead of "@ts-ignore", as "@ts-ignore" will do nothing if the following line is error-free  @typescript-eslint/ban-ts-comment
+  15:5   error    Use "@ts-expect-error" instead of "@ts-ignore", as "@ts-ignore" will do nothing if the following line is error-free  @typescript-eslint/ban-ts-comment
+
+C:\Users\amir2\Desktop\realyx\frontend\src\hooks\__tests__\useVault_Unstake.test.ts
+  3:22  warning  'act' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\hooks\__tests__\useWebSocket.test.ts
+  40:13  error  Unexpected aliasing of 'this' to local variable  @typescript-eslint/no-this-alias
+
+C:\Users\amir2\Desktop\realyx\frontend\src\pages\__tests__\Analytics.test.tsx
+  2:26  warning  'within' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\pages\__tests__\Insurance.test.tsx
+  2:26  warning  'fireEvent' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\pages\__tests__\Markets.test.tsx
+  2:26  warning  'fireEvent' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\pages\__tests__\Portfolio.test.tsx
+  2:26  warning  'fireEvent' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  2:37  warning  'waitFor' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\pages\__tests__\Settings.test.tsx
+  2:26  warning  'fireEvent' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  2:37  warning  'waitFor' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\pages\__tests__\Vault.test.tsx
+  36:21  warning  'layoutId' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  36:31  warning  'layout' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  36:39  warning  'initial' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  36:48  warning  'animate' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  36:57  warning  'exit' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  36:63  warning  'transition' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  36:75  warning  'variants' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  40:21  warning  'whileHover' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  40:33  warning  'whileTap' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  40:43  warning  'layoutId' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  40:53  warning  'layout' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  40:61  warning  'initial' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  40:70  warning  'animate' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  40:79  warning  'exit' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  40:85  warning  'transition' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  40:97  warning  'variants' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\stores\__tests__\index.test.ts
+  1:44  warning  'vi' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\stores\__tests__\settingsStore.test.ts
+  1:44  warning  'vi' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\amir2\Desktop\realyx\frontend\src\test\setup.ts
+   42:19  error    Require statement not part of import statement                                                  @typescript-eslint/no-var-requires
+   50:25  warning  'layoutId' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   50:35  warning  'layout' is assigned a value but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
+   50:43  warning  'initial' is assigned a value but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+   50:52  warning  'animate' is assigned a value but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+   50:61  warning  'exit' is assigned a value but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+   50:67  warning  'transition' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+   50:79  warning  'variants' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   51:25  warning  'whileHover' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+   51:37  warning  'whileTap' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   51:47  warning  'whileFocus' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+   51:59  warning  'whileDrag' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   51:70  warning  'whileInView' is assigned a value but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+   52:25  warning  'viewport' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   52:35  warning  'onAnimationStart' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+   52:53  warning  'onAnimationComplete' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   52:74  warning  'onUpdate' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   53:25  warning  'drag' is assigned a value but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+   53:31  warning  'dragControls' is assigned a value but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+   53:45  warning  'dragListener' is assigned a value but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+   53:59  warning  'dragConstraints' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+   93:19  error    Require statement not part of import statement                                                  @typescript-eslint/no-var-requires
+  173:19  error    Require statement not part of import statement                                                  @typescript-eslint/no-var-requires
+  176:17  warning  'chainStatus' is assigned a value but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  176:30  warning  'accountStatus' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  176:45  warning  'showBalance' is assigned a value but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  176:58  warning  'label' is assigned a value but never used. Allowed unused vars must match /^_/u                @typescript-eslint/no-unused-vars
+  210:19  error    Require statement not part of import statement                                                  @typescript-eslint/no-var-requires
+
+Γ£û 78 problems (9 errors, 69 warnings)
+

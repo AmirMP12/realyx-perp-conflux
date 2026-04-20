@@ -1,12 +1,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { TradingForm } from '../TradingForm';
 import { useAccount } from 'wagmi';
 import { useOpenPosition, useUSDCBalance } from '../../../hooks/useProgram';
 import { usePositionsStore } from '../../../stores';
 import { useSettingsStore } from '../../../stores/settingsStore';
-import { showToast } from '../../ui/Toast';
+// import { showToast } from '../../ui/Toast';
 import { MemoryRouter } from 'react-router-dom';
 
 // Mock dependencies

@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { useOnChainHistory } from '../useOnChainHistory';
 import { useAccount, usePublicClient } from 'wagmi';
@@ -55,7 +55,7 @@ describe('useOnChainHistory', () => {
         (useQuery as any).mockReturnValue(queryResult);
 
         // Get the queryFn from the hook call
-        const { result } = renderHook(() => useOnChainHistory());
+        renderHook(() => useOnChainHistory());
         const queryFn = (useQuery as any).mock.calls[0][0].queryFn;
 
         // Mock Logs
@@ -108,7 +108,7 @@ describe('useOnChainHistory', () => {
     });
 
     it('should handle liquidations', async () => {
-        const { result } = renderHook(() => useOnChainHistory());
+        renderHook(() => useOnChainHistory());
         const queryFn = (useQuery as any).mock.calls[0][0].queryFn;
 
         const openLog = { args: { positionId: 1n, market: '0xM1', isLong: true, size: 100n * 10n**18n, leverage: 5n * 10n**18n }, blockNumber: 100n };
@@ -131,7 +131,7 @@ describe('useOnChainHistory', () => {
 
     it('should handle fetch errors gracefully', async () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const { result } = renderHook(() => useOnChainHistory());
+        renderHook(() => useOnChainHistory());
         const queryFn = (useQuery as any).mock.calls[0][0].queryFn;
 
         mockPublicClient.getLogs.mockRejectedValue(new Error('RPC FAIL'));

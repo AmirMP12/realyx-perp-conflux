@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
+import React from 'react';
 
 // Minimal setup to isolate the hang
 vi.stubEnv('VITE_TRADING_CORE_ADDRESS', '0x111');
@@ -39,7 +40,6 @@ vi.mock('react-hot-toast', () => ({
 
 // Mock UI libraries with simple but functional replacements
 vi.mock('framer-motion', () => {
-    const React = require('react');
     const cache: Record<string, any> = {};
     
     const motion = new Proxy({}, { 
@@ -47,10 +47,10 @@ vi.mock('framer-motion', () => {
             if (!cache[tag]) {
                 const MotionComponent = React.forwardRef((props: any, ref: any) => {
                     const { 
-                        layoutId, layout, initial, animate, exit, transition, variants, 
-                        whileHover, whileTap, whileFocus, whileDrag, whileInView,
-                        viewport, onAnimationStart, onAnimationComplete, onUpdate,
-                        drag, dragControls, dragListener, dragConstraints,
+                        layoutId: _layoutId, layout: _layout, initial: _initial, animate: _animate, exit: _exit, transition: _transition, variants: _variants, 
+                        whileHover: _whileHover, whileTap: _whileTap, whileFocus: _whileFocus, whileDrag: _whileDrag, whileInView: _whileInView,
+                        viewport: _viewport, onAnimationStart: _onAnimationStart, onAnimationComplete: _onAnimationComplete, onUpdate: _onUpdate,
+                        drag: _drag, dragControls: _dragControls, dragListener: _dragListener, dragConstraints: _dragConstraints,
                         ...filteredProps 
                     } = props;
                     
@@ -90,7 +90,6 @@ vi.mock('framer-motion', () => {
 });
 
 vi.mock('lucide-react', () => {
-    const React = require('react');
     const MockIcon = (name: string) => {
         const component = (props: any) => React.createElement('svg', { ...props, 'data-testid': `icon-${name}` });
         component.displayName = name;
@@ -170,10 +169,9 @@ vi.mock('lucide-react', () => {
 });
 
 vi.mock('@rainbow-me/rainbowkit', () => {
-    const React = require('react');
     const ConnectButton = (props: any) => {
         // Filter out non-DOM props to avoid React warnings
-        const { chainStatus, accountStatus, showBalance, label, ...rest } = props;
+        const { chainStatus: _chainStatus, accountStatus: _accountStatus, showBalance: _showBalance, label: _label, ...rest } = props;
         return React.createElement('div', { 'data-testid': 'connect-button', ...rest });
     };
     ConnectButton.Custom = ({ children }: any) => children({
@@ -207,7 +205,6 @@ vi.mock('@rainbow-me/rainbowkit/wallets', () => ({
 }));
 
 vi.mock('recharts', () => {
-    const React = require('react');
     const Mock = ({ children }: any) => React.createElement('div', {}, children);
     const MockSVG = ({ children }: any) => React.createElement('svg', {}, children);
     return {

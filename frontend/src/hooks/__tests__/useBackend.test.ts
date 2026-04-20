@@ -254,7 +254,7 @@ describe('useBackend hooks', () => {
             vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network Error')));
             
             // Mock useQuery to immediately execute and return the result of queryFn
-            (useQuery as any).mockImplementation(({ queryFn }) => {
+            (useQuery as any).mockImplementation(({ queryFn: _queryFn }) => {
                 // Forcing sync return for test simplicity if possible, or using the fallback logic in the hook
                 return { data: undefined, isLoading: false };
             });

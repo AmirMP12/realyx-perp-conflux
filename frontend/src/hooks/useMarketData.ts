@@ -160,3 +160,62 @@ export function useSingleMarketData(marketAddress?: Address) {
         }
     };
 }
+
+export function useAllMarketsOnChainData(marketAddresses: Address[]) {
+    const enabled = marketAddresses.length > 0 && !!TRADING_CORE_ADDRESS;
+
+    const contracts = marketAddresses.flatMap(addr => [
+        {
+            address: TRADING_CORE_ADDRESS as Address,
+            abi: TRADING_CORE_ABI,
+            functionName: 'getMarketInfo',
+            args: [addr]
+        },
+        {
+            address: TRADING_CORE_ADDRESS as Address,
+            abi: TRADING_CORE_ABI,
+            functionName: 'getFundingState',
+            args: [addr]
+        }
+    ]);
+
+    const { data, isLoading, refetch } = useReadContracts({
+        contracts,
+        query: {
+            enabled,
+            refetchInterval: 15000,
+            staleTime: 5000,
+        }
+    });
+
+    const results: Record<string, { longOI: number; shortOI: number; fundingRate: number }> = {};
+
+    if (data) {
+        marketAddresses.forEach((addr, i) => {
+            const r0 = data[i * 2];
+            const r1 = data[i * 2 + 1];
+
+            const marketInfo = r0?.status === 'success' ? readMarketInfoTuple(r0.result) : undefined;
+            const fundingState = r1?.status === 'success' ? readFundingTuple(r1.result) : undefined;
+
+            const longOI = marketInfo ? Number(marketInfo.totalLongSize) / 1e18 : 0;
+            const shortOI = marketInfo ? Number(marketInfo.totalShortSize) / 1e18 : 0;
+            const totalOI = longOI + shortOI;
+
+            let liveFundingRate = fundingState ? Number(fundingState.fundingRate) / 1e18 : 0;
+            if (totalOI > 0) {
+                const baseRate = 0.0001; // matches contract logic
+                const imbalance = (longOI - shortOI) / totalOI;
+                liveFundingRate = baseRate * imbalance;
+            }
+
+            results[addr.toLowerCase()] = {
+                longOI,
+                shortOI,
+                fundingRate: liveFundingRate
+            };
+        });
+    }
+
+    return { data: results, isLoading, refetch };
+}

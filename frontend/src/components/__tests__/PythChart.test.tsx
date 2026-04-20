@@ -70,7 +70,7 @@ describe('PythChart', () => {
             error: null
         });
 
-        const { container } = render(<PythChart feedId="0x123" />);
+        render(<PythChart feedId="0x123" />);
         expect(screen.getByText('Powered by')).toBeInTheDocument();
         expect(screen.getByText('Pyth Network')).toBeInTheDocument();
     });
