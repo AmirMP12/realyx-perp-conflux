@@ -332,7 +332,6 @@ export default function AnalyticsDashboard() {
     const { stats: backendStats, loading: statsLoading, error: statsError } = useBackendStats();
     const { entries: leaderboardEntries, loading: leaderboardLoading, error: leaderboardError } = useLeaderboard(10);
     const { stats: dailyStats, loading: historyLoading, error: historyError } = useDailyStats();
-    const markets = useMarketsStore((s) => s.markets);
 
     const marketAddresses = useMemo(() =>
         apiMarkets.map(m => m.marketAddress as Address).filter(addr => !!addr && addr !== '0x...' && addr !== '0x0000000000000000000000000000000000000000')
