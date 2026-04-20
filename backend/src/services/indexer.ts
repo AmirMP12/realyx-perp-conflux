@@ -139,14 +139,15 @@ const PROTOCOL_VOLUME_24H_SQL = `
   )
   SELECT 
     COALESCE(SUM(
-    CASE
-      WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
-        THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
-      WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
-        THEN o.size_raw / POWER(10::numeric, 18)
-      ELSE 0::numeric
-    END
-  ), 0)::numeric AS volume_24h_usd
+      CASE
+        WHEN c.size_usd > 0 THEN c.size_usd
+        WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
+          THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
+        WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
+          THEN o.size_raw / POWER(10::numeric, 18)
+        ELSE 0::numeric
+      END
+    ), 0)::numeric AS volume_24h_usd
   FROM position_events c
   LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
   WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
@@ -260,6 +261,7 @@ export async function fetchMarkets(): Promise<Market[]> {
           COALESCE(NULLIF(c.market_id, '0x'), NULLIF(o.open_market_id, '0x')) AS market_id,
           COALESCE(SUM(
             CASE
+              WHEN c.size_usd > 0 THEN c.size_usd
               WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
                 THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
               WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
