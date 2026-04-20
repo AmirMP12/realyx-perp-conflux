@@ -1,3 +1,6 @@
+import { Link, useLocation } from 'react-router-dom';
+import { LayoutGrid, CandlestickChart, Wallet, Coins, Menu, BarChart2, Trophy, Share2, Shield, Settings, X, Sparkles } from 'lucide-react';
+import clsx from 'clsx';
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
