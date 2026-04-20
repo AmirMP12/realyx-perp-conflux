@@ -1,0 +1,1 @@
+import{M as r}from"./index-UYPF_eLP.js";function i(a){if(!a)return a;const e=(a.marketAddress||"").toLowerCase(),n=r[e];return n?{...a,name:n.name,symbol:n.symbol,image:n.image||a.image}:a}function s(a){return a?a.map(i):[]}export{i as a,s as m};
