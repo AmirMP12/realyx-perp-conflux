@@ -39,19 +39,19 @@ function readMarketInfoTuple(
 
 function readFundingTuple(raw: unknown): { fundingRate: bigint } | undefined {
     if (raw == null) return undefined;
-    
+
     // Case 1: Object with named properties
     if (typeof raw === 'object' && !Array.isArray(raw) && 'fundingRate' in raw) {
         const o = raw as { fundingRate: bigint };
         return { fundingRate: BigInt(o.fundingRate) };
     }
-    
+
     // Case 2: Array (tuple)
     // FundingState struct: fundingRate is index 0
     if (Array.isArray(raw) && raw.length > 0 && raw[0] !== undefined && raw[0] !== null) {
         return { fundingRate: BigInt(raw[0] as bigint) };
     }
-    
+
     return undefined;
 }
 
