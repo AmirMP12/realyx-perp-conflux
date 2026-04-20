@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { ReactNode, useMemo } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, BarChart2, Activity, Loader2, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 import {
@@ -17,6 +17,9 @@ import { useVaultStats } from '../hooks/useVault';
 import { useBackendStats, useLeaderboard, useDailyStats, useMarkets, LeaderboardEntry } from '../hooks/useBackend';
 import { Skeleton } from '../components/ui';
 import { formatCompact } from '../utils/format';
+import { useAllMarketsOnChainData } from '../hooks/useMarketData';
+import { useMarketsStore } from '../stores';
+import { Address } from 'viem';
 
 interface DailyStats {
     date: string;
@@ -329,6 +332,13 @@ export default function AnalyticsDashboard() {
     const { stats: backendStats, loading: statsLoading, error: statsError } = useBackendStats();
     const { entries: leaderboardEntries, loading: leaderboardLoading, error: leaderboardError } = useLeaderboard(10);
     const { stats: dailyStats, loading: historyLoading, error: historyError } = useDailyStats();
+    const markets = useMarketsStore((s) => s.markets);
+
+    const marketAddresses = useMemo(() =>
+        apiMarkets.map(m => m.marketAddress as Address).filter(addr => !!addr && addr !== '0x...' && addr !== '0x0000000000000000000000000000000000000000')
+    , [apiMarkets]);
+
+    const { data: onChainData } = useAllMarketsOnChainData(marketAddresses);
 
 
 
@@ -346,9 +356,19 @@ export default function AnalyticsDashboard() {
     const totalVolume = backendStats ? parseFloat(backendStats.volume24h) : 0;
     const activeTraders24h = backendStats?.activeTraders24h ?? 0;
 
-    const realTimeLongOI = apiMarkets.reduce((acc, m) => acc + parseFloat(m.longOI), 0);
-    const realTimeShortOI = apiMarkets.reduce((acc, m) => acc + parseFloat(m.shortOI), 0);
-    const realTimeOI = realTimeLongOI + realTimeShortOI;
+    const { realTimeLongOI, realTimeShortOI, realTimeOI } = useMemo(() => {
+        const onChainTotalLong = Object.values(onChainData).reduce((acc, val) => acc + val.longOI, 0);
+        const onChainTotalShort = Object.values(onChainData).reduce((acc, val) => acc + val.shortOI, 0);
+        const total = onChainTotalLong + onChainTotalShort;
+
+        if (total > 0) {
+            return { realTimeLongOI: onChainTotalLong, realTimeShortOI: onChainTotalShort, realTimeOI: total };
+        }
+
+        const apiLong = apiMarkets.reduce((acc, m) => acc + parseFloat(m.longOI), 0);
+        const apiShort = apiMarkets.reduce((acc, m) => acc + parseFloat(m.shortOI), 0);
+        return { realTimeLongOI: apiLong, realTimeShortOI: apiShort, realTimeOI: apiLong + apiShort };
+    }, [onChainData, apiMarkets]);
 
     return (
         <div className="min-h-screen pb-20 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
