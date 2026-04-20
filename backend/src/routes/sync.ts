@@ -28,6 +28,10 @@ function getPool(): pg.Pool | null {
   return poolInstance;
 }
 
+function getProvider(): ethers.JsonRpcProvider {
+  return new ethers.JsonRpcProvider(config.rpcUrl, config.chainId);
+}
+
 async function initDB() {
   const pool = getPool();
   if (!pool) return;
@@ -63,8 +67,7 @@ export async function runSync(options?: { fromBlock?: number }) {
     throw new Error("Database not configured");
   }
   await initDB();
-
-  const provider = new ethers.JsonRpcProvider(config.rpcUrl, config.chainId);
+  const provider = getProvider();
 
   const tradingCoreAddress = (process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE ?? "").trim();
   if (!tradingCoreAddress) {
@@ -151,19 +154,22 @@ async function getBlockTime(blockNumber: number, provider: ethers.Provider): Pro
     const block = await provider.getBlock(blockNumber);
     const t = block?.timestamp ?? Math.floor(Date.now() / 1000);
     blockTimeCache.set(blockNumber, t);
-    // Keep cache reasonable size
-    if (blockTimeCache.size > 1000) {
+    if (blockTimeCache.size > 2000) {
       const firstKey = blockTimeCache.keys().next().value;
       if (firstKey !== undefined) blockTimeCache.delete(firstKey);
     }
-    return t;
-  } catch {
+    return Number(t);
+  } catch (err) {
+    console.error(`Failed to fetch block time for ${blockNumber}:`, err);
     return Math.floor(Date.now() / 1000);
   }
 }
 
 async function processLogs(logs: any[], iface: ethers.Interface, pool: pg.Pool, provider: ethers.Provider) {
   let inserted = 0;
+  let lastBlock = -1;
+  let lastTime = 0;
+
   for (const log of logs) {
     try {
       const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
@@ -172,7 +178,16 @@ async function processLogs(logs: any[], iface: ethers.Interface, pool: pg.Pool, 
       let account = log.address;
       let marketId = "0x";
       let sizeUsd = "0";
-      const blockTime = await getBlockTime(log.blockNumber, provider);
+
+      // Optimize block time fetching within a batch
+      let blockTime;
+      if (log.blockNumber === lastBlock) {
+        blockTime = lastTime;
+      } else {
+        blockTime = await getBlockTime(log.blockNumber, provider);
+        lastBlock = log.blockNumber;
+        lastTime = blockTime;
+      }
 
       if (parsed.name === "PositionOpened") {
         account = String(parsed.args[1]);
@@ -181,19 +196,19 @@ async function processLogs(logs: any[], iface: ethers.Interface, pool: pg.Pool, 
       } else if (parsed.name === "PositionClosed" || parsed.name === "PositionLiquidated") {
         const posId = String(parsed.args[0]);
         if (parsed.name === "PositionClosed") account = String(parsed.args[1]);
-        else account = log.address; // liquidator by default
 
         try {
+          // Robust resolution: try column first, then JSON fallback
           const openEvt = await pool.query(
-            `SELECT account, market_id, size_usd FROM position_events WHERE event_type = 'PositionOpened' AND (data::jsonb->>0)::text = $1 LIMIT 1`,
+            `SELECT account, market_id, data FROM position_events 
+             WHERE event_type = 'PositionOpened' AND (data::jsonb->>0)::text = $1 
+             ORDER BY id DESC LIMIT 1`,
             [posId]
           );
           if (openEvt.rows.length > 0) {
-            if (openEvt.rows[0].market_id && openEvt.rows[0].market_id !== "0x") {
-              marketId = openEvt.rows[0].market_id;
-            }
-            if (openEvt.rows[0].account) account = openEvt.rows[0].account;
-            if (openEvt.rows[0].size_usd) sizeUsd = openEvt.rows[0].size_usd;
+            const row = openEvt.rows[0];
+            marketId = (row.market_id && row.market_id !== "0x") ? row.market_id : String(row.data[2] || "0x");
+            account = row.account || account;
           }
         } catch { /* ignore */ }
       }
@@ -212,6 +227,26 @@ async function processLogs(logs: any[], iface: ethers.Interface, pool: pg.Pool, 
   return inserted;
 }
 
+/** Repair missing block_time for recent events */
+async function runRepair(pool: pg.Pool, provider: ethers.Provider) {
+  try {
+    const missing = await pool.query(`
+      SELECT id, block_number FROM position_events 
+      WHERE block_time IS NULL 
+      ORDER BY id DESC LIMIT 50
+    `);
+    if (missing.rows.length === 0) return;
+
+    console.log(`[repair] Fixing ${missing.rows.length} events missing block_time...`);
+    for (const row of missing.rows) {
+      const t = await getBlockTime(row.block_number, provider);
+      await pool.query(`UPDATE position_events SET block_time = $1 WHERE id = $2`, [t, row.id]);
+    }
+  } catch (err) {
+    console.error("[repair] failure:", err);
+  }
+}
+
 /** Triggered by API traffic when Crons are unavailable. */
 export async function checkAndSync() {
   const pool = getPool();
@@ -225,7 +260,9 @@ export async function checkAndSync() {
     if (!lastSync || (now.getTime() - new Date(lastSync).getTime() > 30 * 1000)) {
       console.log("[lazy-sync] Data is stale, starting catch-up pulse...");
       // Await the sync pulse so Vercel doesn't kill the process before it makes progress
+      const provider = getProvider();
       await runSync().catch(err => console.error("[lazy-sync] failure:", err));
+      if (provider) await runRepair(pool, provider).catch(() => {});
     }
   } catch (err) {
     console.error("[lazy-sync] check failure:", err);

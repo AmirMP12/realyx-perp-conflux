@@ -28,20 +28,20 @@ router.get("/", async (req: Request, res: Response) => {
     const rawRes = await pool.query("SELECT COUNT(*) FROM position_events");
     dbStatus.totalPositionEvents = rawRes.rows[0].count;
 
-    const last24h = await pool.query("SELECT COUNT(*) FROM position_events WHERE created_at >= NOW() - INTERVAL '24 hours'");
+    const last24h = await pool.query("SELECT COUNT(*) FROM position_events WHERE (block_time IS NOT NULL AND block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint) OR (block_time IS NULL AND created_at >= NOW() - INTERVAL '24 hours')");
     dbStatus.last24hEvents = last24h.rows[0].count;
 
-    const state = await pool.query("SELECT last_synced_block FROM indexer_state WHERE key = 'trading_core'");
-    dbStatus.lastSyncedBlock = state.rows[0] ? state.rows[0].last_synced_block : "None";
+    const missingBlockTime = await pool.query("SELECT COUNT(*) FROM position_events WHERE block_time IS NULL");
+    dbStatus.eventsMissingBlockTime = missingBlockTime.rows[0].count;
 
-    const sample = await pool.query("SELECT * FROM position_events LIMIT 1");
-    dbStatus.sampleRow = sample.rows[0] ? sample.rows[0] : null;
+    const state = await pool.query("SELECT last_synced_block, last_synced_at FROM indexer_state WHERE key = 'trading_core'");
+    dbStatus.indexerState = state.rows[0] ? state.rows[0] : "None";
 
-    dbStatus.testJsonExtract = null;
-    if (sample.rows[0]) {
-      const jsonRes = await pool.query("SELECT (data::jsonb->>4) as size FROM position_events WHERE event_type = 'PositionOpened' LIMIT 1");
-      dbStatus.testJsonExtract = jsonRes.rows[0] ? jsonRes.rows[0].size : "No open position data";
-    }
+    const latest = await pool.query("SELECT id, event_type, market_id, block_number, block_time, created_at FROM position_events ORDER BY id DESC LIMIT 5");
+    dbStatus.latestEvents = latest.rows;
+
+    const sampleOpen = await pool.query("SELECT * FROM position_events WHERE event_type = 'PositionOpened' ORDER BY id DESC LIMIT 1");
+    dbStatus.latestOpenEvent = sampleOpen.rows[0] || null;
   } catch (err) {
     dbStatus.error = String(err);
     if (err instanceof Error && err.stack) dbStatus.stack = err.stack;
