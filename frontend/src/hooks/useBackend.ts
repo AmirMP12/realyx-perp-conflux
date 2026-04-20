@@ -173,7 +173,7 @@ export function useBackendStats() {
     } = useQuery({
         queryKey: ['backend', 'stats'],
         queryFn: async (): Promise<ProtocolStats | null> => {
-            const response = await fetch(`${API_BASE_URL}/stats`);
+            const response = await fetch(`${API_BASE_URL}/stats?t=${Date.now()}`);
             const data = await response.json().catch(() => ({ success: false }));
             if (data.success) return data.data;
             if (data.data) return data.data;
@@ -312,7 +312,7 @@ export function useMarkets() {
     } = useQuery({
         queryKey: ['backend', 'markets'],
         queryFn: async (): Promise<BackendMarket[]> => {
-            const response = await fetch(`${API_BASE_URL}/markets`);
+            const response = await fetch(`${API_BASE_URL}/markets?t=${Date.now()}`);
             const data = await response.json().catch(() => ({ success: false, data: [] }));
             if (!response.ok) throw new Error(data.error || 'Failed to fetch markets');
             if (!Array.isArray(data.data) || data.data.length === 0) return PLACEHOLDER_MARKETS;

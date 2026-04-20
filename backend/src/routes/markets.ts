@@ -159,6 +159,10 @@ export function clearMarketsCache() {
 
 
 router.get("/", async (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
   // Serve from cache if fresh
   if (marketsResponseCache && Date.now() - marketsResponseCachedAt < MARKETS_RESPONSE_TTL_MS) {
     return res.json({
@@ -174,7 +178,6 @@ router.get("/", async (_req: Request, res: Response) => {
       const fallback = buildFallbackMarkets();
       try {
         const [protocol, cgPrices, pythPrices] = await Promise.all([fetchProtocol(), fetchCoinGeckoPrices(), fetchPythPrices()]);
-        const protocolVolume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
         const pythChanges = ENABLE_PYTH_24H
           ? await Promise.all(
               fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined))
@@ -191,7 +194,7 @@ router.get("/", async (_req: Request, res: Response) => {
           }
           const pythPrice = pythPrices[addr];
           if (pythPrice != null && pythPrice > 0) indexPrice = String(pythPrice);
-          return { ...m, indexPrice, lastPrice: indexPrice, volume24h: protocolVolume24h, ...(change24h !== undefined && { change24h }) };
+          return { ...m, indexPrice, lastPrice: indexPrice, volume24h: "0", ...(change24h !== undefined && { change24h }) };
         });
         marketsResponseCache = { data: enriched, fallback: true };
         marketsResponseCachedAt = Date.now();
@@ -214,7 +217,6 @@ router.get("/", async (_req: Request, res: Response) => {
     ]);
     const cgPrices = cgPricesRaw as Record<string, any>;
     const pythPrices = pythPricesRaw as Record<string, any>;
-    const protocolVolume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
     const pythChanges = ENABLE_PYTH_24H
       ? await Promise.all(
           markets.map((m) => {
@@ -254,7 +256,7 @@ router.get("/", async (_req: Request, res: Response) => {
         category: getMarketCategory(addr),
         indexPrice,
         lastPrice,
-        volume24h: m.volume24h || protocolVolume24h,
+        volume24h: m.volume24h || "0",
         longOI: toDecimal18(m.totalLongSize),
         shortOI: toDecimal18(m.totalShortSize),
         fundingRate: (Number(m.fundingRate) / PRECISION_1E18).toFixed(6),
@@ -275,7 +277,6 @@ router.get("/", async (_req: Request, res: Response) => {
         fetchCoinGeckoPrices().catch(() => ({})),
         fetchPythPrices().catch(() => ({}))
       ]);
-      const protocolVolume24h = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
       const pythChanges = ENABLE_PYTH_24H
         ? await Promise.all(
             fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined))
@@ -293,7 +294,7 @@ router.get("/", async (_req: Request, res: Response) => {
           if (change24h === undefined) change24h = cg[cgId].change24h;
         }
         if (pyth[addr] != null && pyth[addr] > 0) indexPrice = String(pyth[addr]);
-        return { ...m, indexPrice, lastPrice: indexPrice, volume24h: protocolVolume24h, ...(change24h !== undefined && { change24h }) };
+        return { ...m, indexPrice, lastPrice: indexPrice, volume24h: "0", ...(change24h !== undefined && { change24h }) };
       });
       return res.json({ success: true, data: enriched, fallback: true } as ApiResponse<BackendMarket[]>);
     } catch {

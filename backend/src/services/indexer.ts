@@ -275,7 +275,10 @@ export async function fetchMarkets(): Promise<Market[]> {
       `);
 
       statsRes.rows.forEach((row: any) => {
-        statsMap.set(row.market_id.toLowerCase(), row);
+        const m_id = (row.market_id || "").toLowerCase();
+        if (m_id && m_id !== '0x' && m_id !== 'null' && m_id.length > 10) {
+          statsMap.set(m_id, row);
+        }
       });
     } catch (dbErr) {
       console.warn("[indexer] volume stats query failed:", dbErr);
