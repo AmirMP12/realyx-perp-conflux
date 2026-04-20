@@ -138,28 +138,30 @@ export async function _fetchMarketsOnChainImpl(): Promise<OnchainMarketRow[]> {
 
         // Calculate live funding rate if the on-chain one is zero (not yet settled)
         // or just always provide a live estimate for consistency.
-        const longOI = BigInt(info.totalLongSize || 0);
-        const shortOI = BigInt(info.totalShortSize || 0);
+        // ethers v6 Result objects support both named and indexed access.
+        // Fallback to indices if named access returns undefined (e.g. ABI mismatch or RPC quirk).
+        const longOI = BigInt(info.totalLongSize ?? info[8] ?? 0);
+        const shortOI = BigInt(info.totalShortSize ?? info[9] ?? 0);
         const liveFundingRate = calculateInstantFundingRate(longOI, shortOI);
         const rawFundingRate = toStr(liveFundingRate);
 
         out.push({
           id: addr.toLowerCase(),
           marketAddress: addr,
-          maxLeverage: toStr(info.maxLeverage),
-          maxPositionSize: toStr(info.maxPositionSize),
-          maxTotalExposure: toStr(info.maxTotalExposure),
-          totalLongSize: toStr(info.totalLongSize),
-          totalShortSize: toStr(info.totalShortSize),
-          totalLongCost: toStr(info.totalLongCost),
-          totalShortCost: toStr(info.totalShortCost),
+          maxLeverage: toStr(info.maxLeverage ?? info[7]),
+          maxPositionSize: toStr(info.maxPositionSize ?? info[3]),
+          maxTotalExposure: toStr(info.maxTotalExposure ?? info[4]),
+          totalLongSize: toStr(longOI),
+          totalShortSize: toStr(shortOI),
+          totalLongCost: toStr(info.totalLongCost ?? info[10]),
+          totalShortCost: toStr(info.totalShortCost ?? info[11]),
           fundingRate: rawFundingRate, // Raw bigint string scaled by 1e18
-          cumulativeFunding: fund ? toStr(fund.cumulativeFunding) : "0",
-          lastFundingTime: fund ? toStr(fund.lastSettlement) : "0",
+          cumulativeFunding: fund ? toStr(fund.cumulativeFunding ?? fund[1]) : "0",
+          lastFundingTime: fund ? toStr(fund.lastSettlement ?? fund[2]) : "0",
           longOpenInterest: toStr(longOI),
           shortOpenInterest: toStr(shortOI),
-          isActive: Boolean(info.isActive),
-          isListed: Boolean(info.isListed),
+          isActive: Boolean(info.isActive ?? info[12]),
+          isListed: Boolean(info.isListed ?? info[13]),
           updatedAt: new Date().toISOString(),
         });
       }
