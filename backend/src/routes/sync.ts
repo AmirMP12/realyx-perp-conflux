@@ -235,7 +235,7 @@ async function runRepair(pool: pg.Pool, provider: ethers.Provider) {
     const missing = await pool.query(`
       SELECT id, block_number FROM position_events 
       WHERE block_time IS NULL 
-      ORDER BY id DESC LIMIT 50
+      ORDER BY id DESC LIMIT 500
     `);
     if (missing.rows.length === 0) return;
 

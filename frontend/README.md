@@ -4,8 +4,15 @@ React + Vite client for trading, portfolio, vault, insurance, and analytics.
 
 ## Setup
 
+From the **project root**:
 ```bash
-cd frontend
+npm install
+npm install --workspace frontend
+cp frontend/.env.example frontend/.env
+```
+
+Or from the **frontend directory**:
+```bash
 npm install
 cp .env.example .env
 ```
@@ -43,8 +50,15 @@ npm run preview
 | `VITE_MOCK_USDC_ADDRESS` | required (testnet) | Mock USDC address |
 | `VITE_MOCK_MODE` | `false` | UI/testing toggle |
 
-## Vercel Mode
+## ☁️ Vercel & Serverless Mode
 
-For single-project Vercel deploy:
-- Set `VITE_API_URL=/api`
-- Keep `VITE_WS_URL` empty (frontend will rely on polling)
+Realyx is fully optimized for **Vercel** and similar serverless environments where persistent WebSockets are naturally restricted.
+
+- **Automatic Polling Fallback**: When `VITE_WS_URL` is detected as empty or unreachable, the frontend automatically activates a high-performance REST polling mechanism.
+- **Cache Synchronization**: Leveraging **Tanstack Query**, the application ensures that data from polling is intelligently merged and cached, providing a smooth user experience that mirrors the responsiveness of WebSocket updates.
+- **Config for Vercel**:
+    - Set `VITE_API_URL=/api`
+    - Keep `VITE_WS_URL` blank.
+    - Set `VITE_CHAIN_ID=71` (Testnet).
+
+---

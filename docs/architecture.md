@@ -47,6 +47,25 @@ PostgreSQL tables index execution events emitted by the contracts.
 
 ---
 
+## 🚀 Performance & Scalability
+
+Realyx utilizes a multi-tier data delivery architecture designed to handle high-frequency interactions while minimizing RPC load:
+
+### 1. Unified Backend Cache
+The Express backend implements a server-side caching layer for global protocol metrics (TVL, 24h Volume, Open Interest). This ensures that heavy database aggregations and slow on-chain `totalAssets()` calls do not block the UI during periods of high traffic.
+
+### 2. Intelligent Frontend Revalidation (Tanstack Query)
+The React frontend utilizes **Tanstack Query** (formerly React Query) for state management. 
+- **Graceful Staling**: Components render instantly from local cache while fresh data is fetched in the background.
+- **Atomic Refetching**: Prevents "over-fetching" by deduplicating concurrent requests to the same endpoint across different UI components.
+
+### 3. Serverless Compatibility & Polling Fallback
+Designed to run anywhere, the protocol supports **Vercel** serverless deployments.
+- **REST Priority**: Since native WebSockets are natively restricted in serverless environments, the frontend automatically falls back to an ultra-lightweight REST polling mechanism.
+- **Dynamic Intervals**: Polling frequency is dynamically adjusted based on tab focus and user interaction to optimize resource consumption.
+
+---
+
 ## 🔄 System Flow
 
 ### Trade Execution Lifecycle

@@ -17,10 +17,10 @@ Backend API and optional realtime channel for the Realyx frontend.
 | GET | `/markets/price-history/:marketId?days=7` | Historical market prices |
 | GET | `/user/:address/positions` | Open positions for wallet |
 | GET | `/user/:address/trades?limit=20` | Trade history for wallet |
-| GET | `/stats` | Protocol summary metrics |
-| GET | `/stats/history` | Daily aggregated metrics |
-| GET | `/leaderboard?limit=10&timeframe=all` | Leaderboard view |
-| GET | `/insurance/claims?limit=20` | Insurance/bad debt claims |
+| GET | `/stats` | Protocol summary metrics: TVL, 24h Volume, Open Interest, Active Traders, Liquidations |
+| GET | `/stats/history` | Daily aggregated metrics (90 days): Volume, Trades, Fees |
+| GET | `/leaderboard?limit=10&timeframe=all` | Global trader rankings by Realized PnL and Volume |
+| GET | `/insurance/claims?limit=20` | History of covered bad debt claims from the Insurance Fund |
 | GET | `/sync` | Manual index sync trigger (optionally protected by `CRON_SECRET`) |
 
 Health endpoints are outside `/api`:

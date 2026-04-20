@@ -22,7 +22,8 @@ Transparency is a core tenet of the Realyx protocol. This document outlines acti
 ### 📉 database indexer Sync Variance
 **Description:** Native PostgreSQL Indexer can occasionally trail behind the tip of the Conflux eSpace blockchain by a few blocks during high network congestion.
 - **Impact:** The UI may momentarily display stale portfolio balances or positions that were recently liquidated.
-- **Planned Resolution:** Improve PostgreSQL indexing throughput (query tuning, batching, and RPC resiliency). Frontend already supports REST polling mode for serverless deployments where native WebSocket is disabled.
+- **Current Status:** Significantly mitigated through a multi-tier caching strategy. The backend now employs a server-side TVL and state cache, while the frontend utilizes **Tanstack Query** for intelligent revalidation. Additionally, the protocol automatically falls back to high-frequency REST polling in serverless environments where native WebSockets are restricted (e.g., Vercel), ensuring consistent state availability.
+- **Planned Resolution:** Further improve PostgreSQL indexing throughput (query tuning, batching) and transition to a dedicated sub-graph as the ecosystem matures.
 
 ---
 

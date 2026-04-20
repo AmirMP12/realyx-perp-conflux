@@ -178,9 +178,7 @@ const PROTOCOL_VOLUME_24H_SQL = `
   LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
   WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
     AND c.data IS NOT NULL
-    AND (
-      COALESCE(c.block_time, EXTRACT(EPOCH FROM c.created_at)) >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))
-    )
+    AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '24 hours'))
 `;
 
 export async function fetchProtocol(): Promise<Protocol | null> {
@@ -315,9 +313,7 @@ export async function fetchMarkets(): Promise<Market[]> {
           LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
           WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
             AND c.data IS NOT NULL
-            AND (
-              COALESCE(c.block_time, EXTRACT(EPOCH FROM c.created_at)) >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))
-            )
+            AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '24 hours'))
           GROUP BY 1
         `);
 
@@ -568,8 +564,8 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
 export type LeaderboardTimeframe = "all" | "24h" | "7d";
 
 export function leaderboardTimeFilter(timeframe: LeaderboardTimeframe, tableAlias: string): string {
-  if (timeframe === "24h") return `AND ${tableAlias}.created_at >= NOW() - INTERVAL '24 hours'`;
-  if (timeframe === "7d") return `AND ${tableAlias}.created_at >= NOW() - INTERVAL '7 days'`;
+  if (timeframe === "24h") return `AND ${tableAlias}.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '24 hours'))`;
+  if (timeframe === "7d") return `AND ${tableAlias}.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '7 days'))`;
   return "";
 }
 
@@ -726,7 +722,7 @@ export async function fetchProtocolMetrics(
         FROM position_events c
         LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
         WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
-          AND c.created_at >= NOW() - INTERVAL '${limit} ${periodType}s'
+          AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '${limit} ${periodType}s'))
       )
       SELECT 
         ts::text as timestamp_text,

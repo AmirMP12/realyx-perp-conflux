@@ -4,8 +4,15 @@ Express + TypeScript API layer that reads indexed on-chain data from PostgreSQL 
 
 ## Setup
 
+From the **project root**:
 ```bash
-cd backend
+npm install
+npm install --workspace backend
+cp backend/.env.example backend/.env
+```
+
+Or from the **backend directory**:
+```bash
 npm install
 cp .env.example .env
 ```
@@ -19,6 +26,15 @@ npm run dev
 # or
 npm run build && npm start
 ```
+
+## 📊 Volume Indexing Engine
+
+The backend utilizes a sophisticated SQL-based indexing engine to calculate real-time protocol metrics:
+- **Cumulative Volume**: Aggregates all `PositionOpened`, `PositionClosed`, and `PositionLiquidated` sizes from the PostgreSQL event store.
+- **24h Volume**: Dynamically filters event logs using shifting windows to provide accurate sliding-window volume metrics.
+- **Market Specifics**: Individual market volumes are computed by mapping on-chain market addresses to indexed event IDs, ensuring zero discrepancy between the trade history and global stats.
+
+---
 
 ## API (base: `/api`)
 
