@@ -262,11 +262,11 @@ export async function fetchMarkets(): Promise<Market[]> {
           ORDER BY (data::jsonb->>0)::text, id ASC
         )
         SELECT 
-          COALESCE(
-            NULLIF(c.market_id, '0x'), 
-            NULLIF(o.open_market_id, '0x'), 
-            NULLIF((c.data::jsonb->>2)::text, '0x')
-          ) AS market_id,
+          CASE 
+            WHEN c.market_id IS NOT NULL AND c.market_id <> '0x' THEN c.market_id
+            WHEN c.event_type = 'PositionOpened' THEN (c.data->>2)::text
+            ELSE o.open_market_id
+          END AS market_id,
           COALESCE(SUM(
             CASE
               WHEN c.size_usd > 0 THEN c.size_usd
