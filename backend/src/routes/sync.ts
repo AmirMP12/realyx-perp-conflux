@@ -96,10 +96,17 @@ export async function runSync(options?: { fromBlock?: number }) {
   let totalSynced = 0;
   let currentStart = startBlock;
   let finalTo = startBlock - 1;
-  const CHUNK = 20000;
-  const MAX_ITER = 5;
+  const CHUNK = 50000;
+  const startTime = Date.now();
+  const TIMEOUT_MS = 7500; // 7.5s safety limit for Vercel
 
-  while (iterations < MAX_ITER && currentStart <= latestBlock) {
+  while (currentStart <= latestBlock) {
+    // Stop if we're approaching the serverless timeout limit
+    if (Date.now() - startTime > TIMEOUT_MS) {
+      console.log(`[sync] Timeout reached after ${Date.now() - startTime}ms. Progress: ${finalTo}`);
+      break;
+    }
+
     const currentTo = Math.min(currentStart + CHUNK, latestBlock);
     const batchLogs = await provider.getLogs({
       address: tradingCoreAddress,
@@ -112,7 +119,6 @@ export async function runSync(options?: { fromBlock?: number }) {
     finalTo = currentTo;
     if (currentTo >= latestBlock) break;
     currentStart = currentTo + 1;
-    iterations++;
   }
 
   await pool.query(
@@ -123,13 +129,15 @@ export async function runSync(options?: { fromBlock?: number }) {
     [finalTo]
   );
 
+  const duration = Date.now() - startTime;
   return {
     success: true,
     eventsSynced: totalSynced,
     scannedFrom: startBlock,
     scannedTo: finalTo,
     latestBlock,
-    iterations
+    durationMs: duration,
+    isCaughtUp: finalTo >= latestBlock
   };
 }
 
@@ -142,11 +150,11 @@ export async function checkAndSync() {
     const lastSync = res.rows[0]?.last_synced_at;
     const now = new Date();
     
-    // If no sync yet or last sync > 2 mins ago
-    if (!lastSync || (now.getTime() - new Date(lastSync).getTime() > 2 * 60 * 1000)) {
-      console.log("[lazy-sync] Data is stale, triggering background sync...");
-      // Run it in the background without awaiting to keep API response fast
-      runSync().catch(err => console.error("[lazy-sync] failure:", err));
+    // If no sync yet or last sync > 30s ago
+    if (!lastSync || (now.getTime() - new Date(lastSync).getTime() > 30 * 1000)) {
+      console.log("[lazy-sync] Data is stale, starting catch-up pulse...");
+      // Await the sync pulse so Vercel doesn't kill the process before it makes progress
+      await runSync().catch(err => console.error("[lazy-sync] failure:", err));
     }
   } catch (err) {
     console.error("[lazy-sync] check failure:", err);

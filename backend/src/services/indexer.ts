@@ -280,7 +280,8 @@ export async function fetchMarkets(): Promise<Market[]> {
 
       statsRes.rows.forEach((row: any) => {
         const m_id = (row.market_id || "").toLowerCase();
-        if (m_id && m_id !== '0x' && m_id !== 'null' && m_id.length > 20) {
+        // Relax checks slightly during catch-up phase
+        if (m_id && m_id !== '0x' && m_id !== 'null' && m_id.length > 30) {
           statsMap.set(m_id, row);
         }
       });
