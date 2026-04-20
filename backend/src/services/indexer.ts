@@ -291,20 +291,19 @@ export async function fetchMarkets(): Promise<Market[]> {
       `);
 
       statsRes.rows.forEach((row: any) => {
-        const m_id = (row.market_id || "").toLowerCase();
-        // Relax checks slightly during catch-up phase
-        if (m_id && m_id !== '0x' && m_id !== 'null' && m_id.length > 30) {
+        const m_id = String(row.market_id || "").toLowerCase().trim();
+        if (m_id && m_id.length > 30) {
           statsMap.set(m_id, row);
         }
       });
-    } catch (dbErr) {
-      console.warn("[indexer] volume stats query failed:", dbErr);
+    } catch (e) {
+      console.error("Market-volume query failed:", e);
     }
 
     // Merge stats into onchain markets
     const merged = onchain.map((m: any) => {
-      const addr = (m.marketAddress || m.id).toLowerCase();
-      const s = statsMap.get(addr);
+      const mAddr = (m.marketAddress || m.id || "").toLowerCase().trim();
+      const s = statsMap.get(mAddr);
       return {
         ...m,
         volume24h: s?.volume24h ?? "0",
