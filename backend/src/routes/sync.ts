@@ -161,6 +161,7 @@ async function processLogs(logs: any[], iface: ethers.Interface, pool: pg.Pool) 
       const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
       if (!parsed) continue;
 
+      let account = log.address;
       let marketId = "0x";
       if (parsed.name === "PositionOpened") {
         account = String(parsed.args[1]);

@@ -175,7 +175,7 @@ export async function fetchProtocol(): Promise<Protocol | null> {
       if (row.event_type === "PositionClosed") closed = parseInt(row.count);
       if (row.event_type === "PositionLiquidated") liq = parseInt(row.count);
     }
-    const totalVolumeUsd = volRes.rows[0]?.volume_24h_usd ?? "0";
+    const totalVolumeUsd = String(volRes.rows[0]?.volume_24h_usd ?? "0");
     return {
       totalPositionsOpened: String(opened),
       totalPositionsClosed: String(closed),
