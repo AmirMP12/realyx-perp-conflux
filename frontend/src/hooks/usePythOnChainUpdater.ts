@@ -146,7 +146,7 @@ export function usePythOnChainUpdater() {
                     args: [updateData],
                 })) as bigint;
 
-                await writeContractAsync({
+                const hash = await writeContractAsync({
                     chainId,
                     address: pythAddr,
                     abi: PYTH_ABI,
@@ -154,8 +154,18 @@ export function usePythOnChainUpdater() {
                     args: [updateData],
                     value: fee,
                 });
-                toast.success('On-chain Pyth prices updated.');
+                
+                const toastId = toast.loading('Waiting for price confirmation...');
+                try {
+                    await publicClient.waitForTransactionReceipt({ hash });
+                    toast.success('On-chain Pyth prices updated.', { id: toastId });
+                } catch (err) {
+                    toast.error('Price update failed or timed out.', { id: toastId });
+                    return false;
+                }
                 return true;
+
+
             } catch (e: unknown) {
                 const msg = e instanceof Error ? e.message : String(e);
                 console.error('[pyth refresh]', e);

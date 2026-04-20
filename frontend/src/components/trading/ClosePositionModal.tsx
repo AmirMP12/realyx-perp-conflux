@@ -42,6 +42,8 @@ export function ClosePositionModal({ isOpen, onClose, onCloseSuccess, position }
         if (m && m.startsWith('0x') && m.length === 42) {
             const pushed = await pushLatestForMarkets([m]);
             if (!pushed) return;
+            // Add a small delay for mobile wallets to settle before the next request
+            await new Promise(r => setTimeout(r, 800));
         }
 
         if (isFullClose) {
@@ -58,7 +60,7 @@ export function ClosePositionModal({ isOpen, onClose, onCloseSuccess, position }
     };
 
     return (
-        <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+        <Dialog open={isOpen} onClose={onClose} className="relative z-[100]">
             <DialogBackdrop transition className="fixed inset-0 bg-black/75 backdrop-blur-sm transition duration-200 ease-out data-closed:opacity-0" aria-hidden="true" />
 
             <div className="fixed inset-0 flex items-center justify-center p-4">

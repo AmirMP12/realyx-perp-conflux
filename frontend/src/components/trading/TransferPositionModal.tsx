@@ -83,7 +83,7 @@ export function TransferPositionModal({ isOpen, onClose, onSuccess, position }: 
     const addrShort = addr.length > 12 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr || '—';
 
     return (
-        <Dialog open={isOpen} onClose={onClose} className="relative z-50">
+        <Dialog open={isOpen} onClose={onClose} className="relative z-[100]">
             <DialogBackdrop transition className="fixed inset-0 bg-black/75 backdrop-blur-sm transition duration-200 ease-out data-closed:opacity-0" aria-hidden="true" />
 
             <div className="fixed inset-0 flex items-center justify-center p-4">
