@@ -10,7 +10,6 @@ import "../libraries/Events.sol";
  * @dev `market` parameters are collection contract addresses keyed in oracle config; naming matches trading “market” tokens.
  */
 interface IOracleAggregator {
-
     /**
      * @notice Latest normalized price, oracle confidence, and publish timestamp for `market`.
      * @param market Market/collection address.
