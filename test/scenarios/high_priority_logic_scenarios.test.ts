@@ -58,12 +58,21 @@ describe("Maximizing Branch Coverage - Realyx Protocol", function () {
 
         it("should exercise stop loss & take profit trigger branches", async function () {
             const { harness } = await loadFixture(deployCoverageFixture);
-            // Tuple order: size, entryPrice, liquidationPrice, stopLossPrice, takeProfitPrice, leverage, lastFundingTime, market, openTimestamp, trailingStopBps, flags, collateralType, state
-            const pLong = [
-                 1000n, 40000n, 0n, 39000n, 42000n, 
-                 20n, 0n, ethers.ZeroAddress, 0n, 0n, 
-                 1n, 0n, 1n
-            ];
+            const pLong = {
+                size: 1000n,
+                entryPrice: 40000n,
+                liquidationPrice: 0n,
+                stopLossPrice: 39000n,
+                takeProfitPrice: 42000n,
+                leverage: 20n,
+                lastFundingTime: 0n,
+                market: ethers.ZeroAddress,
+                openTimestamp: 0n,
+                trailingStopBps: 0n,
+                flags: 1,
+                collateralType: 0,
+                state: 1
+            };
             expect(await harness.boostShouldTriggerSL(pLong, 38500n)).to.be.true;
             expect(await harness.boostShouldTriggerTP(pLong, 42500n)).to.be.true;
         });

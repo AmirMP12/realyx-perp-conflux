@@ -342,7 +342,12 @@ describe("Branch coverage push toward 80%+ per instrumented contract", function 
         const blk = await ethers.provider.getBlock("latest");
         await env.trading
             .connect(env.alice)
-            .closePosition([1n, ethers.parseUnits("2000", 6), 0n, BigInt(blk!.timestamp + 600)]);
+            .closePosition({
+                positionId: 1n,
+                closeSize: ethers.parseUnits("2000", 6),
+                minReceive: 0n,
+                deadline: BigInt(blk!.timestamp + 600)
+            });
     });
 
     it("PositionCloseLib: close size exceeds position via oversized partial pct", async function () {
@@ -440,7 +445,12 @@ describe("Branch coverage push toward 80%+ per instrumented contract", function 
         const blk = await ethers.provider.getBlock("latest");
         await env.trading
             .connect(env.alice)
-            .closePosition([1n, ethers.parseUnits("1000", 6), 0n, BigInt(blk!.timestamp + 600)]);
+            .closePosition({
+                positionId: 1n,
+                closeSize: ethers.parseUnits("1000", 6),
+                minReceive: 0n,
+                deadline: BigInt(blk!.timestamp + 600)
+            });
     });
 
     it("WithdrawLib: zero-balance early return for order refunds", async function () {

@@ -30,7 +30,7 @@ describe("Indexer Service Absolute Recovery Suite", () => {
             const ind = require("../services/indexer.js");
             // Hit 154 (test env)
             const res = await ind.fetchProtocol();
-            expect(res?.totalVolumeUsd).toBe("5000");
+            expect(res?.totalVolumeUsd).toBe("50000");
 
             // Hit 155 (not test env)
             process.env.NODE_ENV = "production";

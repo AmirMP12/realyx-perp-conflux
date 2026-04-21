@@ -215,7 +215,7 @@ describe("Exhaustive Protocol Logic Sweep", function () {
 
     it("MonitoringLib non-OPEN position arm via CoverageHarness", async function () {
         const { env, coverageHarness } = await loadFixture(deployHarnessFixture);
-        await coverageHarness.setPosition(0, 1000, 1000, 1, 2, ethers.ZeroAddress);
+        await coverageHarness.setPositionSimple(0, 1000, 1000, 1, 2, ethers.ZeroAddress);
         await coverageHarness.setCollateral(0, 100);
         const h = await coverageHarness.testGetPositionHealth(await env.oracle.getAddress());
         expect(h[0]).to.equal(false);

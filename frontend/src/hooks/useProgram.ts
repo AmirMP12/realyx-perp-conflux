@@ -336,7 +336,7 @@ export function useOpenPosition() {
                 throw new Error('Insufficient USDC balance for this margin amount.');
             }
 
-            let currentAllowance = currentAllow;
+            const currentAllowance = currentAllow;
 
             if (!currentAllowance || currentAllowance < collateralDelta6) {
                 setStep('APPROVING');

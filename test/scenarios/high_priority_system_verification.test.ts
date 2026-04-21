@@ -281,7 +281,7 @@ describe("High Coverage Test Suite", function () {
 
         it("should test active positions", async function () {
             await harness.addPositionId(201);
-            await harness.setPosition(201, 1000, 2000, 1, 1, ethers.ZeroAddress); // Set state to OPEN
+            await harness.setPositionSimple(201, 1000, 2000, 1, 1, ethers.ZeroAddress); // Set state to OPEN
             
             const ids = await harness.testGetActivePositions();
             expect(ids).to.include(201n);
@@ -292,14 +292,14 @@ describe("High Coverage Test Suite", function () {
             const user2 = "0x0000000000000000000000000000000000000002";
             // 1000 * 10^12 = 1,000,000,000,000,000
             const size = 1000n * 10n**12n;
-            await harness.setPosition(1, size, 2000, 1, 1, ethers.ZeroAddress);
+            await harness.setPositionSimple(1, size, 2000, 1, 1, ethers.ZeroAddress);
             await harness.testUpdatePositionOwner(1, user2, user1, 1000000);
             expect(await harness.userExposure(user2)).to.equal(1000);
         });
 
         it("should get position health", async function () {
             const DUMMY_MARKET = "0x0000000000000000000000000000000000000001";
-            await harness.setPosition(1, 1000, 2000, 1, 1, DUMMY_MARKET); 
+            await harness.setPositionSimple(1, 1000, 2000, 1, 1, DUMMY_MARKET); 
             
             const feedId = ethers.zeroPadValue(ethers.toBeHex(1), 32);
             await env.oracle.connect(env.admin).setPythFeed(DUMMY_MARKET, feedId, 3600, 0);
@@ -398,7 +398,7 @@ describe("High Coverage Test Suite", function () {
             expect(await harness.testIsLong(1)).to.be.true; // Long should be 0x01
             expect(await harness.debugCalculatePnL(size, entry, current, true)).to.equal(10n * 10n**18n);
             
-            await harness.setPosition(1, size, entry, 1, 1, ethers.ZeroAddress); // flags=1 (long), state=1 (open)
+            await harness.setPositionSimple(1, size, entry, 1, 1, ethers.ZeroAddress); // flags=1 (long), state=1 (open)
             await harness.setCollateral(1, 10n * 10n**18n);
             
             const [pnl, health] = await harness.testGetPositionPnL(1, current);
@@ -414,7 +414,7 @@ describe("High Coverage Test Suite", function () {
             const size = 100n * 10n**18n;
             const entry = 1000n * 10n**18n;
             const current = 940n * 10n**18n;
-            await harness.setPosition(2, size, entry, 1, 1, ethers.ZeroAddress);
+            await harness.setPositionSimple(2, size, entry, 1, 1, ethers.ZeroAddress);
             await harness.setCollateral(2, 5n * 10n**18n);
             
             const [liquidatable, health] = await harness.testCanLiquidate(2, current);

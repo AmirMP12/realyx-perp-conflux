@@ -52,9 +52,9 @@ describe("TradingLib view/owner branch wave", function () {
     expect(empty1.length).to.equal(0);
 
     // active position scan branches (OPEN vs non-OPEN)
-    await harness.setPosition(1, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
-    await harness.setPosition(2, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 0, market);
-    await harness.setPosition(3, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
+    await harness.setPositionSimple(1, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
+    await harness.setPositionSimple(2, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 0, market);
+    await harness.setPositionSimple(3, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
     const active = await harness.testGetActivePositions();
     expect(active.length).to.equal(2);
 

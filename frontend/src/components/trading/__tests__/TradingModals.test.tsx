@@ -104,8 +104,10 @@ describe('Trading Modals', () => {
                 fireEvent.click(closeBtn);
             });
             
-            expect(mockPushPyth).toHaveBeenCalledWith([mockPosition.marketAddress]);
-            expect(mockClose).toHaveBeenCalledWith('1');
+            await waitFor(() => {
+                expect(mockPushPyth).toHaveBeenCalledWith([mockPosition.marketAddress]);
+                expect(mockClose).toHaveBeenCalledWith('1');
+            });
         });
 
         it('handles partial close', async () => {
@@ -117,7 +119,9 @@ describe('Trading Modals', () => {
                 fireEvent.click(closeBtn);
             });
             
-            expect(mockPartialClose).toHaveBeenCalledWith('1', 50, mockPosition.sizeRaw);
+            await waitFor(() => {
+                expect(mockPartialClose).toHaveBeenCalledWith('1', 50, mockPosition.sizeRaw);
+            });
         });
     });
 

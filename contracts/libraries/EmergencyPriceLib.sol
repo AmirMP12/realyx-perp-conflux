@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import "../libraries/DataTypes.sol";
+import "../libraries/Events.sol";
 
 /**
  * @title EmergencyPriceLib
@@ -34,15 +35,6 @@ library EmergencyPriceLib {
     error AlreadyConfirmed();
     error EmergencyPriceDeviationTooHigh();
     error ProposalAlreadyExists();
-
-    event EmergencyPriceProposed(
-        bytes32 indexed proposalId,
-        address indexed collection,
-        uint256 price,
-        address indexed proposer
-    );
-    event PriceOverrideExecuted(address indexed collection, uint256 price);
-    event EmergencyPriceApplied(address indexed collection, uint256 price, uint256 refPrice);
 
     function proposeEmergencyPrice(
         address collection,

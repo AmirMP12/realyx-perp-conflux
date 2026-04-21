@@ -1,14 +1,14 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { time } from "@nomicfoundation/hardhat-network-helpers";
-import { deployTestEnvironment, TestEnvironment } from "../helpers";
-import { VaultCore, ERC20Mock } from "../typechain-types";
+import { deployTestEnvironment } from "../helpers";
+import { VaultCore, MockUSDC } from "../../typechain";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 
-describe("VaultCore Coverage Booster", function () {
-    let env: TestEnvironment;
+describe("VaultCore Basic Deposit/Withdraw", function () {
+    let env: Awaited<ReturnType<typeof deployTestEnvironment>>;
     let vault: VaultCore;
-    let usdc: ERC20Mock;
+    let usdc: MockUSDC;
     let admin: SignerWithAddress;
     let alice: SignerWithAddress;
     let bob: SignerWithAddress;

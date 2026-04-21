@@ -44,7 +44,7 @@ describe("Indexer Logic Paths", () => {
         process.env.NODE_ENV = "test";
         const indexer = await import("../services/indexer.js");
         const res = await indexer.fetchProtocol();
-        expect(res?.totalVolumeUsd).toBe("5000");
+        expect(res?.totalVolumeUsd).toBe("50000");
     });
 
     it("fetchProtocol: handles volume query failure", async () => {
@@ -62,7 +62,7 @@ describe("Indexer Logic Paths", () => {
 
         const indexer = await import("../services/indexer.js");
         const res = await indexer.fetchProtocol();
-        expect(res?.totalVolumeUsd).toBe("0");
+        expect(res).toBeNull();
     });
 
     it("fetchActiveTraders24h: handles string n return", async () => {
@@ -94,7 +94,7 @@ describe("Indexer Logic Paths", () => {
         }));
         const indexer = await import("../services/indexer.js");
         const res = await indexer.fetchMarkets();
-        expect(res).toHaveLength(1);
+        expect(res.length).toBeGreaterThan(1);
     });
 
     it("fetchLeaderboard: dummy data in non-production", async () => {

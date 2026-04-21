@@ -581,7 +581,7 @@ describe("Complex Integration Logic Scenarios", function () {
             await harness.addPositionId(i);
             // alternate OPEN/CLOSED to exercise both branches in active scan loops
             const state = i % 2 === 0 ? 2 : 1;
-            await harness.setPosition(i, 1_000, 1_000, 1, state, ethers.ZeroAddress);
+            await harness.setPositionSimple(i, 1_000, 1_000, 1, state, ethers.ZeroAddress);
         }
         r = await harness.testGetUserPositionsPaginated(400, 10);
         expect(r[0].length).to.equal(0);
@@ -591,11 +591,11 @@ describe("Complex Integration Logic Scenarios", function () {
         expect(active.length).to.be.lte(100); // MAX_ACTIVE_POSITIONS_QUERY
 
         // updatePositionOwner branches: zero address, contract target, position not open, exposure exceeded, success
-        await harness.setPosition(999, 2_000_000_000_000n, 1_000, 1, 1, ethers.ZeroAddress);
+        await harness.setPositionSimple(999, 2_000_000_000_000n, 1_000, 1, 1, ethers.ZeroAddress);
         await expect(harness.testUpdatePositionOwner(999, ethers.ZeroAddress, ownerA.address, ethers.MaxUint256)).to.be.reverted;
         await expect(harness.testUpdatePositionOwner(999, await harness.getAddress(), ownerA.address, ethers.MaxUint256)).to.be.reverted;
 
-        await harness.setPosition(1000, 2_000_000_000_000n, 1_000, 1, 2, ethers.ZeroAddress); // CLOSED
+        await harness.setPositionSimple(1000, 2_000_000_000_000n, 1_000, 1, 2, ethers.ZeroAddress); // CLOSED
         await expect(harness.testUpdatePositionOwner(1000, ownerB.address, ownerA.address, ethers.MaxUint256)).to.be.reverted;
 
         await expect(harness.testUpdatePositionOwner(999, ownerB.address, ownerA.address, 1)).to.be.reverted;
@@ -732,7 +732,7 @@ describe("Complex Integration Logic Scenarios", function () {
         expect(isOpen).to.be.a("boolean");
 
         // addCollateral/withdrawCollateral invalid oracle branch
-        await harness.setPosition(777, 1_000, 1_000, 1, 1, market);
+        await harness.setPositionSimple(777, 1_000, 1_000, 1, 1, market);
         await harness.setCollateral(777, 100);
         await expect(
             harness.testAddCollateral(777, 50, 1, false, await env.usdc.getAddress(), ethers.ZeroAddress, 0)
@@ -838,7 +838,7 @@ describe("Complex Integration Logic Scenarios", function () {
         expect(levNorm).to.be.gt(0n);
 
         // getPositionPnL / canLiquidate closed branch
-        await harness.setPosition(2001, 1000, 1000, 1, 2, ethers.ZeroAddress); // CLOSED
+        await harness.setPositionSimple(2001, 1000, 1000, 1, 2, ethers.ZeroAddress); // CLOSED
         await harness.setCollateral(2001, 100);
         const pnlClosed = await harness.testGetPositionPnL(2001, 900);
         expect(pnlClosed[0]).to.equal(0n);
@@ -846,7 +846,7 @@ describe("Complex Integration Logic Scenarios", function () {
         expect(liqClosed[0]).to.equal(false);
 
         // getPositionPnL / canLiquidate open branch
-        await harness.setPosition(2002, 2_000_000_000_000n, 1000, 1, 1, ethers.ZeroAddress); // OPEN, large size
+        await harness.setPositionSimple(2002, 2_000_000_000_000n, 1000, 1, 1, ethers.ZeroAddress); // OPEN, large size
         await harness.setCollateral(2002, 1_000_000_000_000n);
         const pnlOpen = await harness.testGetPositionPnL(2002, 900);
         expect(pnlOpen[1]).to.be.a("bigint");

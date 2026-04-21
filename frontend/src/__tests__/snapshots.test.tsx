@@ -113,6 +113,7 @@ vi.mock('../hooks/useVault', () => ({
 vi.mock('../hooks/useMarketData', () => ({
     useSingleMarketData: vi.fn(() => ({ formatted: null, isLoading: false, refetch: vi.fn() })),
     useMarketData: vi.fn(() => ({ tvl: 0 })),
+    useAllMarketsOnChainData: vi.fn(() => ({ data: {}, isLoading: false, refetch: vi.fn() })),
 }));
 
 vi.mock('../hooks/usePythPrice', () => ({

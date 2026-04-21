@@ -4,6 +4,12 @@ import { app } from '../app.js';
 import * as activeMarkets from '../services/activeMarkets.js';
 import * as subServices from '../services/indexer.js';
 
+jest.mock('../routes/sync.js', () => ({
+  __esModule: true,
+  default: (req: any, res: any, next: any) => next(),
+  checkAndSync: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('../services/activeMarkets.js');
 jest.mock('../services/indexer.js');
 jest.mock('../services/coingecko.js', () => ({

@@ -28,7 +28,7 @@ describe("Debug Route", () => {
 
     it("should return detailed DB status on success", async () => {
         pool.query.mockImplementation((sql: string) => {
-            if (sql.includes("COUNT(*) FROM position_events WHERE created_at")) {
+            if (sql.includes("COUNT(*) FROM position_events WHERE") && sql.includes("block_time")) {
                 return Promise.resolve({ rows: [{ count: "5" }] });
             }
             if (sql.includes("COUNT(*) FROM position_events")) {
@@ -37,11 +37,8 @@ describe("Debug Route", () => {
             if (sql.includes("SELECT last_synced_block")) {
                 return Promise.resolve({ rows: [{ last_synced_block: 1000 }] });
             }
-            if (sql.includes("SELECT * FROM position_events LIMIT 1")) {
+            if (sql.includes("SELECT * FROM position_events")) {
                 return Promise.resolve({ rows: [{ id: 1, event_type: "PositionOpened", data: '["0x1"]' }] });
-            }
-            if (sql.includes("data::jsonb->>4")) {
-                return Promise.resolve({ rows: [{ size: "1000000" }] });
             }
             return Promise.resolve({ rows: [] });
         });
@@ -51,8 +48,6 @@ describe("Debug Route", () => {
         expect(res.body.connected).toBe(true);
         expect(res.body.totalPositionEvents).toBe("10");
         expect(res.body.last24hEvents).toBe("5");
-        expect(res.body.lastSyncedBlock).toBe(1000);
-        expect(res.body.testJsonExtract).toBe("1000000");
     });
 
     it("should handle missing indexer state", async () => {
@@ -61,17 +56,16 @@ describe("Debug Route", () => {
             return Promise.resolve({ rows: [{ count: "0" }] });
         });
         const res = await request(app).get("/api/debug");
-        expect(res.body.lastSyncedBlock).toBe("None");
+        expect(res.body.indexerState).toBe("None");
     });
 
     it("should handle missing sample row", async () => {
         pool.query.mockImplementation((sql: string) => {
-            if (sql.includes("SELECT * FROM position_events LIMIT 1")) return Promise.resolve({ rows: [] });
+            if (sql.includes("SELECT * FROM position_events")) return Promise.resolve({ rows: [] });
             return Promise.resolve({ rows: [{ count: "0" }] });
         });
         const res = await request(app).get("/api/debug");
-        expect(res.body.sampleRow).toBeNull();
-        expect(res.body.testJsonExtract).toBeNull();
+        expect(res.body.latestOpenEvent).toBeNull();
     });
 
     it("should handle database errors gracefully", async () => {

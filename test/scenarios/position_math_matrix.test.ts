@@ -65,7 +65,7 @@ describe("Position Math and Core Logic Matrix", function () {
                     leverage: 20n, lastFundingTime: 0n, market: ethers.ZeroAddress, openTimestamp: 0n, trailingStopBps: 0n,
                     flags: isLong ? 1 : 0, collateralType: 0, state: 1
                 };
-                await harness.setPosition(i, p);
+                await harness.setPositionDetailed(i, p);
                 
                 await harness.testShouldTriggerSL(i, 38000n);
                 await harness.testShouldTriggerSL(i, 42000n);

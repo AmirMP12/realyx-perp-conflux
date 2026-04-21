@@ -59,9 +59,9 @@ describe("TradingLib Harness Branch Wave", function () {
         expect(res[0].length).to.equal(0);
 
         // enum PosStatus: NONE=0, OPEN=1, CLOSED=2
-        await harness.setPosition(1, 1000, 1000, 1, 1, ethers.ZeroAddress);
-        await harness.setPosition(2, 1000, 1000, 1, 2, ethers.ZeroAddress);
-        await harness.setPosition(3, 1000, 1000, 0, 1, ethers.ZeroAddress);
+        await harness.setPositionSimple(1, 1000, 1000, 1, 1, ethers.ZeroAddress);
+        await harness.setPositionSimple(2, 1000, 1000, 1, 2, ethers.ZeroAddress);
+        await harness.setPositionSimple(3, 1000, 1000, 0, 1, ethers.ZeroAddress);
         const active = await harness.testGetActivePositions();
         expect(active.length).to.be.gte(1);
     });
@@ -76,13 +76,13 @@ describe("TradingLib Harness Branch Wave", function () {
         await harness.testUpdateVolume(ownerA.address, 500);
         await harness.testUpdateVolume(ownerA.address, 250);
 
-        await harness.setPosition(7, 1000, 1000, 1, 1, ethers.ZeroAddress);
+        await harness.setPositionSimple(7, 1000, 1000, 1, 1, ethers.ZeroAddress);
         await harness.testUpdatePositionOwner(7, ownerB.address, ownerA.address, 1);
         await harness.testUpdatePositionOwner(7, ownerA.address, ownerB.address, ethers.MaxUint256);
 
         const market = ethers.Wallet.createRandom().address;
         const internalSize = 1_000_000_000_000_000_000n;
-        await harness.setPosition(42, internalSize, 1000, 1, 1, market);
+        await harness.setPositionSimple(42, internalSize, 1000, 1, 1, market);
         const sz = 1_000_000n;
         await harness.testSeedUserExposure(ownerA.address, sz * 2n);
         await harness.testUpdatePositionOwner(42, ownerB.address, ownerA.address, ethers.MaxUint256);
@@ -100,7 +100,7 @@ describe("TradingLib Harness Branch Wave", function () {
             harness.testCheckMarketOpen(market, await env.usdc.getAddress())
         ).to.be.reverted;
 
-        await harness.setPosition(10, 1000, 1000, 1, 1, market);
+        await harness.setPositionSimple(10, 1000, 1000, 1, 1, market);
         await harness.setCollateral(10, 100);
         await expect(
             harness.testAddCollateral(10, 50, 1, false, await env.usdc.getAddress(), ethers.ZeroAddress, 0)
@@ -114,7 +114,7 @@ describe("TradingLib Harness Branch Wave", function () {
         const { harness, env } = await loadFixture(deployHarnessFixture);
         const oracle = await ethers.deployContract("MockOracleConfigurable");
         const market = await env.usdc.getAddress();
-        await harness.setPosition(55, 1000, 1000, 1, 1, market);
+        await harness.setPositionSimple(55, 1000, 1000, 1, 1, market);
         const ts = BigInt(await time.latest());
         await oracle.setPrice(market, 100n * 10n ** 18n, 600n, ts);
         await env.usdc.mintTo(env.admin.address, 10_000_000n);

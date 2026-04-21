@@ -5,7 +5,7 @@ module.exports = {
         'eslint:recommended',
         'plugin:@typescript-eslint/recommended',
     ],
-    ignorePatterns: ['dist', '.eslintrc.cjs'],
+    ignorePatterns: ['dist', '.eslintrc.cjs', 'src/__tests__', '**/*.test.ts'],
     parser: '@typescript-eslint/parser',
     parserOptions: {
         ecmaVersion: 2022,

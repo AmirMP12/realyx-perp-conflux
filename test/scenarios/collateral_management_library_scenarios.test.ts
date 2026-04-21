@@ -51,7 +51,7 @@ describe("TradingLib collateral branch wave", function () {
       3600,
       200
     );
-    await harness.setPosition(1, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
+    await harness.setPositionSimple(1, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
     await harness.setCollateral(1, 2_000_000_000_000_000_000n);
 
     await env.usdc.mintTo(await harness.getAddress(), 0); // no-op to ensure token deployed
@@ -69,7 +69,7 @@ describe("TradingLib collateral branch wave", function () {
     await harness.testAddCollateral(1, 1_000_000n, 0, true, usdcAddr, oracleAddr, 1000);
 
     // maxLeverage guard branch
-    await harness.setPosition(1, 10_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
+    await harness.setPositionSimple(1, 10_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
     await expect(harness.testAddCollateral(1, 1_000_000n, 1, true, usdcAddr, oracleAddr, 1000)).to.be.reverted;
   });
 
@@ -90,7 +90,7 @@ describe("TradingLib collateral branch wave", function () {
       3600,
       200
     );
-    await harness.setPosition(2, 500_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
+    await harness.setPositionSimple(2, 500_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
     await harness.setCollateral(2, 2_000_000_000_000_000_000n);
     await oracle.setPrice(market, 100n * 10n ** 18n);
     await env.usdc.mintTo(await harness.getAddress(), 2_000_000_000n);

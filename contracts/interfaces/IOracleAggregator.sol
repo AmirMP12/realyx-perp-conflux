@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import "../libraries/DataTypes.sol";
+import "../libraries/Events.sol";
 
 /**
  * @title IOracleAggregator
@@ -9,29 +10,6 @@ import "../libraries/DataTypes.sol";
  * @dev `market` parameters are collection contract addresses keyed in oracle config; naming matches trading “market” tokens.
  */
 interface IOracleAggregator {
-    event PriceUpdated(address indexed market, uint256 price, uint256 confidence, uint256 timestamp);
-
-    event PythFeedSet(address indexed market, bytes32 indexed feedId);
-
-    event TWAPUpdated(address indexed market, uint256 twapPrice, uint256 windowSeconds);
-
-    event PriceDeviation(address indexed market, uint256 pythPrice, uint256 aggregatedPrice, uint256 deviationBps);
-
-    event BreakerTriggered(
-        address indexed market,
-        DataTypes.BreakerType breakerType,
-        uint256 threshold,
-        uint256 actualValue
-    );
-
-    event BreakerReset(address indexed market, DataTypes.BreakerType breakerType, address resetBy);
-
-    event EmergencyPauseProposed(bytes32 indexed pauseId, address indexed proposer, address[] targets);
-
-    event EmergencyPauseExecuted(bytes32 indexed pauseId, address[] targets);
-
-    event GlobalPauseActivated(address indexed activator);
-    event GlobalPauseDeactivated(address indexed deactivator);
 
     /**
      * @notice Latest normalized price, oracle confidence, and publish timestamp for `market`.

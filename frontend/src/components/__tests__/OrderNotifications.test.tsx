@@ -15,7 +15,7 @@ vi.mock('react-hot-toast', () => ({
 describe('OrderNotifications', () => {
     let wsInstance: any;
 
-    const createMockWS = () => {
+    const createMockWS = function() {
         const mock: any = {
             onopen: null,
             onmessage: null,
@@ -30,21 +30,23 @@ describe('OrderNotifications', () => {
 
     beforeEach(() => {
         vi.stubGlobal('WebSocket', vi.fn().mockImplementation(createMockWS));
-        vi.stubGlobal('AudioContext', vi.fn().mockImplementation(() => ({
-            createOscillator: vi.fn(() => ({
-                connect: vi.fn(),
-                start: vi.fn(),
-                stop: vi.fn(),
-                frequency: { value: 440 },
-                type: 'sine'
-            })),
-            createGain: vi.fn(() => ({
-                connect: vi.fn(),
-                gain: { value: 1 }
-            })),
-            destination: {},
-            currentTime: 0
-        })));
+        vi.stubGlobal('AudioContext', vi.fn().mockImplementation(function() {
+            return {
+                createOscillator: vi.fn(() => ({
+                    connect: vi.fn(),
+                    start: vi.fn(),
+                    stop: vi.fn(),
+                    frequency: { value: 440 },
+                    type: 'sine'
+                })),
+                createGain: vi.fn(() => ({
+                    connect: vi.fn(),
+                    gain: { value: 1 }
+                })),
+                destination: {},
+                currentTime: 0
+            };
+        }));
         (useAccount as any).mockReturnValue({ address: '0x123' });
     });
 

@@ -40,7 +40,7 @@ contract CoverageHarness {
     address public boosterOracleAggregator;
     uint256 public boosterMaxOracleUncertainty;
 
-    function setPosition(uint256 id, DataTypes.Position calldata p) external {
+    function setPositionDetailed(uint256 id, DataTypes.Position calldata p) external {
         positions[id] = p;
     }
 
@@ -463,7 +463,7 @@ contract CoverageHarness {
         protocolHealth.lastHealthCheck = uint64(block.timestamp);
     }
 
-    function setPosition(
+    function setPositionSimple(
         uint256 id,
         uint128 size,
         uint128 entryPrice,

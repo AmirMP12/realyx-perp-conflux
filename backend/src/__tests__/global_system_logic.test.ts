@@ -23,7 +23,10 @@ jest.mock("../wsServer.js", () => ({
 }));
 
 jest.mock("../routes/sync.js", () => ({
-  runSync: jest.fn().mockResolvedValue({ eventsSynced: 0, scannedTo: 0 })
+  __esModule: true,
+  default: (req: any, res: any, next: any) => next(),
+  runSync: jest.fn().mockResolvedValue({ eventsSynced: 0, scannedTo: 0 }),
+  checkAndSync: jest.fn().mockResolvedValue(undefined),
 }));
 
 jest.mock("../services/pyth.js");

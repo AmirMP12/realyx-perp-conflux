@@ -20,7 +20,7 @@ const sharedMockProvider = {
 };
 
 const sharedMockInterface = {
-    parseLog: jest.fn().mockReturnValue({ name: "PositionOpened", args: [1, "0xTrader", "0xMarket"] }),
+    parseLog: jest.fn().mockReturnValue({ name: "PositionOpened", args: [1, "0xtrader", "0xmarket", true, "1000000000000000000"] }),
 };
 
 jest.mock("ethers", () => {
@@ -108,25 +108,37 @@ describe("Sync Route Exhaustive Scenarios", () => {
         sharedMockProvider.getLogs.mockResolvedValue(mockLogs);
         
         sharedMockInterface.parseLog
-            .mockReturnValueOnce({ name: "PositionOpened", args: [1, "0xTrader", "0xMarket"] })
-            .mockReturnValueOnce({ name: "PositionClosed", args: [1, "0xTrader", 100, 200, 5] })
-            .mockReturnValueOnce({ name: "PositionLiquidated", args: [1, "0xLiq", 150, 10] });
+            .mockReturnValueOnce({ name: "PositionOpened", args: [1, "0xtrader", "0xmarket", true, "1000000000000000000"] })
+            .mockReturnValueOnce({ name: "PositionClosed", args: [1, "0xtrader", 100, 200, "5000000000000000000"] })
+            .mockReturnValueOnce({ name: "PositionLiquidated", args: [1, "0xliq", 150, "10000000000000000000"] });
 
         // Mock pool.query for lookups
         pool.query.mockImplementation((sql: string) => {
-            if (sql.includes("SELECT market_id FROM position_events")) {
-                return Promise.resolve({ rows: [{ market_id: "0xMarketResolved" }] });
+            if (sql.includes("account") && sql.includes("market_id") && sql.includes("PositionOpened")) {
+                return Promise.resolve({ rows: [{ account: "0xtraderresolved", market_id: "0xmarketresolved" }] });
             }
-            if (sql.includes("SELECT account, market_id FROM position_events")) {
-                return Promise.resolve({ rows: [{ account: "0xTraderResolved", market_id: "0xMarketResolved" }] });
+            if (sql.includes("market_id") && sql.includes("PositionOpened")) {
+                return Promise.resolve({ rows: [{ market_id: "0xmarketresolved" }] });
             }
             return Promise.resolve({ rows: [] });
         });
 
         const result = await sync.runSync({ fromBlock: 0 });
         expect(result.eventsSynced).toBe(3);
-        expect(pool.query).toHaveBeenCalledWith(expect.stringContaining("INSERT INTO position_events"), expect.arrayContaining(["0xTrader"]));
-        expect(pool.query).toHaveBeenCalledWith(expect.stringContaining("INSERT INTO position_events"), expect.arrayContaining(["0xTraderResolved"]));
+        const insertCalls = pool.query.mock.calls.filter((c: any) => c[0].includes("INSERT INTO position_events"));
+        expect(insertCalls).toHaveLength(3);
+        
+        // Call 1: PositionOpened
+        expect(insertCalls[0][1]).toContain("0xtrader");
+        expect(insertCalls[0][1]).toContain("PositionOpened");
+        
+        // Call 2: PositionClosed (Resolved)
+        expect(insertCalls[1][1]).toContain("0xtraderresolved");
+        expect(insertCalls[1][1]).toContain("PositionClosed");
+
+        // Call 3: PositionLiquidated (Resolved)
+        expect(insertCalls[2][1]).toContain("0xtraderresolved");
+        expect(insertCalls[2][1]).toContain("PositionLiquidated");
     });
 
     it("should handle parseLog returning null", async () => {

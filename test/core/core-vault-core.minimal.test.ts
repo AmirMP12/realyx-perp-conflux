@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { deployTestEnvironment } from "../helpers";
-import { VaultCore, ERC20Mock } from "../typechain-types";
+import { VaultCore, MockUSDC } from "../../typechain";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 
 type TestEnvironment = any;
@@ -9,7 +9,7 @@ type TestEnvironment = any;
 describe("VaultCore Minimal Coverage", function () {
     let env: TestEnvironment;
     let vault: VaultCore;
-    let usdc: ERC20Mock;
+    let usdc: MockUSDC;
     let admin: SignerWithAddress;
     let alice: SignerWithAddress;
 

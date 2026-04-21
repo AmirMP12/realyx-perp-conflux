@@ -3,6 +3,12 @@ import { app } from "../app.js";
 import pg from "pg";
 import * as indexer from "../services/indexer.js";
 
+jest.mock('../routes/sync.js', () => ({
+    __esModule: true,
+    default: (req: any, res: any, next: any) => next(),
+    checkAndSync: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock("pg", () => {
     const mPool = {
         query: jest.fn().mockResolvedValue({ rows: [] }),
@@ -11,7 +17,7 @@ jest.mock("pg", () => {
 });
 
 jest.mock("../services/indexer.js", () => ({
-    fetchProtocol: jest.fn().mockResolvedValue({ totalVolumeUsd: "1000", totalLiquidations: "5" }),
+    fetchProtocol: jest.fn().mockResolvedValue({ totalVolumeUsd: "1000", volume24hUsd: "1000", totalLiquidations: "5" }),
     fetchMarkets: jest.fn().mockResolvedValue([]),
     fetchProtocolMetrics: jest.fn().mockResolvedValue([{ timestamp: "1713400000", volumeUsd: "1000000000000000000", tradesCount: "10", feesUsd: "100000000000000000" }]),
     fetchActiveTraders24h: jest.fn().mockResolvedValue(5),

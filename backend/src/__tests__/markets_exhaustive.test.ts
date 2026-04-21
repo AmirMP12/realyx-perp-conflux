@@ -1,5 +1,11 @@
 import request from 'supertest';
 import { app } from '../app.js';
+
+jest.mock('../routes/sync.js', () => ({
+  __esModule: true,
+  default: (req: any, res: any, next: any) => next(),
+  checkAndSync: jest.fn().mockResolvedValue(undefined),
+}));
 import { jest } from '@jest/globals';
 
 jest.mock('../services/activeMarkets.js', () => ({

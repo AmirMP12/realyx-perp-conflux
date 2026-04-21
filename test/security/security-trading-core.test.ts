@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { deployTestEnvironment } from "../helpers";
-import { TradingCore, OracleAggregator } from "../typechain-types";
+import { TradingCore, OracleAggregator } from "../../typechain";
 import { SignerWithAddress } from "@nomicfoundation/hardhat-ethers/signers";
 
 type TestEnvironment = any;

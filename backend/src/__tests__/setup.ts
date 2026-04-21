@@ -1,5 +1,50 @@
 import { jest } from "@jest/globals";
 
+// Global mock for ethers to prevent real RPC calls
+jest.mock("ethers", () => {
+    const original = jest.requireActual("ethers") as any;
+    
+    const mockProvider = {
+        getBlockNumber: jest.fn().mockResolvedValue(1000000),
+        getLogs: jest.fn().mockResolvedValue([]),
+        getBlock: jest.fn().mockResolvedValue({ timestamp: Math.floor(Date.now() / 1000) }),
+        getNetwork: jest.fn().mockResolvedValue({ chainId: 71, name: 'conflux-testnet' }),
+        call: jest.fn().mockResolvedValue("0x"),
+        estimateGas: jest.fn().mockResolvedValue(21000n),
+    };
+
+    const mockContract = {
+        activeMarketCount: jest.fn().mockResolvedValue(1n),
+        activeMarketAt: jest.fn().mockResolvedValue("0x986a383f6de4a24dd3f524f0f93546229b58265f"),
+        getMarketInfo: jest.fn().mockResolvedValue({
+            totalLongSize: "1000000",
+            totalShortSize: "500000",
+            maxLeverage: "30",
+            isActive: true,
+            isListed: true,
+        }),
+        getFundingState: jest.fn().mockResolvedValue({
+            cumulativeFunding: "0",
+            lastSettlement: "1600000000",
+        }),
+    };
+
+    const ethersMock = {
+        ...original.ethers,
+        JsonRpcProvider: jest.fn().mockImplementation(() => mockProvider),
+        Contract: jest.fn().mockImplementation(() => mockContract),
+        Interface: original.ethers.Interface,
+        id: original.ethers.id,
+    };
+
+    return {
+        ...original,
+        ethers: ethersMock,
+        JsonRpcProvider: ethersMock.JsonRpcProvider,
+        Contract: ethersMock.Contract,
+    };
+});
+
 // SILENCE ALL CONSOLE OUTPUT BY DEFAULT
 console.log = () => {};
 console.info = () => {};

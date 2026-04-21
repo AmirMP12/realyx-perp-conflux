@@ -12,10 +12,11 @@ vi.mock('wagmi', () => ({
 }));
 
 vi.mock('react-hot-toast', () => ({
-    default: {
+    default: Object.assign(vi.fn(), {
         error: vi.fn(),
         success: vi.fn(),
-    },
+        loading: vi.fn(),
+    }),
 }));
 
 vi.mock('../contracts', () => ({
@@ -30,12 +31,14 @@ describe('usePythOnChainUpdater', () => {
     const mockReadContract = vi.fn();
     const mockPublicClient = {
         readContract: mockReadContract,
+        waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: 'success' }),
     };
 
     beforeEach(() => {
         vi.clearAllMocks();
         (useAccount as any).mockReturnValue({ address: '0xUser', chainId: 1, isConnected: true });
         (usePublicClient as any).mockReturnValue(mockPublicClient);
+        mockWriteContractAsync.mockResolvedValue('0xHash');
         (useWriteContract as any).mockReturnValue({
             writeContractAsync: mockWriteContractAsync,
             isPending: false,
@@ -98,7 +101,7 @@ describe('usePythOnChainUpdater', () => {
             functionName: 'updatePriceFeeds',
             value: 100n,
         }));
-        expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('updated'));
+        expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('updated'), expect.anything());
     });
 
     it('handles Hermes fetch failure', async () => {

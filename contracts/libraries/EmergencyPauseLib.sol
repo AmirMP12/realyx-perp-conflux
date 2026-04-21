@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import "../libraries/Events.sol";
+
 /**
  * @title EmergencyPauseLib
  * @notice Library for emergency pause operations
@@ -20,12 +22,6 @@ library EmergencyPauseLib {
     error ProposalNotFound();
     error ProposalExpired();
     error AlreadyConfirmed();
-
-    event EmergencyPauseProposed(bytes32 indexed pauseId, address indexed proposer, address[] targets);
-    event EmergencyPauseExecuted(bytes32 indexed pauseId, address[] targets);
-    event EmergencyPauseTargetFailed(bytes32 indexed pauseId, address indexed target);
-    event GlobalPauseActivated(address indexed by);
-    event GlobalPauseDeactivated(address indexed by);
 
     function proposeEmergencyPause(
         address[] calldata targets,

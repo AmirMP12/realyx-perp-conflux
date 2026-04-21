@@ -55,12 +55,12 @@ describe("TradingLib funding wrappers via CoverageHarness", function () {
 
     // Revert branch: non-open position through TradingLib -> FundingLib
     const id = 901n;
-    await harness.setPosition(id, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 0, market);
+    await harness.setPositionSimple(id, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 0, market);
     await harness.setCollateral(id, 1_000_000n);
     await expect(harness.testTradingLibSettlePositionFunding(id, await oracle.getAddress())).to.be.reverted;
 
     // Success branch with open position and oracle price available.
-    await harness.setPosition(id, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
+    await harness.setPositionSimple(id, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
     await oracle.setPrice(market, 100n * 10n ** 18n);
     await harness.setPositionCumulativeFunding(id, 0);
     await harness.setFundingState(market, 0, 1_000, 1, 1_000_000_000_000_000_000n, 1_000_000_000_000_000_000n);
@@ -88,7 +88,7 @@ describe("TradingLib funding wrappers via CoverageHarness", function () {
       200
     );
     const id = 902n;
-    await harness.setPosition(id, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
+    await harness.setPositionSimple(id, 1_000_000_000_000_000_000n, 100n * 10n ** 18n, 1, 1, market);
     await harness.setCollateral(id, 1_000_000n);
     await oracle.setPrice(market, 100n * 10n ** 18n);
     await harness.setPositionCumulativeFunding(id, 0);

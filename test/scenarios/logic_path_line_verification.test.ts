@@ -136,7 +136,12 @@ describe("Coverage line targets", function () {
         await expect(
             env.trading
                 .connect(env.alice)
-                .closePosition([1n, 0n, 0n, BigInt(block!.timestamp + 600)])
+                .closePosition({
+                    positionId: 1n,
+                    closeSize: 0n,
+                    minReceive: 0n,
+                    deadline: BigInt(block!.timestamp + 600)
+                })
         ).to.be.reverted;
     });
 

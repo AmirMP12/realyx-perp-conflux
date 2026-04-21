@@ -99,9 +99,9 @@ describe("Coverage Maximizer 2 - Uncovered Libraries", function () {
             await (harness as any).addCleanupPosition(3);
 
             // Set positions: 1 is CLOSED, 2 is OPEN, 3 is LIQUIDATED
-            await harness.setPosition(1, 1000, 1000, 0, 2, MARKET); // CLOSED = 2
-            await harness.setPosition(2, 1000, 1000, 0, 1, MARKET); // OPEN = 1
-            await harness.setPosition(3, 1000, 1000, 0, 3, MARKET); // LIQUIDATED = 3
+            await harness.setPositionSimple(1, 1000, 1000, 0, 2, MARKET); // CLOSED = 2
+            await harness.setPositionSimple(2, 1000, 1000, 0, 1, MARKET); // OPEN = 1
+            await harness.setPositionSimple(3, 1000, 1000, 0, 3, MARKET); // LIQUIDATED = 3
 
             const cleaned = await harness.testCleanupPositions.staticCall(10);
             await harness.testCleanupPositions(10);
@@ -214,7 +214,7 @@ describe("Coverage Maximizer 2 - Uncovered Libraries", function () {
             await harness.setProtocolHealth(true, 1000, 1000000);
             const marketAddress = await env.marketCalendar.getAddress();
             await harness.addMarket(marketAddress);
-            await harness.setPosition(1, 1000, 1000, 0, 0, marketAddress);
+            await harness.setPositionSimple(1, 1000, 1000, 0, 0, marketAddress);
 
             try {
                 await harness.testGetProtocolHealth(await env.vault.getAddress(), await env.oracle.getAddress());

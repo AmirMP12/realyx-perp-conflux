@@ -66,20 +66,6 @@ contract OracleAggregator is
         _;
     }
 
-    event EmergencyPriceProposed(
-        bytes32 indexed proposalId,
-        address indexed collection,
-        uint256 price,
-        address indexed proposer
-    );
-    event BreakerEnabledUpdated(address indexed collection, DataTypes.BreakerType breakerType, bool enabled);
-    event CircuitBreakerAlert(
-        address indexed collection,
-        DataTypes.BreakerType breakerType,
-        uint256 threshold,
-        uint256 currentValue
-    );
-
     uint256 private constant PRECISION = 1e18;
     uint256 private constant BPS = 10000;
     uint256 private constant TWAP_BUFFER_SIZE = 48;

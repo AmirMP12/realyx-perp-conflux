@@ -173,12 +173,12 @@ describe("Coverage Maximizer", function () {
             // Close position (PositionCloseLib._updateMarketAndFinalize)
             await setPrice(61000);
             const currentBlock = await ethers.provider.getBlock("latest");
-            await env.trading.connect(env.alice).closePosition([
-                1n, // positionId
-                ethers.parseUnits("10000", 6), // closeSize (partial)
-                0n, // minReceive
-                BigInt(currentBlock!.timestamp + 100000) // deadline
-            ]);
+            await env.trading.connect(env.alice).closePosition({
+                positionId: 1n,
+                closeSize: ethers.parseUnits("10000", 6),
+                minReceive: 0n,
+                deadline: BigInt(currentBlock!.timestamp + 100000)
+            });
         });
 
         it("should open then liquidate a position", async function () {

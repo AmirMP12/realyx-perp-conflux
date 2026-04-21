@@ -97,7 +97,6 @@ export async function runSync(options?: { fromBlock?: number }) {
     "PositionLiquidated(uint256,address,uint256,uint256)"
   ].map(sig => ethers.id(sig));
 
-  let iterations = 0;
   let totalSynced = 0;
   let currentStart = startBlock;
   let finalTo = startBlock - 1;

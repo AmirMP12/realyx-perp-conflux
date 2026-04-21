@@ -376,7 +376,12 @@ describe("Targeted Core Verification Scenarios", function () {
 
         // deadline / owner / position-state guards
         const now = await time.latest();
-        await expect(env.trading.connect(env.alice).closePosition([1n, 0n, 0n, BigInt(now - 1)])).to.be.reverted;
+        await expect(env.trading.connect(env.alice).closePosition({
+            positionId: 1n,
+            closeSize: 0n,
+            minReceive: 0n,
+            deadline: BigInt(now - 1)
+        })).to.be.reverted;
         await expect(env.trading.connect(env.alice).partialClose(1n, 10n ** 18n, 0n, BigInt(now - 1))).to.be.reverted;
         await expect(env.trading.connect(env.alice).addCollateral(1n, 1n, 0n, false)).to.be.reverted;
         await expect(env.trading.connect(env.alice).withdrawCollateral(1n, 1n)).to.be.reverted;
@@ -683,7 +688,12 @@ describe("Targeted Core Verification Scenarios", function () {
             .setContracts(await env.vault.getAddress(), await env.oracle.getAddress(), await badPT.getAddress());
         const blk = await ethers.provider.getBlock("latest");
         await expect(
-            env.trading.connect(env.alice).closePosition([1n, ethers.parseUnits("1200", 6), 0n, BigInt(blk!.timestamp + 600)])
+            env.trading.connect(env.alice).closePosition({
+                positionId: 1n,
+                closeSize: ethers.parseUnits("1200", 6),
+                minReceive: 0n,
+                deadline: BigInt(blk!.timestamp + 600)
+            })
         ).to.be.reverted;
     });
 

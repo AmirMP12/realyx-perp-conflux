@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import "../libraries/DataTypes.sol";
+import "../libraries/Events.sol";
 
 /**
  * @title CircuitBreakerLib
@@ -16,15 +17,6 @@ library CircuitBreakerLib {
     error CooldownActive();
     error InvalidWindowSeconds();
     error InvalidCooldownSeconds();
-
-    event BreakerTriggered(
-        address indexed collection,
-        DataTypes.BreakerType breakerType,
-        uint256 threshold,
-        uint256 price
-    );
-    event BreakerReset(address indexed collection, DataTypes.BreakerType breakerType, address indexed resetBy);
-    event BreakerResetByAdmin(address indexed collection, DataTypes.BreakerType breakerType, address indexed resetBy);
 
     function checkPriceDropBreaker(
         address collection,
