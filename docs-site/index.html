@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Realyx Docs — RWA Perpetual Futures DEX</title>
+  <meta name="description" content="Official documentation for Realyx — a decentralized perpetual futures exchange for Real World Assets on Conflux eSpace." />
+  <link rel="canonical" href="https://realyx.vercel.app/docs" />
+  <link rel="icon" type="image/png" href="assets/logo.png" />
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Apply saved theme before first paint to avoid flash -->
+  <script>
+    (function() {
+      var t = localStorage.getItem('rx-theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to content</a>
+
+  <!-- Top Bar -->
+  <header class="topbar" id="topbar">
+    <div class="topbar__left">
+      <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <a href="index.html" class="topbar__logo">
+        <img src="assets/logo.png" alt="Realyx Logo" width="28" height="28" style="border-radius:6px;">
+        <span class="topbar__brand">Realyx</span>
+        <span class="topbar__tag">Docs</span>
+      </a>
+    </div>
+    <div class="topbar__center">
+      <div class="search-box" id="search-box" role="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="search" placeholder="Search docs..." aria-label="Search documentation" id="search-input" />
+        <kbd>⌘K</kbd>
+      </div>
+    </div>
+    <div class="topbar__right">
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+      <a href="https://x.com/Realyx_Perp" class="topbar__icon-btn" target="_blank" rel="noopener" aria-label="X (Twitter)">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M18.244 2H21l-6.51 7.435L22 22h-6.563l-5.142-6.72L4.5 22H1.74l6.96-7.954L1 2h6.706l4.65 6.144L18.244 2zm-1.156 18h1.84L7.005 4H5.06l12.028 16z"/></svg>
+      </a>
+      <a href="https://t.me/Real_yx" class="topbar__icon-btn" target="_blank" rel="noopener" aria-label="Telegram channel">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M22 2L2 10.4l5.4 1.9L18 5l-8.4 8.7L9.2 19 12 16l4.4 3.5c.5.4 1.2.2 1.4-.4L22 2z"/></svg>
+      </a>
+      <a href="https://github.com/AmirMP12/realyx-perp-conflux" class="topbar__icon-btn" target="_blank" rel="noopener" aria-label="GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      </a>
+      <a href="https://realyx.vercel.app/" class="btn-launch" target="_blank" rel="noopener">Launch App</a>
+    </div>
+  </header>
+
+  <div class="layout" id="layout">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar" aria-label="Documentation navigation">
+      <nav class="sidebar__nav">
+        <div class="sidebar__section">
+          <div class="sidebar__item sidebar__item--active" data-page="home">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            Introduction
+          </div>
+        </div>
+
+        <div class="sidebar__section">
+          <div class="sidebar__section-title">Getting Started</div>
+          <div class="sidebar__item" data-page="what-is-realyx">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            What is Realyx?
+          </div>
+          <div class="sidebar__item" data-page="key-features">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Key Features
+          </div>
+          <div class="sidebar__item" data-page="quick-start">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Quick Start
+          </div>
+          <div class="sidebar__item" data-page="first-trade">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            Your First Trade
+          </div>
+        </div>
+
+        <div class="sidebar__section">
+          <div class="sidebar__section-title">Core Concepts</div>
+          <div class="sidebar__item" data-page="how-it-works">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+            How It Works
+          </div>
+          <div class="sidebar__item" data-page="vault-mechanics">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+            Vault Mechanics
+          </div>
+          <div class="sidebar__item" data-page="intent-execution">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Intent-Based Execution
+          </div>
+          <div class="sidebar__item" data-page="funding-rates">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+            Funding Rates
+          </div>
+          <div class="sidebar__item" data-page="liquidation">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Liquidation Engine
+          </div>
+        </div>
+
+        <div class="sidebar__section">
+          <div class="sidebar__section-title">User Guides</div>
+          <div class="sidebar__item" data-page="trading-guide">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+            Trading Guide
+          </div>
+          <div class="sidebar__item" data-page="providing-liquidity">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            Providing Liquidity
+          </div>
+          <div class="sidebar__item" data-page="nft-positions">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            NFT Positions
+          </div>
+          <div class="sidebar__item" data-page="faq">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
+            FAQ
+          </div>
+          <div class="sidebar__item" data-page="troubleshooting">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            Troubleshooting
+          </div>
+        </div>
+
+        <div class="sidebar__section">
+          <div class="sidebar__section-title">Developer Guide</div>
+          <div class="sidebar__item" data-page="dev-installation">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            Installation
+          </div>
+          <div class="sidebar__item" data-page="configuration">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+            Configuration
+          </div>
+          <div class="sidebar__item" data-page="architecture">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            Architecture
+          </div>
+          <div class="sidebar__item" data-page="smart-contracts">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            Smart Contracts
+          </div>
+          <div class="sidebar__item" data-page="api-reference">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 2 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            API Reference
+          </div>
+          <div class="sidebar__item" data-page="keeper-node">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+            Keeper Node
+          </div>
+          <div class="sidebar__item" data-page="deployment">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 2H3v16h5v4l4-4h5l4-4V2zm-10 9V7m5 4V7"/></svg>
+            Deployment
+          </div>
+          <div class="sidebar__item" data-page="testing">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            Testing
+          </div>
+        </div>
+
+        <div class="sidebar__section">
+          <div class="sidebar__section-title">Reference</div>
+          <div class="sidebar__item" data-page="security">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Security
+          </div>
+          <div class="sidebar__item" data-page="glossary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+            Glossary
+          </div>
+          <div class="sidebar__item" data-page="roadmap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+            Roadmap
+          </div>
+          <div class="sidebar__item" data-page="contributing">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Contributing
+          </div>
+        </div>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main" id="main-content">
+      <div class="content" id="content-area">
+        <!-- Content injected by JS -->
+      </div>
+    </main>
+
+    <!-- Right TOC -->
+    <aside class="toc" id="toc-panel" aria-label="On this page">
+      <div class="toc__inner">
+        <div class="toc__title">On this page</div>
+        <nav id="toc-nav"></nav>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Search Modal -->
+  <div class="search-modal" id="search-modal" role="dialog" aria-modal="true" aria-label="Search" hidden>
+    <div class="search-modal__backdrop" id="search-backdrop"></div>
+    <div class="search-modal__panel">
+      <div class="search-modal__input-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="search" id="search-modal-input" placeholder="Search documentation..." autocomplete="off" />
+        <button id="search-close" aria-label="Close search">ESC</button>
+      </div>
+      <div class="search-modal__results" id="search-results"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
