@@ -55,6 +55,16 @@ async function initDB() {
       );
       ALTER TABLE position_events ADD COLUMN IF NOT EXISTS size_usd NUMERIC DEFAULT 0;
       ALTER TABLE position_events ADD COLUMN IF NOT EXISTS block_time BIGINT;
+
+      CREATE TABLE IF NOT EXISTS api_keys (
+        id SERIAL PRIMARY KEY,
+        key_hash VARCHAR(64) NOT NULL UNIQUE,
+        owner_address VARCHAR(42) NOT NULL,
+        tier VARCHAR(10) NOT NULL DEFAULT 'FREE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_api_keys_owner ON api_keys(owner_address);
+      CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
     `);
   } catch (error) {
     console.error("Failed to initialize database:", error);

@@ -1148,7 +1148,8 @@ contract CoverageHarness {
             takeProfitPrice: takeProfitPrice,
             visibleSize: visibleSize,
             twapInterval: twapInterval,
-            isReduceOnly: isReduceOnly
+            isReduceOnly: isReduceOnly,
+            owner: msg.sender
         });
         return
             TradingLib.createOrder(

@@ -1,0 +1,33 @@
+{
+  "name": "@realyx/sdk",
+  "version": "0.1.0",
+  "description": "RealYX Strategy SDK for market makers and quant users",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "realyx",
+    "perpetual",
+    "trading",
+    "sdk",
+    "market-maker"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "ethers": "^6.13.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/ws": "^8.5.0"
+  },
+  "peerDependencies": {
+    "ethers": "^6.13.0"
+  }
+}

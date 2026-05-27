@@ -13,6 +13,7 @@ import healthRouter from "./routes/health.js";
 import syncRouter from "./routes/sync.js";
 import pythRefreshRouter from "./routes/pythRefresh.js";
 import debugRouter from "./routes/debug.js";
+import authRouter from "./routes/auth.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
 import { metricsMiddleware } from "./middleware/metrics.js";
 
@@ -36,6 +37,7 @@ app.use(metricsMiddleware);
 app.use("/health", healthRouter);
 app.use(apiRateLimit);
 
+// Legacy /api/ routes (backward compatible)
 app.use("/api/markets", marketsRouter);
 app.use("/api/user", userRouter);
 app.use("/api/stats", statsRouter);
@@ -44,6 +46,17 @@ app.use("/api/insurance", insuranceRouter);
 app.use("/api/sync", syncRouter);
 app.use("/api/pyth-refresh", pythRefreshRouter);
 app.use("/api/debug", debugRouter);
+
+// Versioned /api/v1/ routes
+app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/markets", marketsRouter);
+app.use("/api/v1/user", userRouter);
+app.use("/api/v1/stats", statsRouter);
+app.use("/api/v1/leaderboard", leaderboardRouter);
+app.use("/api/v1/insurance", insuranceRouter);
+app.use("/api/v1/sync", syncRouter);
+app.use("/api/v1/pyth-refresh", pythRefreshRouter);
+app.use("/api/v1/debug", debugRouter);
 
 app.use((_req: any, res: any) => {
   res.status(404).json({ success: false, error: "Not found" });

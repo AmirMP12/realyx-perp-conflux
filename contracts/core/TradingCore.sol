@@ -758,8 +758,16 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         checkCompliance(params.market)
         returns (uint256 orderId)
     {
+        // --- Resolve subaccount delegation ---
+        address effectiveOwner = _resolveSubaccountOwner(params.owner);
+
         bool openingIncrease = (params.orderType == DataTypes.OrderType.MARKET_INCREASE ||
             params.orderType == DataTypes.OrderType.LIMIT_INCREASE);
+
+        // --- Pull USDC collateral from the owner if this is a delegated order ---
+        if (effectiveOwner != msg.sender && params.collateralDelta > 0) {
+            usdc.safeTransferFrom(effectiveOwner, address(this), params.collateralDelta);
+        }
 
         // --- Post-Only validation ---
         if (params.tif == DataTypes.TimeInForce.POST_ONLY) {
@@ -801,13 +809,13 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             _nextOrderId++,
             params,
             msg.value,
-            msg.sender,
+            effectiveOwner,   // order is credited to the owner, not the bot
             minExecutionFee,
             address(oracleAggregator),
             address(usdc),
             _orders
         );
-        emit OrderCreated(orderId, msg.sender, params.orderType, params.market);
+        emit OrderCreated(orderId, effectiveOwner, params.orderType, params.market);
     }
 
     /// @inheritdoc ITradingCore
@@ -1084,6 +1092,16 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         address v = tradingViews;
         if (v == address(0)) revert Unauthorized();
         return ITradingCoreViewsQueries(v).getGlobalUnrealizedPnL(this);
+    }
+
+    /// @notice Resolve the effective owner for subaccount delegation.
+    ///         If `params.owner` is zero or equals `msg.sender`, returns `msg.sender` (direct order).
+    ///         Otherwise verifies `isSubaccount[owner][msg.sender]` and returns `owner`.
+    /// @dev Reverts with `SubaccountNotApproved` when delegation is not authorized.
+    function _resolveSubaccountOwner(address owner) internal view returns (address) {
+        if (owner == address(0) || owner == msg.sender) return msg.sender;
+        if (!isSubaccount[owner][msg.sender]) revert SubaccountNotApproved();
+        return owner;
     }
 
     function _validateOwner(uint256 id) internal view returns (DataTypes.Position storage p) {
