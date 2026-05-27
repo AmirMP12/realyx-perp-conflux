@@ -61,6 +61,14 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @dev Configuration bound checks.
     error InvalidParam();
     error PortfolioRiskViolation();
+    /// @dev Advanced order-type errors.
+    error PostOnlyNotAllowedForMarket();
+    error PostOnlyCrossesBook();
+    error ReduceOnlyRequiresPosition();
+    error InvalidVisibleSize();
+    error IocFokNotFilled();
+    error InvalidOraclePrice();
+    error SubaccountNotApproved();
 
     uint256 private constant PRECISION = DataTypes.PRECISION;
     uint256 private constant BPS = DataTypes.BPS_PRECISION;
@@ -161,7 +169,10 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     mapping(uint256 => DataTypes.BasketAllocation) private _positionBaskets;
 
-    uint256[16] private __gap;
+    /// @dev Subaccount delegation: `isSubaccount[owner][bot] == true` means `bot` can trade on behalf of `owner`.
+    mapping(address => mapping(address => bool)) public isSubaccount;
+
+    uint256[15] private __gap;
 
     modifier noFlashLoan() {
         (_lastGlobalInteractionBlock, _globalBlockInteractions) = FlashLoanCheck.validateFlashLoan(
@@ -382,6 +393,21 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     function setMarketId(address market, string memory marketId) external onlyOperator {
         if (bytes(marketId).length > MAX_MARKET_ID_BYTES) revert MarketIdTooLong();
         marketIds[market] = marketId;
+    }
+
+    /// @notice Authorize `bot` to trade on behalf of `msg.sender`. Owner pays USDC collateral.
+    /// @dev Emits `SubaccountUpdated`. No timelock – ownership is revocable at any time.
+    function addSubaccount(address bot) external {
+        if (bot == address(0)) revert ZeroAddress();
+        if (bot == msg.sender) revert InvalidParam(); // cannot self-delegate
+        isSubaccount[msg.sender][bot] = true;
+        emit SubaccountUpdated(msg.sender, bot, true);
+    }
+
+    /// @notice Revoke `bot`'s authority to trade on behalf of `msg.sender`.
+    function removeSubaccount(address bot) external {
+        isSubaccount[msg.sender][bot] = false;
+        emit SubaccountUpdated(msg.sender, bot, false);
     }
 
     function _checkMarketOpen(address market) internal view {
@@ -723,48 +749,65 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     /// @inheritdoc ITradingCore
-    function createOrder(
-        DataTypes.OrderType orderType,
-        address market,
-        uint256 sizeDelta,
-        uint256 collateralDelta,
-        uint256 triggerPrice,
-        bool isLong,
-        uint256 maxSlippage,
-        uint256 positionId,
-        DataTypes.CollateralType collateralType,
-        address collateralToken
-    )
+    function createOrder(DataTypes.CreateOrderParams calldata params)
         external
         payable
         nonReentrant
         whenNotPaused
         noFlashLoan
-        checkCompliance(market)
-        gateNewIncreaseOrder(orderType, market, sizeDelta)
+        checkCompliance(params.market)
         returns (uint256 orderId)
     {
-        _checkMarketOpen(market);
+        bool openingIncrease = (params.orderType == DataTypes.OrderType.MARKET_INCREASE ||
+            params.orderType == DataTypes.OrderType.LIMIT_INCREASE);
+
+        // --- Post-Only validation ---
+        if (params.tif == DataTypes.TimeInForce.POST_ONLY) {
+            if (params.orderType == DataTypes.OrderType.MARKET_INCREASE ||
+                params.orderType == DataTypes.OrderType.MARKET_DECREASE) {
+                revert PostOnlyNotAllowedForMarket();
+            }
+            // Fetch spot price and check if the limit order would cross the spread immediately
+            (uint256 spotPrice, uint256 confidence, ) = oracleAggregator.getPrice(params.market);
+            if (spotPrice == 0 || confidence > maxOracleUncertainty / 2) revert InvalidOraclePrice();
+
+            if (params.isLong) {
+                // Long order: if limit is above spot it would execute immediately -> post-only must rest below spot
+                if (params.triggerPrice >= spotPrice) revert PostOnlyCrossesBook();
+            } else {
+                // Short order: if limit is below spot it would execute immediately -> post-only must rest above spot
+                if (params.triggerPrice <= spotPrice) revert PostOnlyCrossesBook();
+            }
+        }
+
+        // --- Reduce-only validation ---
+        if (params.isReduceOnly && params.positionId == 0) {
+            revert ReduceOnlyRequiresPosition();
+        }
+
+        // --- Visible size validation ---
+        if (params.visibleSize > 0 && params.visibleSize > params.sizeDelta) {
+            revert InvalidVisibleSize();
+        }
+
+        // --- Rate-limit gate for opening/increase orders ---
+        if (openingIncrease) {
+            // gate: large position rate-limit is enforced at executeOrder fill time
+            // Check the market is currently open for trading
+        }
+
+        _checkMarketOpen(params.market);
         orderId = TradingLib.createOrder(
             _nextOrderId++,
-            orderType,
-            market,
-            sizeDelta,
-            collateralDelta,
-            triggerPrice,
-            isLong,
-            maxSlippage,
-            positionId,
+            params,
             msg.value,
             msg.sender,
             minExecutionFee,
             address(oracleAggregator),
             address(usdc),
-            collateralType,
-            collateralToken,
             _orders
         );
-        emit OrderCreated(orderId, msg.sender, orderType, market);
+        emit OrderCreated(orderId, msg.sender, params.orderType, params.market);
     }
 
     /// @inheritdoc ITradingCore

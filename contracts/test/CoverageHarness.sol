@@ -737,7 +737,14 @@ contract CoverageHarness {
             executionFee: 0,
             maxSlippage: 0,
             collateralType: DataTypes.CollateralType.USDC,
-            collateralToken: address(0)
+            collateralToken: address(0),
+            tif: DataTypes.TimeInForce.GTC,
+            stopLossPrice: 0,
+            takeProfitPrice: 0,
+            visibleSize: 0,
+            twapInterval: 0,
+            lastExecutionTime: 0,
+            isReduceOnly: false
         });
 
         TradingLib.OpenPositionContext memory ctx = TradingLib.OpenPositionContext({
@@ -1117,26 +1124,41 @@ contract CoverageHarness {
         address msgSenderAddr,
         uint256 minExecutionFee,
         address oracleAggregatorAddr,
-        address usdcAddr
+        address usdcAddr,
+        uint8 tifRaw,
+        uint256 stopLossPrice,
+        uint256 takeProfitPrice,
+        uint256 visibleSize,
+        uint256 twapInterval,
+        bool isReduceOnly
     ) external returns (uint256 orderId) {
+        DataTypes.CreateOrderParams memory params = DataTypes.CreateOrderParams({
+            orderType: DataTypes.OrderType(orderTypeRaw),
+            market: market,
+            sizeDelta: sizeDelta,
+            collateralDelta: collateralDelta,
+            triggerPrice: triggerPrice,
+            isLong: isLong,
+            maxSlippage: maxSlippage,
+            positionId: positionId,
+            collateralType: DataTypes.CollateralType.USDC,
+            collateralToken: address(0),
+            tif: DataTypes.TimeInForce(tifRaw),
+            stopLossPrice: stopLossPrice,
+            takeProfitPrice: takeProfitPrice,
+            visibleSize: visibleSize,
+            twapInterval: twapInterval,
+            isReduceOnly: isReduceOnly
+        });
         return
             TradingLib.createOrder(
                 nextOrderId,
-                DataTypes.OrderType(orderTypeRaw),
-                market,
-                sizeDelta,
-                collateralDelta,
-                triggerPrice,
-                isLong,
-                maxSlippage,
-                positionId,
+                params,
                 executionFee,
                 msgSenderAddr,
                 minExecutionFee,
                 oracleAggregatorAddr,
                 usdcAddr,
-                DataTypes.CollateralType.USDC,
-                address(0),
                 _harnessOrders
             );
     }

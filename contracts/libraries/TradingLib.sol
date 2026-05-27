@@ -78,6 +78,9 @@ library TradingLib {
     error Unauthorized();
     error RepaymentValidationFailed();
     error InvalidOrResolvedFailedRepayment();
+    error OrderUnfillableCancel();
+    error TWAPIntervalNotMet();
+    error MarketHoursClosed();
 
     event FailedRepaymentRecorded(uint256 indexed positionId, uint256 amount, address market, bool isLong, int256 pnl);
     event FailedRepaymentResolved(uint256 indexed positionId, uint256 amount, address resolver);
@@ -483,45 +486,46 @@ library TradingLib {
 
     function createOrder(
         uint256 nextOrderId,
-        DataTypes.OrderType orderType,
-        address market,
-        uint256 sizeDelta,
-        uint256 collateralDelta,
-        uint256 triggerPrice,
-        bool isLong,
-        uint256 maxSlippage,
-        uint256 positionId,
+        DataTypes.CreateOrderParams calldata params,
         uint256 executionFee,
         address msgSender,
         uint256 minExecutionFee,
         address oracleAggregatorAddr,
         address usdcAddr,
-        DataTypes.CollateralType collateralType,
-        address collateralToken,
         mapping(uint256 => DataTypes.Order) storage orders
     ) external returns (uint256 orderId) {
         if (executionFee < minExecutionFee) revert ExecutionFeeTooLow();
         orderId = nextOrderId;
-        if (orderType == DataTypes.OrderType.MARKET_INCREASE || orderType == DataTypes.OrderType.LIMIT_INCREASE) {
-            if (!IOracleAggregator(oracleAggregatorAddr).isActionAllowed(market, 0)) revert BreakerActive();
-            uint256 totalRequired = collateralDelta;
+        bool openingIncrease = (params.orderType == DataTypes.OrderType.MARKET_INCREASE ||
+            params.orderType == DataTypes.OrderType.LIMIT_INCREASE);
+        if (openingIncrease) {
+            if (!IOracleAggregator(oracleAggregatorAddr).isActionAllowed(params.market, 0)) revert BreakerActive();
+            uint256 totalRequired = params.collateralDelta;
             if (totalRequired > 0) IERC20(usdcAddr).safeTransferFrom(msgSender, address(this), totalRequired);
         }
+        // For reduce-only decrease orders, derive positionId from params
         orders[orderId] = DataTypes.Order({
             id: orderId,
             account: msgSender,
-            market: market,
-            sizeDelta: sizeDelta,
-            collateralDelta: collateralDelta,
-            triggerPrice: triggerPrice,
-            positionId: positionId,
-            isLong: isLong,
-            orderType: orderType,
+            market: params.market,
+            sizeDelta: params.sizeDelta,
+            collateralDelta: params.collateralDelta,
+            triggerPrice: params.triggerPrice,
+            positionId: params.positionId,
+            isLong: params.isLong,
+            orderType: params.orderType,
             timestamp: block.timestamp,
             executionFee: executionFee,
-            maxSlippage: maxSlippage,
-            collateralType: collateralType,
-            collateralToken: collateralToken
+            maxSlippage: params.maxSlippage,
+            collateralType: params.collateralType,
+            collateralToken: params.collateralToken,
+            tif: params.tif,
+            stopLossPrice: openingIncrease ? params.stopLossPrice : 0,
+            takeProfitPrice: openingIncrease ? params.takeProfitPrice : 0,
+            visibleSize: params.visibleSize,
+            twapInterval: params.twapInterval > 0 ? params.twapInterval : DataTypes.DEFAULT_TWAP_INTERVAL,
+            lastExecutionTime: 0,
+            isReduceOnly: params.isReduceOnly
         });
     }
 

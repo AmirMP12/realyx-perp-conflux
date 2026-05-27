@@ -62,29 +62,11 @@ interface ITradingCore {
 
     /**
      * @notice Create a limit or market order (open, increase, decrease, or close path depending on `orderType`).
-     * @param orderType Kind of order (market/limit, increase/decrease).
-     * @param market Market contract address (must be listed and pass compliance when configured).
-     * @param sizeDelta Notional size change in USDC precision (protocol-specific interpretation per order type).
-     * @param collateralDelta Collateral to add or adjust with the order, USDC precision.
-     * @param triggerPrice Limit trigger price; ignored for pure market orders when not applicable.
-     * @param isLong True for long, false for short.
-     * @param maxSlippage Maximum acceptable slippage for execution (BPS or internal encoding per implementation).
-     * @param positionId Existing position id for modify/close flows; `0` for new position leg when applicable.
+     * @param params Bundled order parameters (see DataTypes.CreateOrderParams for advanced fields like TIF, bracket, iceberg/TWAP).
      * @return orderId Opaque order identifier for `executeOrder` / `cancelOrder`.
      * @dev Payable: caller must forward the configured minimum execution fee as `msg.value` when required.
      */
-    function createOrder(
-        DataTypes.OrderType orderType,
-        address market,
-        uint256 sizeDelta,
-        uint256 collateralDelta,
-        uint256 triggerPrice,
-        bool isLong,
-        uint256 maxSlippage,
-        uint256 positionId,
-        DataTypes.CollateralType collateralType,
-        address collateralToken
-    ) external payable returns (uint256 orderId);
+    function createOrder(DataTypes.CreateOrderParams calldata params) external payable returns (uint256 orderId);
 
     /**
      * @notice Keeper entry: execute a queued order using fresh oracle data.

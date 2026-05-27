@@ -34,6 +34,8 @@ library DataTypes {
     uint256 public constant DUST_THRESHOLD = 10000 * DECIMAL_CONVERSION;
     /// @dev Minimum TWAP samples before opens / triggers use the TWAP gate (2 × 5 min ≈ 10 min warm-up).
     uint256 public constant MIN_TWAP_DATA_POINTS = 2;
+    /// @dev Default TWAP slice interval in seconds (30 seconds between each visibleSize execution).
+    uint256 public constant DEFAULT_TWAP_INTERVAL = 30;
 
     enum CollateralType {
         NONE,
@@ -141,6 +143,24 @@ library DataTypes {
         LIMIT_DECREASE
     }
 
+    /// @notice Time-in-force directive for an order.
+    /// GTC       – Good-Til-Cancel: stays in the order book until filled or cancelled.
+    /// IOC       – Immediate-Or-Cancel: must be executed in the very next keeper cycle; any unfilled portion is cancelled.
+    /// FOK       – Fill-Or-Kill: must be completely filled in one keeper cycle or the entire order is cancelled.
+    /// POST_ONLY – Post-only: order is placed only if it would NOT immediately execute (i.e. it rests on the book).
+    enum TimeInForce {
+        GTC,
+        IOC,
+        FOK,
+        POST_ONLY
+    }
+
+    /// @notice Core order struct stored in the _orders mapping.
+    /// @dev Iceberg / TWAP slicing: When `visibleSize` < `sizeDelta`, the execution engine only fills
+    ///      `visibleSize` per keeper cycle. Once filled, `sizeDelta` is decremented by `visibleSize`
+    ///      and the order stays pending. For TWAP, execution also respects `twapInterval`.
+    ///      Bracket orders: when a MARKET/LIMIT_INCREASE order is fully executed, stopLossPrice
+    ///      and takeProfitPrice are applied to the newly minted Position.
     struct Order {
         uint256 id;
         address account;
@@ -156,6 +176,52 @@ library DataTypes {
         uint256 maxSlippage;
         CollateralType collateralType;
         address collateralToken;
+        /// @notice Time-in-force directive. Default GTC (0) is backwards-compatible.
+        TimeInForce tif;
+        /// @notice For Bracket Orders: stop-loss price applied to the resulting position when the increase leg fills.
+        uint256 stopLossPrice;
+        /// @notice For Bracket Orders: take-profit price applied to the resulting position when the increase leg fills.
+        uint256 takeProfitPrice;
+        /// @notice For Iceberg / TWAP: visible size per execution slice (must be <= sizeDelta).
+        uint256 visibleSize;
+        /// @notice For TWAP: minimum seconds between slice executions. 0 = no interval constraint.
+        uint256 twapInterval;
+        /// @notice For TWAP: timestamp of the most recent slice execution.
+        uint256 lastExecutionTime;
+        /// @notice When true the order MUST NOT increase position size (i.e. Decrease-only semantic).
+        bool isReduceOnly;
+    }
+
+    /// @notice Bundled parameters for `createOrder` to avoid Stack Too Deep errors.
+    /// @dev This struct is passed as a calldata argument to `TradingCore.createOrder`.
+    ///      All existing 10-arg fields are preserved; new advanced-order fields are added here.
+    struct CreateOrderParams {
+        OrderType orderType;
+        address market;
+        uint256 sizeDelta;
+        uint256 collateralDelta;
+        uint256 triggerPrice;
+        bool isLong;
+        uint256 maxSlippage;
+        uint256 positionId;
+        CollateralType collateralType;
+        address collateralToken;
+        /// @notice Time-in-force. Default GTC (0) for backwards compatibility.
+        TimeInForce tif;
+        /// @notice Bracket: stop-loss price applied to the resulting position on fill (increase orders only).
+        uint256 stopLossPrice;
+        /// @notice Bracket: take-profit price applied to the resulting position on fill (increase orders only).
+        uint256 takeProfitPrice;
+        /// @notice Iceberg / TWAP: visible size per execution slice. 0 = full size (no slicing).
+        uint256 visibleSize;
+        /// @notice TWAP: minimum seconds between slice executions. 0 = no interval constraint.
+        uint256 twapInterval;
+        /// @notice When true, the order must not increase position size (Reduce-only).
+        bool isReduceOnly;
+        /// @notice Subaccount delegation: the owner who pays collateral and receives the position.
+        ///         When owner == address(0) or owner == msg.sender, treated as a direct order.
+        ///         When owner != msg.sender, the caller must be an approved subaccount bot for `owner`.
+        address owner;
     }
 
     struct Market {

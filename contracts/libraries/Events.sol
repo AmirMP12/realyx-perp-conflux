@@ -48,6 +48,8 @@ event EmergencyPriceProposed(
     address indexed proposer
 );
 
+event SubaccountUpdated(address indexed owner, address indexed bot, bool approved);
+
 event PriceOverrideExecuted(address indexed collection, uint256 price);
 
 event EmergencyPriceApplied(address indexed collection, uint256 price, uint256 refPrice);
