@@ -114,6 +114,7 @@ export interface DeployResult {
     dividendKeeper: string;
     usdc: string;
     pyth: string;
+    collateralRegistry: string;
 }
 
 export async function deployAll(network: NetworkName): Promise<DeployResult> {
@@ -210,6 +211,16 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     const vaultCore = await vaultProxy.getAddress();
     console.log("VaultCore (proxy):", vaultCore);
 
+    const CollateralRegistry = await ethers.getContractFactory("CollateralRegistry");
+    const collateralRegistryProxy = await upgrades.deployProxy(CollateralRegistry, [admin, oracleAggregator], {
+        kind: "uups",
+        initializer: "initialize",
+        ...txOverrides,
+    });
+    await collateralRegistryProxy.waitForDeployment();
+    const collateralRegistry = await collateralRegistryProxy.getAddress();
+    console.log("CollateralRegistry (proxy):", collateralRegistry);
+
     const PositionToken = await ethers.getContractFactory("PositionToken");
     const positionTokenProxy = await upgrades.deployProxy(
         PositionToken,
@@ -266,6 +277,7 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     const rateLimitLib = await deployLib("RateLimitLib");
     const tradingContextLib = await deployLib("TradingContextLib");
     const withdrawLib = await deployLib("WithdrawLib");
+    const collateralRouterLib = await deployLib("CollateralRouterLib");
 
     const tradingCoreLibraries: Record<string, string> = {
         [libAddr("CleanupLib")]: cleanupLib,
@@ -279,6 +291,7 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
         [libAddr("TradingContextLib")]: tradingContextLib,
         [libAddr("TradingLib")]: tradingLibAddress,
         [libAddr("WithdrawLib")]: withdrawLib,
+        [libAddr("CollateralRouterLib")]: collateralRouterLib,
     };
 
     const TradingCore = await ethers.getContractFactory("TradingCore", {
@@ -339,6 +352,9 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     console.log("TradingCore.setRWAContracts ok");
     await withRetryUnderpriced(normalOverrides, (o) => tc.setTradingViews(tradingCoreViews, o ?? {}));
     console.log("TradingCore.setTradingViews ok");
+    
+    await withRetryUnderpriced(normalOverrides, (o) => tc.setCollateralRegistry(collateralRegistry, o ?? {}));
+    console.log("TradingCore.setCollateralRegistry ok");
 
     const dm = await ethers.getContractAt("DividendManager", dividendManager);
     await withRetryUnderpriced(normalOverrides, (o) => dm.setTradingCore(tradingCore, o ?? {}));
@@ -375,5 +391,6 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
         dividendKeeper,
         usdc: usdcAddress,
         pyth: pythAddress,
+        collateralRegistry,
     };
 }

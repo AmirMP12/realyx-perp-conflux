@@ -40,6 +40,7 @@ library LiquidationLib {
         address treasury;
         address insuranceFund;
         address tradingCore;
+        address collateralRegistry;
         DataTypes.LiquidationFeeTiers liquidationTiers;
         uint256 liquidationDeviationBps;
     }

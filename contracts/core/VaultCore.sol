@@ -48,6 +48,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     /// @dev Audit C-01 fix: enforce a minimum first-stake on the insurance pool
     ///      so dead-share dilution stays sub-bps even with the precision-scaled mint.
     error MinimumInsuranceDepositRequired();
+    error SlippageExceeded();
 
     uint256 private constant PRECISION = 1e18;
     uint256 private constant BPS = 10000;
@@ -126,7 +127,9 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     ///      dilution stays sub-bps after the precision-scaled mint.
     uint256 public minInitialInsuranceDeposit;
 
-    uint256[14] private __gap;
+    mapping(address => uint256) public collateralReserves;
+
+    uint256[13] private __gap;
 
     event Deposit(address indexed user, uint256 assets, uint256 shares);
     event Withdraw(address indexed user, uint256 assets, uint256 shares);
@@ -451,6 +454,64 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         emit ExposureUpdated(market, exp.longExposure, exp.shortExposure);
         usdc.safeTransferFrom(msg.sender, address(this), receiveAmount);
         if (pnl >= 0) usdc.safeTransfer(msg.sender, uint256(pnl));
+    }
+
+    /// @notice Accept repayment and PnL settlement from TradingCore in a non-USDC token.
+    function repayWithCollateral(
+        uint256 amountUsdc,
+        address market,
+        bool isLong,
+        int256 pnlUsdc,
+        address collateralToken,
+        uint256 tokenAmount
+    ) external onlyTradingCore nonReentrant {
+        totalBorrowed = totalBorrowed > amountUsdc ? totalBorrowed - amountUsdc : 0;
+
+        DataTypes.MarketExposure storage exp = _exposures[market];
+        if (isLong) {
+            exp.longExposure = exp.longExposure > amountUsdc ? exp.longExposure - amountUsdc : 0;
+        } else {
+            exp.shortExposure = exp.shortExposure > amountUsdc ? exp.shortExposure - amountUsdc : 0;
+        }
+
+        // Vault is denominated in USDC, so we track non-USDC tokens as separate reserves.
+        // The token is transferred into the vault to be swapped by keepers.
+        IERC20(collateralToken).safeTransferFrom(msg.sender, address(this), tokenAmount);
+        collateralReserves[collateralToken] += tokenAmount;
+
+        // Note: For non-USDC settlement, any profits must still be paid out in USDC (or handled by the caller),
+        // or the caller takes the non-USDC tokens directly and settles the USDC difference.
+        // This function assumes the caller (TradingCore/CloseLib) handled the profit payout to the user,
+        // and we only need to account for the borrowed principal reduction and exposure updates.
+        // The Vault must be made whole on USDC value via keeper swaps.
+        
+        emit PnLSettled(market, pnlUsdc, pnlUsdc >= 0);
+        emit ExposureUpdated(market, exp.longExposure, exp.shortExposure);
+    }
+
+    /// @notice Swap accumulated non-USDC collateral into USDC. Only callable by operator/keeper.
+    function swapCollateralToUsdc(
+        address token,
+        uint256 amount,
+        uint256 minUsdcOut,
+        address router,
+        bytes calldata swapData
+    ) external nonReentrant onlyOperator {
+        if (amount == 0 || amount > collateralReserves[token]) revert InvalidRequest();
+        
+        uint256 usdcBefore = usdc.balanceOf(address(this));
+        
+        IERC20(token).forceApprove(router, amount);
+        (bool success, ) = router.call(swapData);
+        if (!success) revert("Swap failed");
+        
+        uint256 usdcAfter = usdc.balanceOf(address(this));
+        uint256 usdcReceived = usdcAfter - usdcBefore;
+        
+        if (usdcReceived < minUsdcOut) revert SlippageExceeded();
+        
+        collateralReserves[token] -= amount;
+        // USDC balance is naturally tracked by the vault's overall balance functions.
     }
 
     /// @notice Update open-interest counters without moving tokens (`IVaultCore.updateExposure`).

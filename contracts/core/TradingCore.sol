@@ -23,6 +23,7 @@ import "../libraries/FundingLib.sol";
 import "../libraries/HealthLib.sol";
 import "../libraries/WithdrawLib.sol";
 import "../libraries/TradingLib.sol";
+import "./CollateralRegistry.sol";
 import "../libraries/PortfolioRiskLib.sol";
 import "../libraries/ConfigLib.sol";
 import "../libraries/TradingContextLib.sol";
@@ -126,6 +127,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     mapping(uint256 => uint256) public positionDividendIndex;
 
     IComplianceManager public complianceManager;
+    CollateralRegistry public collateralRegistry;
 
     address[] private _activeMarkets;
     mapping(address => bool) private _isMarketActive;
@@ -157,7 +159,9 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @dev High-water (long) / low-water (short) anchor for trailing-stop triggers.
     mapping(uint256 => uint256) private _trailingAnchorPrice;
 
-    uint256[17] private __gap;
+    mapping(uint256 => DataTypes.BasketAllocation) private _positionBaskets;
+
+    uint256[16] private __gap;
 
     modifier noFlashLoan() {
         (_lastGlobalInteractionBlock, _globalBlockInteractions) = FlashLoanCheck.validateFlashLoan(
@@ -295,6 +299,12 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         positionToken = IPositionToken(_pt);
     }
 
+    /// @notice Wire up the collateral registry.
+    function setCollateralRegistry(address _cr) external onlyAdmin {
+        if (_cr == address(0)) revert ZeroAddress();
+        collateralRegistry = CollateralRegistry(_cr);
+    }
+
     /// @notice Optional modules for session hours, dividend accrual, and allow-list compliance.
     /// @param _calendar Market calendar (zero to disable).
     /// @param _dividendManager Dividend module (zero to disable).
@@ -387,6 +397,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
                 address(positionToken),
                 treasury,
                 address(vaultCore),
+                address(collateralRegistry),
                 feeConfig
             );
     }
@@ -401,13 +412,14 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
                 treasury,
                 address(vaultCore),
                 address(this),
+                address(collateralRegistry),
                 liquidationTiers,
                 liquidationDeviationBps
             );
     }
 
     function _collateralCtx() internal view returns (TradingLib.CollateralContext memory) {
-        return TradingContextLib.buildCollateralCtx(address(usdc), address(oracleAggregator), maxOracleUncertainty);
+        return TradingContextLib.buildCollateralCtx(address(usdc), address(oracleAggregator), address(collateralRegistry), address(0), maxOracleUncertainty);
     }
 
     function _requireComplianceAndMarketOpen(address market) internal view {
@@ -719,7 +731,9 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         uint256 triggerPrice,
         bool isLong,
         uint256 maxSlippage,
-        uint256 positionId
+        uint256 positionId,
+        DataTypes.CollateralType collateralType,
+        address collateralToken
     )
         external
         payable
@@ -746,6 +760,8 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             minExecutionFee,
             address(oracleAggregator),
             address(usdc),
+            collateralType,
+            collateralToken,
             _orders
         );
         emit OrderCreated(orderId, msg.sender, orderType, market);
@@ -797,7 +813,9 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
                 maxUserExposure: maxUserExposure,
                 userDailyVolumeLimit: userDailyVolumeLimit,
                 globalDailyVolumeLimit: globalDailyVolumeLimit,
-                defaultCrossMargin: crossMarginByDefault
+                defaultCrossMargin: crossMarginByDefault,
+                collateralRegistry: address(collateralRegistry),
+                collateralToken: order.collateralToken
             }),
             address(usdc),
             address(vaultCore),

@@ -77,6 +77,24 @@ interface IVaultCore {
     function repay(uint256 amount, address market, bool isLong, int256 pnl) external;
 
     /**
+     * @notice Return principal and realized PnL from `TradingCore` in a non-USDC token.
+     * @param amountUsdc Principal component returned in USDC precision.
+     * @param market Market whose exposure was updated.
+     * @param isLong Side of the book.
+     * @param pnlUsdc Signed PnL in USDC.
+     * @param collateralToken Token used for repayment.
+     * @param tokenAmount Token amount transferred.
+     */
+    function repayWithCollateral(
+        uint256 amountUsdc,
+        address market,
+        bool isLong,
+        int256 pnlUsdc,
+        address collateralToken,
+        uint256 tokenAmount
+    ) external;
+
+    /**
      * @notice Adjust recorded open interest for a market without moving tokens (size-only exposure tracking).
      * @param market Market address.
      * @param sizeDelta Signed change in exposure units.

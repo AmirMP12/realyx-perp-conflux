@@ -9,6 +9,7 @@ import "../interfaces/IOracleAggregator.sol";
 import "./DataTypes.sol";
 import "./PositionMath.sol";
 import "./FeeCalculator.sol";
+import "../core/CollateralRegistry.sol";
 
 /**
  * @title PositionCloseLib
@@ -50,6 +51,7 @@ library PositionCloseLib {
         address positionToken;
         address treasury;
         address insuranceFund;
+        address collateralRegistry;
         DataTypes.FeeConfig feeConfig;
     }
 
@@ -156,7 +158,17 @@ library PositionCloseLib {
         if (payout > 0) {
             uint256 userPayoutUsdc = DataTypes.toUsdcPrecision(uint256(payout));
             if (minReceive > 0 && userPayoutUsdc < minReceive) revert SlippageExceeded();
-            IERC20(ctx.usdc).safeTransfer(posOwner, userPayoutUsdc);
+            
+            if (positionCollateral[positionId].tokenAddress != address(0)) {
+                uint256 tokenOut = CollateralRegistry(ctx.collateralRegistry).getTokenAmountForUsdc(
+                    positionCollateral[positionId].tokenAddress,
+                    userPayoutUsdc,
+                    false
+                );
+                IERC20(positionCollateral[positionId].tokenAddress).safeTransfer(posOwner, tokenOut);
+            } else {
+                IERC20(ctx.usdc).safeTransfer(posOwner, userPayoutUsdc);
+            }
         }
 
         _updateMarketAndFinalize(

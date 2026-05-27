@@ -97,6 +97,7 @@ library TradingLib {
         address positionToken;
         address treasury;
         address insuranceFund;
+        address collateralRegistry;
         DataTypes.FeeConfig feeConfig;
         uint256 currentPrice;
         // Risk gates evaluated on increase (USDC-precision unless noted)
@@ -114,6 +115,7 @@ library TradingLib {
         address positionToken;
         address treasury;
         address insuranceFund;
+        address collateralRegistry;
         DataTypes.FeeConfig feeConfig;
     }
 
@@ -125,6 +127,7 @@ library TradingLib {
         address treasury;
         address insuranceFund;
         address tradingCore;
+        address collateralRegistry;
         DataTypes.LiquidationFeeTiers liquidationTiers;
         uint256 liquidationDeviationBps;
     }
@@ -132,6 +135,8 @@ library TradingLib {
     struct CollateralContext {
         address usdc;
         address oracleAggregator;
+        address collateralRegistry;
+        address collateralToken;
         uint256 maxOracleUncertainty;
     }
 
@@ -300,8 +305,19 @@ library TradingLib {
             (uint256 pr, uint256 cf, ) = IOracleAggregator(ctx.oracleAggregator).getPrice(p.market);
             if (pr == 0 || cf > ctx.maxOracleUncertainty / 2) revert InvalidOraclePrice();
         }
-        IERC20(ctx.usdc).safeTransferFrom(msg.sender, address(this), amount);
-        positionCollateral[positionId].amount += DataTypes.toInternalPrecision(amount);
+
+        uint256 internalValue;
+        if (p.collateralToken != address(0)) {
+            IERC20(p.collateralToken).safeTransferFrom(msg.sender, address(this), amount);
+            internalValue = DataTypes.toInternalPrecision(
+                CollateralRegistry(ctx.collateralRegistry).getCollateralValue(p.collateralToken, amount, false)
+            );
+        } else {
+            IERC20(ctx.usdc).safeTransferFrom(msg.sender, address(this), amount);
+            internalValue = DataTypes.toInternalPrecision(amount);
+        }
+
+        positionCollateral[positionId].amount += internalValue;
 
         uint256 lev = calculateNewLeverage(uint256(p.size), positionCollateral[positionId].amount);
         if (maxLeverage > 0 && lev > maxLeverage * PRECISION) revert ExceedsMaxLeverage();
@@ -329,16 +345,24 @@ library TradingLib {
         DataTypes.Market storage m = markets[p.market];
         DataTypes.PositionCollateral storage col = positionCollateral[positionId];
 
-        uint256 intAmt = DataTypes.toInternalPrecision(amount);
+        uint256 intValue;
+        if (p.collateralToken != address(0)) {
+            intValue = DataTypes.toInternalPrecision(
+                CollateralRegistry(ctx.collateralRegistry).getCollateralValue(p.collateralToken, amount, false)
+            );
+        } else {
+            intValue = DataTypes.toInternalPrecision(amount);
+        }
+
         uint256 minCol = (uint256(p.size) * m.initialMargin) / BPS;
 
-        if (col.amount < intAmt + minCol) revert InsufficientCollateral();
+        if (col.amount < intValue + minCol) revert InsufficientCollateral();
 
         (uint256 price, , ) = IOracleAggregator(ctx.oracleAggregator).getPrice(p.market);
-        (bool liq, ) = p.isLiquidatable(price, col.amount - intAmt);
+        (bool liq, ) = p.isLiquidatable(price, col.amount - intValue);
         if (liq) revert InsufficientCollateral();
 
-        col.amount -= intAmt;
+        col.amount -= intValue;
         uint256 lev = calculateNewLeverage(uint256(p.size), col.amount);
 
         if (lev > uint256(m.maxLeverage) * PRECISION) revert ExceedsMaxLeverage();
@@ -353,7 +377,11 @@ library TradingLib {
             )
         );
 
-        IERC20(ctx.usdc).safeTransfer(msg.sender, amount);
+        if (p.collateralToken != address(0)) {
+            IERC20(p.collateralToken).safeTransfer(msg.sender, amount);
+        } else {
+            IERC20(ctx.usdc).safeTransfer(msg.sender, amount);
+        }
     }
 
     function updatePositionOwner(
@@ -468,6 +496,8 @@ library TradingLib {
         uint256 minExecutionFee,
         address oracleAggregatorAddr,
         address usdcAddr,
+        DataTypes.CollateralType collateralType,
+        address collateralToken,
         mapping(uint256 => DataTypes.Order) storage orders
     ) external returns (uint256 orderId) {
         if (executionFee < minExecutionFee) revert ExecutionFeeTooLow();
@@ -489,7 +519,9 @@ library TradingLib {
             orderType: orderType,
             timestamp: block.timestamp,
             executionFee: executionFee,
-            maxSlippage: maxSlippage
+            maxSlippage: maxSlippage,
+            collateralType: collateralType,
+            collateralToken: collateralToken
         });
     }
 
@@ -501,6 +533,8 @@ library TradingLib {
         uint256 userDailyVolumeLimit;
         uint256 globalDailyVolumeLimit;
         bool defaultCrossMargin;
+        address collateralRegistry;
+        address collateralToken;
     }
 
     function executeOrderFull(
@@ -565,6 +599,7 @@ library TradingLib {
             positionToken: positionTokenAddr,
             treasury: treasuryAddr,
             insuranceFund: vaultAddr,
+            collateralRegistry: riskParams.collateralRegistry,
             feeConfig: feeConfig,
             currentPrice: currentPrice,
             minPositionSize: riskParams.minPositionSize,
@@ -674,6 +709,7 @@ library TradingLib {
             ctx.positionToken,
             ctx.treasury,
             ctx.insuranceFund,
+            ctx.collateralRegistry,
             ctx.feeConfig
         );
 
@@ -766,7 +802,14 @@ library TradingLib {
 
         uint256 openingFee = FeeCalculator.calculateOpeningFee(internalSize, ctx.feeConfig);
 
-        uint256 totalCollateralInternal = DataTypes.toInternalPrecision(order.collateralDelta);
+        uint256 totalCollateralInternal;
+        if (order.collateralToken != address(0)) {
+            totalCollateralInternal = DataTypes.toInternalPrecision(
+                CollateralRegistry(ctx.collateralRegistry).getCollateralValue(order.collateralToken, order.collateralDelta, false)
+            );
+        } else {
+            totalCollateralInternal = DataTypes.toInternalPrecision(order.collateralDelta);
+        }
 
         if (totalCollateralInternal <= openingFee) revert InsufficientCollateral();
 
@@ -806,15 +849,16 @@ library TradingLib {
             openTimestamp: uint40(block.timestamp),
             leverage: _toLeverageU64(leverage),
             flags: DataTypes.packFlags(order.isLong, ctx.defaultCrossMargin),
-            collateralType: DataTypes.CollateralType.USDC,
+            collateralType: order.collateralType,
             state: DataTypes.PosStatus.OPEN,
             market: order.market,
-            trailingStopBps: 0
+            trailingStopBps: 0,
+            collateralToken: order.collateralToken
         });
 
         positionCollateral[positionId] = DataTypes.PositionCollateral({
             amount: marginInternal,
-            tokenAddress: address(0),
+            tokenAddress: order.collateralToken,
             borrowedAmount: borrowInternal
         });
 
@@ -865,6 +909,7 @@ library TradingLib {
             ctx.treasury,
             ctx.insuranceFund,
             ctx.tradingCore,
+            ctx.collateralRegistry,
             ctx.liquidationTiers,
             ctx.liquidationDeviationBps
         );
@@ -898,6 +943,7 @@ library TradingLib {
             ctx.positionToken,
             ctx.treasury,
             ctx.insuranceFund,
+            ctx.collateralRegistry,
             ctx.feeConfig
         );
         // Capture owner BEFORE close - closePosition may burn the NFT on full close

@@ -81,7 +81,9 @@ interface ITradingCore {
         uint256 triggerPrice,
         bool isLong,
         uint256 maxSlippage,
-        uint256 positionId
+        uint256 positionId,
+        DataTypes.CollateralType collateralType,
+        address collateralToken
     ) external payable returns (uint256 orderId);
 
     /**

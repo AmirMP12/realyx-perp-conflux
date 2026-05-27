@@ -495,7 +495,8 @@ contract CoverageHarness {
             trailingStopBps: 0,
             flags: flags,
             collateralType: DataTypes.CollateralType.USDC,
-            state: state
+            state: state,
+            collateralToken: address(0)
         });
         position = p;
         positions[id] = p;
@@ -624,7 +625,9 @@ contract CoverageHarness {
         TradingLib.CollateralContext memory ctx = TradingLib.CollateralContext({
             usdc: usdc,
             oracleAggregator: oracleAggregator,
-            maxOracleUncertainty: maxOracleUncertainty
+            maxOracleUncertainty: maxOracleUncertainty,
+            collateralRegistry: address(0),
+            collateralToken: address(0)
         });
         TradingLib.addCollateral(
             positionId,
@@ -648,7 +651,9 @@ contract CoverageHarness {
         TradingLib.CollateralContext memory ctx = TradingLib.CollateralContext({
             usdc: usdc,
             oracleAggregator: oracleAggregator,
-            maxOracleUncertainty: maxOracleUncertainty
+            maxOracleUncertainty: maxOracleUncertainty,
+            collateralRegistry: address(0),
+            collateralToken: address(0)
         });
         TradingLib.withdrawCollateral(positionId, amount, ctx, positions, positionCollaterals, configMarkets);
     }
@@ -730,7 +735,9 @@ contract CoverageHarness {
             orderType: DataTypes.OrderType(rawOrderType),
             timestamp: block.timestamp,
             executionFee: 0,
-            maxSlippage: 0
+            maxSlippage: 0,
+            collateralType: DataTypes.CollateralType.USDC,
+            collateralToken: address(0)
         });
 
         TradingLib.OpenPositionContext memory ctx = TradingLib.OpenPositionContext({
@@ -761,7 +768,8 @@ contract CoverageHarness {
             maxUserExposure: 0,
             userDailyVolumeLimit: 0,
             globalDailyVolumeLimit: 0,
-            defaultCrossMargin: false
+            defaultCrossMargin: false,
+            collateralRegistry: address(0)
         });
 
         return
@@ -1127,6 +1135,8 @@ contract CoverageHarness {
                 minExecutionFee,
                 oracleAggregatorAddr,
                 usdcAddr,
+                DataTypes.CollateralType.USDC,
+                address(0),
                 _harnessOrders
             );
     }

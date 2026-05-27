@@ -64,7 +64,8 @@ contract PositionCloseLibHarness {
             trailingStopBps: 0,
             flags: flags,
             collateralType: DataTypes.CollateralType.USDC,
-            state: state
+            state: state,
+            collateralToken: address(0)
         });
     }
 
@@ -96,7 +97,8 @@ contract PositionCloseLibHarness {
             positionToken: positionToken,
             treasury: treasury,
             insuranceFund: insuranceFund,
-            feeConfig: feeConfig
+            feeConfig: feeConfig,
+            collateralRegistry: address(0)
         });
         return
             PositionCloseLib.closePosition(

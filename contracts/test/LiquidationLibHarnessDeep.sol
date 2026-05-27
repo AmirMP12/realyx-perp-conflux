@@ -63,7 +63,8 @@ contract LiquidationLibHarnessDeep {
             trailingStopBps: 0,
             flags: flags,
             collateralType: DataTypes.CollateralType.USDC,
-            state: state
+            state: state,
+            collateralToken: address(0)
         });
     }
 
@@ -96,6 +97,7 @@ contract LiquidationLibHarnessDeep {
             treasury: treasury,
             insuranceFund: insuranceFund,
             tradingCore: address(this),
+            collateralRegistry: address(0),
             liquidationTiers: liqTiers,
             liquidationDeviationBps: liqDeviationBps
         });

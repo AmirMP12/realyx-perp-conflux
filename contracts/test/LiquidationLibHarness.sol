@@ -31,7 +31,8 @@ contract LiquidationLibHarness {
             trailingStopBps: 0,
             flags: flags,
             collateralType: DataTypes.CollateralType.USDC,
-            state: state
+            state: state,
+            collateralToken: address(0)
         });
     }
 

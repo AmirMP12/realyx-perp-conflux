@@ -36,7 +36,21 @@ library DataTypes {
     uint256 public constant MIN_TWAP_DATA_POINTS = 2;
 
     enum CollateralType {
-        USDC
+        NONE,
+        USDC,
+        USDT0,
+        AXCNH,
+        MULTI
+    }
+
+    /// @notice Per-token collateral configuration (mirrors CollateralRegistry.CollateralConfig for library use).
+    struct CollateralConfig {
+        bool enabled;
+        uint16 haircutBps;
+        uint16 liquidationHaircutBps;
+        uint256 maxProtocolExposure;
+        address oracleFeed;
+        uint8 decimals;
     }
 
     enum PosStatus {
@@ -75,12 +89,26 @@ library DataTypes {
         uint8 flags;
         CollateralType collateralType;
         PosStatus state;
+        address collateralToken;
     }
 
     struct PositionCollateral {
         uint256 amount;
         address tokenAddress;
         uint256 borrowedAmount;
+    }
+
+    struct CollateralAllocation {
+        address token;
+        uint256 amount;
+        uint256 usdcValue;
+    }
+
+    struct BasketAllocation {
+        address[] tokens;
+        uint256[] amounts;
+        uint256[] usdcValues;
+        uint256 totalUsdcValue;
     }
 
     struct OpenPositionParams {
@@ -96,6 +124,7 @@ library DataTypes {
         uint256 maxSlippageBps;
         uint256 deadline;
         CollateralType collateralType;
+        address collateralToken;
     }
 
     struct ClosePositionParams {
@@ -125,6 +154,8 @@ library DataTypes {
         uint256 timestamp;
         uint256 executionFee;
         uint256 maxSlippage;
+        CollateralType collateralType;
+        address collateralToken;
     }
 
     struct Market {
