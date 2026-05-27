@@ -23,6 +23,7 @@ import "../libraries/FundingLib.sol";
 import "../libraries/HealthLib.sol";
 import "../libraries/WithdrawLib.sol";
 import "../libraries/TradingLib.sol";
+import "../libraries/PortfolioRiskLib.sol";
 import "../libraries/ConfigLib.sol";
 import "../libraries/TradingContextLib.sol";
 import "../libraries/RateLimitLib.sol";
@@ -58,6 +59,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     error RWATimelockActive();
     /// @dev Configuration bound checks.
     error InvalidParam();
+    error PortfolioRiskViolation();
 
     uint256 private constant PRECISION = DataTypes.PRECISION;
     uint256 private constant BPS = DataTypes.BPS_PRECISION;
@@ -149,11 +151,13 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     ///      hard-coded `10e6` USDC absolute minimum so testnet/sandbox
     ///      operations do not falsely trip the protective check.
     uint256 public minLiquidatorRewardUsdc;
+    bool public crossMarginByDefault;
+    DataTypes.PortfolioRiskConfig public portfolioRiskConfig;
 
     /// @dev High-water (long) / low-water (short) anchor for trailing-stop triggers.
     mapping(uint256 => uint256) private _trailingAnchorPrice;
 
-    uint256[19] private __gap;
+    uint256[17] private __gap;
 
     modifier noFlashLoan() {
         (_lastGlobalInteractionBlock, _globalBlockInteractions) = FlashLoanCheck.validateFlashLoan(
@@ -271,6 +275,13 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         // Default initialization for funding/liquidator floors.
         maxFundingIntervals = DataTypes.MAX_FUNDING_INTERVALS;
         minLiquidatorRewardUsdc = 10e6;
+        crossMarginByDefault = true;
+        portfolioRiskConfig = DataTypes.PortfolioRiskConfig({
+            maintenanceMarginBps: 500,
+            concentrationLimitBps: 4000,
+            maxCrossPositions: 20,
+            enabled: true
+        });
     }
 
     /// @notice Wire core external dependencies after deploy.
@@ -696,6 +707,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     function withdrawCollateral(uint256 id, uint256 amt) external nonReentrant whenNotPaused checkProtocolHealth {
         _validateOwner(id);
         TradingLib.withdrawCollateral(id, amt, _collateralCtx(), _positions, _positionCollateral, _markets);
+        _enforcePortfolioRiskFor(msg.sender);
     }
 
     /// @inheritdoc ITradingCore
@@ -784,7 +796,8 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
                 minPositionSize: minPositionSize,
                 maxUserExposure: maxUserExposure,
                 userDailyVolumeLimit: userDailyVolumeLimit,
-                globalDailyVolumeLimit: globalDailyVolumeLimit
+                globalDailyVolumeLimit: globalDailyVolumeLimit,
+                defaultCrossMargin: crossMarginByDefault
             }),
             address(usdc),
             address(vaultCore),
@@ -805,7 +818,10 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             _globalDailyVolume,
             protocolHealth
         );
-        if (isIncrease) nextPositionId++;
+        if (isIncrease) {
+            _enforcePortfolioRiskFor(order.account);
+            nextPositionId++;
+        }
         if (executionFee > 0) _keeperFeeBalance[msg.sender] += executionFee;
         delete _orders[orderIdOut];
         emit OrderExecuted(orderId, positionId, msg.sender);
@@ -855,6 +871,24 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice Set the delegate views contract powering `getPositionPnL`, `canLiquidate`, and `getGlobalUnrealizedPnL`.
     function setTradingViews(address _v) external onlyAdmin {
         tradingViews = _v;
+    }
+
+    /// @notice Configure account-level portfolio risk controls for cross-margin.
+    function setPortfolioRiskConfig(
+        bool enabled,
+        bool defaultCrossMargin,
+        uint16 maintenanceMarginBps,
+        uint16 concentrationLimitBps,
+        uint8 maxCrossPositions
+    ) external onlyAdmin {
+        if (maintenanceMarginBps > 5000 || concentrationLimitBps > 10000) revert InvalidParam();
+        portfolioRiskConfig = DataTypes.PortfolioRiskConfig({
+            maintenanceMarginBps: maintenanceMarginBps,
+            concentrationLimitBps: concentrationLimitBps,
+            maxCrossPositions: maxCrossPositions,
+            enabled: enabled
+        });
+        crossMarginByDefault = defaultCrossMargin;
     }
 
     /// @notice Collateral row for a position (USDC amount and token address metadata).
@@ -997,6 +1031,19 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         if (positionToken.ownerOf(id) != msg.sender) revert NotPositionOwner();
     }
 
+    function _enforcePortfolioRiskFor(address account) internal view {
+        if (!portfolioRiskConfig.enabled || address(oracleAggregator) == address(0)) return;
+        DataTypes.AccountRiskSnapshot memory snapshot = PortfolioRiskLib.getAccountRisk(
+            account,
+            address(oracleAggregator),
+            portfolioRiskConfig,
+            _userPositions,
+            _positions,
+            _positionCollateral
+        );
+        if (!PortfolioRiskLib.validateOpenPosition(snapshot, portfolioRiskConfig)) revert PortfolioRiskViolation();
+    }
+
     function _authorizeUpgrade(address) internal override onlyAdmin {}
 
     /// @notice Keeper batch: close positions whose stop-loss / take-profit / trailing conditions are met.
@@ -1036,6 +1083,32 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         returns (bool isHealthy, uint256 totalBadDebt, uint64 lastHealthCheck)
     {
         return (protocolHealth.isHealthy, protocolHealth.totalBadDebt, protocolHealth.lastHealthCheck);
+    }
+
+    /// @notice Cross-margin account risk snapshot.
+    function getAccountRisk(address account) external view returns (DataTypes.AccountRiskSnapshot memory) {
+        return
+            PortfolioRiskLib.getAccountRisk(
+                account,
+                address(oracleAggregator),
+                portfolioRiskConfig,
+                _userPositions,
+                _positions,
+                _positionCollateral
+            );
+    }
+
+    /// @notice Whether the account is currently liquidatable under cross-margin.
+    function canLiquidateAccount(address account) external view returns (bool liquidatable, uint256 healthFactor) {
+        DataTypes.AccountRiskSnapshot memory snapshot = PortfolioRiskLib.getAccountRisk(
+            account,
+            address(oracleAggregator),
+            portfolioRiskConfig,
+            _userPositions,
+            _positions,
+            _positionCollateral
+        );
+        return (snapshot.liquidatable, snapshot.healthFactor);
     }
 
     /// @notice Admin path to write down the bad-debt counter once losses are externally covered .

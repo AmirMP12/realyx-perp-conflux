@@ -760,7 +760,8 @@ contract CoverageHarness {
             minPositionSize: 0,
             maxUserExposure: 0,
             userDailyVolumeLimit: 0,
-            globalDailyVolumeLimit: 0
+            globalDailyVolumeLimit: 0,
+            defaultCrossMargin: false
         });
 
         return

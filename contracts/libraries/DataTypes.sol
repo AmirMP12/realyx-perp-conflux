@@ -285,4 +285,21 @@ library DataTypes {
         uint64 lastHealthCheck;
         bool isHealthy;
     }
+
+    struct PortfolioRiskConfig {
+        uint16 maintenanceMarginBps;
+        uint16 concentrationLimitBps;
+        uint8 maxCrossPositions;
+        bool enabled;
+    }
+
+    struct AccountRiskSnapshot {
+        uint256 totalNotional;
+        uint256 totalCollateral;
+        uint256 maintenanceMarginRequirement;
+        int256 unrealizedPnL;
+        uint256 healthFactor;
+        uint256 crossPositionCount;
+        bool liquidatable;
+    }
 }

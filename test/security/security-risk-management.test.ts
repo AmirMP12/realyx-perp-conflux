@@ -13,7 +13,7 @@ describe("Security, risk, previews, funding, and UUPS", function () {
             env = await deployTestEnvironment();
             market = env.alice.address;
             await env.oracle.connect(env.admin).addSupportedMarket(market);
-            await env.oracle.connect(env.admin).setPythFeed(market, feedId(), 3600, 0);
+            await env.oracle.connect(env.admin).setPythFeed(market, feedId(), 3600, 1);
             await env.trading.connect(env.admin).setMarket(
                 market,
                 market,
@@ -132,6 +132,56 @@ describe("Security, risk, previews, funding, and UUPS", function () {
 
             await env.trading.settleFunding(market);
             await env.trading.settlePositionFunding(1n);
+        });
+
+        it("enforces portfolio risk on collateral withdrawal for cross-margin account", async function () {
+            const size = 1000n * 10n ** 6n;
+            const coll = 200n * 10n ** 6n;
+            await env.trading.connect(env.alice).createOrder(
+                0,
+                market,
+                size,
+                coll,
+                ethers.parseUnits("3000", 18),
+                true,
+                10000,
+                0,
+                { value: ethers.parseEther("0.01") }
+            );
+            const payload = await pythPayload(3000);
+            await env.pyth.updatePriceFeeds([payload], { value: 1n });
+            await env.trading.connect(env.keeper).executeOrder(1n, []);
+
+            await env.trading.connect(env.admin).setPortfolioRiskConfig(true, true, 5000, 10000, 20);
+
+            await expect(env.trading.connect(env.alice).withdrawCollateral(1n, 1n)).to.be.revertedWithCustomError(
+                env.trading,
+                "PortfolioRiskViolation"
+            );
+        });
+
+        it("reports account liquidation health via canLiquidateAccount", async function () {
+            const size = 1000n * 10n ** 6n;
+            const coll = 200n * 10n ** 6n;
+            await env.trading.connect(env.alice).createOrder(
+                0,
+                market,
+                size,
+                coll,
+                ethers.parseUnits("3000", 18),
+                true,
+                10000,
+                0,
+                { value: ethers.parseEther("0.01") }
+            );
+            const payload = await pythPayload(3000);
+            await env.pyth.updatePriceFeeds([payload], { value: 1n });
+            await env.trading.connect(env.keeper).executeOrder(1n, []);
+
+            await env.trading.connect(env.admin).setPortfolioRiskConfig(true, true, 5000, 10000, 20);
+            const acct = await env.trading.canLiquidateAccount(env.alice.address);
+            expect(acct[0]).to.equal(true);
+            expect(acct[1]).to.equal(0n);
         });
     });
 

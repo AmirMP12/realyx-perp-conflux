@@ -252,4 +252,18 @@ interface ITradingCore {
      * @return totalPnL Signed aggregate unrealized PnL in internal precision.
      */
     function getGlobalUnrealizedPnL() external view returns (int256);
+
+    /**
+     * @notice Account-level cross-margin risk snapshot.
+     * @param account Trader account.
+     */
+    function getAccountRisk(address account) external view returns (DataTypes.AccountRiskSnapshot memory);
+
+    /**
+     * @notice Whether an account is liquidatable by portfolio health.
+     * @param account Trader account.
+     * @return can True if account-level health is below threshold.
+     * @return healthFactor Account health factor.
+     */
+    function canLiquidateAccount(address account) external view returns (bool can, uint256 healthFactor);
 }

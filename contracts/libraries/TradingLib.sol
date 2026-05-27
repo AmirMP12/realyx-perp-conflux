@@ -104,6 +104,7 @@ library TradingLib {
         uint256 maxUserExposure;
         uint256 userDailyVolumeLimit;
         uint256 globalDailyVolumeLimit;
+        bool defaultCrossMargin;
     }
 
     struct ClosePositionContext {
@@ -499,6 +500,7 @@ library TradingLib {
         uint256 maxUserExposure;
         uint256 userDailyVolumeLimit;
         uint256 globalDailyVolumeLimit;
+        bool defaultCrossMargin;
     }
 
     function executeOrderFull(
@@ -568,7 +570,8 @@ library TradingLib {
             minPositionSize: riskParams.minPositionSize,
             maxUserExposure: riskParams.maxUserExposure,
             userDailyVolumeLimit: riskParams.userDailyVolumeLimit,
-            globalDailyVolumeLimit: riskParams.globalDailyVolumeLimit
+            globalDailyVolumeLimit: riskParams.globalDailyVolumeLimit,
+            defaultCrossMargin: riskParams.defaultCrossMargin
         });
         positionId = executeOrderInternal(
             order,
@@ -802,7 +805,7 @@ library TradingLib {
             lastFundingTime: uint64(block.timestamp),
             openTimestamp: uint40(block.timestamp),
             leverage: _toLeverageU64(leverage),
-            flags: DataTypes.packFlags(order.isLong, false),
+            flags: DataTypes.packFlags(order.isLong, ctx.defaultCrossMargin),
             collateralType: DataTypes.CollateralType.USDC,
             state: DataTypes.PosStatus.OPEN,
             market: order.market,
