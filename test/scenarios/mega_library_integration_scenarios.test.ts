@@ -89,10 +89,8 @@ describe("Libraries Mega Branch Wave", function () {
         await harness.testConfigureBreaker(market, PRICE_DROP, 500, 300, 120);
         await harness.testConfigureBreaker(market, TWAP_DEV, 400, 300, 120);
 
-        expect(await harness.testCheckPriceDropBreaker.staticCall(market, 100)).to.equal(false);
-        const bucket = BigInt(Math.floor((await time.latest()) / 300) - 1);
-        await harness.setHistoricalPrice(market, bucket, 1000);
-        await harness.testCheckPriceDropBreaker(market, 900);
+        expect(await harness.testCheckPriceDropBreaker.staticCall(market, 100, 0)).to.equal(false);
+        await harness.testCheckPriceDropBreaker(market, 900, 1000);
 
         await harness.testTriggerBreaker(market, TWAP_DEV);
         await expect(harness.testResetBreaker(market, TWAP_DEV, false)).to.be.reverted;

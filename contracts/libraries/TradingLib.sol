@@ -64,6 +64,10 @@ library TradingLib {
     error InsufficientCollateral();
     error CommitRevealRequired();
     error MaxPositionsExceeded();
+    error LeverageOverflow();
+    error PositionTooSmall();
+    error RateLimitExceededOpen();
+    error EthRefundFailed();
 
     error NotPositionOwner();
     error MinPositionDuration();
@@ -95,6 +99,11 @@ library TradingLib {
         address insuranceFund;
         DataTypes.FeeConfig feeConfig;
         uint256 currentPrice;
+        // Risk gates evaluated on increase (USDC-precision unless noted)
+        uint256 minPositionSize;
+        uint256 maxUserExposure;
+        uint256 userDailyVolumeLimit;
+        uint256 globalDailyVolumeLimit;
     }
 
     struct ClosePositionContext {
@@ -114,6 +123,7 @@ library TradingLib {
         address positionToken;
         address treasury;
         address insuranceFund;
+        address tradingCore;
         DataTypes.LiquidationFeeTiers liquidationTiers;
         uint256 liquidationDeviationBps;
     }
@@ -122,6 +132,24 @@ library TradingLib {
         address usdc;
         address oracleAggregator;
         uint256 maxOracleUncertainty;
+    }
+
+    /// @notice Helper to push fresh Pyth prices and refund any unused ETH to the keeper, called from `TradingCore.executeOrder`.
+    /// @dev Returns nothing; reverts on insufficient fee or failed refund.
+    function applyPythUpdateAndRefund(
+        address oracleAggregator,
+        bytes[] calldata priceUpdateData,
+        uint256 ethValue,
+        address keeper
+    ) external {
+        if (ethValue == 0 && priceUpdateData.length == 0) return;
+        uint256 refund = priceUpdateData.length > 0
+            ? IOracleAggregator(oracleAggregator).updatePrices{value: ethValue}(priceUpdateData)
+            : ethValue;
+        if (refund > 0) {
+            (bool ok, ) = keeper.call{value: refund}("");
+            if (!ok) revert EthRefundFailed();
+        }
     }
 
     function checkVolumeLimit(
@@ -152,6 +180,12 @@ library TradingLib {
     function calculateNewLeverage(uint256 size, uint256 collateral) public pure returns (uint256) {
         if (collateral == 0) return type(uint256).max;
         return (size * PRECISION) / collateral;
+    }
+
+    /// @dev Stored leverage uses uint64 in `Position` (1e18-precision); guard against silent truncation above ~18.4x.
+    function _toLeverageU64(uint256 lev) private pure returns (uint64) {
+        if (lev > type(uint64).max) revert LeverageOverflow();
+        return uint64(lev);
     }
 
     function settleFunding(
@@ -271,7 +305,7 @@ library TradingLib {
         uint256 lev = calculateNewLeverage(uint256(p.size), positionCollateral[positionId].amount);
         if (maxLeverage > 0 && lev > maxLeverage * PRECISION) revert ExceedsMaxLeverage();
 
-        p.leverage = uint64(lev);
+        p.leverage = _toLeverageU64(lev);
         p.liquidationPrice = uint128(
             PositionMath.calculateLiquidationPrice(
                 uint256(p.entryPrice),
@@ -308,7 +342,7 @@ library TradingLib {
 
         if (lev > uint256(m.maxLeverage) * PRECISION) revert ExceedsMaxLeverage();
 
-        p.leverage = uint64(lev);
+        p.leverage = _toLeverageU64(lev);
         p.liquidationPrice = uint128(
             PositionMath.calculateLiquidationPrice(
                 uint256(p.entryPrice),
@@ -331,11 +365,10 @@ library TradingLib {
     ) public {
         if (newOwner == address(0)) revert ZeroAddress();
 
-        uint256 codeSize;
-        assembly {
-            codeSize := extcodesize(newOwner)
-        }
-        if (codeSize > 0) revert TransferToContractNotAllowed();
+        // Contract recipients are allowed when whitelisted on the position token. Compliance gate
+        // is enforced upstream at `TradingCore.updatePositionOwner` for sanctioned addresses.
+        // Note: the previous blanket extcodesize revert blocked smart-account wallets, escrows and
+        // lending protocols from receiving position NFTs .
 
         DataTypes.Position storage pos = positions[positionId];
         if (pos.state != DataTypes.PosStatus.OPEN) revert PositionNotFound();
@@ -459,10 +492,19 @@ library TradingLib {
         });
     }
 
+    /// @notice Per-call risk-gate parameters threaded into `executeOrderFull` to keep the entry signature flat.
+    struct OrderRiskParams {
+        uint256 maxOracleUncertainty;
+        uint256 minPositionSize;
+        uint256 maxUserExposure;
+        uint256 userDailyVolumeLimit;
+        uint256 globalDailyVolumeLimit;
+    }
+
     function executeOrderFull(
         uint256 orderId,
         address oracleAggregatorAddr,
-        uint256 maxOracleUncertainty,
+        OrderRiskParams memory riskParams,
         address usdcAddr,
         address vaultAddr,
         address positionTokenAddr,
@@ -477,7 +519,10 @@ library TradingLib {
         uint256 nextPositionId,
         IDividendManager dividendManager,
         mapping(address => string) storage marketIds,
-        mapping(uint256 => uint256) storage positionDividendIndex
+        mapping(uint256 => uint256) storage positionDividendIndex,
+        mapping(address => mapping(uint256 => uint256)) storage userDailyVolume,
+        mapping(uint256 => uint256) storage globalDailyVolume,
+        DataTypes.ProtocolHealthState storage protocolHealth
     ) external returns (uint256 positionId, uint256 orderIdOut, uint256 executionFee, bool isIncrease) {
         DataTypes.Order memory order = orders[orderId];
         if (order.account == address(0)) revert OrderNotFound();
@@ -491,7 +536,13 @@ library TradingLib {
                 (!order.isLong && currentPrice < order.triggerPrice)
             ) revert InvalidOrder();
         }
-        if (order.maxSlippage > 0 && order.triggerPrice > 0) {
+        // Slippage check: only enforce for MARKET_INCREASE / *_DECREASE; LIMIT fills better than trigger are accepted.
+        if (
+            order.orderType != DataTypes.OrderType.LIMIT_INCREASE &&
+            order.orderType != DataTypes.OrderType.LIMIT_DECREASE &&
+            order.maxSlippage > 0 &&
+            order.triggerPrice > 0
+        ) {
             uint256 priceDeviation = currentPrice > order.triggerPrice
                 ? ((currentPrice - order.triggerPrice) * BPS) / order.triggerPrice
                 : ((order.triggerPrice - currentPrice) * BPS) / order.triggerPrice;
@@ -505,7 +556,7 @@ library TradingLib {
             stopLossPrice: 0,
             takeProfitPrice: 0,
             trailingStopBps: 0,
-            maxOracleUncertainty: maxOracleUncertainty,
+            maxOracleUncertainty: riskParams.maxOracleUncertainty,
             usdc: usdcAddr,
             liquidityVault: vaultAddr,
             oracleAggregator: oracleAggregatorAddr,
@@ -513,9 +564,13 @@ library TradingLib {
             treasury: treasuryAddr,
             insuranceFund: vaultAddr,
             feeConfig: feeConfig,
-            currentPrice: currentPrice
+            currentPrice: currentPrice,
+            minPositionSize: riskParams.minPositionSize,
+            maxUserExposure: riskParams.maxUserExposure,
+            userDailyVolumeLimit: riskParams.userDailyVolumeLimit,
+            globalDailyVolumeLimit: riskParams.globalDailyVolumeLimit
         });
-        positionId = executeOrder(
+        positionId = executeOrderInternal(
             order,
             ctx,
             positions,
@@ -523,7 +578,10 @@ library TradingLib {
             markets,
             userPositions,
             userExposure,
-            nextPositionId
+            nextPositionId,
+            userDailyVolume,
+            globalDailyVolume,
+            protocolHealth
         );
         if (isIncrease) {
             if (address(dividendManager) != address(0)) {
@@ -534,7 +592,8 @@ library TradingLib {
         executionFee = order.executionFee;
     }
 
-    function executeOrder(
+    /// @dev Public-but-internal-style dispatcher kept on the library to allow `delegatecall` from `TradingCore`.
+    function executeOrderInternal(
         DataTypes.Order memory order,
         OpenPositionContext memory ctx,
         mapping(uint256 => DataTypes.Position) storage positions,
@@ -542,7 +601,10 @@ library TradingLib {
         mapping(address => DataTypes.Market) storage markets,
         mapping(address => uint256[]) storage userPositions,
         mapping(address => uint256) storage userExposure,
-        uint256 nextPosId
+        uint256 nextPosId,
+        mapping(address => mapping(uint256 => uint256)) storage userDailyVolume,
+        mapping(uint256 => uint256) storage globalDailyVolume,
+        DataTypes.ProtocolHealthState storage protocolHealth
     ) public returns (uint256 positionId) {
         if (
             order.orderType == DataTypes.OrderType.MARKET_INCREASE ||
@@ -557,16 +619,26 @@ library TradingLib {
                     markets,
                     userPositions,
                     userExposure,
-                    nextPosId
+                    nextPosId,
+                    userDailyVolume,
+                    globalDailyVolume
                 );
         }
         if (
             order.orderType == DataTypes.OrderType.MARKET_DECREASE ||
             order.orderType == DataTypes.OrderType.LIMIT_DECREASE
         ) {
-            return _executeDecrease(order, ctx, positions, positionCollateral, markets, userExposure);
+            return
+                _executeDecrease(
+                    order,
+                    ctx,
+                    positions,
+                    positionCollateral,
+                    markets,
+                    userExposure,
+                    protocolHealth
+                );
         }
-
         revert InvalidOrder();
     }
 
@@ -576,7 +648,8 @@ library TradingLib {
         mapping(uint256 => DataTypes.Position) storage positions,
         mapping(uint256 => DataTypes.PositionCollateral) storage positionCollateral,
         mapping(address => DataTypes.Market) storage markets,
-        mapping(address => uint256) storage userExposure
+        mapping(address => uint256) storage userExposure,
+        DataTypes.ProtocolHealthState storage protocolHealth
     ) private returns (uint256) {
         uint256 posId = order.positionId;
         DataTypes.Position storage position = positions[posId];
@@ -606,7 +679,17 @@ library TradingLib {
             : uint256(position.size);
         if (closeSizeInternal > uint256(position.size)) closeSizeInternal = uint256(position.size);
 
-        closePosition(posId, closeSizeInternal, 0, closeCtx, positions, positionCollateral, markets, userExposure);
+        closePosition(
+            posId,
+            closeSizeInternal,
+            0,
+            closeCtx,
+            positions,
+            positionCollateral,
+            markets,
+            userExposure,
+            protocolHealth
+        );
         return posId;
     }
 
@@ -618,16 +701,52 @@ library TradingLib {
         mapping(address => DataTypes.Market) storage markets,
         mapping(address => uint256[]) storage userPositions,
         mapping(address => uint256) storage userExposure,
-        uint256 nextPosId
+        uint256 nextPosId,
+        mapping(address => mapping(uint256 => uint256)) storage userDailyVolume,
+        mapping(uint256 => uint256) storage globalDailyVolume
     ) private returns (uint256 positionId) {
         DataTypes.Market storage m = markets[order.market];
         if (!m.isActive || !m.isListed) revert MarketNotActive();
 
         uint256 internalSize = DataTypes.toInternalPrecision(order.sizeDelta);
+
+        // ---- Risk gates that the entry layer was previously missing ----
+        if (ctx.minPositionSize > 0 && order.sizeDelta < ctx.minPositionSize) revert PositionTooSmall();
+        if (m.maxPositionSize > 0 && internalSize > uint256(m.maxPositionSize)) revert ExceedsMaxPositionSize();
+        {
+            uint256 newOI = order.isLong ? m.totalLongSize + internalSize : m.totalShortSize + internalSize;
+            if (m.maxTotalExposure > 0 && newOI > uint256(m.maxTotalExposure)) {
+                revert ExceedsMaxTotalExposure();
+            }
+        }
+        if (
+            ctx.maxUserExposure > 0 &&
+            userExposure[order.account] + order.sizeDelta > ctx.maxUserExposure
+        ) revert ExceedsMaxTotalExposure();
+        if (
+            ctx.userDailyVolumeLimit > 0 &&
+            ctx.globalDailyVolumeLimit > 0 &&
+            !checkVolumeLimit(
+                userDailyVolume,
+                globalDailyVolume,
+                order.account,
+                order.sizeDelta,
+                ctx.userDailyVolumeLimit,
+                ctx.globalDailyVolumeLimit
+            )
+        ) revert RateLimitExceededOpen();
+        // ----------------------------------------------------------------------------
+
         uint256 currentPrice = ctx.currentPrice;
         if (currentPrice == 0) revert InvalidOraclePrice();
 
-        uint256 twapPrice = IOracleAggregator(ctx.oracleAggregator).getTWAP(order.market, TWAP_WINDOW_SECONDS);
+        // refuse to open against an empty/insufficient TWAP buffer (and: tighten window check).
+        (uint256 twapPrice, bool twapValid) = IOracleAggregator(ctx.oracleAggregator).getTWAPWithValidation(
+            order.market,
+            TWAP_WINDOW_SECONDS,
+            DataTypes.MIN_TWAP_DATA_POINTS
+        );
+        if (!twapValid) revert OpenPriceDeviation();
         if (twapPrice > 0) {
             uint256 twapDeviation = currentPrice > twapPrice
                 ? ((currentPrice - twapPrice) * BPS) / twapPrice
@@ -653,6 +772,14 @@ library TradingLib {
         uint256 leverage = calculateNewLeverage(internalSize, marginInternal);
         if (leverage > uint256(m.maxLeverage) * PRECISION) revert ExceedsMaxLeverage();
 
+        // defence in depth. Even with valid config, refuse to mint a position that
+        // would be liquidatable at entry (currentPrice). `pnl == 0` at entry, so this reduces to
+        // `marginInternal >= maintenanceMargin(internalSize, leverage)`.
+        {
+            uint256 mmAtEntry = PositionMath.calculateDynamicMaintenanceMargin(internalSize, leverage);
+            if (marginInternal <= mmAtEntry) revert InsufficientCollateral();
+        }
+
         uint256 borrowInternal = internalSize > marginInternal ? internalSize - marginInternal : 0;
         // Ceil so vault transfer covers repay paths that use toUsdcPrecisionCeil (floor borrow would leave a USDC dust shortfall).
         uint256 borrowAmountUsdc = borrowInternal > 0 ? DataTypes.toUsdcPrecisionCeil(borrowInternal) : 0;
@@ -674,7 +801,7 @@ library TradingLib {
             takeProfitPrice: 0,
             lastFundingTime: uint64(block.timestamp),
             openTimestamp: uint40(block.timestamp),
-            leverage: uint64(leverage),
+            leverage: _toLeverageU64(leverage),
             flags: DataTypes.packFlags(order.isLong, false),
             collateralType: DataTypes.CollateralType.USDC,
             state: DataTypes.PosStatus.OPEN,
@@ -699,6 +826,11 @@ library TradingLib {
             m.totalShortCost += (internalSize * currentPrice) / PRECISION;
         }
 
+        // Record daily volume (best-effort gate already above; this updates tally).
+        if (ctx.userDailyVolumeLimit > 0 && ctx.globalDailyVolumeLimit > 0) {
+            updateVolume(userDailyVolume, globalDailyVolume, order.account, order.sizeDelta);
+        }
+
         _distributeFees(openingFee, ctx.usdc, ctx.treasury, ctx.liquidityVault, ctx.insuranceFund, ctx.feeConfig);
         IPositionToken(ctx.positionToken).mint(order.account, positionId, order.market, order.isLong);
 
@@ -719,7 +851,8 @@ library TradingLib {
         mapping(uint256 => DataTypes.Position) storage positions,
         mapping(uint256 => DataTypes.PositionCollateral) storage positionCollateral,
         mapping(address => DataTypes.Market) storage markets,
-        mapping(address => uint256) storage userExposure
+        mapping(address => uint256) storage userExposure,
+        DataTypes.ProtocolHealthState storage protocolHealth
     ) external returns (uint256 liquidatorReward) {
         LiquidationLib.LiquidatePositionContext memory liqCtx = LiquidationLib.LiquidatePositionContext(
             ctx.usdc,
@@ -728,11 +861,20 @@ library TradingLib {
             ctx.positionToken,
             ctx.treasury,
             ctx.insuranceFund,
+            ctx.tradingCore,
             ctx.liquidationTiers,
             ctx.liquidationDeviationBps
         );
         return
-            LiquidationLib.liquidatePosition(positionId, liqCtx, positions, positionCollateral, markets, userExposure);
+            LiquidationLib.liquidatePosition(
+                positionId,
+                liqCtx,
+                positions,
+                positionCollateral,
+                markets,
+                userExposure,
+                protocolHealth
+            );
     }
 
     function closePosition(
@@ -743,7 +885,8 @@ library TradingLib {
         mapping(uint256 => DataTypes.Position) storage positions,
         mapping(uint256 => DataTypes.PositionCollateral) storage positionCollateral,
         mapping(address => DataTypes.Market) storage markets,
-        mapping(address => uint256) storage userExposure
+        mapping(address => uint256) storage userExposure,
+        DataTypes.ProtocolHealthState storage protocolHealth
     ) public returns (int256 realizedPnL) {
         PositionCloseLib.ClosePositionContext memory closeCtx = PositionCloseLib.ClosePositionContext(
             ctx.usdc,
@@ -764,7 +907,8 @@ library TradingLib {
             positions,
             positionCollateral,
             markets,
-            userExposure
+            userExposure,
+            protocolHealth
         );
 
         DataTypes.Position storage position = positions[positionId];
@@ -809,7 +953,8 @@ library TradingLib {
         mapping(uint256 => DataTypes.Position) storage positions,
         mapping(uint256 => DataTypes.PositionCollateral) storage positionCollateral,
         mapping(address => DataTypes.Market) storage markets,
-        mapping(address => uint256) storage userExposure
+        mapping(address => uint256) storage userExposure,
+        DataTypes.ProtocolHealthState storage protocolHealth
     ) external returns (int256) {
         DataTypes.Position storage pos = positions[p.positionId];
         if (pos.state != DataTypes.PosStatus.OPEN) revert PositionNotFound();
@@ -831,7 +976,8 @@ library TradingLib {
                 positions,
                 positionCollateral,
                 markets,
-                userExposure
+                userExposure,
+                protocolHealth
             );
     }
 
@@ -969,16 +1115,80 @@ library TradingLib {
         mapping(uint256 => int256) storage positionCumulativeFunding,
         mapping(uint256 => uint256) storage positionDividendIndex,
         mapping(address => string) storage marketIds,
-        IDividendManager dividendManager
+        IDividendManager dividendManager,
+        DataTypes.ProtocolHealthState storage protocolHealth,
+        address marketCalendar,
+        mapping(uint256 => uint256) storage trailingAnchorPrices
     ) external returns (uint256 executedCount) {
         for (uint256 i = 0; i < positionIds.length; ) {
             uint256 id = positionIds[i];
             DataTypes.Position storage pos = positions[id];
             if (pos.state == DataTypes.PosStatus.OPEN) {
+                // skip positions in closed markets so we never trigger SL/TP on stale price.
+                bool sessionOpen = true;
+                if (marketCalendar != address(0)) {
+                    string memory mIdSession = marketIds[pos.market];
+                    if (bytes(mIdSession).length > 0) {
+                        sessionOpen = IMarketCalendar(marketCalendar).isMarketOpen(mIdSession);
+                    }
+                }
+                if (!sessionOpen) {
+                    unchecked { ++i; }
+                    continue;
+                }
+
                 (uint256 price, , ) = IOracleAggregator(oracleAggregator).getPrice(pos.market);
-                if (
-                    PositionMath.shouldTriggerStopLoss(pos, price) || PositionMath.shouldTriggerTakeProfit(pos, price)
-                ) {
+
+                // validate price against TWAP before triggering; skip when buffer is cold or deviation excessive.
+                {
+                    (uint256 twapPrice, bool twapValid) = IOracleAggregator(oracleAggregator).getTWAPWithValidation(
+                        pos.market,
+                        TWAP_WINDOW_SECONDS,
+                        DataTypes.MIN_TWAP_DATA_POINTS
+                    );
+                    if (!twapValid) {
+                        unchecked {
+                            ++i;
+                        }
+                        continue;
+                    }
+                    if (twapPrice > 0) {
+                        uint256 dev = price > twapPrice
+                            ? ((price - twapPrice) * BPS) / twapPrice
+                            : ((twapPrice - price) * BPS) / twapPrice;
+                        if (dev > MAX_LIQUIDATION_PRICE_DEVIATION_BPS) {
+                            unchecked {
+                                ++i;
+                            }
+                            continue;
+                        }
+                    }
+                }
+
+                bool isLong = DataTypes.isLong(pos.flags);
+                bool triggerClose;
+                string memory triggerReason;
+                if (pos.trailingStopBps > 0) {
+                    uint256 anchor = trailingAnchorPrices[id];
+                    if (anchor == 0) anchor = uint256(pos.entryPrice);
+                    anchor = PositionMath.updateTrailingAnchor(isLong, price, anchor);
+                    trailingAnchorPrices[id] = anchor;
+                    if (PositionMath.shouldTriggerTrailingStop(pos, price, anchor)) {
+                        triggerClose = true;
+                        triggerReason = "TrailingStop";
+                    }
+                }
+                if (!triggerClose) {
+                    if (PositionMath.shouldTriggerStopLoss(pos, price)) {
+                        triggerClose = true;
+                        triggerReason = "StopLoss";
+                    } else if (PositionMath.shouldTriggerTakeProfit(pos, price)) {
+                        triggerClose = true;
+                        triggerReason = "TakeProfit";
+                    }
+                }
+
+                if (triggerClose) {
                     FundingLib.settlePositionFunding(
                         id,
                         oracleAggregator,
@@ -1003,12 +1213,19 @@ library TradingLib {
                             }
                         }
                     }
-                    closePosition(id, uint256(pos.size), 0, ctx, positions, positionCollateral, markets, userExposure);
-                    emit StopLossTakeProfitExecuted(
+                    closePosition(
                         id,
-                        price,
-                        PositionMath.shouldTriggerStopLoss(pos, price) ? "StopLoss" : "TakeProfit"
+                        uint256(pos.size),
+                        0,
+                        ctx,
+                        positions,
+                        positionCollateral,
+                        markets,
+                        userExposure,
+                        protocolHealth
                     );
+                    delete trailingAnchorPrices[id];
+                    emit StopLossTakeProfitExecuted(id, price, triggerReason);
                     unchecked {
                         ++executedCount;
                     }

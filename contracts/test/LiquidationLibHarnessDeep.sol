@@ -18,6 +18,7 @@ contract LiquidationLibHarnessDeep {
     address public insuranceFund;
 
     DataTypes.LiquidationFeeTiers public liqTiers;
+    DataTypes.ProtocolHealthState internal _harnessProtocolHealth;
     uint256 public liqDeviationBps;
 
     constructor(address _usdc, address _vault, address _oracle, address _positionToken, address _treasury) {
@@ -94,9 +95,19 @@ contract LiquidationLibHarnessDeep {
             positionToken: positionToken,
             treasury: treasury,
             insuranceFund: insuranceFund,
+            tradingCore: address(this),
             liquidationTiers: liqTiers,
             liquidationDeviationBps: liqDeviationBps
         });
-        return LiquidationLib.liquidatePosition(id, ctx, positions, positionCollateral, markets, userExposure);
+        return
+            LiquidationLib.liquidatePosition(
+                id,
+                ctx,
+                positions,
+                positionCollateral,
+                markets,
+                userExposure,
+                _harnessProtocolHealth
+            );
     }
 }

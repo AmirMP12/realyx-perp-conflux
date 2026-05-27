@@ -21,11 +21,11 @@ library CircuitBreakerLib {
     function checkPriceDropBreaker(
         address collection,
         uint256 currentPrice,
+        uint256 refPrice,
         mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerConfig)) storage breakerConfigs,
-        mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerStatus)) storage breakerStatuses,
-        mapping(address => mapping(uint256 => uint256)) storage historicalPrices
+        mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerStatus)) storage breakerStatuses
     ) internal returns (bool) {
-        return _checkPriceDropBreaker(collection, currentPrice, breakerConfigs, breakerStatuses, historicalPrices);
+        return _checkPriceDropBreaker(collection, currentPrice, refPrice, breakerConfigs, breakerStatuses);
     }
 
     function checkTWAPDeviationBreaker(
@@ -147,17 +147,12 @@ library CircuitBreakerLib {
     function _checkPriceDropBreaker(
         address collection,
         uint256 currentPrice,
+        uint256 refPrice,
         mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerConfig)) storage breakerConfigs,
-        mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerStatus)) storage breakerStatuses,
-        mapping(address => mapping(uint256 => uint256)) storage historicalPrices
+        mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerStatus)) storage breakerStatuses
     ) private returns (bool) {
         DataTypes.BreakerConfig memory config = breakerConfigs[collection][DataTypes.BreakerType.PRICE_DROP];
         if (!config.enabled) return false;
-
-        uint256 currentBucket = block.timestamp / 5 minutes;
-        uint256 prevBucket = currentBucket > 0 ? currentBucket - 1 : 0;
-
-        uint256 refPrice = historicalPrices[collection][prevBucket];
 
         if (refPrice == 0) return false;
 

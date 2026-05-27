@@ -51,3 +51,37 @@ event EmergencyPriceProposed(
 event PriceOverrideExecuted(address indexed collection, uint256 price);
 
 event EmergencyPriceApplied(address indexed collection, uint256 price, uint256 refPrice);
+
+/// @dev Emitted when a bad-debt claim record is rolled back inside `coverBadDebt`
+///      because the cumulative bad-debt circuit breaker tripped before payout.
+///      Indexers should treat any earlier `ClaimSubmitted(claimId, …)` for this
+///      `claimId` as cancelled.
+event ClaimRolledBack(uint256 indexed claimId, uint256 amount, uint256 positionId);
+
+/// @dev Emitted when a liquidation pays out less than the configured
+///      `MIN_LIQUIDATOR_REWARD_BPS` floor (or absolute floor) because available
+///      collateral + insurance cover were insufficient. The position is still
+///      closed; any uncovered shortfall is recorded via `recordFailedRepayment`.
+event LiquidatorRewardCapped(
+    uint256 indexed positionId,
+    address indexed liquidator,
+    uint256 paidReward,
+    uint256 expectedReward,
+    uint256 shortfall
+);
+
+/// @dev Emitted when `setTrustedForwarder` toggles a forwarder. Off-chain
+///      analytics can use this to track ERC-2771 surface changes.
+event TrustedForwarderUpdated(address indexed forwarder, bool trusted);
+
+/// @dev Emitted when `pause()` is auto-expired by a permissionless caller after
+///      `globalPauseExpiry` elapses. Re-arms the protocol without requiring an
+///      admin signature when the pause was raised by a single guardian.
+event GlobalPauseAutoExpired(uint256 timestamp);
+
+/// @dev Emitted when admin proposes/applies an RWA-contract rotation under timelock.
+event RWAContractsProposed(address calendar, address dividendManager, address complianceManager, uint256 effective);
+event RWAContractsApplied(address calendar, address dividendManager, address complianceManager);
+
+/// @dev Emitted when the keeper reward floor is updated by admin.
+event LiquidatorRewardFloorUpdated(uint256 minBps, uint256 absoluteMinUsdc);

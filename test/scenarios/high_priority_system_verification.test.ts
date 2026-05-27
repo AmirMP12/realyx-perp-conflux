@@ -161,16 +161,11 @@ describe("High Coverage Test Suite", function () {
             // Threshold 10% (1000 BPS), Window 1h, Cooldown 1h
             await harness.testConfigureBreaker(COLLECTION, 0, 1000, 3600, 3600);
             
-            // Set historical price for previous bucket (5 min buckets)
-            const now = await time.latest();
-            const prevBucket = Math.floor(now / 300) - 1;
-            await harness.setHistoricalPrice(COLLECTION, prevBucket, 10000);
-            
-            // Current price drops by 15% (8500)
-            const result = await harness.testCheckPriceDropBreaker.staticCall(COLLECTION, 8500);
+            // Reference TWAP 10000; current price drops by 15% (8500)
+            const result = await harness.testCheckPriceDropBreaker.staticCall(COLLECTION, 8500, 10000);
             expect(result).to.be.true;
             
-            await harness.testCheckPriceDropBreaker(COLLECTION, 8500); // Trigger it
+            await harness.testCheckPriceDropBreaker(COLLECTION, 8500, 10000); // Trigger it
             
             // Action should be disallowed
             expect(await harness.testIsActionAllowed(COLLECTION, 0, false)).to.be.false;

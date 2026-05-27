@@ -22,6 +22,39 @@ library FundingLib {
         DataTypes.Market storage m,
         address market
     ) external returns (int256 fundingRate) {
+        return _settleFundingWithCap(fundingState, m, market, DataTypes.MAX_FUNDING_INTERVALS);
+    }
+
+    /// @notice Same as `settleFunding` but with a caller-supplied cap on intervals so
+    ///         that a guardian can force-catch-up a long-dormant market without an upgrade.
+    /// @dev If `intervalCap == 0`, defaults to `DataTypes.MAX_FUNDING_INTERVALS`.
+    function settleFundingWithCap(
+        DataTypes.FundingState storage fundingState,
+        DataTypes.Market storage m,
+        address market,
+        uint256 intervalCap
+    ) external returns (int256 fundingRate) {
+        return _settleFundingWithCap(
+            fundingState,
+            m,
+            market,
+            intervalCap == 0 ? DataTypes.MAX_FUNDING_INTERVALS : intervalCap
+        );
+    }
+
+    function _settleFundingWithCap(
+        DataTypes.FundingState storage fundingState,
+        DataTypes.Market storage m,
+        address market,
+        uint256 intervalCap
+    ) private returns (int256 fundingRate) {
+        // Defensive: if a market was listed before the FundingState init was added, fast-forward instead of
+        // treating elapsed time as "since epoch".
+        if (fundingState.lastSettlement == 0) {
+            fundingState.lastSettlement = uint64(block.timestamp);
+            return fundingState.fundingRate;
+        }
+
         uint256 intervalsElapsed = PositionMath.calculateFundingIntervals(
             fundingState.lastSettlement,
             block.timestamp,
@@ -29,14 +62,23 @@ library FundingLib {
         );
 
         if (intervalsElapsed == 0) return fundingState.fundingRate;
-        if (intervalsElapsed > DataTypes.MAX_FUNDING_INTERVALS) {
-            intervalsElapsed = DataTypes.MAX_FUNDING_INTERVALS;
+        if (intervalsElapsed > intervalCap) {
+            intervalsElapsed = intervalCap;
         }
 
-        fundingRate = PositionMath.calculateFundingRate(m.totalLongSize, m.totalShortSize, BASE_FUNDING_RATE);
-
-        fundingState.fundingRate = fundingRate;
-        fundingState.cumulativeFunding += fundingRate * int256(intervalsElapsed);
+        // Smooth toward the spot OI rate once per elapsed interval so sparse
+        // settlement cannot be front-run by a same-block OI skew (M-02).
+        int256 rate = fundingState.fundingRate;
+        int256 spotRate = PositionMath.calculateFundingRate(m.totalLongSize, m.totalShortSize, BASE_FUNDING_RATE);
+        for (uint256 i = 0; i < intervalsElapsed; ) {
+            rate = (rate + spotRate) / 2;
+            unchecked {
+                ++i;
+            }
+        }
+        fundingRate = rate;
+        fundingState.fundingRate = rate;
+        fundingState.cumulativeFunding += rate * int256(intervalsElapsed);
         fundingState.lastSettlement += uint64(intervalsElapsed * DataTypes.FUNDING_INTERVAL);
         fundingState.longOpenInterest = m.totalLongSize;
         fundingState.shortOpenInterest = m.totalShortSize;

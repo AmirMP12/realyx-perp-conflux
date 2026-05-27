@@ -39,6 +39,7 @@ contract OracleAggregator is
     error TimelockNotExpired();
     error NoEthUsdFeed();
     error TWAPUpdateTooFrequent();
+    error ReportedPriceMustBeZero();
     error SequencerDown();
     error SequencerGracePeriodNotOver();
     error BreakerNotConfigured();
@@ -60,6 +61,16 @@ contract OracleAggregator is
     error EmergencyPriceProposalExpired();
     error NotOracleOrKeeper();
     error AlreadyInitialized();
+    error InsufficientUpdateFee();
+    error PythUpdateFailed();
+    /// @dev Caps for `marketId` strings.
+    error MarketIdTooLong();
+    /// @dev `setPythFeed` must require a non-zero `maxConfidence` so
+    ///      the silent 0.5%-of-price default cannot DoS price reads under
+    ///      volatility.
+    error MaxConfidenceRequired();
+    /// @dev Cap on the registered pausable list.
+    error TooManyPausables();
 
     modifier onlyOracleOrKeeper() {
         if (!hasRole(ORACLE_ROLE, msg.sender) && !hasRole(KEEPER_ROLE, msg.sender)) revert NotOracleOrKeeper();
@@ -78,6 +89,20 @@ contract OracleAggregator is
     uint256 private constant EMERGENCY_PRICE_QUORUM = 2;
     uint256 private constant DEFAULT_TWAP_WINDOW = 15 minutes;
     uint256 private constant MAX_EMERGENCY_PRICE_DEVIATION_BPS = 3000;
+    /// @dev Cap calendar `marketId` length to 32 bytes so storage
+    ///      writes and the per-call `bytes(...).length` reads stay O(1).
+    uint256 private constant MAX_MARKET_ID_BYTES = 32;
+    /// @dev Cap the number of pausable targets enumerable in the
+    ///      emergency-pause flow so iteration costs stay bounded.
+    uint256 private constant MAX_PAUSABLES = 50;
+    /// @dev When the global pause is activated by a single guardian
+    ///      via `activateGlobalPause`, it auto-expires after this duration unless
+    ///      explicitly re-armed. Quorum-driven pauses (via the proposal flow) are
+    ///      not subject to this expiry.
+    uint256 public constant GLOBAL_PAUSE_AUTO_EXPIRY = 6 hours;
+    /// @dev Tightened default confidence band kept for backward compat
+    ///      but `setPythFeed` now requires `maxConfidence > 0`.
+    uint256 private constant DEFAULT_CONFIDENCE_DENOMINATOR = 200; // = 0.5% of price
 
     struct OracleConfig {
         bytes32 feedId;
@@ -141,7 +166,12 @@ contract OracleAggregator is
     IMarketCalendar public marketCalendar;
     mapping(address => string) public marketIds;
 
-    uint256[21] private __gap;
+    /// @dev Activation timestamp of `_globalPause` when raised via the
+    ///      single-guardian fast path (`activateGlobalPause`). Permits permissionless
+    ///      auto-expiry after `GLOBAL_PAUSE_AUTO_EXPIRY` to avoid indefinite halts.
+    uint256 public globalPauseActivatedAt;
+
+    uint256[20] private __gap;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -200,7 +230,9 @@ contract OracleAggregator is
             if (config.maxConfidence > 0) {
                 if (normalizedConf > config.maxConfidence) revert InsufficientConfidence();
             } else {
-                if (normalizedConf > normalizedPrice / 50) revert InsufficientConfidence();
+                // tightened default from 2% to 0.5% confidence band when operators have
+                // not configured a feed-specific cap.
+                if (normalizedConf > normalizedPrice / 200) revert InsufficientConfidence();
             }
 
             if (config.minPrice > 0 && normalizedPrice < config.minPrice) revert PriceOutOfBounds();
@@ -276,6 +308,24 @@ contract OracleAggregator is
         ethFeedId = _feedId;
     }
 
+    /// @notice configurable default staleness (max 1 day).
+    function setDefaultMaxStaleness(uint256 staleness) external onlyAdmin {
+        if (staleness == 0 || staleness > 1 days) revert StalePrice();
+        defaultMaxStaleness = staleness;
+    }
+
+    /// @notice configurable ETH/USD feed staleness cap (max 6 hours).
+    function setMaxEthStaleness(uint256 staleness) external onlyAdmin {
+        if (staleness == 0 || staleness > 6 hours) revert StalePrice();
+        maxEthStaleness = staleness;
+    }
+
+    /// @notice configurable sequencer grace period (max 2 hours).
+    function setSequencerGracePeriod(uint256 gracePeriod) external onlyAdmin {
+        if (gracePeriod > 2 hours) revert SequencerGracePeriodNotOver();
+        sequencerGracePeriod = gracePeriod;
+    }
+
     /// @inheritdoc IOracleAggregator
     function getValidSourceCount(address collection) external view returns (uint256) {
         if (_configs[collection].feedId == bytes32(0)) return 0;
@@ -283,8 +333,33 @@ contract OracleAggregator is
         return healthy ? 1 : 0;
     }
 
+    /// @notice Push fresh Pyth price updates and pay the network fee. Required prior to executing keeper-driven orders so prices are up-to-date in the same transaction.
+    /// @param priceUpdateData Pyth signed price-feed payloads as supplied by Hermes/keeper.
+    /// @return feeRefund Any unused ETH refunded to `msg.sender` (caller forwards `msg.value` >= update fee).
+    /// @dev Anyone may call (price updates are signed by Pyth and are not trust-sensitive); revert on insufficient fee.
+    function updatePrices(bytes[] calldata priceUpdateData) external payable returns (uint256 feeRefund) {
+        if (priceUpdateData.length == 0) {
+            if (msg.value > 0) {
+                (bool ok, ) = msg.sender.call{value: msg.value}("");
+                if (!ok) revert PythUpdateFailed();
+            }
+            return msg.value;
+        }
+        uint256 fee = pyth.getUpdateFee(priceUpdateData);
+        if (msg.value < fee) revert InsufficientUpdateFee();
+        try pyth.updatePriceFeeds{value: fee}(priceUpdateData) {} catch {
+            revert PythUpdateFailed();
+        }
+        feeRefund = msg.value - fee;
+        if (feeRefund > 0) {
+            (bool ok, ) = msg.sender.call{value: feeRefund}("");
+            if (!ok) revert PythUpdateFailed();
+        }
+    }
+
     /// @inheritdoc IOracleAggregator
-    function recordPricePoint(address collection, uint256) external onlyOracleOrKeeper {
+    function recordPricePoint(address collection, uint256 reportedPrice) external onlyOracleOrKeeper {
+        if (reportedPrice != 0) revert ReportedPriceMustBeZero();
         (uint256 currentPrice, uint256 conf, ) = _getPriceView(collection);
 
         TWAPBuffer storage buffer = _twapBuffers[collection];
@@ -313,20 +388,26 @@ contract OracleAggregator is
     }
 
     /// @inheritdoc IOracleAggregator
+    /// @dev Restricted to keepers/oracles to prevent griefing. The supplied `currentPrice` is ignored;
+    /// the value is derived internally from the trusted oracle snapshot.
     function checkBreakers(
         address collection,
-        uint256 currentPrice,
+        uint256 /* currentPrice */,
         uint256 /* volume24h */
-    ) external nonReentrant returns (bool triggered) {
+    ) external onlyOracleOrKeeper nonReentrant returns (bool triggered) {
+        (uint256 currentPrice, , ) = _getPriceView(collection);
         _recordPrice(collection, currentPrice);
         DataTypes.BreakerConfig memory priceDropConfig = _breakerConfigs[collection][DataTypes.BreakerType.PRICE_DROP];
+        uint256 priceDropRef = priceDropConfig.windowSeconds > 0
+            ? getTWAP(collection, priceDropConfig.windowSeconds)
+            : getTWAP(collection, DEFAULT_TWAP_WINDOW);
         if (
             CircuitBreakerLib.checkPriceDropBreaker(
                 collection,
                 currentPrice,
+                priceDropRef,
                 _breakerConfigs,
-                _breakerStatuses,
-                _historicalPrices
+                _breakerStatuses
             )
         ) {
             triggered = true;
@@ -394,7 +475,8 @@ contract OracleAggregator is
 
     /// @inheritdoc IOracleAggregator
     function isActionAllowed(address collection, uint8 actionType) external view returns (bool) {
-        return CircuitBreakerLib.isActionAllowed(collection, actionType, _globalPause, _breakerStatuses);
+        // Use the expiry-aware view of global pause.
+        return CircuitBreakerLib.isActionAllowed(collection, actionType, _isGloballyPausedView(), _breakerStatuses);
     }
 
     /// @inheritdoc IOracleAggregator
@@ -423,6 +505,10 @@ contract OracleAggregator is
     function activateGlobalPause() external onlyGuardian {
         if (!_globalPause) {
             _globalPause = true;
+            // Stamp the time so the protocol can permissionlessly
+            // resume after `GLOBAL_PAUSE_AUTO_EXPIRY` if no admin/guardian action
+            // re-arms it. This bounds single-guardian halts.
+            globalPauseActivatedAt = block.timestamp;
             emit GlobalPauseActivated(msg.sender);
         }
     }
@@ -431,13 +517,57 @@ contract OracleAggregator is
     function deactivateGlobalPause() external onlyAdmin {
         if (_globalPause) {
             _globalPause = false;
+            globalPauseActivatedAt = 0;
             emit GlobalPauseDeactivated(msg.sender);
         }
     }
 
+    /// @notice Permissionless auto-expiry of a single-guardian global pause.
+    /// @dev Anyone can call this after `GLOBAL_PAUSE_AUTO_EXPIRY` has
+    ///      elapsed since `activateGlobalPause`. If a guardian wants the pause to
+    ///      persist beyond the auto-expiry window, they must re-call
+    ///      `activateGlobalPause` (which re-stamps the timer) before expiry, OR
+    ///      route through the `proposeEmergencyPause` quorum flow which does not
+    ///      auto-expire.
+    function expireGlobalPause() external {
+        if (!_globalPause) return;
+        if (globalPauseActivatedAt == 0) return; // Quorum-driven pause: no expiry.
+        if (block.timestamp < globalPauseActivatedAt + GLOBAL_PAUSE_AUTO_EXPIRY) {
+            return;
+        }
+        _globalPause = false;
+        globalPauseActivatedAt = 0;
+        emit GlobalPauseAutoExpired(block.timestamp);
+    }
+
+    /// @notice Clear the failed-pause-target list once the underlying issue has been resolved .
+    function clearFailedPauseTarget(address target) external onlyAdmin {
+        if (!failedPauses[target]) return;
+        failedPauses[target] = false;
+        uint256 len = _failedPauseList.length;
+        for (uint256 i = 0; i < len; ) {
+            if (_failedPauseList[i] == target) {
+                _failedPauseList[i] = _failedPauseList[len - 1];
+                _failedPauseList.pop();
+                break;
+            }
+            unchecked { ++i; }
+        }
+        failedPauseCount = _failedPauseList.length;
+    }
+
     /// @inheritdoc IOracleAggregator
     function isGloballyPaused() external view returns (bool) {
-        return _globalPause;
+        return _isGloballyPausedView();
+    }
+
+    /// @dev View-side helper that treats an expired single-guardian pause as
+    ///      already-cleared, even if `expireGlobalPause` has not been called yet.
+    function _isGloballyPausedView() internal view returns (bool) {
+        if (!_globalPause) return false;
+        if (globalPauseActivatedAt == 0) return true; // quorum pause, no expiry
+        if (block.timestamp >= globalPauseActivatedAt + GLOBAL_PAUSE_AUTO_EXPIRY) return false;
+        return true;
     }
 
     /// @inheritdoc IOracleAggregator
@@ -447,6 +577,11 @@ contract OracleAggregator is
         uint256 maxStaleness,
         uint64 maxConfidence
     ) external onlyOperator {
+        // Refuse to register a feed without an explicit confidence cap.
+        // The legacy 0.5%-of-price default reverted reads under any normal volatility
+        // event; operators must consciously choose a per-feed cap matching the
+        // expected confidence band (e.g. ~1-2% for equities, ~0.5-1% for crypto).
+        if (maxConfidence == 0) revert MaxConfidenceRequired();
         _configs[collection].feedId = feedId;
         _configs[collection].maxStaleness = maxStaleness;
         _configs[collection].maxConfidence = maxConfidence;
@@ -461,6 +596,8 @@ contract OracleAggregator is
 
     /// @notice Map a collection address to a calendar `marketId` string.
     function setMarketId(address collection, string memory marketId) external onlyOperator {
+        // Cap length to keep storage writes and `bytes(...).length` reads bounded.
+        if (bytes(marketId).length > MAX_MARKET_ID_BYTES) revert MarketIdTooLong();
         marketIds[collection] = marketId;
     }
 
@@ -494,7 +631,11 @@ contract OracleAggregator is
 
     /// @inheritdoc IOracleAggregator
     function registerPausable(address target) external onlyAdmin {
+        if (target == address(0)) revert ZeroAddress();
         if (!_pausables[target]) {
+            // Enforce a hard cap on the registered list so iteration
+            // during the emergency-pause execution stays bounded.
+            if (_pausableList.length >= MAX_PAUSABLES) revert TooManyPausables();
             _pausables[target] = true;
             _pausableList.push(target);
         }
@@ -502,11 +643,15 @@ contract OracleAggregator is
 
     /// @inheritdoc IOracleAggregator
     function setGuardianQuorum(uint256 quorum) external onlyAdmin {
+        // must be >= 1 to avoid disabling pause altogether.
+        if (quorum < 1 || quorum > 20) revert InvalidSource();
         guardianQuorum = quorum;
     }
 
     /// @inheritdoc IOracleAggregator
     function setEmergencyPriceQuorum(uint256 quorum) external onlyAdmin {
+        // enforce a minimum of 2 confirmers for emergency price overrides.
+        if (quorum < 2 || quorum > 20) revert InvalidSource();
         emergencyPriceQuorum = quorum;
     }
 
@@ -547,6 +692,29 @@ contract OracleAggregator is
         );
     }
 
+    /// @notice Promote a staged emergency price override after the 24h timelock . Permissionless.
+    function applyPendingEmergencyPrice(address collection) external {
+        EmergencyPriceLib.applyPendingEmergencyPrice(
+            collection,
+            _manualPrices,
+            _manualPriceExpiry,
+            _pendingManualPrices
+        );
+    }
+
+    /// @notice Cancel a staged emergency price override before activation. Guardian-controlled.
+    function cancelPendingEmergencyPrice(address collection) external onlyGuardian {
+        EmergencyPriceLib.cancelPendingEmergencyPrice(collection, _pendingManualPrices);
+    }
+
+    /// @notice Read-only view of a pending (staged) emergency price override.
+    function getPendingEmergencyPrice(
+        address collection
+    ) external view returns (uint256 price, uint256 validUntil, uint256 effectiveTime) {
+        EmergencyPriceLib.PendingPriceOverride memory p = _pendingManualPrices[collection];
+        return (p.price, p.validUntil, p.effectiveTime);
+    }
+
     /// @inheritdoc IOracleAggregator
     function getBreakerStatus(
         address collection,
@@ -565,7 +733,7 @@ contract OracleAggregator is
 
     /// @inheritdoc IOracleAggregator
     function isMarketRestricted(address collection) external view returns (bool isRestricted, uint256 activeBreakers) {
-        if (_globalPause) {
+        if (_isGloballyPausedView()) {
             isRestricted = true;
         }
 

@@ -11,6 +11,12 @@ import "../interfaces/ITradingCore.sol";
 /**
  * @title TradingCoreViews
  * @notice View-only facade for TradingCore monitoring
+ * @dev This contract is intentionally **not** UUPS-upgradeable. It is a
+ *      stateless view facade pinned by `TradingCore.tradingViews`. To swap the views
+ *      logic, deploy a new instance and call `TradingCore.setTradingViews(newAddr)`.
+ *      The constructor immediately transfers ownership semantics via `Ownable` so
+ *      no `_disableInitializers` is needed (there is no proxy implementation slot
+ *      to lock).
  */
 contract TradingCoreViews is Ownable {
     error AlreadyInitialized();

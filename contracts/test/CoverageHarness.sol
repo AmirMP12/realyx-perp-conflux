@@ -307,7 +307,8 @@ contract CoverageHarness {
             shares: shares,
             requestTime: uint64(requestTime),
             minAssets: minAssets,
-            processed: false
+            processed: false,
+            reservationAmount: 0
         });
 
         // Setup internal state for conversion logic (VaultCore uses _convertToLPAssets)
@@ -317,6 +318,12 @@ contract CoverageHarness {
     }
     mapping(uint256 => DataTypes.WithdrawalRequest) private _harnessWithdrawalRequests;
     address[] public activeMarketsList;
+
+    // Storage refs threaded into TradingLib.executeOrderInternal ( wiring).
+    mapping(address => mapping(uint256 => uint256)) internal _userDailyVolumeHarness;
+    mapping(uint256 => uint256) internal _globalDailyVolumeHarness;
+    DataTypes.ProtocolHealthState internal _harnessProtocolHealth;
+    mapping(address => DataTypes.FundingState) internal _harnessFundingStates;
 
     // Circuit Breaker State
     mapping(address => mapping(DataTypes.BreakerType => DataTypes.BreakerConfig)) public breakerConfigs;
@@ -386,14 +393,18 @@ contract CoverageHarness {
         return CircuitBreakerLib.isActionAllowed(collection, actionType, globalPause, breakerStatuses);
     }
 
-    function testCheckPriceDropBreaker(address collection, uint256 currentPrice) external returns (bool) {
+    function testCheckPriceDropBreaker(
+        address collection,
+        uint256 currentPrice,
+        uint256 refPrice
+    ) external returns (bool) {
         return
             CircuitBreakerLib.checkPriceDropBreaker(
                 collection,
                 currentPrice,
+                refPrice,
                 breakerConfigs,
-                breakerStatuses,
-                historicalPrices
+                breakerStatuses
             );
     }
 
@@ -745,11 +756,15 @@ contract CoverageHarness {
                 insuranceShareBps: 0,
                 treasuryShareBps: 0
             }),
-            currentPrice: 0
+            currentPrice: 0,
+            minPositionSize: 0,
+            maxUserExposure: 0,
+            userDailyVolumeLimit: 0,
+            globalDailyVolumeLimit: 0
         });
 
         return
-            TradingLib.executeOrder(
+            TradingLib.executeOrderInternal(
                 order,
                 ctx,
                 positions,
@@ -757,7 +772,10 @@ contract CoverageHarness {
                 configMarkets,
                 _userPositionList,
                 userExposure,
-                1
+                1,
+                _userDailyVolumeHarness,
+                _globalDailyVolumeHarness,
+                _harnessProtocolHealth
             );
     }
 
@@ -1003,7 +1021,8 @@ contract CoverageHarness {
             configMarkets,
             isMarketActive,
             activeMarketsList,
-            20
+            20,
+            _harnessFundingStates
         );
     }
 

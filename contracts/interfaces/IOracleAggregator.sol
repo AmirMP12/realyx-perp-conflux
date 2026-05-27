@@ -63,7 +63,16 @@ interface IOracleAggregator {
      * @notice Append a TWAP sample from the current on-chain oracle snapshot (keeper/oracle role).
      * @param market Market/collection address.
      */
-    function recordPricePoint(address market, uint256 price) external;
+    /// @param reportedPrice Must be zero; the observation is taken from the trusted oracle snapshot.
+    function recordPricePoint(address market, uint256 reportedPrice) external;
+
+    /**
+     * @notice Push Pyth price-feed updates atomically prior to a price-sensitive read.
+     * @dev Permissionless; Pyth signs the payload. Caller must forward `msg.value >= pyth.getUpdateFee(priceUpdateData)`. Excess is refunded.
+     * @param priceUpdateData Signed Pyth Hermes payload(s).
+     * @return feeRefund Unused ETH refunded to caller.
+     */
+    function updatePrices(bytes[] calldata priceUpdateData) external payable returns (uint256 feeRefund);
 
     /**
      * @notice Evaluate circuit breakers after optionally ingesting a price observation.

@@ -35,6 +35,10 @@ abstract contract AccessControlled is Initializable, AccessControlUpgradeable, P
 
     uint256[50] private __gap;
 
+    /// @dev Emitted on every batch role mutation so off-chain monitoring can audit
+    ///      privileged changes without iterating individual `RoleGranted` events.
+    event RolesBatchUpdated(bytes32 indexed role, address[] accounts, bool granted);
+
     function __AccessControlled_init(address admin) internal onlyInitializing {
         if (admin == address(0)) revert ZeroAddress();
 
@@ -130,6 +134,7 @@ abstract contract AccessControlled is Initializable, AccessControlUpgradeable, P
                 ++i;
             }
         }
+        emit RolesBatchUpdated(role, accounts, true);
     }
 
     function batchRevokeRole(bytes32 role, address[] calldata accounts) external onlyAdmin {
@@ -142,6 +147,7 @@ abstract contract AccessControlled is Initializable, AccessControlUpgradeable, P
                 ++i;
             }
         }
+        emit RolesBatchUpdated(role, accounts, false);
     }
 
     function _getAllRoles() internal pure returns (bytes32[8] memory roles) {

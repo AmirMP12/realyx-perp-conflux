@@ -75,8 +75,11 @@ export async function deployTestEnvironment() {
     await dividendManager.initialize(admin.address);
     
     const ComplianceManager = await ethers.getContractFactory("AllowListCompliance");
-    const complianceManager = await ComplianceManager.deploy();
-    await complianceManager.initialize(admin.address);
+    const complianceManager = await upgrades.deployProxy(ComplianceManager, [admin.address], {
+        kind: "uups",
+        initializer: "initialize",
+    });
+    await complianceManager.waitForDeployment();
     
     // Deploy libs used by some coverage harnesses/tests (even if OracleAggregator no longer links them)
     const CircuitBreakerLib = await (await ethers.getContractFactory("CircuitBreakerLib")).deploy();

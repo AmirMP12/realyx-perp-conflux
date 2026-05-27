@@ -18,6 +18,7 @@ contract PositionCloseLibHarness {
     address public insuranceFund;
 
     DataTypes.FeeConfig public feeConfig;
+    DataTypes.ProtocolHealthState internal _harnessProtocolHealth;
 
     constructor(address _usdc, address _vault, address _oracle, address _positionToken, address _treasury) {
         usdc = _usdc;
@@ -106,7 +107,8 @@ contract PositionCloseLibHarness {
                 positions,
                 positionCollateral,
                 markets,
-                userExposure
+                userExposure,
+                _harnessProtocolHealth
             );
     }
 }

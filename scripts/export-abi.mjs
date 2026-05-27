@@ -1,8 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { ABI_OUTPUT_DIRS } from "./abi-output-dirs.js";
-import { applyAbiEnumFixToAllExportedAbis } from "./fix-abi-enums.js";
+import { ABI_OUTPUT_DIRS } from "./abi-output-dirs.mjs";
+import { applyAbiEnumFixToAllExportedAbis } from "./fix-abi-enums.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -19,12 +19,32 @@ library PositionMath {
     error PositionSizeTooLarge();
     error FundingDeltaTooLarge();
     error FundingOverflow();
+    /// @dev Raised when a `uint256` value would silently truncate to a smaller width.
+    error CastOverflow();
 
     uint256 private constant PRECISION = 1e18;
     uint256 private constant BPS = 10000;
     uint256 private constant MIN_MAINTENANCE_MARGIN_BPS = 100;
     uint256 private constant DEFAULT_MAINTENANCE_MARGIN_BPS = 500;
+    uint256 public constant MAX_DYNAMIC_MAINTENANCE_BPS = 2000; // hard cap at 20%
     uint256 private constant NO_LIQUIDATION_PRICE = type(uint128).max;
+
+    /// @notice SafeCast helpers. Use at every uint256 → uintN
+    ///         boundary inside this library and its callers.
+    function toUint128(uint256 v) internal pure returns (uint128) {
+        if (v > type(uint128).max) revert CastOverflow();
+        return uint128(v);
+    }
+
+    function toUint64(uint256 v) internal pure returns (uint64) {
+        if (v > type(uint64).max) revert CastOverflow();
+        return uint64(v);
+    }
+
+    function toUint16(uint256 v) internal pure returns (uint16) {
+        if (v > type(uint16).max) revert CastOverflow();
+        return uint16(v);
+    }
 
     function calculateUnrealizedPnL(
         uint256 size,
@@ -89,7 +109,13 @@ library PositionMath {
             additionalBps = ((leverageMultiplier - 5) / 5) * 50;
         }
 
-        margin = (size * (baseBps + additionalBps)) / BPS;
+        uint256 totalBps = baseBps + additionalBps;
+        // Cap dynamic maintenance margin to keep it strictly below initial collateral at any leverage .
+        if (totalBps > MAX_DYNAMIC_MAINTENANCE_BPS) {
+            totalBps = MAX_DYNAMIC_MAINTENANCE_BPS;
+        }
+
+        margin = (size * totalBps) / BPS;
     }
 
     function calculateLiquidationPrice(
@@ -114,6 +140,12 @@ library PositionMath {
             uint256 factor = PRECISION + mmFraction - inverseL;
             liquidationPrice = (entryPrice * factor) / PRECISION;
         } else {
+            // Short positions: if mm + 1/L >= 1, the position would be liquidatable at any non-zero price.
+            // Symmetric handling with the long branch — mark as no-liquidation sentinel and
+            // let the higher-level invariant validation reject the configuration on listing.
+            if (mmFraction >= PRECISION) {
+                return NO_LIQUIDATION_PRICE;
+            }
             uint256 factor = PRECISION + inverseL - mmFraction;
             liquidationPrice = (entryPrice * factor) / PRECISION;
         }
@@ -328,6 +360,31 @@ library PositionMath {
         } else {
             shouldTrigger = currentPrice <= uint256(position.takeProfitPrice);
         }
+    }
+
+    /// @notice Ratchet the trailing anchor toward favorable price moves.
+    function updateTrailingAnchor(bool isLong, uint256 currentPrice, uint256 anchorPrice) internal pure returns (uint256) {
+        if (anchorPrice == 0) return currentPrice;
+        if (isLong) {
+            return currentPrice > anchorPrice ? currentPrice : anchorPrice;
+        }
+        return currentPrice < anchorPrice ? currentPrice : anchorPrice;
+    }
+
+    /// @notice True when price has retraced `trailingStopBps` from the anchor.
+    function shouldTriggerTrailingStop(
+        DataTypes.Position memory position,
+        uint256 currentPrice,
+        uint256 anchorPrice
+    ) internal pure returns (bool) {
+        if (position.trailingStopBps == 0 || anchorPrice == 0) return false;
+        bool isLong = position.flags.isLong();
+        if (isLong) {
+            if (currentPrice >= anchorPrice) return false;
+            return ((anchorPrice - currentPrice) * BPS) / anchorPrice >= uint256(position.trailingStopBps);
+        }
+        if (currentPrice <= anchorPrice) return false;
+        return ((currentPrice - anchorPrice) * BPS) / anchorPrice >= uint256(position.trailingStopBps);
     }
 
     function safeMul(uint256 a, uint256 b) internal pure returns (uint256 result) {

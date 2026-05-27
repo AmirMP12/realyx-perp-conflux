@@ -43,12 +43,17 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     error ClaimInvalidOrPaid();
     error NotEmergencyMode();
     error EscapeTimelockNotExpired();
+    error PendingTreasuryMismatch();
+    error TreasuryTimelockActive();
+    /// @dev Audit C-01 fix: enforce a minimum first-stake on the insurance pool
+    ///      so dead-share dilution stays sub-bps even with the precision-scaled mint.
+    error MinimumInsuranceDepositRequired();
 
     uint256 private constant PRECISION = 1e18;
     uint256 private constant BPS = 10000;
     uint256 private constant SHARE_DECIMALS = 18;
     uint256 private constant USDC_DECIMALS = 6;
-    uint256 private constant DEAD_SHARES = 10e6;
+    uint256 private constant DEAD_SHARES = 1e18;
     uint256 private constant MAX_WITHDRAWAL_BATCH = 50;
     uint256 private constant MIN_GAS_PER_WITHDRAWAL = 100000;
     uint256 private constant RESERVATION_BUFFER_BPS = 500;
@@ -105,7 +110,23 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     mapping(address => uint256) public marketBadDebtLimit;
     uint256 public defaultMarketBadDebtLimit;
 
-    uint256[19] private __gap;
+    // 48h timelock for treasury rotations. Two slots from the upgrade gap.
+    uint256 private constant TREASURY_TIMELOCK = 48 hours;
+    address private _pendingTreasury;
+    uint256 private _pendingTreasuryEffective;
+
+    // untracked USDC donations are isolated from the LP pool until governance sweeps.
+    uint256 private _donatedAssets;
+
+    // per-user cap on queued withdrawals.
+    uint256 public maxWithdrawalsPerUser;
+
+    /// @dev Audit C-01 fix: minimum first-stake size for the insurance pool.
+    ///      Mirrors `minInitialDeposit` for the LP pool. Bounded so dead-share
+    ///      dilution stays sub-bps after the precision-scaled mint.
+    uint256 public minInitialInsuranceDeposit;
+
+    uint256[14] private __gap;
 
     event Deposit(address indexed user, uint256 assets, uint256 shares);
     event Withdraw(address indexed user, uint256 assets, uint256 shares);
@@ -137,6 +158,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         uint256 shares
     );
     event ClaimPartialPayment(uint256 indexed claimId, uint256 paid, uint256 remaining);
+    event TreasuryProposed(address indexed pending, uint256 effective);
 
     modifier notEmergencyMode() {
         if (_emergencyMode) revert EmergencyModeActive();
@@ -176,6 +198,10 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         _nextClaimId = 1;
         maxProtocolTVL = 1_000_000_000e6;
         maxClaimsPerWindow = 100_000e6;
+        maxWithdrawalsPerUser = 10; //
+        // Audit C-01 fix: $1000 floor mirrors `minInitialDeposit` so dead-share
+        // dilution after the precision-scaled mint cannot exceed ~1 bp.
+        minInitialInsuranceDeposit = 1000e6;
 
         _lpShares[address(1)] = DEAD_SHARES;
         _lpTotalShares = DEAD_SHARES;
@@ -201,8 +227,9 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         if (assets == 0) revert ZeroAssets();
         if (receiver == address(0)) revert ZeroAddress();
         if (_lpTotalShares == DEAD_SHARES) {
-            uint256 rawTotal = usdc.balanceOf(address(this)) + totalBorrowed;
-            if (rawTotal > 0) revert InvalidFirstDeposit();
+            // Any pre-existing USDC sent to the contract before init is donated to the dead-share slot.
+            // This prevents a 1-wei front-run from bricking the protocol on first deposit while still
+            // requiring the legitimate first depositor to commit at least `minInitialDeposit`.
             if (assets < minInitialDeposit) revert MinimumDepositRequired();
         }
 
@@ -229,7 +256,8 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         if (_emergencyMode) revert EmergencyModeActive();
         if (owner != msg.sender) revert NotOwner();
 
-        uint256 assetsInternal = _convertToLPAssets(shares);
+        // Conservative valuation prevents extracting unrealized trader PnL.
+        uint256 assetsInternal = _convertToLPAssetsConservative(shares);
         assets = DataTypes.toUsdcPrecision(assetsInternal);
         if (assets == 0) revert ZeroAssets();
         if (assets > getAvailableLiquidity()) revert InsufficientLiquidity();
@@ -246,6 +274,10 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     function queueWithdrawal(uint256 shares, uint256 minAssets) external nonReentrant returns (uint256 requestId) {
         if (shares == 0) revert ZeroShares();
         if (_lpShares[msg.sender] < shares) revert InsufficientShares();
+        // cap queue length per user (default 0 == unlimited until configured).
+        if (maxWithdrawalsPerUser > 0 && _userWithdrawalRequests[msg.sender].length >= maxWithdrawalsPerUser) {
+            revert InvalidRequest();
+        }
 
         requestId = _nextRequestId++;
         uint256 expectedAssetsUsdc = DataTypes.toUsdcPrecision(_convertToLPAssets(shares));
@@ -256,7 +288,8 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
             shares: shares,
             requestTime: block.timestamp,
             minAssets: minAssets,
-            processed: false
+            processed: false,
+            reservationAmount: reservationAmount
         });
         _userWithdrawalRequests[msg.sender].push(requestId);
         _lpShares[msg.sender] -= shares;
@@ -291,10 +324,12 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         if (req.processed || req.shares == 0) revert InvalidRequest();
         if (block.timestamp < req.requestTime + withdrawalCooldown) revert WithdrawalNotReady();
 
-        uint256 assets = DataTypes.toUsdcPrecision(_convertToLPAssets(req.shares));
+        uint256 assets = DataTypes.toUsdcPrecision(_convertToLPAssetsConservative(req.shares));
         address user = req.user;
 
-        uint256 originalReservation = (assets * (BPS + RESERVATION_BUFFER_BPS)) / BPS;
+        // Use the reservation persisted at queue time so book-keeping stays consistent
+        // even if share price has moved between queueing and processing.
+        uint256 originalReservation = req.reservationAmount;
 
         if (req.minAssets > 0 && assets < req.minAssets) {
             _lpShares[user] += req.shares;
@@ -348,10 +383,12 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         }
     }
 
-    /// @notice USDC attributed to the LP pool (vault balance excluding insurance and fee reserves).
+    /// @notice USDC attributed to the LP pool (vault balance excluding insurance, fee reserves, and untracked donations).
+    /// @dev donations sent directly to the vault contract are tracked in `_donatedAssets` and
+    /// excluded from the LP slice so they cannot pump LP share price unilaterally.
     function _lpBalanceSliceUSDC() private view returns (uint256) {
         uint256 balance = usdc.balanceOf(address(this));
-        uint256 nonLpAssets = _insAssets + accumulatedFees;
+        uint256 nonLpAssets = _insAssets + accumulatedFees + _donatedAssets;
         return balance > nonLpAssets ? balance - nonLpAssets : 0;
     }
 
@@ -446,6 +483,13 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         if (assets == 0) revert ZeroAssets();
         if (receiver == address(0)) revert ZeroAddress();
 
+        // Audit C-01 fix: first staker (or post-drain re-seeding) must commit
+        // at least `minInitialInsuranceDeposit` so the dead-share dilution after
+        // the precision-scaled mint stays bounded.
+        if (_insAssets == 0 && minInitialInsuranceDeposit > 0 && assets < minInitialInsuranceDeposit) {
+            revert MinimumInsuranceDepositRequired();
+        }
+
         shares = _convertToInsShares(assets);
         if (shares == 0) revert ZeroAssets();
 
@@ -488,9 +532,25 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     }
 
     /// @notice Start unstake cooldown for the caller (`IVaultCore.requestUnstake`).
+    /// @dev idempotent — if already requested and not yet consumed, the timestamp is preserved
+    /// so that an attacker (or a confused UX) cannot reset the cooldown for the user.
+    /// Audit L-09 fix: re-emit `UnstakeRequested` on the no-op branch with the
+    /// *original* timestamp so off-chain UIs can disambiguate "already cooling
+    /// down" from "ignored" without having to read storage.
     function requestUnstake() external {
+        uint256 existing = _unstakeRequestTime[msg.sender];
+        if (existing != 0) {
+            emit UnstakeRequested(msg.sender, existing);
+            return;
+        }
         _unstakeRequestTime[msg.sender] = block.timestamp;
         emit UnstakeRequested(msg.sender, block.timestamp);
+    }
+
+    /// @notice Cancel an active unstake cooldown .
+    function cancelUnstakeRequest() external {
+        if (_unstakeRequestTime[msg.sender] == 0) revert CooldownNotStarted();
+        _unstakeRequestTime[msg.sender] = 0;
     }
 
     /// @notice Timestamp when `user` last called `requestUnstake` (`0` if none or cleared after `unstakeInsurance`).
@@ -502,11 +562,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     function coverBadDebt(uint256 amount, uint256 positionId) external onlyTradingCore returns (uint256 covered) {
         if (insuranceCircuitBreakerActive) revert InsuranceFundCircuitBreakerActive();
 
-        uint256 governanceClaimId;
-        if (amount > approvalThreshold) {
-            governanceClaimId = _submitClaimInternal(amount, positionId);
-        }
-
+        // ----- Pre-flight the breaker check BEFORE allocating a claim id. ----
         uint256 available = _insAssets;
         covered = amount > available ? available : amount;
 
@@ -518,21 +574,31 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         uint256 circuitBreakerThreshold = (_insAssets * BAD_DEBT_CIRCUIT_BREAKER_BPS) / BPS;
         if (newCumulative > circuitBreakerThreshold) {
             insuranceCircuitBreakerActive = true;
-            if (amount > approvalThreshold && governanceClaimId > 0) {
-                totalPendingClaims = totalPendingClaims > amount ? totalPendingClaims - amount : 0;
-                _claims[governanceClaimId].paid = true;
-            }
+            // No claim was created → no rollback bookkeeping needed. Indexers see
+            // exactly one event for this code path.
             emit InsuranceCircuitBreakerTriggered(circuitBreakerThreshold, newCumulative);
             return 0;
         }
+        // -----------------------------------------------------------------------------
 
+        // Now safe to materialize the governance claim: the breaker did not trip
+        // on this payout and we are committed to either paying or partially-paying.
+        uint256 governanceClaimId;
         if (amount > approvalThreshold) {
-            _checkClaimRateLimit(covered);
-        } else {
-            _checkClaimRateLimit(amount);
+            governanceClaimId = _submitClaimInternal(amount, positionId);
         }
 
+        // Audit H-03 fix: do NOT consume the per-window claim rate-limit budget
+        // here. Auto-payouts inside a liquidation/close are already gated by
+        // (a) `_insAssets` available, and (b) the 24h cumulative breaker.
+        // Consuming the leaky bucket on the synchronous path lets a flood of
+        // small auto-claims revert legitimate liquidations and feed the H-01
+        // deadlock. Rate-limiting now lives only on the governance
+        // `submitClaim`/`processClaim` flow (see `_processClaim`).
+
         if (covered > 0) {
+            // defensive guard; covered is always <= _insAssets at this point.
+            if (covered > _insAssets) covered = _insAssets;
             _insAssets -= covered;
             cumulativeBadDebt24h += covered;
             usdc.safeTransfer(tradingCore, covered);
@@ -570,10 +636,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         claimId = _nextClaimId++;
         bool autoApprove = amount <= approvalThreshold;
 
-        if (autoApprove) {
-            _checkClaimRateLimit(amount);
-        }
-
+        // rate-limit budget is consumed inside `_processClaim` to avoid double counting.
         _claims[claimId] = DataTypes.BadDebtClaim({
             amount: amount,
             positionId: positionId,
@@ -600,7 +663,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     }
 
     /// @notice Pay out an approved claim in USDC chunks (`IVaultCore.processClaim`).
-    function processClaim(uint256 claimId) external returns (uint256) {
+    function processClaim(uint256 claimId) external nonReentrant returns (uint256) {
         return _processClaim(claimId);
     }
 
@@ -611,6 +674,10 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         uint256 remaining = claim.amount - claim.amountPaid;
         uint256 available = _insAssets;
         paid = remaining > available ? available : remaining;
+        // enforce the same per-window rate limit on governance-approved claim payouts.
+        if (paid > 0) {
+            _checkClaimRateLimit(paid);
+        }
         claim.amountPaid += paid;
         totalPendingClaims -= paid;
         _insAssets = _insAssets > paid ? _insAssets - paid : 0;
@@ -735,11 +802,29 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     }
 
     /// @notice Update treasury recipient for surplus and fee routing.
+    /// @dev gated by a 48h timelock via `proposeTreasury` -> `executeTreasury`.
     function setTreasury(address _treasury) external onlyAdmin {
         if (_treasury == address(0)) revert ZeroAddress();
+        if (_treasury != _pendingTreasury) revert PendingTreasuryMismatch();
+        if (block.timestamp < _pendingTreasuryEffective) revert TreasuryTimelockActive();
         address oldTreasury = treasury;
         treasury = _treasury;
+        delete _pendingTreasury;
+        delete _pendingTreasuryEffective;
         emit TreasuryUpdated(oldTreasury, _treasury);
+    }
+
+    /// @notice Stage a treasury rotation; takes effect 48h later via `setTreasury`.
+    function proposeTreasury(address _treasury) external onlyAdmin {
+        if (_treasury == address(0)) revert ZeroAddress();
+        _pendingTreasury = _treasury;
+        _pendingTreasuryEffective = block.timestamp + TREASURY_TIMELOCK;
+        emit TreasuryProposed(_treasury, _pendingTreasuryEffective);
+    }
+
+    /// @notice Read the staged treasury rotation, if any.
+    function pendingTreasury() external view returns (address pending, uint256 effective) {
+        return (_pendingTreasury, _pendingTreasuryEffective);
     }
 
     /// @notice Per-market cap on open interest as bps of conservative TVL.
@@ -769,6 +854,19 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         maxProtocolTVL = _maxTVL;
     }
 
+    /// @notice cap on the number of pending withdrawal requests per user (0 == unlimited).
+    function setMaxWithdrawalsPerUser(uint256 cap) external onlyAdmin {
+        maxWithdrawalsPerUser = cap;
+    }
+
+    /// @notice Configure the minimum first-stake size for the insurance pool.
+    /// @dev Audit C-01 fix companion. Setting `0` disables the floor (not
+    ///      recommended). Bounded `[0, 100_000e6]` USDC to prevent fat-finger.
+    function setMinInitialInsuranceDeposit(uint256 amount) external onlyAdmin {
+        if (amount > 100_000e6) revert InvalidRequest();
+        minInitialInsuranceDeposit = amount;
+    }
+
     /// @notice Clear insurance bad-debt circuit breaker after operational review.
     function resetInsuranceCircuitBreaker() external onlyAdmin {
         insuranceCircuitBreakerActive = false;
@@ -777,10 +875,58 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         emit InsuranceCircuitBreakerReset(msg.sender);
     }
 
+    /// @notice Sync the donation ledger with the actual USDC balance .
+    /// @dev Reads `usdc.balanceOf` and treats any USDC not already attributed (LP slice + insurance + fees + prior donations)
+    /// as a fresh donation. Permissionless because it only moves untracked balance into a tracked counter.
+    function recordDonation() external returns (uint256 donated) {
+        uint256 balance = usdc.balanceOf(address(this));
+        uint256 tracked = _insAssets + accumulatedFees + _donatedAssets;
+        uint256 lpSlice = balance > tracked ? balance - tracked : 0;
+        // After donation accounting `_lpAssets` is the LP balance counter the contract maintains;
+        // anything beyond that on top of the tracked categories is a donation.
+        if (lpSlice > _lpAssets) {
+            donated = lpSlice - _lpAssets;
+            _donatedAssets += donated;
+            emit FeeReceived(donated, "donation");
+        }
+    }
+
+    /// @notice Sweep donated USDC into the LP pool, insurance pool, or treasury.
+    /// @param toLpAmount USDC moved into the LP slice (raises share price for existing LPs).
+    /// @param toInsuranceAmount USDC moved into insurance reserves.
+    /// @param toTreasuryAmount USDC sent directly to treasury.
+    function sweepDonations(
+        uint256 toLpAmount,
+        uint256 toInsuranceAmount,
+        uint256 toTreasuryAmount
+    ) external onlyAdmin {
+        uint256 total = toLpAmount + toInsuranceAmount + toTreasuryAmount;
+        if (total > _donatedAssets) revert InvalidRequest();
+        _donatedAssets -= total;
+        if (toLpAmount > 0) {
+            _lpAssets += toLpAmount;
+        }
+        if (toInsuranceAmount > 0) {
+            _insAssets += toInsuranceAmount;
+        }
+        if (toTreasuryAmount > 0) {
+            usdc.safeTransfer(treasury, toTreasuryAmount);
+        }
+    }
+
+    /// @notice Untracked donation balance pending sweep .
+    function donatedAssets() external view returns (uint256) {
+        return _donatedAssets;
+    }
+
     /// @notice LP-side assets including borrows and global PnL adjustment from `TradingCore` when available (`IVaultCore.totalAssets`).
+    /// @dev Previously reverted when `tradingViews` was unset on
+    ///      `TradingCore` (initial deploy ordering). Now degrades gracefully —
+    ///      a failure of the global-PnL probe is treated as zero adjustment so
+    ///      LP deposit/withdraw flows do not brick during deployment.
     function totalAssets() public view returns (uint256) {
         uint256 balance = usdc.balanceOf(address(this));
-        uint256 nonLpAssets = _insAssets + accumulatedFees;
+        uint256 nonLpAssets = _insAssets + accumulatedFees + _donatedAssets; // exclude donations.
         uint256 lpBalance = balance > nonLpAssets ? balance - nonLpAssets : 0;
         uint256 total = (lpBalance * DataTypes.DECIMAL_CONVERSION) + (totalBorrowed * DataTypes.DECIMAL_CONVERSION);
 
@@ -793,6 +939,8 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
                     return total + uint256(-globalPnL);
                 }
             } catch {
+                // tradingViews not yet wired or temporarily reverting; treat as zero
+                // adjustment. Conservative-side helpers below use the same fallback.
                 return total;
             }
         }
@@ -826,9 +974,10 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     }
 
     /// @notice Conservative LP asset figure ignoring positive trader PnL liability for safety checks.
+    /// @dev Matching `totalAssets` graceful degradation on tradingViews unset.
     function getConservativeTotalAssets() public view returns (uint256) {
         uint256 balance = usdc.balanceOf(address(this));
-        uint256 nonLpAssets = _insAssets + accumulatedFees;
+        uint256 nonLpAssets = _insAssets + accumulatedFees + _donatedAssets; //
         uint256 lpBalance = balance > nonLpAssets ? balance - nonLpAssets : 0;
         uint256 total = (lpBalance * DataTypes.DECIMAL_CONVERSION) + (totalBorrowed * DataTypes.DECIMAL_CONVERSION);
 
@@ -839,6 +988,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
                     return total > liability ? total - liability : 0;
                 }
             } catch {
+                // graceful degradation: assume no positive trader PnL adjustment.
                 return total;
             }
         }
@@ -852,10 +1002,10 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         return denom == 0 ? 0 : (totalBorrowed * PRECISION) / denom;
     }
 
-    /// @notice USDC available to LP operations (excludes insurance and fee reserves).
+    /// @notice USDC available to LP operations (excludes insurance, fee reserves, and untracked donations).
     function getAvailableLiquidity() public view returns (uint256) {
         uint256 balance = usdc.balanceOf(address(this));
-        uint256 nonLpAssets = _insAssets + accumulatedFees;
+        uint256 nonLpAssets = _insAssets + accumulatedFees + _donatedAssets; //
         return balance > nonLpAssets ? balance - nonLpAssets : 0;
     }
 
@@ -962,8 +1112,22 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         return _lpTotalShares == 0 ? 0 : (shares * totalAssets()) / _lpTotalShares;
     }
 
+    /// @dev LP redemption value uses the conservative total (subtracts unrealized trader profits, ignores unrealized
+    /// trader losses). This prevents LPs from extracting paper PnL via withdrawal arbitrage .
+    function _convertToLPAssetsConservative(uint256 shares) internal view returns (uint256) {
+        return _lpTotalShares == 0 ? 0 : (shares * getConservativeTotalAssets()) / _lpTotalShares;
+    }
+
     function _convertToInsShares(uint256 assets) internal view returns (uint256) {
-        return _insTotalShares == 0 || _insAssets == 0 ? assets : (assets * _insTotalShares) / _insAssets;
+        // Audit C-01 fix: when the insurance pool is empty (first stake or
+        // post-drain), scale 6-decimal USDC up to 18-decimal share precision so
+        // the dead-share allocation (`1e18` shares against 0 assets) cannot
+        // dilute the first staker's ownership to ~zero. This mirrors the LP
+        // path's first-deposit branch.
+        if (_insAssets == 0 || _insTotalShares <= DEAD_SHARES) {
+            return assets * (10 ** (SHARE_DECIMALS - USDC_DECIMALS));
+        }
+        return (assets * _insTotalShares) / _insAssets;
     }
 
     function _convertToInsAssets(uint256 shares) internal view returns (uint256) {

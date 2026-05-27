@@ -28,6 +28,7 @@ import "../libraries/TradingContextLib.sol";
 import "../libraries/RateLimitLib.sol";
 import "../libraries/PositionTriggersLib.sol";
 import "../libraries/CleanupLib.sol";
+import "../libraries/Events.sol";
 
 /**
  * @title TradingCore
@@ -50,16 +51,13 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     error InsufficientOracleSources();
     error PositionNotFound();
     error Unauthorized();
-    error TransferToContractNotAllowed();
     error ComplianceCheckFailed();
     error MarketClosed();
-    error DeviationOutOfRange();
-    /// @dev Mirrored from TradingLib so callers and off-chain tooling can decode library reverts on this contract.
-    error InvalidOraclePrice();
-    error MinPositionDuration();
-    error ExecutionFeeTooLow();
-
-    event ParamsUpdated(string paramName, uint256 oldValue, uint256 newValue);
+    /// @dev Errors for the new RWA-contracts timelock surface.
+    error PendingRWAMismatch();
+    error RWATimelockActive();
+    /// @dev Configuration bound checks.
+    error InvalidParam();
 
     uint256 private constant PRECISION = DataTypes.PRECISION;
     uint256 private constant BPS = DataTypes.BPS_PRECISION;
@@ -132,7 +130,30 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     address public tradingViews;
 
-    uint256[24] private __gap;
+    /// @dev Pending RWA contract rotation under 48h timelock to
+    ///      mitigate single-key admin compromise that could disable compliance,
+    ///      swap dividend manager mid-flight, or re-open closed markets.
+    address private _pendingRWACalendar;
+    address private _pendingRWADividendManager;
+    address private _pendingRWACompliance;
+    uint256 private _pendingRWAEffective;
+    uint256 private constant RWA_TIMELOCK = 48 hours;
+
+    /// @dev Admin-tunable funding interval cap. Defaults to
+    ///      `DataTypes.MAX_FUNDING_INTERVALS` (24 = 8 days). Setting this higher
+    ///      lets a guardian force-catch-up a long-dormant market without an upgrade.
+    ///      Bounded to a sane upper limit (10x default = 240 intervals = 80 days).
+    uint256 public maxFundingIntervals;
+
+    /// @dev Configurable liquidator-reward floor. Replaces the
+    ///      hard-coded `10e6` USDC absolute minimum so testnet/sandbox
+    ///      operations do not falsely trip the protective check.
+    uint256 public minLiquidatorRewardUsdc;
+
+    /// @dev High-water (long) / low-water (short) anchor for trailing-stop triggers.
+    mapping(uint256 => uint256) private _trailingAnchorPrice;
+
+    uint256[19] private __gap;
 
     modifier noFlashLoan() {
         (_lastGlobalInteractionBlock, _globalBlockInteractions) = FlashLoanCheck.validateFlashLoan(
@@ -162,12 +183,17 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         _;
     }
 
-    /// @notice For new risk-increasing orders: circuit breaker, protocol health, and large-size rate limit (internal precision).
+    /// @notice For new risk-increasing orders: circuit breaker, protocol health, and large-size rate-limit *check* (no write).
+    /// @dev The rate-limit budget is now CHECKED at order creation
+    ///      and CONSUMED only at execution against `order.account`. Previously,
+    ///      both creation and execution wrote `_lastLargeActionTime[trader]`,
+    ///      collapsing throughput for legitimate users.
     modifier gateNewIncreaseOrder(DataTypes.OrderType orderType, address market, uint256 sizeDelta) {
         if (orderType == DataTypes.OrderType.MARKET_INCREASE || orderType == DataTypes.OrderType.LIMIT_INCREASE) {
             if (!oracleAggregator.isActionAllowed(market, 0)) revert BreakerActive();
             if (!protocolHealth.isHealthy) revert ProtocolUnhealthy();
-            RateLimitLib.checkAndUpdate(
+            RateLimitLib.checkOnly(
+                msg.sender,
                 DataTypes.toInternalPrecision(sizeDelta),
                 DataTypes.toInternalPrecision(largeActionThreshold),
                 largeActionInterval,
@@ -233,7 +259,6 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         maxOracleUncertainty = 8e17;
         minPositionDuration = 120;
         maxActionsPerBlock = 10;
-
         minExecutionFee = 0.005 ether;
         maxPositionsPerUser = 50;
         minInteractionDelay = 2;
@@ -243,6 +268,9 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         dustAccumulator.sweepThreshold = DataTypes.DUST_THRESHOLD;
         dustAccumulator.lastSweepTimestamp = block.timestamp;
         _nextOrderId = 1;
+        // Default initialization for funding/liquidator floors.
+        maxFundingIntervals = DataTypes.MAX_FUNDING_INTERVALS;
+        minLiquidatorRewardUsdc = 10e6;
     }
 
     /// @notice Wire core external dependencies after deploy.
@@ -260,18 +288,78 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @param _calendar Market calendar (zero to disable).
     /// @param _dividendManager Dividend module (zero to disable).
     /// @param _complianceManager Compliance hook (zero to disable).
+    /// @dev First-time configuration (when all current pointers are
+    ///      zero) is allowed immediately. Any subsequent rotation requires
+    ///      `proposeRWAContracts` and a 48h timelock; the executing call must
+    ///      pass the same triple that was proposed.
     function setRWAContracts(
         address _calendar,
         address _dividendManager,
         address _complianceManager
     ) external onlyAdmin {
+        bool firstTimeConfig =
+            address(marketCalendar) == address(0) &&
+            address(dividendManager) == address(0) &&
+            address(complianceManager) == address(0);
+
+        if (firstTimeConfig) {
+            // initial wire-up: set immediately, no timelock required.
+            marketCalendar = IMarketCalendar(_calendar);
+            dividendManager = IDividendManager(_dividendManager);
+            complianceManager = IComplianceManager(_complianceManager);
+            emit RWAContractsApplied(_calendar, _dividendManager, _complianceManager);
+            return;
+        }
+        // Subsequent rotations: enforce timelock and exact-match against staged proposal.
+        if (
+            _calendar != _pendingRWACalendar ||
+            _dividendManager != _pendingRWADividendManager ||
+            _complianceManager != _pendingRWACompliance
+        ) revert PendingRWAMismatch();
+        if (_pendingRWAEffective == 0 || block.timestamp < _pendingRWAEffective) revert RWATimelockActive();
+
         marketCalendar = IMarketCalendar(_calendar);
         dividendManager = IDividendManager(_dividendManager);
         complianceManager = IComplianceManager(_complianceManager);
+
+        delete _pendingRWACalendar;
+        delete _pendingRWADividendManager;
+        delete _pendingRWACompliance;
+        delete _pendingRWAEffective;
+
+        emit RWAContractsApplied(_calendar, _dividendManager, _complianceManager);
     }
+
+    /// @notice Stage an RWA-contract rotation. Takes effect 48h later via `setRWAContracts`.
+    /// @dev The triple is staged in storage; subsequent calls overwrite.
+    function proposeRWAContracts(
+        address _calendar,
+        address _dividendManager,
+        address _complianceManager
+    ) external onlyAdmin {
+        _pendingRWACalendar = _calendar;
+        _pendingRWADividendManager = _dividendManager;
+        _pendingRWACompliance = _complianceManager;
+        _pendingRWAEffective = block.timestamp + RWA_TIMELOCK;
+        emit RWAContractsProposed(_calendar, _dividendManager, _complianceManager, _pendingRWAEffective);
+    }
+
+    /// @notice Read the staged RWA-contract rotation, if any.
+    function pendingRWAContracts()
+        external
+        view
+        returns (address calendar, address dividendManagerAddr, address complianceManagerAddr, uint256 effective)
+    {
+        return (_pendingRWACalendar, _pendingRWADividendManager, _pendingRWACompliance, _pendingRWAEffective);
+    }
+
+    uint256 private constant MAX_MARKET_ID_BYTES = 32;
+
+    error MarketIdTooLong();
 
     /// @notice Map a market contract to a calendar `marketId` string used by `IMarketCalendar`.
     function setMarketId(address market, string memory marketId) external onlyOperator {
+        if (bytes(marketId).length > MAX_MARKET_ID_BYTES) revert MarketIdTooLong();
         marketIds[market] = marketId;
     }
 
@@ -301,6 +389,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
                 address(positionToken),
                 treasury,
                 address(vaultCore),
+                address(this),
                 liquidationTiers,
                 liquidationDeviationBps
             );
@@ -340,9 +429,9 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             _markets,
             _isMarketActive,
             _activeMarkets,
-            MAX_ACTIVE_MARKETS
+            MAX_ACTIVE_MARKETS,
+            _fundingStates
         );
-        emit MarketUpdated(m, maxLev, maxPos, maxExp);
     }
 
     /// @notice Update parameters for an already-listed market.
@@ -368,7 +457,6 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             maxOracleUncertainty,
             _markets
         );
-        emit MarketUpdated(m, maxLev, maxPos, maxExp);
     }
 
     /// @notice Remove a market from the active tradable set.
@@ -392,18 +480,30 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         uint256 _mue,
         uint256 _mpd
     ) external onlyAdmin {
-        if (_uvl > 0) userDailyVolumeLimit = _uvl;
-        if (_gvl > 0) globalDailyVolumeLimit = _gvl;
+        // bounded ranges to prevent fat-finger admin actions.
+        if (_uvl > 0) {
+            if (_uvl < 1_000e6 || _uvl > 1_000_000_000e6) revert TradingLib.InvalidOrder();
+            userDailyVolumeLimit = _uvl;
+        }
+        if (_gvl > 0) {
+            if (_gvl < userDailyVolumeLimit) revert TradingLib.InvalidOrder();
+            globalDailyVolumeLimit = _gvl;
+        }
         if (_lat > 0) largeActionThreshold = _lat;
-        if (_lai > 0) largeActionInterval = _lai;
+        if (_lai > 0) {
+            if (_lai > 24 hours) revert TradingLib.InvalidOrder();
+            largeActionInterval = _lai;
+        }
         if (_mue > 0) maxUserExposure = _mue;
         if (_mpd >= 30 && _mpd <= 3600) minPositionDuration = _mpd;
     }
 
     /// @notice Allow or disallow an ERC2771-style trusted forwarder for `msg.sender` resolution.
+    /// @dev Emits `TrustedForwarderUpdated` for off-chain monitoring.
     function setTrustedForwarder(address forwarder, bool trusted) external onlyAdmin {
         if (forwarder == address(0)) revert ZeroAddress();
         trustedForwarders[forwarder] = trusted;
+        emit TrustedForwarderUpdated(forwarder, trusted);
     }
 
     /// @inheritdoc ITradingCore
@@ -423,7 +523,8 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
                 _positions,
                 _positionCollateral,
                 _markets,
-                _userExposure
+                _userExposure,
+                protocolHealth
             );
     }
 
@@ -438,6 +539,8 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         DataTypes.Position storage pos = _positions[id];
         _requireComplianceAndMarketOpen(pos.market);
         settlePositionFunding(id);
+        // Bound percent to PRECISION (100%) to avoid underflow on rem and unbounded close size.
+        if (pct > PRECISION) pct = PRECISION;
         uint256 sz = (uint256(pos.size) * pct) / PRECISION;
         uint256 rem = uint256(pos.size) - sz;
         if (rem > 0 && rem < DataTypes.toInternalPrecision(minPositionSize)) revert PositionTooSmall();
@@ -450,7 +553,8 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
                 _positions,
                 _positionCollateral,
                 _markets,
-                _userExposure
+                _userExposure,
+                protocolHealth
             );
     }
 
@@ -478,8 +582,24 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     /// @inheritdoc ITradingCore
     function liquidatePosition(uint256 id) external nonReentrant whenNotPaused onlyLiquidator returns (uint256 reward) {
+        // liquidations must respect market session hours; OracleAggregator widens
+        // staleness to 4 days when the market is closed, so a stale-price liquidation could
+        // otherwise be forced over weekends/holidays. Guardians may liquidate during halts to
+        // wind down positions in true emergencies (still subject to oracle deviation checks).
+        DataTypes.Position storage liqPos = _positions[id];
+        if (!hasRole(GUARDIAN_ROLE, msg.sender)) {
+            _checkMarketOpen(liqPos.market);
+        }
         settlePositionFunding(id);
-        reward = TradingLib.liquidatePosition(id, _liqCtx(), _positions, _positionCollateral, _markets, _userExposure);
+        reward = TradingLib.liquidatePosition(
+            id,
+            _liqCtx(),
+            _positions,
+            _positionCollateral,
+            _markets,
+            _userExposure,
+            protocolHealth
+        );
     }
 
     /// @notice Guardian/admin path to clear a recorded failed repayment after backstop resolution.
@@ -531,7 +651,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     /// @inheritdoc ITradingCore
-    function setStopLoss(uint256 id, uint256 sl) external nonReentrant {
+    function setStopLoss(uint256 id, uint256 sl) external nonReentrant whenNotPaused {
         PositionTriggersLib.setStopLoss(
             id,
             sl,
@@ -543,7 +663,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     /// @inheritdoc ITradingCore
-    function setTakeProfit(uint256 id, uint256 tp) external nonReentrant {
+    function setTakeProfit(uint256 id, uint256 tp) external nonReentrant whenNotPaused {
         PositionTriggersLib.setTakeProfit(
             id,
             tp,
@@ -555,18 +675,25 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     /// @inheritdoc ITradingCore
-    function setTrailingStop(uint256 id, uint256 bps) external nonReentrant {
+    function setTrailingStop(uint256 id, uint256 bps) external nonReentrant whenNotPaused {
         PositionTriggersLib.setTrailingStop(id, bps, MAX_TRAILING_BPS, address(positionToken), _positions);
+        if (bps == 0) {
+            delete _trailingAnchorPrice[id];
+        } else {
+            DataTypes.Position storage p = _positions[id];
+            (uint256 price, , ) = oracleAggregator.getPrice(p.market);
+            _trailingAnchorPrice[id] = price;
+        }
     }
 
     /// @inheritdoc ITradingCore
-    function addCollateral(uint256 id, uint256 amt, uint256 maxLev, bool emg) external nonReentrant {
+    function addCollateral(uint256 id, uint256 amt, uint256 maxLev, bool emg) external nonReentrant whenNotPaused {
         _validateOwner(id);
         TradingLib.addCollateral(id, amt, maxLev, emg, _collateralCtx(), _positions, _positionCollateral, _markets);
     }
 
     /// @inheritdoc ITradingCore
-    function withdrawCollateral(uint256 id, uint256 amt) external nonReentrant checkProtocolHealth {
+    function withdrawCollateral(uint256 id, uint256 amt) external nonReentrant whenNotPaused checkProtocolHealth {
         _validateOwner(id);
         TradingLib.withdrawCollateral(id, amt, _collateralCtx(), _positions, _positionCollateral, _markets);
     }
@@ -615,8 +742,9 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @inheritdoc ITradingCore
     function executeOrder(
         uint256 orderId,
-        bytes[] calldata
-    ) external nonReentrant onlyRole(KEEPER_ROLE) checkBreakersForOrder(orderId) {
+        bytes[] calldata priceUpdateData
+    ) external payable nonReentrant whenNotPaused onlyRole(KEEPER_ROLE) checkBreakersForOrder(orderId) {
+        TradingLib.applyPythUpdateAndRefund(address(oracleAggregator), priceUpdateData, msg.value, msg.sender);
         DataTypes.Order storage order = _orders[orderId];
         if (order.account != address(0)) {
             bool openingIncrease = (order.orderType == DataTypes.OrderType.MARKET_INCREASE ||
@@ -624,6 +752,21 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             if (openingIncrease && !protocolHealth.isHealthy) revert ProtocolUnhealthy();
             if (openingIncrease && _userPositions[order.account].length >= maxPositionsPerUser) {
                 revert TradingLib.MaxPositionsExceeded();
+            }
+            // Enforce the large-action rate-limit ONCE, here at fill
+            //             time, against the *order owner* (not msg.sender, who
+            //             is the keeper). This replaces the previous double-
+            //             charge between `gateNewIncreaseOrder` and the inline
+            //             check below.
+            if (openingIncrease && largeActionThreshold > 0) {
+                RateLimitLib.checkAndUpdateFor(
+                    order.account,
+                    order.sizeDelta, // USDC precision; threshold is also USDC precision
+                    largeActionThreshold,
+                    largeActionInterval,
+                    block.timestamp,
+                    _lastLargeActionTime
+                );
             }
         }
         if (
@@ -636,7 +779,13 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         (uint256 positionId, uint256 orderIdOut, uint256 executionFee, bool isIncrease) = TradingLib.executeOrderFull(
             orderId,
             address(oracleAggregator),
-            maxOracleUncertainty,
+            TradingLib.OrderRiskParams({
+                maxOracleUncertainty: maxOracleUncertainty,
+                minPositionSize: minPositionSize,
+                maxUserExposure: maxUserExposure,
+                userDailyVolumeLimit: userDailyVolumeLimit,
+                globalDailyVolumeLimit: globalDailyVolumeLimit
+            }),
             address(usdc),
             address(vaultCore),
             address(positionToken),
@@ -651,7 +800,10 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             nextPositionId,
             dividendManager,
             marketIds,
-            positionDividendIndex
+            positionDividendIndex,
+            _userDailyVolume,
+            _globalDailyVolume,
+            protocolHealth
         );
         if (isIncrease) nextPositionId++;
         if (executionFee > 0) _keeperFeeBalance[msg.sender] += executionFee;
@@ -665,7 +817,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     /// @inheritdoc ITradingCore
-    function cancelOrder(uint256 orderId) external nonReentrant {
+    function cancelOrder(uint256 orderId) external nonReentrant whenNotPaused {
         TradingLib.cancelOrder(orderId, msg.sender, usdc, _orders, _orderRefundBalance, _orderCollateralRefundBalance);
     }
 
@@ -728,8 +880,9 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     /// @inheritdoc ITradingCore
     function getPositionPnL(uint256 id) external view returns (int256 pnl, uint256 hf) {
-        if (tradingViews == address(0)) revert Unauthorized();
-        return ITradingCoreViewsQueries(tradingViews).getPositionPnL(this, id);
+        address v = tradingViews;
+        if (v == address(0)) revert Unauthorized();
+        return ITradingCoreViewsQueries(v).getPositionPnL(this, id);
     }
 
     /// @inheritdoc ITradingCore
@@ -749,8 +902,9 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     /// @inheritdoc ITradingCore
     function canLiquidate(uint256 id) external view returns (bool, uint256 hf) {
-        if (tradingViews == address(0)) revert Unauthorized();
-        return ITradingCoreViewsQueries(tradingViews).canLiquidate(this, id);
+        address v = tradingViews;
+        if (v == address(0)) revert Unauthorized();
+        return ITradingCoreViewsQueries(v).canLiquidate(this, id);
     }
 
     /// @notice Remove stale closed-position ids from `u`'s enumeration (self-serve or admin with higher cap).
@@ -771,27 +925,26 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         uint256 mid,
         uint256 ldb
     ) external onlyAdmin {
-        if (mps > 0) {
-            minPositionSize = mps;
-        }
+        // bounded ranges.
+        if (mps > 0) minPositionSize = mps;
         if (mou > 0) {
+            if (mou > 1e18) revert TradingLib.InvalidOrder(); // confidence is a fraction up to 100%.
             maxOracleUncertainty = mou;
         }
         if (mab > 0) {
+            if (mab > 1000) revert TradingLib.InvalidOrder();
             maxActionsPerBlock = mab;
         }
-        if (mef > 0) {
-            minExecutionFee = mef;
-        }
+        if (mef > 0) minExecutionFee = mef;
         if (mpp > 0) {
+            if (mpp > 500) revert TradingLib.InvalidOrder();
             maxPositionsPerUser = mpp;
         }
         if (mid > 0) {
+            if (mid > 1 hours) revert TradingLib.InvalidOrder();
             minInteractionDelay = mid;
         }
-        if (ldb >= 100 && ldb <= 5000) {
-            liquidationDeviationBps = ldb;
-        }
+        if (ldb >= 100 && ldb <= 5000) liquidationDeviationBps = ldb;
     }
 
     /// @notice Send sub-threshold dust balances to `treasury` per `DustLib` rules.
@@ -799,15 +952,43 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         DustLib.sweepDust(usdc, treasury, dustAccumulator);
     }
 
-    /// @notice Keeper hook to refresh `protocolHealth` from current vault TVL.
+    /// @notice Configurable funding-interval cap, bounded sanely.
+    /// @param cap New cap, in 8-hour intervals. Bounded `[1, 240]` (10x default).
+    function setMaxFundingIntervals(uint256 cap) external onlyAdmin {
+        if (cap == 0 || cap > DataTypes.MAX_FUNDING_INTERVALS * 10) revert InvalidParam();
+        maxFundingIntervals = cap;
+    }
+
+    /// @notice Configurable absolute liquidator-reward floor (USDC).
+    /// @dev When a liquidation pays less than this, `LiquidatorRewardCapped` is
+    ///      emitted but the liquidation still proceeds; this is informational only.
+    function setMinLiquidatorRewardUsdc(uint256 floorUsdc) external onlyAdmin {
+        // Bounded `[0, 1000e6]` USDC. Zero disables the warning event.
+        if (floorUsdc > 1000e6) revert InvalidParam();
+        minLiquidatorRewardUsdc = floorUsdc;
+        emit LiquidatorRewardFloorUpdated(2500, floorUsdc); // BPS floor unchanged in code today
+    }
+
+    /// @notice Force-settle funding for a market using the admin-tunable interval cap.
+    /// @dev Lets a guardian catch up a long-dormant market without an upgrade.
+    function forceSettleFunding(address market) external onlyGuardian whenNotPaused {
+        FundingLib.settleFundingWithCap(_fundingStates[market], _markets[market], market, maxFundingIntervals);
+    }
+
+    /// @notice Keeper hook to refresh `protocolHealth` from current vault TVL (: nets insurance).
     function updateProtocolHealth() external onlyRole(KEEPER_ROLE) {
-        HealthLib.updateProtocolHealth(vaultCore.totalAssets(), protocolHealth);
+        HealthLib.updateProtocolHealthWithInsurance(
+            vaultCore.totalAssets(),
+            vaultCore.insuranceAssets(),
+            protocolHealth
+        );
     }
 
     /// @inheritdoc ITradingCore
     function getGlobalUnrealizedPnL() external view returns (int256 totalPnL) {
-        if (tradingViews == address(0)) revert Unauthorized();
-        return ITradingCoreViewsQueries(tradingViews).getGlobalUnrealizedPnL(this);
+        address v = tradingViews;
+        if (v == address(0)) revert Unauthorized();
+        return ITradingCoreViewsQueries(v).getGlobalUnrealizedPnL(this);
     }
 
     function _validateOwner(uint256 id) internal view returns (DataTypes.Position storage p) {
@@ -821,8 +1002,13 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice Keeper batch: close positions whose stop-loss / take-profit / trailing conditions are met.
     /// @return count Number of positions successfully processed (implementation-defined semantics).
     function executeStopLossTakeProfit(
-        uint256[] calldata positionIds
-    ) external nonReentrant whenNotPaused onlyRole(KEEPER_ROLE) returns (uint256) {
+        uint256[] calldata positionIds,
+        bytes[] calldata priceUpdateData
+    ) external payable nonReentrant whenNotPaused onlyRole(KEEPER_ROLE) returns (uint256) {
+        TradingLib.applyPythUpdateAndRefund(address(oracleAggregator), priceUpdateData, msg.value, msg.sender);
+        // trigger closes must use a fresh in-session price; per-position market-open
+        // checks happen inside the library to allow mixed-market batches to skip closed markets
+        // gracefully instead of reverting the entire batch.
         return
             TradingLib.executeStopLossTakeProfit(
                 positionIds,
@@ -836,7 +1022,10 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
                 _positionCumulativeFunding,
                 positionDividendIndex,
                 marketIds,
-                dividendManager
+                dividendManager,
+                protocolHealth,
+                address(marketCalendar),
+                _trailingAnchorPrice
             );
     }
 
@@ -847,6 +1036,17 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         returns (bool isHealthy, uint256 totalBadDebt, uint64 lastHealthCheck)
     {
         return (protocolHealth.isHealthy, protocolHealth.totalBadDebt, protocolHealth.lastHealthCheck);
+    }
+
+    /// @notice Admin path to write down the bad-debt counter once losses are externally covered .
+    /// @dev Only ever decrements; never increments. Use after insurance replenishment / surplus accrual.
+    function writeDownBadDebt(uint256 amountInternalPrecision) external onlyAdmin {
+        if (amountInternalPrecision >= protocolHealth.totalBadDebt) {
+            protocolHealth.totalBadDebt = 0;
+        } else {
+            protocolHealth.totalBadDebt -= amountInternalPrecision;
+        }
+        protocolHealth.lastHealthCheck = uint64(block.timestamp);
     }
 
     /// @notice Reverts with `InsufficientOracleSources` when the oracle has no healthy configured source for `market`.

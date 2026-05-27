@@ -5,6 +5,7 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "../interfaces/IComplianceManager.sol";
+import "../libraries/DataTypes.sol";
 
 /**
  * @title AllowListCompliance
@@ -13,15 +14,19 @@ import "../interfaces/IComplianceManager.sol";
 contract AllowListCompliance is Initializable, AccessControlUpgradeable, UUPSUpgradeable, IComplianceManager {
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
+    error BatchSizeExceeded();
+
     mapping(address => bool) public isWhitelisted;
     mapping(address => bool) public userCountryBlocked;
 
     event UserWhitelisted(address indexed user, bool status);
+    event WhitelistBatchUpdated(address[] users, bool status);
     event UserCountryBlockUpdated(address indexed user, bool blocked);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-        /* _disableInitializers(); */
+        // lock implementation initializers.
+        _disableInitializers();
     }
 
     function initialize(address admin) public initializer {
@@ -40,10 +45,14 @@ contract AllowListCompliance is Initializable, AccessControlUpgradeable, UUPSUpg
     }
 
     function batchSetWhitelist(address[] calldata users, bool status) external onlyRole(MANAGER_ROLE) {
-        for (uint256 i = 0; i < users.length; i++) {
+        if (users.length > DataTypes.MAX_BATCH_SIZE) revert BatchSizeExceeded();
+        for (uint256 i = 0; i < users.length; ) {
             isWhitelisted[users[i]] = status;
-            emit UserWhitelisted(users[i], status);
+            unchecked {
+                ++i;
+            }
         }
+        emit WhitelistBatchUpdated(users, status);
     }
 
     function setUserCountryBlocked(address user, bool blocked) external onlyRole(MANAGER_ROLE) {

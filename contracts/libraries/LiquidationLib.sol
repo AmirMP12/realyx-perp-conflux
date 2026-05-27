@@ -10,6 +10,7 @@ import "../interfaces/ITradingCore.sol";
 import "./DataTypes.sol";
 import "./PositionMath.sol";
 import "./FeeCalculator.sol";
+import "./Events.sol"; // shared LiquidatorRewardCapped event
 
 /**
  * @title LiquidationLib
@@ -22,6 +23,10 @@ library LiquidationLib {
     uint256 private constant PRECISION = 1e18;
     uint256 private constant BPS = 10000;
     uint256 private constant TWAP_WINDOW_SECONDS = 15 minutes;
+    /// @dev Kept as the "expected" floor used to emit
+    ///      `LiquidatorRewardCapped` when actual reward is below it. NO LONGER
+    ///      causes the liquidation to revert. Liquidations always proceed; the
+    ///      shortfall is recorded via `recordFailedRepayment`.
     uint256 private constant MIN_LIQUIDATOR_REWARD_BPS = 2500;
     uint256 private constant MAX_LIQUIDATION_PRICE_DEVIATION_BPS = 1000;
 
@@ -34,6 +39,7 @@ library LiquidationLib {
         address positionToken;
         address treasury;
         address insuranceFund;
+        address tradingCore;
         DataTypes.LiquidationFeeTiers liquidationTiers;
         uint256 liquidationDeviationBps;
     }
@@ -51,7 +57,8 @@ library LiquidationLib {
         mapping(uint256 => DataTypes.Position) storage positions,
         mapping(uint256 => DataTypes.PositionCollateral) storage positionCollateral,
         mapping(address => DataTypes.Market) storage /* markets */,
-        mapping(address => uint256) storage userExposure
+        mapping(address => uint256) storage userExposure,
+        DataTypes.ProtocolHealthState storage protocolHealth
     ) external returns (uint256 liquidatorReward) {
         DataTypes.Position storage position = positions[positionId];
         if (position.state != DataTypes.PosStatus.OPEN) revert PositionNotFound();
@@ -100,23 +107,61 @@ library LiquidationLib {
         uint256 availableUsdc = collateralUsdc + repayAmountUsdc;
         uint256 totalRequired = receiveAmount + totalNeededUsdc;
         uint256 insuranceAmountUsdc = insFeeUsdc;
+        int256 pnlUsdc = pnl >= 0
+            ? int256(DataTypes.toUsdcPrecision(uint256(pnl)))
+            : -int256(DataTypes.toUsdcPrecisionCeil(uint256(-pnl)));
 
         if (availableUsdc < totalRequired) {
             uint256 shortfall = totalRequired - availableUsdc;
-            uint256 covered = IVaultCore(ctx.insuranceFund).coverBadDebt(shortfall, positionId);
+            uint256 covered;
+            try IVaultCore(ctx.insuranceFund).coverBadDebt(shortfall, positionId) returns (uint256 c) {
+                covered = c;
+            } catch {
+                covered = 0;
+            }
+
+            if (covered > 0) {
+                // Track aggregate insurance-paid bad debt against protocol health .
+                protocolHealth.totalBadDebt += DataTypes.toInternalPrecision(covered);
+            }
 
             if (covered < shortfall) {
                 uint256 actualAvailable = availableUsdc + covered;
-                if (actualAvailable < receiveAmount) revert InsufficientLiquidityForRepayment();
 
-                uint256 remainingForFees = actualAvailable - receiveAmount;
-                if (remainingForFees >= liqFeeUsdc) {
-                    liquidatorReward = liqFeeUsdc;
-                    insuranceAmountUsdc = remainingForFees - liqFeeUsdc;
-                } else {
-                    liquidatorReward = remainingForFees;
+                // Audit H-01 fix: when insurance + collateral cannot cover the
+                // full repayment, repay the vault with what's available, record
+                // the residual via `recordFailedRepayment`, and still close the
+                // position. Previously the revert at this point created a
+                // stuck-position deadlock that inflated OI accounting and
+                // prevented any resolution.
+                if (actualAvailable < receiveAmount) {
+                    receiveAmount = actualAvailable;
+                    liquidatorReward = 0;
                     insuranceAmountUsdc = 0;
-                    emit InsufficientBalanceForLiquidation(positionId, totalNeededUsdc, remainingForFees);
+
+                    {
+                        uint256 residual = totalRequired - (availableUsdc + covered);
+                        emit InsufficientBalanceForLiquidation(positionId, totalNeededUsdc, actualAvailable);
+                        // M-01 fix: record the residual as a failed repayment so
+                        // governance / tooling can track and resolve the shortfall later.
+                        ITradingCore(ctx.tradingCore).recordFailedRepayment(
+                            positionId,
+                            residual,
+                            position.market,
+                            isLong,
+                            pnlUsdc
+                        );
+                    }
+                } else {
+                    uint256 remainingForFees = actualAvailable - receiveAmount;
+                    if (remainingForFees >= liqFeeUsdc) {
+                        liquidatorReward = liqFeeUsdc;
+                        insuranceAmountUsdc = remainingForFees - liqFeeUsdc;
+                    } else {
+                        liquidatorReward = remainingForFees;
+                        insuranceAmountUsdc = 0;
+                        emit InsufficientBalanceForLiquidation(positionId, totalNeededUsdc, remainingForFees);
+                    }
                 }
             } else {
                 liquidatorReward = liqFeeUsdc;
@@ -130,10 +175,6 @@ library LiquidationLib {
         address self = address(this);
         if (IERC20(ctx.usdc).balanceOf(self) < receiveAmount) revert InsufficientLiquidityForRepayment();
 
-        int256 pnlUsdc = pnl >= 0
-            ? int256(DataTypes.toUsdcPrecision(uint256(pnl)))
-            : -int256(DataTypes.toUsdcPrecisionCeil(uint256(-pnl)));
-
         IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
         IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, receiveAmount);
         try IVaultCore(ctx.liquidityVault).repay(repayAmountUsdc, position.market, isLong, pnlUsdc) {} catch {
@@ -143,9 +184,21 @@ library LiquidationLib {
         IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
 
         uint256 minExpectedRewardUsdc = (liqFeeUsdc * MIN_LIQUIDATOR_REWARD_BPS) / BPS;
-        uint256 absoluteMin = 10e6;
-        if (liquidatorReward < minExpectedRewardUsdc || (liquidatorReward > 0 && liquidatorReward < absoluteMin)) {
-            revert InsufficientLiquidatorReward();
+        // Previously, low rewards reverted the entire liquidation,
+        //             leaving underwater positions stuck and growing bad debt.
+        //             Liquidations now ALWAYS proceed. When the actual reward
+        //             is below the floor we emit `LiquidatorRewardCapped` so
+        //             keepers can decide whether to skip economically — but the
+        //             position still closes and the protocol stays solvent.
+        if (liquidatorReward < minExpectedRewardUsdc) {
+            uint256 shortfall = minExpectedRewardUsdc - liquidatorReward;
+            emit LiquidatorRewardCapped(
+                positionId,
+                msg.sender,
+                liquidatorReward,
+                minExpectedRewardUsdc,
+                shortfall
+            );
         }
 
         if (liquidatorReward > 0) {

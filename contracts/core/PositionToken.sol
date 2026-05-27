@@ -12,7 +12,10 @@ import "../interfaces/ITradingCore.sol";
 /**
  * @title PositionToken
  * @notice ERC721 token representing trading positions
- * @dev Implements IPositionToken with transfer hooks for exposure tracking
+ * @dev Implements IPositionToken with transfer hooks for exposure tracking.
+ *      Transfer fees are intentionally unsupported (`setTransferFee` only accepts `0`);
+ *      `feeRecipient` / timelock machinery is retained for future upgrades but inactive while fees are zero.
+ *      `_update` forwards raw revert data from `tradingCore.updatePositionOwner` — trust `tradingCore` as admin-set.
  */
 contract PositionToken is ERC721Upgradeable, AccessControlUpgradeable, UUPSUpgradeable, ReentrancyGuardUpgradeable {
     using Strings for uint256;
@@ -27,6 +30,8 @@ contract PositionToken is ERC721Upgradeable, AccessControlUpgradeable, UUPSUpgra
     error TransferFeeNotSupported();
     error TradingCoreUpdateFailed(string reason);
     error PositionOwnershipUpdateFailed();
+    error PendingMismatch();
+    error TimelockActive();
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
@@ -47,7 +52,14 @@ contract PositionToken is ERC721Upgradeable, AccessControlUpgradeable, UUPSUpgra
 
     mapping(address => bool) public whitelistedContracts;
 
-    uint256[43] private __gap;
+    // 48h admin timelocks for fee recipient and base URI.
+    uint256 private constant ADMIN_TIMELOCK = 48 hours;
+    address private _pendingFeeRecipient;
+    uint256 private _pendingFeeRecipientEffective;
+    bytes32 private _pendingBaseURIHash;
+    uint256 private _pendingBaseURIEffective;
+
+    uint256[39] private __gap;
 
     event PositionTokenMinted(address indexed to, uint256 indexed tokenId, address indexed market, bool isLong);
     event PositionTokenBurned(uint256 indexed tokenId);
@@ -55,6 +67,8 @@ contract PositionToken is ERC721Upgradeable, AccessControlUpgradeable, UUPSUpgra
     event TradingCoreUpdated(address indexed newTradingCore);
     event TransferFeeUpdated(uint256 oldFee, uint256 newFee);
     event FeeRecipientUpdated(address indexed oldRecipient, address indexed newRecipient);
+    event FeeRecipientProposed(address indexed pending, uint256 effective);
+    event BaseURIProposed(string newBaseURI, uint256 effective);
     event TransferFeeCollected(uint256 indexed tokenId, address indexed from, address indexed to, uint256 fee);
     event OwnershipUpdateFailed(uint256 indexed tokenId, address indexed from, address indexed to);
 
@@ -85,6 +99,7 @@ contract PositionToken is ERC721Upgradeable, AccessControlUpgradeable, UUPSUpgra
         emit TradingCoreUpdated(_tradingCore);
     }
 
+    /// @notice Transfer fees are not supported in this deployment; only `0` is accepted.
     function setTransferFee(uint256 feeBps) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (feeBps > MAX_FEE_BPS) revert InvalidFee();
         if (feeBps > 0) revert TransferFeeNotSupported();
@@ -95,14 +110,36 @@ contract PositionToken is ERC721Upgradeable, AccessControlUpgradeable, UUPSUpgra
 
     function setFeeRecipient(address recipient) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (recipient == address(0)) revert ZeroAddress();
+        // stage with timelock to mitigate single-key compromise.
+        if (recipient != _pendingFeeRecipient) revert PendingMismatch();
+        if (block.timestamp < _pendingFeeRecipientEffective) revert TimelockActive();
         address oldRecipient = feeRecipient;
         feeRecipient = recipient;
+        delete _pendingFeeRecipient;
+        delete _pendingFeeRecipientEffective;
         emit FeeRecipientUpdated(oldRecipient, recipient);
     }
 
+    function proposeFeeRecipient(address recipient) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (recipient == address(0)) revert ZeroAddress();
+        _pendingFeeRecipient = recipient;
+        _pendingFeeRecipientEffective = block.timestamp + ADMIN_TIMELOCK;
+        emit FeeRecipientProposed(recipient, _pendingFeeRecipientEffective);
+    }
+
     function setBaseURI(string memory newBaseURI) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (keccak256(abi.encodePacked(newBaseURI)) != _pendingBaseURIHash) revert PendingMismatch();
+        if (block.timestamp < _pendingBaseURIEffective) revert TimelockActive();
         baseTokenURI = newBaseURI;
+        delete _pendingBaseURIHash;
+        delete _pendingBaseURIEffective;
         emit BaseURIUpdated(newBaseURI);
+    }
+
+    function proposeBaseURI(string calldata newBaseURI) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _pendingBaseURIHash = keccak256(abi.encodePacked(newBaseURI));
+        _pendingBaseURIEffective = block.timestamp + ADMIN_TIMELOCK;
+        emit BaseURIProposed(newBaseURI, _pendingBaseURIEffective);
     }
 
     function _checkNotContract(address to) private view {
@@ -166,10 +203,19 @@ contract PositionToken is ERC721Upgradeable, AccessControlUpgradeable, UUPSUpgra
     ) internal virtual override nonReentrant returns (address from) {
         from = _ownerOf(tokenId);
         if (from != address(0) && to != address(0) && tradingCore != address(0)) {
+            // Preserve panic data so the user-facing revert can show
+            // meaningful diagnostics for overflow/division-by-zero.
             try ITradingCore(tradingCore).updatePositionOwner(tokenId, to, from) {} catch Error(string memory reason) {
                 revert TradingCoreUpdateFailed(reason);
-            } catch {
-                revert PositionOwnershipUpdateFailed();
+            } catch (bytes memory data) {
+                if (data.length == 0) {
+                    revert PositionOwnershipUpdateFailed();
+                }
+                // Trust boundary: `tradingCore` is admin-configured. Forward raw
+                // revert data (custom errors / panic codes) verbatim for decoding.
+                assembly {
+                    revert(add(data, 32), mload(data))
+                }
             }
         }
         from = super._update(to, tokenId, auth);

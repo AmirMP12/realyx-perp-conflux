@@ -28,10 +28,12 @@ library TradingContextLib {
         address pt,
         address treasury,
         address insurance,
+        address tradingCore,
         DataTypes.LiquidationFeeTiers memory tiers,
         uint256 deviationBps
     ) external pure returns (TradingLib.LiquidatePositionContext memory) {
-        return TradingLib.LiquidatePositionContext(usdc_, vc, oa, pt, treasury, insurance, tiers, deviationBps);
+        return
+            TradingLib.LiquidatePositionContext(usdc_, vc, oa, pt, treasury, insurance, tradingCore, tiers, deviationBps);
     }
 
     function buildCollateralCtx(

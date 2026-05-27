@@ -273,7 +273,17 @@ Document each change (tx hash, old/new threshold) in your ops log.
 
 ---
 
-## 9. Links
+## 9. Audit / architecture notes (maintainers)
+
+- **Linked libraries** — `TradingCore` uses `unsafeAllowLinkedLibraries`; rotating a library is equivalent to a logic upgrade — document the change set and run full regression before mainnet.
+- **UUPS upgrades** — `_authorizeUpgrade` is `onlyAdmin` with no on-chain timelock; use a multisig + off-chain 48–72h hold before executing upgrades.
+- **TWAP warm-up** — Opens/closes/SL-TP need ≥ `MIN_TWAP_DATA_POINTS` (2) keeper `recordPricePoint` samples (~10 minutes at a 5-minute cadence). Pass `priceUpdateData` on `executeOrder` and `executeStopLossTakeProfit`.
+- **Insurance pool** — First stake must meet `minInitialInsuranceDeposit`; shares are 18-decimal scaled (see audit C-01).
+- **Test artifacts** — Do not deploy `contracts/test/*.sol` to production networks.
+
+---
+
+## 10. Links
 
 - Custom errors for UX: [ERROR_CATALOG.md](./ERROR_CATALOG.md)
 - Product & dev setup: [README.md](../README.md)
@@ -281,7 +291,7 @@ Document each change (tx hash, old/new threshold) in your ops log.
 
 ---
 
-## 10. Revision log (edit manually each deploy)
+## 11. Revision log (edit manually each deploy)
 
 | Date (UTC) | Network | Change | Tx / PR |
 |------------|---------|--------|---------|

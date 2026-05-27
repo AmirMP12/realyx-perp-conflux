@@ -11,19 +11,25 @@ import "../interfaces/IDividendManager.sol";
  * @notice Trusted keeper contract to trigger dividend distributions from off-chain sources.
  */
 contract DividendKeeper is Initializable, AccessControlUpgradeable, UUPSUpgradeable {
+    error ZeroAddress();
+
     bytes32 public constant DISTRIBUTOR_ROLE = keccak256("DISTRIBUTOR_ROLE");
     IDividendManager public dividendManager;
 
     event DividendTriggered(string indexed marketId, uint256 amountPerShare, address indexed keeper);
+    event DividendManagerUpdated(address indexed oldManager, address indexed newManager);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
-        /* _disableInitializers(); */
+        // lock implementation initializers.
+        _disableInitializers();
     }
 
     function initialize(address admin, address _dividendManager) public initializer {
         __AccessControl_init();
         __UUPSUpgradeable_init();
+
+        if (admin == address(0) || _dividendManager == address(0)) revert ZeroAddress();
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(DISTRIBUTOR_ROLE, admin);
@@ -38,6 +44,9 @@ contract DividendKeeper is Initializable, AccessControlUpgradeable, UUPSUpgradea
     }
 
     function setDividendManager(address _dividendManager) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_dividendManager == address(0)) revert ZeroAddress();
+        address old = address(dividendManager);
         dividendManager = IDividendManager(_dividendManager);
+        emit DividendManagerUpdated(old, _dividendManager);
     }
 }

@@ -16,6 +16,10 @@ library DataTypes {
     uint256 public constant MIN_LEVERAGE = 1;
 
     uint256 public constant FUNDING_INTERVAL = 8 hours;
+    /// @dev Default cap on funding intervals settled in a single `settleFunding` call.
+    ///      Overridable per-deployment via `TradingCore.setMaxFundingIntervals` so a
+    ///      market that has been paused or dormant for more than 8 days can be
+    ///      forcibly caught up by a guardian without requiring an upgrade.
     uint256 public constant MAX_FUNDING_INTERVALS = 24;
     uint256 public constant MIN_COMMIT_BLOCKS = 2;
     uint256 public constant FLASH_LOAN_INTERVAL = 30;
@@ -28,6 +32,8 @@ library DataTypes {
     uint256 public constant MAX_BATCH_SIZE = 50;
     uint256 public constant MIN_ORACLE_SOURCES = 1;
     uint256 public constant DUST_THRESHOLD = 10000 * DECIMAL_CONVERSION;
+    /// @dev Minimum TWAP samples before opens / triggers use the TWAP gate (2 × 5 min ≈ 10 min warm-up).
+    uint256 public constant MIN_TWAP_DATA_POINTS = 2;
 
     enum CollateralType {
         USDC
@@ -164,6 +170,7 @@ library DataTypes {
         uint256 requestTime;
         uint256 minAssets;
         bool processed;
+        uint256 reservationAmount;
     }
 
     struct FeeConfig {

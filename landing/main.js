@@ -12,15 +12,32 @@
 
   /* ── Mobile menu ─────────────────────────────────────────── */
   if (menuToggle) {
-    menuToggle.addEventListener('click', () => {
+    const closeMenu = () => {
+      if (header.classList.contains('header--open')) {
+        header.classList.remove('header--open');
+        menuToggle.setAttribute('aria-expanded', 'false');
+      }
+    };
+
+    menuToggle.addEventListener('click', (e) => {
+      e.stopPropagation();
       const open = header.classList.toggle('header--open');
       menuToggle.setAttribute('aria-expanded', open);
     });
-    document.querySelectorAll('.header__links a').forEach(a => {
-      a.addEventListener('click', () => {
-        header.classList.remove('header--open');
-        menuToggle.setAttribute('aria-expanded', 'false');
-      });
+    document.querySelectorAll('.header__links a, .header__nav-cta a').forEach(a => {
+      a.addEventListener('click', closeMenu);
+    });
+    /* Close on outside click */
+    document.addEventListener('click', (e) => {
+      if (!header.contains(e.target)) closeMenu();
+    });
+    /* Close on Escape */
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeMenu();
+    });
+    /* Close on resize to desktop */
+    window.addEventListener('resize', () => {
+      if (window.innerWidth >= 1024) closeMenu();
     });
   }
 

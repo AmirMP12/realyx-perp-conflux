@@ -27,6 +27,10 @@ library CleanupLib {
                 unchecked {
                     ++cleaned;
                 }
+                // NOTE: `i` is intentionally NOT advanced here.
+                //       The element just swapped into slot `i`
+                //       must be re-evaluated on the next loop
+                //                    iteration. Advancing would skip a record.
             } else {
                 unchecked {
                     ++i;

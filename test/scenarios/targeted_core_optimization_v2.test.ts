@@ -362,7 +362,7 @@ describe("Targeted Core Optimization Scenarios", function () {
         await expect(env.trading.connect(env.alice).resolveFailedRepayment(1)).to.be.reverted;
         await expect(env.trading.connect(env.alice).updatePositionOwner(1, env.alice.address, env.bob.address)).to.be.reverted;
         await expect(env.trading.connect(env.alice).updateProtocolHealth()).to.be.reverted;
-        await expect(env.trading.connect(env.alice).executeStopLossTakeProfit([1])).to.be.reverted;
+        await expect(env.trading.connect(env.alice).executeStopLossTakeProfit([1], [])).to.be.reverted;
 
         // tradingViews guards
         await env.trading.connect(env.admin).setTradingViews(ethers.ZeroAddress);
@@ -539,7 +539,7 @@ describe("Targeted Core Optimization Scenarios", function () {
         await time.increase(130);
         await pushPrice(env, feedId, 90n * 10n ** 8n);
         await env.usdc.mintTo(await env.trading.getAddress(), ethers.parseUnits("50000", 6));
-        await env.trading.connect(env.keeper).executeStopLossTakeProfit([1n]);
+        await env.trading.connect(env.keeper).executeStopLossTakeProfit([1n], []);
     });
 
     it("covers TradingLib resolveFailedRepayment success and failure branches", async function () {

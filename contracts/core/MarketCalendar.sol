@@ -14,8 +14,22 @@ contract MarketCalendar is Initializable, AccessControlUpgradeable, UUPSUpgradea
     error InvalidTime();
     error OpenMustBeBeforeClose();
     error InvalidDay();
+    /// @dev Refuse timestamps that would not fit in `int256` after
+    ///      timezone-offset application.
+    error TimestampOutOfRange();
+    /// @dev Refuse a config that would mark every weekday closed and
+    ///      all weekend days closed. Such a config makes `getNextOpenTime` return
+    ///      0 silently for a year of iterations and silently disables trading.
+    error AllDaysClosed();
+    /// @dev `getNextOpenTime` exhausted its 366-day lookahead without finding an open window.
+    error NoOpenWindow(string marketId, uint256 fromTimestamp);
 
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
+
+    /// @dev `int256(timestamp) + 14h` must remain representable. We bound to
+    ///      `uint64.max` (year 584,554,051,223) which is far past any realistic
+    ///      need and well inside `int256`'s positive range.
+    uint256 private constant MAX_VALID_TIMESTAMP = type(uint64).max;
 
     struct MarketConfig {
         uint16 openTime;
@@ -48,6 +62,8 @@ contract MarketCalendar is Initializable, AccessControlUpgradeable, UUPSUpgradea
     ) external onlyRole(MANAGER_ROLE) {
         if (openTime >= 1440 || closeTime >= 1440) revert InvalidTime();
         if (openTime >= closeTime && !is24x7) revert OpenMustBeBeforeClose();
+        // timezone offset is in minutes from UTC; valid window is roughly [-12h, +14h].
+        if (timezoneOffset < -720 || timezoneOffset > 840) revert InvalidTime();
 
         marketConfigs[marketId] = MarketConfig({
             openTime: openTime,
@@ -75,6 +91,22 @@ contract MarketCalendar is Initializable, AccessControlUpgradeable, UUPSUpgradea
     function setTradingDay(string memory marketId, uint8 dayOfWeek, bool isOpen) external onlyRole(MANAGER_ROLE) {
         if (dayOfWeek > 6) revert InvalidDay();
         tradingDays[marketId][dayOfWeek] = isOpen;
+        // Refuse to leave the calendar in a permanently-closed state
+        //             unless the market is also configured as `is24x7` (which is
+        //             handled by a separate `setMarketConfig` call). Otherwise
+        //             `getNextOpenTime` would silently return 0 and trading
+        //             would freeze for that market.
+        MarketConfig memory cfg = marketConfigs[marketId];
+        if (!cfg.is24x7) {
+            bool anyOpen;
+            for (uint8 i = 0; i <= 6; i++) {
+                if (tradingDays[marketId][i]) {
+                    anyOpen = true;
+                    break;
+                }
+            }
+            if (!anyOpen) revert AllDaysClosed();
+        }
     }
 
     function setHoliday(string memory marketId, uint256 dateYYYYMMDD, bool isHoliday) external onlyRole(MANAGER_ROLE) {
@@ -91,6 +123,8 @@ contract MarketCalendar is Initializable, AccessControlUpgradeable, UUPSUpgradea
         MarketConfig memory config = marketConfigs[marketId];
         if (!config.exists) return true;
         if (config.is24x7) return true;
+        // Reject timestamps that would push past int256 after offset.
+        if (timestamp > MAX_VALID_TIMESTAMP) revert TimestampOutOfRange();
 
         int256 adjustedTime = int256(timestamp) + (int256(config.timezoneOffset) * 60);
         if (adjustedTime < 0) return false;
@@ -128,6 +162,18 @@ contract MarketCalendar is Initializable, AccessControlUpgradeable, UUPSUpgradea
     function getNextOpenTime(string calldata marketId, uint256 fromTimestamp) external view override returns (uint256) {
         MarketConfig memory config = marketConfigs[marketId];
         if (!config.exists || config.is24x7) return fromTimestamp;
+        // Reject out-of-range timestamps before any int256 arithmetic.
+        if (fromTimestamp > MAX_VALID_TIMESTAMP) revert TimestampOutOfRange();
+        // If every day is closed, fail loudly instead of returning 0
+        //             after a 366-iteration loop.
+        bool anyOpen;
+        for (uint8 d = 0; d <= 6; d++) {
+            if (tradingDays[marketId][d]) {
+                anyOpen = true;
+                break;
+            }
+        }
+        if (!anyOpen) revert AllDaysClosed();
 
         int256 offsetSeconds = int256(config.timezoneOffset) * 60;
         int256 adjusted = int256(fromTimestamp) + offsetSeconds;
@@ -157,6 +203,6 @@ contract MarketCalendar is Initializable, AccessControlUpgradeable, UUPSUpgradea
             }
             localTs = ((localTs / 86400) + 1) * 86400;
         }
-        return 0;
+        revert NoOpenWindow(marketId, fromTimestamp);
     }
 }

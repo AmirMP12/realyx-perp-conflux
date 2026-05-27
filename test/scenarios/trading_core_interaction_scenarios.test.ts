@@ -83,6 +83,6 @@ describe("TradingCore Branch Wave", function () {
         const market = ethers.Wallet.createRandom().address;
 
         await env.trading.connect(env.admin).settleFunding(market);
-        await env.trading.connect(env.keeper).executeStopLossTakeProfit([]);
+        await env.trading.connect(env.keeper).executeStopLossTakeProfit([], []);
     });
 });

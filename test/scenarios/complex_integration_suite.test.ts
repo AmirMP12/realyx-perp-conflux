@@ -236,7 +236,7 @@ describe("Complex Integration Logic Scenarios", function () {
         await env.trading.connect(env.alice).setTrailingStop(1, 100);
 
         await pushPrice(env, feedId, 89n * 10n ** 8n, 1n);
-        await env.trading.connect(env.keeper).executeStopLossTakeProfit([1]);
+        await env.trading.connect(env.keeper).executeStopLossTakeProfit([1], []);
     });
 
     it("hits oracle confidence/twap/breaker/global pause branches", async function () {
@@ -277,10 +277,10 @@ describe("Complex Integration Logic Scenarios", function () {
         const KEEPER_ROLE = ethers.keccak256(ethers.toUtf8Bytes("KEEPER_ROLE"));
         await env.oracle.grantRole(KEEPER_ROLE, env.keeper.address);
         await pushPrice(env, feedId, 100n * 10n ** 8n, 1n);
-        await env.oracle.connect(env.keeper).recordPricePoint(market, 100n * 10n ** 18n);
-        await env.oracle.connect(env.keeper).recordPricePoint(market, 101n * 10n ** 18n); // too frequent => early return
+        await env.oracle.connect(env.keeper).recordPricePoint(market, 0);
+        await env.oracle.connect(env.keeper).recordPricePoint(market, 0); // too frequent => early return
         await time.increase(5 * 60 + 1);
-        await env.oracle.connect(env.keeper).recordPricePoint(market, 102n * 10n ** 18n);
+        await env.oracle.connect(env.keeper).recordPricePoint(market, 0);
     });
 
     it("hits liquidation and failed-repayment related branches", async function () {
@@ -623,10 +623,10 @@ describe("Complex Integration Logic Scenarios", function () {
         const KEEPER_ROLE = ethers.keccak256(ethers.toUtf8Bytes("KEEPER_ROLE"));
         await env.oracle.grantRole(KEEPER_ROLE, env.keeper.address);
         await pushPrice(env, feedId, 100n * 10n ** 8n, 1n);
-        await env.oracle.connect(env.keeper).recordPricePoint(market, 100n * 10n ** 18n);
+        await env.oracle.connect(env.keeper).recordPricePoint(market, 0);
         await time.increase(5 * 60 + 1);
         await pushPrice(env, feedId, 100n * 10n ** 8n, 1n);
-        await env.oracle.connect(env.keeper).recordPricePoint(market, 100n * 10n ** 18n);
+        await env.oracle.connect(env.keeper).recordPricePoint(market, 0);
 
         // Crash current price so liquidatable; TWAP deviation should be too high and liquidation should revert.
         await pushPrice(env, feedId, 10n * 10n ** 8n, 1n);

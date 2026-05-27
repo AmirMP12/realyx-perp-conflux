@@ -53,10 +53,7 @@ describe("Branch coverage push toward 80%+ per instrumented contract", function 
 
         await harness.testResetBreaker(c, 0, true);
 
-        const tBlock = BigInt(await time.latest());
-        const bucket = tBlock / 300n;
-        await harness.setHistoricalPrice(c, bucket > 0n ? bucket - 1n : 0n, ethers.parseEther("100"));
-        await harness.testCheckPriceDropBreaker(c, ethers.parseEther("100"));
+        await harness.testCheckPriceDropBreaker(c, ethers.parseEther("90"), ethers.parseEther("100"));
 
         await harness.testConfigureBreaker(c, 2, 100, 900, 60);
         const twNo = await harness.testCheckTWAPDeviationBreaker.staticCall(

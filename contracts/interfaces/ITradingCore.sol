@@ -88,9 +88,9 @@ interface ITradingCore {
      * @notice Keeper entry: execute a queued order using fresh oracle data.
      * @param orderId Order returned by `createOrder`.
      * @param priceUpdateData Pyth `updatePriceFeeds` payload (or empty when not needed for that market).
-     * @dev Restricted to keepers; updates positions, vault, and NFT state atomically.
+     * @dev Restricted to keepers; updates positions, vault, and NFT state atomically. Caller forwards ETH for the Pyth update fee; excess is refunded.
      */
-    function executeOrder(uint256 orderId, bytes[] calldata priceUpdateData) external;
+    function executeOrder(uint256 orderId, bytes[] calldata priceUpdateData) external payable;
 
     /**
      * @notice Cancel an unfilled order and refund escrowed funds per implementation rules.

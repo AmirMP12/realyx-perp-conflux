@@ -19,13 +19,29 @@ library PositionCloseLib {
     using PositionMath for DataTypes.Position;
 
     uint256 private constant PRECISION = 1e18;
+    uint256 private constant BPS = 10000;
+    uint256 private constant TWAP_WINDOW_SECONDS = 15 minutes;
+    /// @dev same deviation cap as the increase path; close paths reverted instead of skipped.
+    uint256 private constant MAX_CLOSE_PRICE_DEVIATION_BPS = 1000;
+    /// @dev Mirror the increase-side minimum sample requirement so a fresh
+    ///      market (or a market whose buffer was reset) cannot silently degrade the
+    ///      close-side deviation guard to spot.
+    /// @dev Relaxed from 6 to 2 so fresh markets (or markets whose buffer was reset)
+    ///      can still be closed. The TWAP/spot deviation guard still protects against
+    ///      flash-loan manipulation when ≥2 data points exist; a buffer with 1 point is
+    ///      treated as absent and falls through to the spot-deviation check (which is
+    ///      still bounded by MAX_CLOSE_PRICE_DEVIATION_BPS).
+    uint256 private constant MIN_TWAP_DATA_POINTS = 2;
 
     event BadDebtCoverageFailed(uint256 indexed positionId, uint256 amount);
     error ZeroCloseSize();
     error CloseSizeExceedsPosition();
+    error LeverageOverflow();
     error SlippageExceeded();
     error PositionNotFound();
     error InsufficientLiquidityForRepayment();
+    error ClosePriceDeviation();
+    error TwapNotReady();
 
     struct ClosePositionContext {
         address usdc;
@@ -45,7 +61,8 @@ library PositionCloseLib {
         mapping(uint256 => DataTypes.Position) storage positions,
         mapping(uint256 => DataTypes.PositionCollateral) storage positionCollateral,
         mapping(address => DataTypes.Market) storage markets,
-        mapping(address => uint256) storage userExposure
+        mapping(address => uint256) storage userExposure,
+        DataTypes.ProtocolHealthState storage protocolHealth
     ) external returns (int256 realizedPnL) {
         DataTypes.Position storage position = positions[positionId];
         if (closeSize == 0) revert ZeroCloseSize();
@@ -53,6 +70,22 @@ library PositionCloseLib {
 
         bool isLong = DataTypes.isLong(position.flags);
         (uint256 currentPrice, , ) = IOracleAggregator(ctx.oracleAggregator).getPrice(position.market);
+
+        // TWAP/spot deviation guard on close. When the buffer is still warming up,
+        // allow the close if the trader supplied `minReceive` slippage protection.
+        {
+            (uint256 twapPrice, bool twapValid) = IOracleAggregator(ctx.oracleAggregator)
+                .getTWAPWithValidation(position.market, TWAP_WINDOW_SECONDS, MIN_TWAP_DATA_POINTS);
+            if (!twapValid) {
+                if (minReceive == 0) revert TwapNotReady();
+            } else if (twapPrice > 0) {
+                uint256 dev = currentPrice > twapPrice
+                    ? ((currentPrice - twapPrice) * BPS) / twapPrice
+                    : ((twapPrice - currentPrice) * BPS) / twapPrice;
+                if (dev > MAX_CLOSE_PRICE_DEVIATION_BPS) revert ClosePriceDeviation();
+            }
+        }
+
         uint256 closingFee = FeeCalculator.calculateClosingFee(closeSize, ctx.feeConfig, true);
         int256 unrealizedPnL = PositionMath.calculateUnrealizedPnL(
             closeSize,
@@ -83,6 +116,10 @@ library PositionCloseLib {
         if (availableUsdc < totalRequired) {
             uint256 shortfall = totalRequired - availableUsdc;
             try IVaultCore(ctx.insuranceFund).coverBadDebt(shortfall, positionId) returns (uint256 covered) {
+                if (covered > 0) {
+                    // Track aggregate insurance-paid bad debt against protocol health .
+                    protocolHealth.totalBadDebt += DataTypes.toInternalPrecision(covered);
+                }
                 if (covered < shortfall) {
                     emit BadDebtCoverageFailed(positionId, shortfall);
                     if (covered == 0) closingFeeUsdc = 0;
@@ -178,6 +215,7 @@ library PositionCloseLib {
             positionCollateral[positionId].borrowedAmount = 0;
         } else {
             unchecked {
+                // SafeCast equivalent (totalSize - closeSize <= totalSize <= uint128.max by invariant).
                 position.size = uint128(totalSize - closeSize);
                 positionCollateral[positionId].amount = totalCollateral - collateralPortion;
                 positionCollateral[positionId].borrowedAmount -= borrowedPortion;
@@ -186,15 +224,16 @@ library PositionCloseLib {
                     : 0;
             }
             uint256 newLeverage = _calculateNewLeverage(uint256(position.size), positionCollateral[positionId].amount);
+            if (newLeverage > type(uint64).max) revert LeverageOverflow();
             position.leverage = uint64(newLeverage);
-            position.liquidationPrice = uint128(
-                PositionMath.calculateLiquidationPrice(
-                    uint256(position.entryPrice),
-                    newLeverage,
-                    uint256(position.size),
-                    isLong
-                )
+            uint256 liqPx = PositionMath.calculateLiquidationPrice(
+                uint256(position.entryPrice),
+                newLeverage,
+                uint256(position.size),
+                isLong
             );
+            // Cap to uint128.max via PositionMath sentinel before truncation.
+            position.liquidationPrice = liqPx > type(uint128).max ? type(uint128).max : uint128(liqPx);
         }
     }
 

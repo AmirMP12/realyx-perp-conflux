@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath, pathToFileURL } from "url";
-import { ABI_OUTPUT_DIRS } from "./abi-output-dirs.js";
+import { ABI_OUTPUT_DIRS } from "./abi-output-dirs.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 
