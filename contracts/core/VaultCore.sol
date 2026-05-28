@@ -129,7 +129,18 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
     mapping(address => uint256) public collateralReserves;
 
-    uint256[13] private __gap;
+    // ─── Referral rebates ──────────────────────────────────────────────────
+    /// @dev Per-referrer USDC owed (6 decimals). Funded by `accrueRebate` which
+    ///      pulls USDC from the caller (TradingCore) so the vault is the
+    ///      single source of truth for outstanding rebate balances.
+    mapping(address => uint256) private _referralRebates;
+    /// @dev Sum of `_referralRebates` so we can isolate rebate USDC from the
+    ///      LP/insurance accounting. Without this, rebate balances sitting in
+    ///      the vault would inflate `getAvailableLiquidity()` / `totalAssets()`
+    ///      and silently dilute LP shares.
+    uint256 private _pendingRebates;
+
+    uint256[11] private __gap;
 
     event Deposit(address indexed user, uint256 assets, uint256 shares);
     event Withdraw(address indexed user, uint256 assets, uint256 shares);
@@ -154,6 +165,9 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     event InsuranceCircuitBreakerTriggered(uint256 threshold, uint256 cumulative);
     event InsuranceCircuitBreakerReset(address indexed resetter);
     event TreasuryUpdated(address indexed oldTreasury, address indexed newTreasury);
+    event RebateAccrued(address indexed referrer, uint256 amount);
+    event RebateClaimed(address indexed referrer, address to, uint256 amount);
+
     event EmergencyEscapeWithdrawCapped(
         address indexed user,
         uint256 requestedAssets,
@@ -391,8 +405,18 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     /// excluded from the LP slice so they cannot pump LP share price unilaterally.
     function _lpBalanceSliceUSDC() private view returns (uint256) {
         uint256 balance = usdc.balanceOf(address(this));
-        uint256 nonLpAssets = _insAssets + accumulatedFees + _donatedAssets;
-        return balance > nonLpAssets ? balance - nonLpAssets : 0;
+        uint256 nonLp = _nonLpUsdc();
+        return balance > nonLp ? balance - nonLp : 0;
+    }
+
+    /// @notice Aggregate of every USDC bucket that does NOT belong to LPs:
+    ///         insurance assets, accumulated protocol fees, untracked donations,
+    ///         and unclaimed referral rebates.
+    /// @dev Rebates are kept here so accruing them never inflates LP share
+    ///      price and a rebate claim cannot be paid out twice via an LP
+    ///      withdrawal.
+    function _nonLpUsdc() private view returns (uint256) {
+        return _insAssets + accumulatedFees + _donatedAssets + _pendingRebates;
     }
 
     /// @notice Lend USDC to `TradingCore` if utilization and per-market exposure caps allow (`IVaultCore.borrow`).
@@ -941,7 +965,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     /// as a fresh donation. Permissionless because it only moves untracked balance into a tracked counter.
     function recordDonation() external returns (uint256 donated) {
         uint256 balance = usdc.balanceOf(address(this));
-        uint256 tracked = _insAssets + accumulatedFees + _donatedAssets;
+        uint256 tracked = _nonLpUsdc();
         uint256 lpSlice = balance > tracked ? balance - tracked : 0;
         // After donation accounting `_lpAssets` is the LP balance counter the contract maintains;
         // anything beyond that on top of the tracked categories is a donation.
@@ -987,7 +1011,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     ///      LP deposit/withdraw flows do not brick during deployment.
     function totalAssets() public view returns (uint256) {
         uint256 balance = usdc.balanceOf(address(this));
-        uint256 nonLpAssets = _insAssets + accumulatedFees + _donatedAssets; // exclude donations.
+        uint256 nonLpAssets = _nonLpUsdc(); // exclude insurance, fees, donations, rebates.
         uint256 lpBalance = balance > nonLpAssets ? balance - nonLpAssets : 0;
         uint256 total = (lpBalance * DataTypes.DECIMAL_CONVERSION) + (totalBorrowed * DataTypes.DECIMAL_CONVERSION);
 
@@ -1038,7 +1062,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     /// @dev Matching `totalAssets` graceful degradation on tradingViews unset.
     function getConservativeTotalAssets() public view returns (uint256) {
         uint256 balance = usdc.balanceOf(address(this));
-        uint256 nonLpAssets = _insAssets + accumulatedFees + _donatedAssets; //
+        uint256 nonLpAssets = _nonLpUsdc();
         uint256 lpBalance = balance > nonLpAssets ? balance - nonLpAssets : 0;
         uint256 total = (lpBalance * DataTypes.DECIMAL_CONVERSION) + (totalBorrowed * DataTypes.DECIMAL_CONVERSION);
 
@@ -1066,7 +1090,7 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     /// @notice USDC available to LP operations (excludes insurance, fee reserves, and untracked donations).
     function getAvailableLiquidity() public view returns (uint256) {
         uint256 balance = usdc.balanceOf(address(this));
-        uint256 nonLpAssets = _insAssets + accumulatedFees + _donatedAssets; //
+        uint256 nonLpAssets = _nonLpUsdc();
         return balance > nonLpAssets ? balance - nonLpAssets : 0;
     }
 
@@ -1198,6 +1222,45 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     function _getMaxExposureBps(address market) internal view returns (uint256) {
         uint256 custom = _exposures[market].maxExposurePercent;
         return custom > 0 ? custom : defaultMaxExposureBps;
+    }
+
+    /// @notice Accrue referral rebate for a referrer (called by TradingCore).
+    /// @dev TradingCore must transfer the rebate USDC to this vault before (or
+    ///      atomically with) calling this function. We mark the funds as
+    ///      pending so they are excluded from LP/insurance accounting and
+    ///      cannot be paid out a second time on an LP withdrawal.
+    /// @param referrer Address earning the rebate.
+    /// @param amount USDC rebate amount (6 decimals).
+    function accrueRebate(address referrer, uint256 amount) external onlyTradingCore {
+        if (referrer == address(0) || amount == 0) return;
+        _referralRebates[referrer] += amount;
+        _pendingRebates += amount;
+        emit RebateAccrued(referrer, amount);
+    }
+
+    /// @notice Referrer claims their accumulated rebates.
+    /// @param to Recipient address for the USDC payout.
+    /// @return claimed USDC amount transferred.
+    function claimRebates(address to) external nonReentrant returns (uint256 claimed) {
+        if (to == address(0)) revert ZeroAddress();
+        claimed = _referralRebates[msg.sender];
+        if (claimed == 0) revert InsufficientLiquidity();
+        _referralRebates[msg.sender] = 0;
+        // checked: invariant `_pendingRebates >= claimed` holds because every
+        // accrual increments both counters by the same amount.
+        _pendingRebates -= claimed;
+        usdc.safeTransfer(to, claimed);
+        emit RebateClaimed(msg.sender, to, claimed);
+    }
+
+    /// @notice View accumulated claimable rebates for an address.
+    function claimableRebates(address referrer) external view returns (uint256) {
+        return _referralRebates[referrer];
+    }
+
+    /// @notice Total USDC reserved for unclaimed referral rebates.
+    function pendingRebates() external view returns (uint256) {
+        return _pendingRebates;
     }
 
     function _authorizeUpgrade(address) internal override onlyAdmin {}

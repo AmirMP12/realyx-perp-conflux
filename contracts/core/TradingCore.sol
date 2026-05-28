@@ -172,7 +172,11 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @dev Subaccount delegation: `isSubaccount[owner][bot] == true` means `bot` can trade on behalf of `owner`.
     mapping(address => mapping(address => bool)) public isSubaccount;
 
-    uint256[15] private __gap;
+    /// @dev Optional ReferralRegistry. When zero, the protocol charges
+    ///      base-tier fees with no referrer rebate. Hot-path lookups are O(1).
+    address public referralRegistry;
+
+    uint256[14] private __gap;
 
     modifier noFlashLoan() {
         (_lastGlobalInteractionBlock, _globalBlockInteractions) = FlashLoanCheck.validateFlashLoan(
@@ -316,6 +320,20 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         collateralRegistry = CollateralRegistry(_cr);
     }
 
+    event ReferralRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
+
+    /// @notice Wire up the optional ReferralRegistry. Pass `address(0)` to
+    ///         disable the program. The registry must have granted this
+    ///         contract `TRADING_CORE_ROLE` so per-trade volume can flow back
+    ///         for tier progression.
+    /// @dev No timelock: the registry only affects fee splits and rebates,
+    ///      not custody. Setting a malicious registry can at worst rebate fees
+    ///      to an arbitrary address; admin already controls the fee config.
+    function setReferralRegistry(address _registry) external onlyAdmin {
+        emit ReferralRegistryUpdated(referralRegistry, _registry);
+        referralRegistry = _registry;
+    }
+
     /// @notice Optional modules for session hours, dividend accrual, and allow-list compliance.
     /// @param _calendar Market calendar (zero to disable).
     /// @param _dividendManager Dividend module (zero to disable).
@@ -414,7 +432,10 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         if (!TradingLib.checkMarketOpen(market, marketCalendar, marketIds)) revert MarketClosed();
     }
 
-    function _closeCtx() internal view returns (TradingLib.ClosePositionContext memory) {
+    /// @notice Build a close context resolving the active referral discount/rebate
+    ///         for `trader` (typically the position owner). Pass `address(0)` to
+    ///         skip the registry lookup (e.g. liquidation paths).
+    function _closeCtx(address trader) internal view returns (TradingLib.ClosePositionContext memory) {
         return
             TradingContextLib.buildCloseCtx(
                 address(usdc),
@@ -424,7 +445,9 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
                 treasury,
                 address(vaultCore),
                 address(collateralRegistry),
-                feeConfig
+                feeConfig,
+                referralRegistry,
+                trader
             );
     }
 
@@ -566,7 +589,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         return
             TradingLib.closePositionWrapper(
                 p,
-                _closeCtx(),
+                _closeCtx(positionToken.ownerOf(p.positionId)),
                 minPositionDuration,
                 msg.sender,
                 _positions,
@@ -596,7 +619,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         return
             TradingLib.closePositionWrapper(
                 DataTypes.ClosePositionParams(id, sz, minRcv, dl),
-                _closeCtx(),
+                _closeCtx(positionToken.ownerOf(id)),
                 minPositionDuration,
                 msg.sender,
                 _positions,
@@ -866,7 +889,8 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
                 globalDailyVolumeLimit: globalDailyVolumeLimit,
                 defaultCrossMargin: crossMarginByDefault,
                 collateralRegistry: address(collateralRegistry),
-                collateralToken: order.collateralToken
+                collateralToken: order.collateralToken,
+                referralRegistry: referralRegistry
             }),
             address(usdc),
             address(vaultCore),
@@ -1138,8 +1162,9 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         return
             TradingLib.executeStopLossTakeProfit(
                 positionIds,
-                _closeCtx(),
+                _closeCtx(address(0)),
                 address(oracleAggregator),
+                referralRegistry,
                 _positions,
                 _positionCollateral,
                 _markets,

@@ -16,6 +16,7 @@ import "./PositionCloseLib.sol";
 import "./DividendSettlementLib.sol";
 import "../interfaces/IDividendManager.sol";
 import "../interfaces/IMarketCalendar.sol";
+import "../interfaces/IReferralRegistry.sol";
 
 /**
  * @title TradingLib
@@ -109,6 +110,10 @@ library TradingLib {
         uint256 userDailyVolumeLimit;
         uint256 globalDailyVolumeLimit;
         bool defaultCrossMargin;
+        // Referral data resolved off the registry once per execution.
+        address referrer;
+        uint16 referralDiscountBps;
+        uint16 referralRebateBps;
     }
 
     struct ClosePositionContext {
@@ -120,6 +125,10 @@ library TradingLib {
         address insuranceFund;
         address collateralRegistry;
         DataTypes.FeeConfig feeConfig;
+        // Referral data resolved off the registry for the position owner.
+        address referrer;
+        uint16 referralDiscountBps;
+        uint16 referralRebateBps;
     }
 
     struct LiquidatePositionContext {
@@ -539,6 +548,8 @@ library TradingLib {
         bool defaultCrossMargin;
         address collateralRegistry;
         address collateralToken;
+        // Optional ReferralRegistry; address(0) disables referral discounts/rebates.
+        address referralRegistry;
     }
 
     function executeOrderFull(
@@ -610,8 +621,17 @@ library TradingLib {
             maxUserExposure: riskParams.maxUserExposure,
             userDailyVolumeLimit: riskParams.userDailyVolumeLimit,
             globalDailyVolumeLimit: riskParams.globalDailyVolumeLimit,
-            defaultCrossMargin: riskParams.defaultCrossMargin
+            defaultCrossMargin: riskParams.defaultCrossMargin,
+            referrer: address(0),
+            referralDiscountBps: 0,
+            referralRebateBps: 0
         });
+        if (riskParams.referralRegistry != address(0)) {
+            (ctx.referrer, ctx.referralDiscountBps, ctx.referralRebateBps) = _safeGetReferral(
+                riskParams.referralRegistry,
+                order.account
+            );
+        }
         positionId = executeOrderInternal(
             order,
             ctx,
@@ -629,6 +649,16 @@ library TradingLib {
             if (address(dividendManager) != address(0)) {
                 string memory mId = marketIds[order.market];
                 if (bytes(mId).length > 0) positionDividendIndex[positionId] = dividendManager.getDividendIndex(mId);
+            }
+            // Volume tracking lives off the ReferralRegistry so tier promotion
+            // is decoupled from the protocol's daily-volume rate-limit. Skipped
+            // when the registry is not configured.
+            if (riskParams.referralRegistry != address(0) && order.sizeDelta > 0) {
+                try IReferralRegistry(riskParams.referralRegistry).recordReferralVolume(order.account, order.sizeDelta) {
+                    // ok
+                } catch {
+                    // never let a registry hiccup brick a trade
+                }
             }
         }
         executionFee = order.executionFee;
@@ -714,7 +744,10 @@ library TradingLib {
             ctx.treasury,
             ctx.insuranceFund,
             ctx.collateralRegistry,
-            ctx.feeConfig
+            ctx.feeConfig,
+            ctx.referrer,
+            ctx.referralDiscountBps,
+            ctx.referralRebateBps
         );
 
         uint256 closeSizeInternal = order.sizeDelta > 0
@@ -804,7 +837,7 @@ library TradingLib {
             if (deviation > order.maxSlippage) revert SlippageExceeded();
         }
 
-        uint256 openingFee = FeeCalculator.calculateOpeningFee(internalSize, ctx.feeConfig);
+        uint256 openingFee = FeeCalculator.calculateOpeningFee(internalSize, ctx.feeConfig, ctx.referralDiscountBps);
 
         uint256 totalCollateralInternal;
         if (order.collateralToken != address(0)) {
@@ -882,7 +915,7 @@ library TradingLib {
             updateVolume(userDailyVolume, globalDailyVolume, order.account, order.sizeDelta);
         }
 
-        _distributeFees(openingFee, ctx.usdc, ctx.treasury, ctx.liquidityVault, ctx.insuranceFund, ctx.feeConfig);
+        _distributeFees(openingFee, ctx, ctx.feeConfig);
         IPositionToken(ctx.positionToken).mint(order.account, positionId, order.market, order.isLong);
 
         emit ITradingCore.PositionOpened(
@@ -948,7 +981,10 @@ library TradingLib {
             ctx.treasury,
             ctx.insuranceFund,
             ctx.collateralRegistry,
-            ctx.feeConfig
+            ctx.feeConfig,
+            ctx.referrer,
+            ctx.referralDiscountBps,
+            ctx.referralRebateBps
         );
         // Capture owner BEFORE close - closePosition may burn the NFT on full close
         address posOwner = IPositionToken(ctx.positionToken).ownerOf(positionId);
@@ -966,33 +1002,57 @@ library TradingLib {
 
         DataTypes.Position storage position = positions[positionId];
         (uint256 currentPrice, , ) = IOracleAggregator(ctx.oracleAggregator).getPrice(position.market);
-        uint256 closingFee = FeeCalculator.calculateClosingFee(closeSize, ctx.feeConfig, true);
+        // Mirror the discount used by `PositionCloseLib` so the emitted fee matches what was actually charged.
+        uint256 closingFee = FeeCalculator.calculateClosingFee(closeSize, ctx.feeConfig, true, ctx.referralDiscountBps);
         emit ITradingCore.PositionClosed(positionId, posOwner, realizedPnL, currentPrice, closingFee);
     }
 
+    /// @dev Internal-only fetch that returns zero on any unexpected revert so the
+    ///      registry is never able to brick a trade. Used by `executeOrderFull`.
+    function _safeGetReferral(
+        address registry,
+        address trader
+    ) private view returns (address referrer, uint16 discountBps, uint16 rebateBps) {
+        try IReferralRegistry(registry).getTraderReferralData(trader) returns (
+            IReferralRegistry.ReferralData memory d
+        ) {
+            return (d.referrer, d.discountBps, d.rebateBps);
+        } catch {
+            return (address(0), 0, 0);
+        }
+    }
+
+    /// @dev Open-side fee distribution. Splits a referral rebate from the
+    ///      protocol's share before the LP/insurance/treasury split when a
+    ///      referrer is present, otherwise falls back to the original split.
     function _distributeFees(
         uint256 totalFee,
-        address usdc,
-        address treasury,
-        address liquidityVault,
-        address insuranceFund,
+        OpenPositionContext memory ctx,
         DataTypes.FeeConfig memory feeConfig
     ) private {
-        (uint256 lpShare, uint256 insuranceShare, uint256 treasuryShare) = FeeCalculator.splitFees(totalFee, feeConfig);
+        (uint256 lpShare, uint256 insuranceShare, uint256 treasuryShare, uint256 rebateShare) = FeeCalculator
+            .splitFeesWithRebate(totalFee, feeConfig, ctx.referrer == address(0) ? 0 : ctx.referralRebateBps);
 
         uint256 lpShareUsdc = DataTypes.toUsdcPrecision(lpShare);
         uint256 insuranceShareUsdc = DataTypes.toUsdcPrecision(insuranceShare);
         uint256 treasuryShareUsdc = DataTypes.toUsdcPrecision(treasuryShare);
+        uint256 rebateShareUsdc = DataTypes.toUsdcPrecision(rebateShare);
 
         if (lpShareUsdc > 0) {
-            IERC20(usdc).safeTransfer(liquidityVault, lpShareUsdc);
+            IERC20(ctx.usdc).safeTransfer(ctx.liquidityVault, lpShareUsdc);
         }
         if (insuranceShareUsdc > 0) {
-            IERC20(usdc).safeTransfer(insuranceFund, insuranceShareUsdc);
-            IVaultCore(insuranceFund).receiveFees(insuranceShareUsdc);
+            IERC20(ctx.usdc).safeTransfer(ctx.insuranceFund, insuranceShareUsdc);
+            IVaultCore(ctx.insuranceFund).receiveFees(insuranceShareUsdc);
         }
         if (treasuryShareUsdc > 0) {
-            IERC20(usdc).safeTransfer(treasury, treasuryShareUsdc);
+            IERC20(ctx.usdc).safeTransfer(ctx.treasury, treasuryShareUsdc);
+        }
+        if (rebateShareUsdc > 0 && ctx.referrer != address(0)) {
+            // Rebate USDC stays in the vault; `accrueRebate` records the
+            // referrer's claim and isolates the funds from LP accounting.
+            IERC20(ctx.usdc).safeTransfer(ctx.liquidityVault, rebateShareUsdc);
+            IVaultCore(ctx.liquidityVault).accrueRebate(ctx.referrer, rebateShareUsdc);
         }
 
         emit FeesDistributed(lpShare, insuranceShare, treasuryShare);
@@ -1160,6 +1220,7 @@ library TradingLib {
         uint256[] calldata positionIds,
         ClosePositionContext memory ctx,
         address oracleAggregator,
+        address referralRegistry_,
         mapping(uint256 => DataTypes.Position) storage positions,
         mapping(uint256 => DataTypes.PositionCollateral) storage positionCollateral,
         mapping(address => DataTypes.Market) storage markets,
@@ -1265,6 +1326,16 @@ library TradingLib {
                                 if (divAmount != 0) applyFundingToCollateral(positionCollateral[id], -divAmount, id);
                             }
                         }
+                    }
+                    // Resolve per-position referral data so a multi-trader batch
+                    // applies the correct discount/rebate per close. Cheap when
+                    // the position is unreferred (single zero-read off the registry).
+                    if (referralRegistry_ != address(0)) {
+                        address posOwner = IPositionToken(ctx.positionToken).ownerOf(id);
+                        (ctx.referrer, ctx.referralDiscountBps, ctx.referralRebateBps) = _safeGetReferral(
+                            referralRegistry_,
+                            posOwner
+                        );
                     }
                     closePosition(
                         id,

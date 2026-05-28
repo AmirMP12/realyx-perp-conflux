@@ -53,6 +53,10 @@ library PositionCloseLib {
         address insuranceFund;
         address collateralRegistry;
         DataTypes.FeeConfig feeConfig;
+        // Referral rates resolved upstream by TradingLib.
+        address referrer;
+        uint16 referralDiscountBps;
+        uint16 referralRebateBps;
     }
 
     function closePosition(
@@ -88,7 +92,7 @@ library PositionCloseLib {
             }
         }
 
-        uint256 closingFee = FeeCalculator.calculateClosingFee(closeSize, ctx.feeConfig, true);
+        uint256 closingFee = FeeCalculator.calculateClosingFee(closeSize, ctx.feeConfig, true, ctx.referralDiscountBps);
         int256 unrealizedPnL = PositionMath.calculateUnrealizedPnL(
             closeSize,
             uint256(position.entryPrice),
@@ -145,14 +149,7 @@ library PositionCloseLib {
         // Convert exactly the required closing fee back to internal precision for distribution
         uint256 distributedFee = DataTypes.toInternalPrecision(closingFeeUsdc);
         if (distributedFee > 0) {
-            _distributeFees(
-                distributedFee,
-                ctx.usdc,
-                ctx.treasury,
-                ctx.liquidityVault,
-                ctx.insuranceFund,
-                ctx.feeConfig
-            );
+            _distributeFees(distributedFee, ctx);
         }
         address posOwner = IPositionToken(ctx.positionToken).ownerOf(positionId);
         if (payout > 0) {
@@ -256,30 +253,35 @@ library PositionCloseLib {
 
     function _distributeFees(
         uint256 closingFee,
-        address usdc,
-        address treasury,
-        address liquidityVault,
-        address insuranceFund,
-        DataTypes.FeeConfig memory feeConfig
+        ClosePositionContext memory ctx
     ) private {
-        (uint256 lpShare, uint256 insuranceShare, uint256 treasuryShare) = FeeCalculator.splitFees(
-            closingFee,
-            feeConfig
-        );
+        (uint256 lpShare, uint256 insuranceShare, uint256 treasuryShare, uint256 rebateShare) = FeeCalculator
+            .splitFeesWithRebate(
+                closingFee,
+                ctx.feeConfig,
+                ctx.referrer == address(0) ? 0 : ctx.referralRebateBps
+            );
 
         uint256 lpShareUsdc = DataTypes.toUsdcPrecision(lpShare);
         uint256 insuranceShareUsdc = DataTypes.toUsdcPrecision(insuranceShare);
         uint256 treasuryShareUsdc = DataTypes.toUsdcPrecision(treasuryShare);
+        uint256 rebateShareUsdc = DataTypes.toUsdcPrecision(rebateShare);
 
         if (lpShareUsdc > 0) {
-            IERC20(usdc).safeTransfer(liquidityVault, lpShareUsdc);
+            IERC20(ctx.usdc).safeTransfer(ctx.liquidityVault, lpShareUsdc);
         }
         if (insuranceShareUsdc > 0) {
-            IERC20(usdc).safeTransfer(insuranceFund, insuranceShareUsdc);
-            IVaultCore(insuranceFund).receiveFees(insuranceShareUsdc);
+            IERC20(ctx.usdc).safeTransfer(ctx.insuranceFund, insuranceShareUsdc);
+            IVaultCore(ctx.insuranceFund).receiveFees(insuranceShareUsdc);
         }
         if (treasuryShareUsdc > 0) {
-            IERC20(usdc).safeTransfer(treasury, treasuryShareUsdc);
+            IERC20(ctx.usdc).safeTransfer(ctx.treasury, treasuryShareUsdc);
+        }
+        if (rebateShareUsdc > 0 && ctx.referrer != address(0)) {
+            // Rebate USDC stays in the vault; `accrueRebate` records the
+            // referrer's claim and isolates the funds from LP accounting.
+            IERC20(ctx.usdc).safeTransfer(ctx.liquidityVault, rebateShareUsdc);
+            IVaultCore(ctx.liquidityVault).accrueRebate(ctx.referrer, rebateShareUsdc);
         }
     }
 }

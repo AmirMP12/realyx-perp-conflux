@@ -98,7 +98,10 @@ contract PositionCloseLibHarness {
             treasury: treasury,
             insuranceFund: insuranceFund,
             feeConfig: feeConfig,
-            collateralRegistry: address(0)
+            collateralRegistry: address(0),
+            referrer: address(0),
+            referralDiscountBps: 0,
+            referralRebateBps: 0
         });
         return
             PositionCloseLib.closePosition(

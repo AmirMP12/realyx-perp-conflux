@@ -97,9 +97,8 @@ contract CopyRegistry is
     }
 
     function initialize(address _owner) public initializer {
-        __Ownable_init();
+        __Ownable_init(_owner);
         __UUPSUpgradeable_init();
-        _transferOwnership(_owner);
         nextLeadTraderId = 1;
     }
 

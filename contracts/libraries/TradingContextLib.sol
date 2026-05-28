@@ -3,10 +3,15 @@ pragma solidity 0.8.24;
 
 import "./DataTypes.sol";
 import "./TradingLib.sol";
+import "../interfaces/IReferralRegistry.sol";
 
 /**
  * @title TradingContextLib
- * @notice Builds context structs for trading operations
+ * @notice Builds context structs for trading operations. Resolves referral
+ *         state for the close path so the engine charges the right discount
+ *         and routes the rebate share. The open path resolves referral data
+ *         inside `TradingLib.executeOrderFull` to amortize the registry call
+ *         over the existing batch read.
  */
 library TradingContextLib {
     function buildCloseCtx(
@@ -17,9 +22,38 @@ library TradingContextLib {
         address treasury,
         address insurance,
         address collateralRegistry,
-        DataTypes.FeeConfig memory fc
-    ) external pure returns (TradingLib.ClosePositionContext memory) {
-        return TradingLib.ClosePositionContext(usdc_, vc, oa, pt, treasury, insurance, collateralRegistry, fc);
+        DataTypes.FeeConfig memory fc,
+        address referralRegistry,
+        address trader
+    ) external view returns (TradingLib.ClosePositionContext memory) {
+        address referrer;
+        uint16 discountBps;
+        uint16 rebateBps;
+        if (referralRegistry != address(0)) {
+            try IReferralRegistry(referralRegistry).getTraderReferralData(trader) returns (
+                IReferralRegistry.ReferralData memory d
+            ) {
+                referrer = d.referrer;
+                discountBps = d.discountBps;
+                rebateBps = d.rebateBps;
+            } catch {
+                // never let registry hiccups brick a close
+            }
+        }
+        return
+            TradingLib.ClosePositionContext(
+                usdc_,
+                vc,
+                oa,
+                pt,
+                treasury,
+                insurance,
+                collateralRegistry,
+                fc,
+                referrer,
+                discountBps,
+                rebateBps
+            );
     }
 
     function buildLiqCtx(

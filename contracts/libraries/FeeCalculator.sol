@@ -55,6 +55,28 @@ library FeeCalculator {
         }
     }
 
+    /// @notice Opening fee with a referral discount applied to the taker bps.
+    /// @dev The discount is subtracted from the bps rate, never from the
+    ///      `minFeeUsdc` floor, mirroring the trade-fee path. A discount that
+    ///      meets or exceeds taker bps zeroes out the rate but `minFee` still
+    ///      applies, so micro-trades cannot become free.
+    function calculateOpeningFee(
+        uint256 size,
+        DataTypes.FeeConfig memory config,
+        uint256 referralDiscountBps
+    ) internal pure returns (uint256 fee) {
+        uint256 feeBps = config.takerFeeBps;
+        if (referralDiscountBps > 0) {
+            feeBps = referralDiscountBps >= feeBps ? 0 : feeBps - referralDiscountBps;
+        }
+        fee = (size * feeBps) / BPS;
+
+        uint256 minFee = DataTypes.toInternalPrecision(config.minFeeUsdc);
+        if (fee < minFee) {
+            fee = minFee;
+        }
+    }
+
     function calculateClosingFee(
         uint256 size,
         DataTypes.FeeConfig memory config,
@@ -66,6 +88,30 @@ library FeeCalculator {
         uint256 minFee = DataTypes.toInternalPrecision(config.minFeeUsdc);
         if (fee < minFee) {
             fee = minFee;
+        }
+    }
+
+    /// @notice Calculate closing fee with referral discount applied.
+    /// @param size Position size in internal precision (18 decimals).
+    /// @param config Fee configuration.
+    /// @param isMarketOrder True for taker, false for maker.
+    /// @param referralDiscountBps Referral discount in basis points.
+    /// @return fee Calculated fee in internal precision.
+    function calculateClosingFee(
+        uint256 size,
+        DataTypes.FeeConfig memory config,
+        bool isMarketOrder,
+        uint256 referralDiscountBps
+    ) internal pure returns (uint256 fee) {
+        fee = calculateClosingFee(size, config, isMarketOrder);
+
+        if (referralDiscountBps > 0) {
+            uint256 discount = (fee * referralDiscountBps) / BPS;
+            if (discount < fee) {
+                fee -= discount;
+            } else {
+                fee = 0;
+            }
         }
     }
 
@@ -116,6 +162,41 @@ library FeeCalculator {
         lpShare = (totalFee * config.lpShareBps) / BPS;
         insuranceShare = (totalFee * config.insuranceShareBps) / BPS;
         treasuryShare = totalFee - lpShare - insuranceShare;
+    }
+
+    /// @notice Split fees with a referral rebate carved from the protocol (LP+insurance+treasury) share.
+    /// @param totalFee Total fee in internal precision.
+    /// @param config Fee split configuration.
+    /// @param rebateBps Referral rebate rate in basis points.
+    /// @return lpShare LP portion after rebate deduction.
+    /// @return insuranceShare Insurance portion after rebate deduction.
+    /// @return treasuryShare Treasury portion after rebate deduction.
+    /// @return rebateShare Referral rebate amount carved out.
+    function splitFeesWithRebate(
+        uint256 totalFee,
+        DataTypes.FeeConfig memory config,
+        uint256 rebateBps
+    )
+        internal
+        pure
+        returns (uint256 lpShare, uint256 insuranceShare, uint256 treasuryShare, uint256 rebateShare)
+    {
+        if (config.lpShareBps + config.insuranceShareBps + config.treasuryShareBps != BPS) {
+            revert InvalidFeeConfig();
+        }
+
+        if (rebateBps == 0) {
+            (lpShare, insuranceShare, treasuryShare) = splitFees(totalFee, config);
+            return (lpShare, insuranceShare, treasuryShare, 0);
+        }
+
+        // Carve the rebate out of the total fee first
+        rebateShare = (totalFee * rebateBps) / BPS;
+        uint256 remainder = totalFee - rebateShare;
+
+        lpShare = (remainder * config.lpShareBps) / BPS;
+        insuranceShare = (remainder * config.insuranceShareBps) / BPS;
+        treasuryShare = remainder - lpShare - insuranceShare;
     }
 
     function getDefaultFeeConfig() internal pure returns (DataTypes.FeeConfig memory config) {

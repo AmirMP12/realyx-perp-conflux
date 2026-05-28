@@ -287,4 +287,24 @@ interface IVaultCore {
      * @notice Maximum LP shares `owner` can redeem in the current mode.
      */
     function maxRedeem(address owner) external view returns (uint256);
+
+    /**
+     * @notice Accrue referral rebate for a referrer (called by TradingCore on each trade).
+     * @param referrer Address earning the rebate.
+     * @param amount USDC rebate amount (6 decimals).
+     */
+    function accrueRebate(address referrer, uint256 amount) external;
+
+    /**
+     * @notice Referrer claims their accumulated rebates.
+     * @param to Recipient address for the USDC payout.
+     * @return claimed USDC amount transferred.
+     */
+    function claimRebates(address to) external returns (uint256 claimed);
+
+    /**
+     * @notice View accumulated claimable rebates for an address.
+     * @param referrer Address to query.
+     */
+    function claimableRebates(address referrer) external view returns (uint256);
 }

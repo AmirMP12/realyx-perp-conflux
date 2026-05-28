@@ -776,7 +776,10 @@ contract CoverageHarness {
             userDailyVolumeLimit: 0,
             globalDailyVolumeLimit: 0,
             defaultCrossMargin: false,
-            collateralRegistry: address(0)
+            collateralRegistry: address(0),
+            referrer: address(0),
+            referralDiscountBps: 0,
+            referralRebateBps: 0
         });
 
         return
