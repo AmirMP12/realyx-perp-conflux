@@ -19,6 +19,7 @@ const InsurancePage = lazy(() => import('./pages/Insurance').then(m => ({ defaul
 const VaultPage = lazy(() => import('./pages/Vault').then(m => ({ default: m.VaultPage })));
 const ReferralsPage = lazy(() => import('./pages/Referrals').then(m => ({ default: m.ReferralsPage })));
 const LeaderboardPage = lazy(() => import('./pages/Leaderboard').then(m => ({ default: m.LeaderboardPage })));
+const TraderProfilePage = lazy(() => import('./pages/TraderProfile').then(m => ({ default: m.TraderProfilePage })));
 const AnalyticsDashboard = lazy(() => import('./pages/Analytics'));
 
 export default function App() {
@@ -87,7 +88,8 @@ export default function App() {
                 <Route path="/vault" element={<Suspense fallback={<PageLoader />}><VaultPage /></Suspense>} />
                 <Route path="/insurance" element={<Suspense fallback={<PageLoader />}><InsurancePage /></Suspense>} />
                 <Route path="/referrals" element={<Suspense fallback={<PageLoader />}><ReferralsPage /></Suspense>} />
-                <Route path="/leaderboard" element={<Suspense fallback={<PageLoader />}><LeaderboardPage /></Suspense>} />
+<Route path="/leaderboard" element={<Suspense fallback={<PageLoader />}><LeaderboardPage /></Suspense>} />
+                <Route path="/trader/:address" element={<Suspense fallback={<PageLoader />}><TraderProfilePage /></Suspense>} />
                 <Route path="/analytics" element={<Suspense fallback={<PageLoader />}><AnalyticsDashboard /></Suspense>} />
             </Route>
         </Routes>

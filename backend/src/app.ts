@@ -14,6 +14,7 @@ import syncRouter from "./routes/sync.js";
 import pythRefreshRouter from "./routes/pythRefresh.js";
 import debugRouter from "./routes/debug.js";
 import authRouter from "./routes/auth.js";
+import socialRouter from "./routes/social.js";
 import keeperRouter from "./routes/keeper.js";
 import { broadcastKeeperFailure } from "./wsServer.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
@@ -60,6 +61,7 @@ app.use("/api/v1/sync", syncRouter);
 app.use("/api/v1/pyth-refresh", pythRefreshRouter);
 app.use("/api/v1/debug", debugRouter);
 app.use("/api/v1/keeper", keeperRouter);
+app.use("/api/v1/social", socialRouter);
 
 // Attach keeper failure broadcast function for use by the keeper router
 app.use((req: any, _res: any, next: any) => {
