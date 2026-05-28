@@ -14,6 +14,8 @@ import syncRouter from "./routes/sync.js";
 import pythRefreshRouter from "./routes/pythRefresh.js";
 import debugRouter from "./routes/debug.js";
 import authRouter from "./routes/auth.js";
+import keeperRouter from "./routes/keeper.js";
+import { broadcastKeeperFailure } from "./wsServer.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
 import { metricsMiddleware } from "./middleware/metrics.js";
 
@@ -57,6 +59,13 @@ app.use("/api/v1/insurance", insuranceRouter);
 app.use("/api/v1/sync", syncRouter);
 app.use("/api/v1/pyth-refresh", pythRefreshRouter);
 app.use("/api/v1/debug", debugRouter);
+app.use("/api/v1/keeper", keeperRouter);
+
+// Attach keeper failure broadcast function for use by the keeper router
+app.use((req: any, _res: any, next: any) => {
+  req.app.__broadcastKeeperFailure = broadcastKeeperFailure;
+  next();
+});
 
 app.use((_req: any, res: any) => {
   res.status(404).json({ success: false, error: "Not found" });

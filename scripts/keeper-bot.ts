@@ -6,6 +6,7 @@ type PendingOrder = {
     id: bigint;
     createdAtBlock: bigint;
     market: string;
+    account: string;
 };
 
 const ORDER_CREATED_EVENT =
@@ -67,8 +68,54 @@ function isTerminalExecuteError(err: unknown): boolean {
     // Order no longer exists on-chain.
     const terminalSelectors = new Set([
         "0xd36d8965", // OrderNotFound()
+        "0x08c379a0", // Error(string)
+        "0x9165f13e", // InsufficientMargin
+        "0xfb8eb1b3", // MaxLeverageExceeded
+        "0xa0caf76c", // PositionSizeTooSmall
+        "0xe372871f", // SlippageExceeded
+        "0xbea3c635", // MarketNotActive
+        "0xab63ac46", // MaxPositionSizeExceeded
+        "0x19abf40e", // StalePrice – terminal after retry
     ]);
     return terminalSelectors.has(selector);
+}
+
+/**
+ * POST a keeper failure to the backend API so it can be persisted and pushed via WebSocket.
+ */
+async function reportKeeperFailure(
+    apiBaseUrl: string,
+    orderId: bigint,
+    traderAddress: string,
+    marketAddress: string,
+    failureReason: string,
+    selector: string
+): Promise<void> {
+    try {
+        const url = `${apiBaseUrl.replace(/\/+$/, "")}/api/v1/keeper/failure`;
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 5_000);
+        const response = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                orderId: orderId.toString(),
+                traderAddress,
+                marketAddress,
+                failureReason,
+                selector,
+            }),
+            signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (!response.ok) {
+            console.warn(`[keeper] reportKeeperFailure HTTP ${response.status}: ${response.statusText}`);
+        }
+    } catch (err) {
+        // Don't let webhook failures crash the keeper loop
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[keeper] reportKeeperFailure network error: ${msg}`);
+    }
 }
 
 function bytes32ToPythId(feedId: string): string {
@@ -92,6 +139,7 @@ async function main() {
 
     const pollMs = toMsFromSeconds(process.env.KEEPER_POLL_INTERVAL_SECONDS, 3);
     const minPriceRefreshMs = toMsFromSeconds(process.env.KEEPER_MIN_PRICE_REFRESH_SECONDS, 20);
+    const keeperApiBaseUrl = process.env.KEEPER_API_BASE_URL || "http://localhost:3001";
     const lookbackBlocks = BigInt(Math.max(1, Number(process.env.KEEPER_LOOKBACK_BLOCKS ?? "5000")));
     const blockChunkSize = BigInt(Math.max(100, Number(process.env.KEEPER_BLOCK_CHUNK_SIZE ?? "500")));
     const hermesBase = (process.env.KEEPER_HERMES_URL || "https://hermes.pyth.network").replace(/\/+$/, "");
@@ -280,7 +328,8 @@ async function main() {
                         const id = parsed?.args?.orderId as bigint | undefined;
                         if (id == null) continue;
                         const market = (parsed?.args?.market as string | undefined) || ethers.ZeroAddress;
-                        pending.set(id.toString(), { id, market, createdAtBlock: BigInt(log.blockNumber) });
+                        const account = (parsed?.args?.account as string | undefined) || ethers.ZeroAddress;
+                        pending.set(id.toString(), { id, market, account, createdAtBlock: BigInt(log.blockNumber) });
                     }
 
                     for (const log of [...executedLogs, ...cancelledLogs]) {
@@ -346,9 +395,17 @@ async function main() {
                             }
                         }
 
-                        // Remove from queue only when no longer executable.
+                        // Report terminal failure to backend so the trader gets a WebSocket notification.
                         if (isTerminalExecuteError(err)) {
                             pending.delete(order.id.toString());
+                            await reportKeeperFailure(
+                                keeperApiBaseUrl,
+                                order.id,
+                                order.account,
+                                order.market,
+                                message,
+                                selector,
+                            );
                         }
                     }
                 }

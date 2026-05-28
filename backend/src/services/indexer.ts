@@ -678,6 +678,113 @@ export async function fetchLeaderboard(
   }
 }
 
+export interface KeeperFailure {
+  id: string;
+  orderId: string;
+  traderAddress: string;
+  marketAddress: string;
+  failureReason: string;
+  selector: string;
+  timestamp: string;
+}
+
+export async function insertKeeperFailure(failure: Omit<KeeperFailure, 'id' | 'timestamp'>): Promise<KeeperFailure | null> {
+  if (!process.env.POSTGRES_URL) {
+    console.warn('[indexer] No POSTGRES_URL — keeper failure not persisted:', failure);
+    return null;
+  }
+  try {
+    const pool = getPool();
+    if (!pool) return null;
+    const res = await pool.query(
+      `INSERT INTO keeper_failures (order_id, trader_address, market_address, failure_reason, selector)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, order_id, trader_address, market_address, failure_reason, selector, created_at`,
+      [failure.orderId, failure.traderAddress, failure.marketAddress, failure.failureReason, failure.selector]
+    );
+    const row = res.rows[0];
+    return {
+      id: String(row.id),
+      orderId: String(row.order_id),
+      traderAddress: row.trader_address,
+      marketAddress: row.market_address,
+      failureReason: row.failure_reason,
+      selector: row.selector || '',
+      timestamp: String(Math.floor(new Date(row.created_at).getTime() / 1000)),
+    };
+  } catch (e) {
+    console.error('[indexer] insertKeeperFailure error:', e);
+    return null;
+  }
+}
+
+export async function fetchKeeperFailures(traderAddress: string, limit: number = 20): Promise<KeeperFailure[]> {
+  if (!process.env.POSTGRES_URL) return [];
+  try {
+    const pool = getPool();
+    if (!pool) return [];
+    const res = await pool.query(
+      `SELECT id, order_id, trader_address, market_address, failure_reason, selector, created_at
+       FROM keeper_failures
+       WHERE lower(trader_address) = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [traderAddress.toLowerCase(), Math.min(limit, 100)]
+    );
+    return res.rows.map((row: any) => ({
+      id: String(row.id),
+      orderId: String(row.order_id),
+      traderAddress: row.trader_address,
+      marketAddress: row.market_address,
+      failureReason: row.failure_reason,
+      selector: row.selector || '',
+      timestamp: String(Math.floor(new Date(row.created_at).getTime() / 1000)),
+    }));
+  } catch (e) {
+    console.error('[indexer] fetchKeeperFailures error:', e);
+    return [];
+  }
+}
+
+export interface FundingPayment {
+  positionId: string;
+  amount: string;
+  traderAddress: string;
+  marketAddress: string;
+  timestamp: string;
+}
+
+export async function fetchFundingPayments(traderAddress: string, limit: number = 20): Promise<FundingPayment[]> {
+  if (!process.env.POSTGRES_URL) return [];
+  try {
+    const pool = getPool();
+    if (!pool) return [];
+    const res = await pool.query(
+      `SELECT (data::jsonb->>0)::text AS position_id,
+              (data::jsonb->>1)::numeric AS amount,
+              account AS trader_address,
+              market_id AS market_address,
+              EXTRACT(EPOCH FROM created_at)::bigint AS ts
+       FROM position_events
+       WHERE event_type = 'FundingPaid'
+         AND lower(account) = $1
+       ORDER BY created_at DESC
+       LIMIT $2`,
+      [traderAddress.toLowerCase(), Math.min(limit, 100)]
+    );
+    return res.rows.map((row: any) => ({
+      positionId: String(row.position_id),
+      amount: String(row.amount || '0'),
+      traderAddress: row.trader_address,
+      marketAddress: String(row.market_address || ''),
+      timestamp: String(row.ts),
+    }));
+  } catch (e) {
+    console.error('[indexer] fetchFundingPayments error:', e);
+    return [];
+  }
+}
+
 export async function fetchBadDebtClaims(_limit: number): Promise<BadDebtClaim[]> {
   return [];
 }

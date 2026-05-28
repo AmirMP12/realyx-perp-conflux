@@ -1,13 +1,18 @@
-import { useEffect, useState, useCallback, type CSSProperties } from 'react';
+import { useEffect, useState, useCallback, useRef, type CSSProperties } from 'react';
 import { useAccount } from 'wagmi';
 import toast from 'react-hot-toast';
 import { formatPriceWithPrecision } from '../utils/format';
+import { usePositions } from '../hooks/usePositions';
 
 const WS_URL = (import.meta.env.VITE_WS_URL ?? "").trim() || (import.meta.env.DEV ? "ws://localhost:3002" : "");
 
-interface OrderNotification {
+const LIQUIDATION_WARNING_THRESHOLD = 1.1;
+const HEALTH_CHECK_INTERVAL_MS = 8000;
+const LIQUIDATION_WARN_DEBOUNCE_MS = 60000;
+
+export interface OrderNotification {
     id: string;
-    type: 'ORDER_EXECUTED' | 'ORDER_PARTIALLY_FILLED' | 'ORDER_CANCELLED' | 'ORDER_EXPIRED' | 'POSITION_OPENED' | 'POSITION_CLOSED' | 'POSITION_LIQUIDATED';
+    type: 'ORDER_EXECUTED' | 'ORDER_PARTIALLY_FILLED' | 'ORDER_CANCELLED' | 'ORDER_EXPIRED' | 'POSITION_OPENED' | 'POSITION_CLOSED' | 'POSITION_LIQUIDATED' | 'LIQUIDATION_WARNING' | 'FUNDING_PAYMENT' | 'KEEPER_FAILURE';
     orderId?: number;
     positionId?: number;
     collectionId?: string;
@@ -15,11 +20,12 @@ interface OrderNotification {
     filledSize?: number;
     executionPrice?: number;
     pnl?: number;
+    failureReason?: string;
     timestamp: number;
     message: string;
 }
 
-interface NotificationSettings {
+export interface NotificationSettings {
     orderExecuted: boolean;
     orderPartiallyFilled: boolean;
     orderCancelled: boolean;
@@ -27,6 +33,9 @@ interface NotificationSettings {
     positionOpened: boolean;
     positionClosed: boolean;
     positionLiquidated: boolean;
+    liquidationWarning: boolean;
+    fundingPayment: boolean;
+    keeperFailure: boolean;
     soundEnabled: boolean;
 }
 
@@ -38,11 +47,15 @@ const defaultSettings: NotificationSettings = {
     positionOpened: true,
     positionClosed: true,
     positionLiquidated: true,
+    liquidationWarning: true,
+    fundingPayment: true,
+    keeperFailure: true,
     soundEnabled: false
 };
 
 export function useOrderNotifications() {
     const { address } = useAccount();
+    const { positions } = usePositions();
     const [connected, setConnected] = useState(false);
     const [notifications, setNotifications] = useState<OrderNotification[]>([]);
     const [settings, setSettings] = useState<NotificationSettings>(() => {
@@ -50,6 +63,9 @@ export function useOrderNotifications() {
         return saved ? JSON.parse(saved) : defaultSettings;
     });
     const [ws, setWs] = useState<WebSocket | null>(null);
+    const lastWarnedRef = useRef<Map<string, number>>(new Map());
+    const settingsRef = useRef(settings);
+    settingsRef.current = settings;
 
     useEffect(() => {
         localStorage.setItem('notificationSettings', JSON.stringify(settings));
@@ -64,11 +80,11 @@ export function useOrderNotifications() {
             setConnected(true);
             websocket.send(JSON.stringify({
                 type: 'auth',
-                data: { wallet: address, signature: '' } // In production, use actual signature
+                data: { wallet: address, signature: '' }
             }));
             websocket.send(JSON.stringify({
                 type: 'subscribe',
-                channel: `user:${address.toLowerCase()} `
+                channel: `user:${address.toLowerCase()}`
             }));
         };
 
@@ -98,15 +114,62 @@ export function useOrderNotifications() {
         };
     }, [address]);
 
+    // --- Local Health Factor Monitoring ---
+    useEffect(() => {
+        if (!positions || positions.length === 0) return;
+
+        const checkHealth = () => {
+            for (const pos of positions) {
+                const markPrice = parseFloat(pos.markPrice);
+                const liqPrice = parseFloat(pos.liquidationPrice);
+                const posId = pos.id;
+
+                if (markPrice <= 0 || liqPrice <= 0) continue;
+
+                let healthFactor: number;
+                if (pos.isLong) {
+                    healthFactor = markPrice / liqPrice;
+                } else {
+                    healthFactor = liqPrice / markPrice;
+                }
+
+                if (healthFactor < LIQUIDATION_WARNING_THRESHOLD && healthFactor > 1.0) {
+                    const lastWarned = lastWarnedRef.current.get(posId) || 0;
+                    const now = Date.now();
+                    if (now - lastWarned < LIQUIDATION_WARN_DEBOUNCE_MS) continue;
+
+                    lastWarnedRef.current.set(posId, now);
+
+                    const notification: OrderNotification = {
+                        id: `liq-warn-${posId}-${now}`,
+                        type: 'LIQUIDATION_WARNING',
+                        positionId: parseInt(posId),
+                        timestamp: now,
+                        message: `⚠️ Position #${posId} (${pos.isLong ? 'LONG' : 'SHORT'}) nearing liquidation! Health: ${healthFactor.toFixed(2)}x`
+                    };
+
+                    if (settingsRef.current.liquidationWarning) {
+                        showNotification(notification, settingsRef.current);
+                        setNotifications((prev) => [notification, ...prev].slice(0, 50));
+                    }
+                }
+            }
+        };
+
+        checkHealth();
+        const interval = setInterval(checkHealth, HEALTH_CHECK_INTERVAL_MS);
+        return () => clearInterval(interval);
+    }, [positions]);
+
     const handleWebSocketMessage = useCallback((data: any) => {
         if (data.type === 'notification') {
             const notification = parseNotification(data.data);
-            if (notification && shouldShowNotification(notification, settings)) {
-                showNotification(notification);
+            if (notification && shouldShowNotification(notification, settingsRef.current)) {
+                showNotification(notification, settingsRef.current);
                 setNotifications((prev: any) => [notification, ...prev].slice(0, 50));
             }
         }
-    }, [settings]);
+    }, []);
 
     const parseNotification = (data: any): OrderNotification | null => {
         const timestamp = Date.now();
@@ -114,18 +177,18 @@ export function useOrderNotifications() {
         switch (data.event) {
             case 'OrderExecuted':
                 return {
-                    id: `order - ${data.orderId} -${timestamp} `,
+                    id: `order-${data.orderId}-${timestamp}`,
                     type: 'ORDER_EXECUTED',
                     orderId: data.orderId,
                     collectionId: data.collectionId,
                     filledSize: data.filledSize,
                     executionPrice: data.executionPrice,
                     timestamp,
-                    message: `Order #${data.orderId} executed at $${formatPriceWithPrecision(data.executionPrice || 0)} `
+                    message: `Order #${data.orderId} executed at $${formatPriceWithPrecision(data.executionPrice || 0)}`
                 };
             case 'OrderPartiallyFilled':
                 return {
-                    id: `order - partial - ${data.orderId} -${timestamp} `,
+                    id: `order-partial-${data.orderId}-${timestamp}`,
                     type: 'ORDER_PARTIALLY_FILLED',
                     orderId: data.orderId,
                     filledSize: data.filledSize,
@@ -134,7 +197,7 @@ export function useOrderNotifications() {
                 };
             case 'OrderCancelled':
                 return {
-                    id: `order - cancelled - ${data.orderId} -${timestamp} `,
+                    id: `order-cancelled-${data.orderId}-${timestamp}`,
                     type: 'ORDER_CANCELLED',
                     orderId: data.orderId,
                     timestamp,
@@ -142,7 +205,7 @@ export function useOrderNotifications() {
                 };
             case 'OrderExpired':
                 return {
-                    id: `order - expired - ${data.orderId} -${timestamp} `,
+                    id: `order-expired-${data.orderId}-${timestamp}`,
                     type: 'ORDER_EXPIRED',
                     orderId: data.orderId,
                     timestamp,
@@ -150,18 +213,18 @@ export function useOrderNotifications() {
                 };
             case 'PositionOpened':
                 return {
-                    id: `position - opened - ${data.positionId} -${timestamp} `,
+                    id: `position-opened-${data.positionId}-${timestamp}`,
                     type: 'POSITION_OPENED',
                     positionId: data.positionId,
                     collectionId: data.collectionId,
                     size: data.size,
                     executionPrice: data.entryPrice,
                     timestamp,
-                    message: `Position opened: ${data.isLong ? 'LONG' : 'SHORT'} ${data.collectionId} `
+                    message: `Position opened: ${data.isLong ? 'LONG' : 'SHORT'} ${data.collectionId}`
                 };
             case 'PositionClosed':
                 return {
-                    id: `position - closed - ${data.positionId} -${timestamp} `,
+                    id: `position-closed-${data.positionId}-${timestamp}`,
                     type: 'POSITION_CLOSED',
                     positionId: data.positionId,
                     pnl: data.pnl,
@@ -170,11 +233,37 @@ export function useOrderNotifications() {
                 };
             case 'PositionLiquidated':
                 return {
-                    id: `position - liquidated - ${data.positionId} -${timestamp} `,
+                    id: `position-liquidated-${data.positionId}-${timestamp}`,
                     type: 'POSITION_LIQUIDATED',
                     positionId: data.positionId,
                     timestamp,
                     message: `Position #${data.positionId} was liquidated!`
+                };
+            case 'LiquidationWarning':
+                return {
+                    id: `liq-warn-svr-${data.positionId}-${timestamp}`,
+                    type: 'LIQUIDATION_WARNING',
+                    positionId: data.positionId,
+                    timestamp,
+                    message: `⚠️ Position #${data.positionId} nearing liquidation threshold!`
+                };
+            case 'FundingPayment':
+                return {
+                    id: `funding-${data.positionId}-${timestamp}`,
+                    type: 'FUNDING_PAYMENT',
+                    positionId: data.positionId,
+                    pnl: data.amount,
+                    timestamp,
+                    message: `Funding payment: ${data.amount >= 0 ? '+' : ''}$${data.amount?.toFixed(4)} for position #${data.positionId}`
+                };
+            case 'KeeperFailure':
+                return {
+                    id: `keeper-fail-${data.orderId}-${timestamp}`,
+                    type: 'KEEPER_FAILURE',
+                    orderId: data.orderId,
+                    failureReason: data.failureReason,
+                    timestamp,
+                    message: `❌ Order #${data.orderId} execution failed: ${data.failureReason || 'Unknown error'}`
                 };
             default:
                 return null;
@@ -190,11 +279,14 @@ export function useOrderNotifications() {
             case 'POSITION_OPENED': return settings.positionOpened;
             case 'POSITION_CLOSED': return settings.positionClosed;
             case 'POSITION_LIQUIDATED': return settings.positionLiquidated;
+            case 'LIQUIDATION_WARNING': return settings.liquidationWarning;
+            case 'FUNDING_PAYMENT': return settings.fundingPayment;
+            case 'KEEPER_FAILURE': return settings.keeperFailure;
             default: return true;
         }
     };
 
-    const showNotification = (notification: OrderNotification) => {
+    const showNotification = (notification: OrderNotification, currentSettings: NotificationSettings) => {
         const getToastIcon = () => {
             switch (notification.type) {
                 case 'ORDER_EXECUTED': return '✅';
@@ -204,6 +296,9 @@ export function useOrderNotifications() {
                 case 'POSITION_OPENED': return '📈';
                 case 'POSITION_CLOSED': return notification.pnl && notification.pnl >= 0 ? '💰' : '📉';
                 case 'POSITION_LIQUIDATED': return '🔥';
+                case 'LIQUIDATION_WARNING': return '⚠️';
+                case 'FUNDING_PAYMENT': return '💸';
+                case 'KEEPER_FAILURE': return '🛑';
                 default: return '📢';
             }
         };
@@ -211,6 +306,15 @@ export function useOrderNotifications() {
         const getToastStyle = (): CSSProperties => {
             if (notification.type === 'POSITION_LIQUIDATED') {
                 return { background: 'var(--short)', color: '#fff' };
+            }
+            if (notification.type === 'LIQUIDATION_WARNING') {
+                return { background: 'var(--notification-warning-bg)', border: '1px solid var(--notification-warning)', color: 'var(--text-primary)' };
+            }
+            if (notification.type === 'KEEPER_FAILURE') {
+                return { background: 'var(--notification-failure-bg)', border: '1px solid var(--notification-failure)', color: 'var(--text-primary)' };
+            }
+            if (notification.type === 'FUNDING_PAYMENT') {
+                return { background: 'var(--notification-funding-bg)', border: '1px solid var(--notification-funding)', color: 'var(--text-primary)' };
             }
             if (notification.type === 'POSITION_CLOSED' && notification.pnl != null) {
                 return notification.pnl >= 0
@@ -220,13 +324,16 @@ export function useOrderNotifications() {
             return {};
         };
 
-        toast(`${getToastIcon()} ${notification.message} `, {
-            duration: 5000,
+        const isHighPriority = notification.type === 'LIQUIDATION_WARNING' || notification.type === 'POSITION_LIQUIDATED' || notification.type === 'KEEPER_FAILURE';
+
+        toast(`${getToastIcon()} ${notification.message}`, {
+            duration: isHighPriority ? 8000 : 5000,
             style: getToastStyle(),
             position: 'bottom-right',
+            className: `toast-notification ${notification.type.toLowerCase()}`,
         });
 
-        if (settings.soundEnabled) {
+        if (currentSettings.soundEnabled) {
             playNotificationSound(notification.type);
         }
     };
@@ -240,7 +347,13 @@ export function useOrderNotifications() {
             oscillator.connect(gainNode);
             gainNode.connect(audioContext.destination);
 
-            oscillator.frequency.value = type === 'POSITION_LIQUIDATED' ? 200 : 440;
+            if (type === 'POSITION_LIQUIDATED' || type === 'KEEPER_FAILURE') {
+                oscillator.frequency.value = 200;
+            } else if (type === 'LIQUIDATION_WARNING') {
+                oscillator.frequency.value = 330;
+            } else {
+                oscillator.frequency.value = 440;
+            }
             oscillator.type = 'sine';
             gainNode.gain.value = 0.1;
 
@@ -252,7 +365,7 @@ export function useOrderNotifications() {
     };
 
     const updateSettings = (newSettings: Partial<NotificationSettings>) => {
-        setSettings((prev: any) => ({ ...prev, ...newSettings }));
+        setSettings((prev) => ({ ...prev, ...newSettings }));
     };
 
     const clearNotifications = () => {
@@ -260,7 +373,7 @@ export function useOrderNotifications() {
     };
 
     const markAsRead = (id: string) => {
-        setNotifications((prev: any) => prev.filter((n: any) => n.id !== id));
+        setNotifications((prev) => prev.filter((n) => n.id !== id));
     };
 
     return {
@@ -282,8 +395,20 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
     const { unreadCount, notifications, clearNotifications, markAsRead } = useOrderNotifications();
     const [isOpen, setIsOpen] = useState(false);
 
+    const getNotificationColor = (type: string): string => {
+        switch (type) {
+            case 'LIQUIDATION_WARNING': return 'border-l-[var(--notification-warning)]';
+            case 'KEEPER_FAILURE': return 'border-l-[var(--notification-failure)]';
+            case 'POSITION_LIQUIDATED': return 'border-l-[var(--short)]';
+            case 'FUNDING_PAYMENT': return 'border-l-[var(--notification-funding)]';
+            case 'ORDER_EXECUTED':
+            case 'POSITION_OPENED': return 'border-l-[var(--long)]';
+            default: return '';
+        }
+    };
+
     return (
-        <div className={`relative ${className} `}>
+        <div className={`relative ${className}`}>
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
@@ -332,10 +457,10 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
                         </div>
                     ) : (
                         <div className="divide-y divide-[var(--border-color)]">
-                            {notifications.map((notification: any) => (
+                            {notifications.map((notification) => (
                                 <div
                                     key={notification.id}
-                                    className="p-3 hover:bg-[var(--bg-tertiary)]/50 cursor-pointer transition-colors"
+                                    className={`p-3 hover:bg-[var(--bg-tertiary)]/50 cursor-pointer transition-colors border-l-2 ${getNotificationColor(notification.type)}`}
                                     onClick={() => markAsRead(notification.id)}
                                 >
                                     <p className="text-sm text-text-primary">{notification.message}</p>

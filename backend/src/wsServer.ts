@@ -13,6 +13,46 @@ import { toDecimal } from "./utils/format.js";
 
 const POLL_MS = process.env.NODE_ENV === "test" ? 500 : 15_000; // fast polling for tests
 const isTestEnv = process.env.NODE_ENV === "test";
+
+/**
+ * User-specific WebSocket client tracking.
+ * Key: lowercased trader address, Value: set of connected WebSockets for that user.
+ */
+const userClients = new Map<string, Set<WebSocket>>();
+
+/**
+ * Broadcast a JSON payload to all WebSocket clients subscribed for a specific user address.
+ */
+export function broadcastToUser(traderAddress: string, type: string, data: any) {
+  const addr = traderAddress.toLowerCase();
+  const sockets = userClients.get(addr);
+  if (!sockets || sockets.size === 0) return;
+  const payload = JSON.stringify({ type, data, traderAddress: addr });
+  sockets.forEach((ws) => {
+    if (ws.readyState !== 1) {
+      sockets?.delete(ws);
+      return;
+    }
+    try {
+      ws.send(payload);
+    } catch (err) {
+      if (!isTestEnv) console.error("[ws] send-to-user error:", err);
+    }
+  });
+}
+
+/**
+ * Keeper failure broadcast hook — callable from the keeper router.
+ * Pushes a KEEPER_FAILURE notification to the specific user's WebSocket.
+ */
+export function broadcastKeeperFailure(data: { orderId: string; traderAddress: string; failureReason: string }) {
+  broadcastToUser(data.traderAddress, "KEEPER_FAILURE", {
+    orderId: data.orderId,
+    failureReason: data.failureReason,
+    timestamp: Math.floor(Date.now() / 1000),
+  });
+}
+
 const MARKET_META: Record<string, { name: string; symbol: string }> = {
   "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c": { name: "Conflux", symbol: "CFX-USD" },
   "0x986a383f6de4a24dd3f524f0f93546229b58265f": { name: "Bitcoin", symbol: "BTC-USD" },
@@ -49,12 +89,31 @@ export function startWsServer() {
         if (msg.type === "subscribe" && Array.isArray(msg.channels)) {
           (ws as any).channels = msg.channels;
         }
+        // User-specific subscription: frontend sends { type: "subscribe:user", address: "0x..." }
+        if (msg.type === "subscribe:user" && typeof msg.address === "string" && msg.address.startsWith("0x")) {
+          const addr = msg.address.toLowerCase();
+          (ws as any).traderAddress = addr;
+          if (!userClients.has(addr)) {
+            userClients.set(addr, new Set());
+          }
+          userClients.get(addr)!.add(ws);
+          if (!isTestEnv) console.info(`[ws] User subscribed: ${addr}`);
+        }
       } catch {
         /* ignore invalid message */
       }
     });
     ws.on("close", () => {
       clients.delete(ws);
+      // Clean up user-specific tracking
+      const traderAddr = (ws as any).traderAddress as string | undefined;
+      if (traderAddr) {
+        const userSet = userClients.get(traderAddr);
+        if (userSet) {
+          userSet.delete(ws);
+          if (userSet.size === 0) userClients.delete(traderAddr);
+        }
+      }
       if (!isTestEnv) console.info(`[ws] Client disconnected, total: ${clients.size}`);
     });
     ws.on("error", () => clients.delete(ws));
