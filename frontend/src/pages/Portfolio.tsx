@@ -207,7 +207,7 @@ export function PortfolioPage() {
 
 function StatCard({ icon: Icon, label, value, sublabel, valueColor }: any) {
     return (
-        <div className="glass-panel p-4 sm:p-5 flex flex-col justify-between h-full hover:bg-[var(--bg-tertiary)]/20 transition-colors min-w-0">
+        <div className="glass-panel p-4 sm:p-5 flex flex-col justify-between h-full hover:bg-surface-3/20 transition-colors min-w-0">
             <div className="flex items-center justify-between mb-2">
                 <span className="text-text-muted text-xs uppercase tracking-wider font-medium">{label}</span>
                 <Icon className="w-4 h-4 text-text-muted" />

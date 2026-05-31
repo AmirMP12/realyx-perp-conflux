@@ -131,7 +131,7 @@ export function PositionTable({
                         className={clsx(
                             "py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
                             activeTab === sub
-                                ? "border-[var(--primary)] text-white"
+                                ? "border-[var(--primary)] text-text-primary"
                                 : "border-transparent text-text-secondary hover:text-text-primary"
                         )}
                     >
@@ -170,9 +170,9 @@ export function PositionTable({
                         <>
                             {/* Desktop Table */}
                             <div className="hidden md:block px-2 md:px-3 pb-3">
-                                <div className="rounded-xl border border-[var(--border-color)]/70 bg-[var(--bg-secondary)]/40 overflow-x-auto custom-scrollbar shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                                <div className="rounded-xl border border-line/70 bg-surface-2/40 overflow-x-auto custom-scrollbar shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                                     <table className="w-full min-w-[900px] text-left text-sm whitespace-nowrap">
-                                    <thead className="text-[10px] text-text-muted uppercase tracking-wider bg-[var(--bg-tertiary)]/45 sticky top-0 z-10 border-b border-[var(--border-color)]/80">
+                                    <thead className="text-[10px] text-text-muted uppercase tracking-wider bg-surface-3/45 sticky top-0 z-10 border-b border-line/80">
                                         <tr>
                                             <th className="px-4 py-3 font-semibold">Market</th>
                                             <th className="px-4 py-3 font-semibold text-right tabular-nums">Net Value</th>
@@ -185,10 +185,10 @@ export function PositionTable({
                                             <th className="px-4 py-3 font-semibold text-right pr-6">Action</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-[var(--border-color)]/80">
+                                    <tbody className="divide-y divide-line/80">
                                         {positions.map((pos: any, i: number) => (
                                             <PositionRow
-                                                key={i}
+                                                key={pos.id ?? i}
                                                 pos={pos}
                                                 markets={markets}
                                                 settings={settings}
@@ -211,7 +211,7 @@ export function PositionTable({
                             <div className="md:hidden px-3 pb-3 space-y-3">
                                 {positions.map((pos: any, i: number) => (
                                     <MobilePositionCard
-                                        key={i}
+                                        key={pos.id ?? i}
                                         pos={pos}
                                         markets={markets}
                                         settings={settings}
@@ -251,22 +251,23 @@ export function PositionTable({
                     ) : (
                         <>
                             {/* Desktop Orders */}
-                            <div className="hidden md:block overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0">
-                                <table className="w-full min-w-[400px] text-left text-sm whitespace-nowrap">
-                                    <thead className="text-xs text-text-muted uppercase tracking-wider bg-[var(--bg-tertiary)]/30 sticky top-0 z-10">
+                            <div className="hidden md:block px-2 md:px-3 pb-3">
+                                <div className="rounded-xl border border-line/70 bg-surface-2/40 overflow-x-auto custom-scrollbar shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                                <table className="w-full text-left text-sm whitespace-nowrap">
+                                    <thead className="text-[10px] text-text-muted uppercase tracking-wider bg-surface-3/45 sticky top-0 z-10 border-b border-line/80">
                                         <tr>
-                                            <th className="px-4 py-2 font-medium">Order ID</th>
-                                            <th className="px-4 py-2 font-medium">Type</th>
-                                            <th className="px-4 py-2 font-medium">Market</th>
-                                            <th className="px-4 py-2 font-medium text-right">Status</th>
-                                            <th className="px-4 py-2 font-medium text-right">Action</th>
+                                            <th className="px-4 py-3 font-semibold">Order ID</th>
+                                            <th className="px-4 py-3 font-semibold">Type</th>
+                                            <th className="px-4 py-3 font-semibold">Market</th>
+                                            <th className="px-4 py-3 font-semibold text-right">Status</th>
+                                            <th className="px-4 py-3 font-semibold text-right pr-6">Action</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-[var(--border-color)]">
+                                    <tbody className="divide-y divide-line/80">
                                         {pendingOrders.map((order) => {
                                             const market = markets.find(m => m.marketAddress?.toLowerCase() === order.market?.toLowerCase());
                                             return (
-                                                <tr key={order.orderId.toString()} className="hover:bg-[var(--bg-tertiary)]/40 transition-colors duration-150">
+                                                <tr key={order.orderId.toString()} className="hover:bg-surface-3/40 transition-colors duration-150">
                                                     <td className="px-4 py-3 font-mono text-text-primary">
                                                         #{order.orderId.toString()}
                                                     </td>
@@ -291,14 +292,14 @@ export function PositionTable({
                                                             Pending
                                                         </span>
                                                     </td>
-                                                    <td className="px-4 py-3 text-right">
+                                                    <td className="px-4 py-3 text-right pr-6">
                                                         <button
                                                             onClick={async () => {
                                                                 const ok = await cancelOrder(order.orderId);
                                                                 if (ok) refetchOrders();
                                                             }}
                                                             disabled={cancellingOrder}
-                                                            className="text-xs font-bold text-[var(--short)] hover:text-red-300 bg-[var(--short)]/10 hover:bg-[var(--short)]/20 px-2 py-1 rounded transition-colors disabled:opacity-50"
+                                                            className="text-xs font-bold text-[var(--short)] hover:text-red-300 bg-short/10 hover:bg-short/20 px-2 py-1 rounded transition-colors disabled:opacity-50"
                                                         >
                                                             {cancellingOrder ? 'Cancelling...' : 'Cancel'}
                                                         </button>
@@ -308,6 +309,7 @@ export function PositionTable({
                                         })}
                                     </tbody>
                                 </table>
+                                </div>
                             </div>
 
                             {/* Mobile Orders */}
@@ -352,40 +354,53 @@ export function PositionTable({
                     ) : (
                         <>
                             {/* Desktop History */}
-                            <div className="hidden md:block overflow-x-auto -mx-3 px-3 md:mx-0 md:px-0">
-                                <table className="w-full min-w-[320px] text-left text-sm whitespace-nowrap">
-                                    <thead className="text-xs text-text-muted uppercase tracking-wider bg-[var(--bg-tertiary)]/30 sticky top-0 z-10">
+                            <div className="hidden md:block px-2 md:px-3 pb-3">
+                                <div className="rounded-xl border border-line/70 bg-surface-2/40 overflow-x-auto custom-scrollbar shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                                <table className="w-full text-left text-sm whitespace-nowrap">
+                                    <thead className="text-[10px] text-text-muted uppercase tracking-wider bg-surface-3/45 sticky top-0 z-10 border-b border-line/80">
                                         <tr>
-                                            <th className="px-4 py-2 font-medium">Time</th>
-                                            <th className="px-4 py-2 font-medium">Action</th>
-                                            <th className="px-4 py-2 font-medium text-right">Price</th>
-                                            <th className="px-4 py-2 font-medium text-right">PnL</th>
+                                            <th className="px-4 py-3 font-semibold w-[22%]">Time</th>
+                                            <th className="px-4 py-3 font-semibold">Market</th>
+                                            <th className="px-4 py-3 font-semibold">Type</th>
+                                            <th className="px-4 py-3 font-semibold text-right tabular-nums">Price</th>
+                                            <th className="px-4 py-3 font-semibold text-right tabular-nums pr-6">Realized PnL</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-[var(--border-color)]">
-                                        {tradeHistory.map((t) => (
-                                            <tr key={t.id} className="hover:bg-[var(--bg-tertiary)]/40 transition-colors duration-150">
-                                                <td className="px-4 py-3 text-text-muted">
-                                                    {new Date(t.timestamp).toLocaleTimeString()} <span className="text-[10px]">{new Date(t.timestamp).toLocaleDateString()}</span>
+                                    <tbody className="divide-y divide-line/80">
+                                        {tradeHistory.map((t) => {
+                                            const hasPnl = t.pnl != null && t.pnl !== '';
+                                            const pnlNum = hasPnl ? parseFloat(t.pnl as string) : 0;
+                                            return (
+                                            <tr key={t.id} className="hover:bg-surface-3/40 transition-colors duration-150">
+                                                <td className="px-4 py-3 text-text-secondary">
+                                                    <div className="flex flex-col leading-tight">
+                                                        <span className="tabular-nums">{new Date(t.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                        <span className="text-[10px] text-text-muted tabular-nums">{new Date(t.timestamp).toLocaleDateString()}</span>
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    <div className="flex flex-col">
-                                                        <span className={clsx("font-medium", t.side === 'LONG' ? "text-[var(--long)]" : "text-[var(--short)]")}>
-                                                            {t.side} {t.market}
+                                                    <span className="inline-flex items-center gap-2">
+                                                        <span className={clsx("text-[10px] font-bold uppercase px-1.5 py-0.5 rounded", t.side === 'LONG' ? "text-[var(--long)] bg-long/12" : "text-[var(--short)] bg-short/12")}>
+                                                            {t.side}
                                                         </span>
-                                                        <span className="text-[10px] text-text-muted">{t.type}</span>
-                                                    </div>
+                                                        <span className="font-medium text-text-primary">{t.market}</span>
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <span className="text-xs font-medium text-text-secondary capitalize">{t.type?.toLowerCase()}</span>
                                                 </td>
                                                 <td className="px-4 py-3 text-right font-mono text-sm tabular-nums text-text-primary">
                                                     {fmtUsdPrice(parseFloat(t.price))}
                                                 </td>
-                                                <td className={clsx("px-4 py-3 text-right font-mono", t.pnl && parseFloat(t.pnl) >= 0 ? "text-[var(--long)]" : "text-[var(--short)]")}>
-                                                    {t.pnl ? (parseFloat(t.pnl) >= 0 ? '+' : '') + parseFloat(t.pnl).toFixed(2) : '-'}
+                                                <td className={clsx("px-4 py-3 text-right font-mono tabular-nums pr-6", !hasPnl ? "text-text-muted" : pnlNum >= 0 ? "text-[var(--long)]" : "text-[var(--short)]")}>
+                                                    {hasPnl ? `${pnlNum >= 0 ? '+' : '-'}$${formatPriceWithPrecision(Math.abs(pnlNum))}` : '—'}
                                                 </td>
                                             </tr>
-                                        ))}
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
+                                </div>
                             </div>
 
                             {/* Mobile History */}
@@ -419,7 +434,7 @@ export function PositionTable({
                             aria-modal="true"
                             aria-labelledby="position-triggers-title"
                         >
-                            <div className="shrink-0 px-5 pt-5 pb-4 border-b border-[var(--border-color)]/80 flex items-start justify-between gap-3">
+                            <div className="shrink-0 px-5 pt-5 pb-4 border-b border-line/80 flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                     <h2 id="position-triggers-title" className="text-lg font-bold text-text-primary tracking-tight">
                                         Position triggers
@@ -429,7 +444,7 @@ export function PositionTable({
                                         <span
                                             className={clsx(
                                                 'text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md shrink-0',
-                                                slTpPosition.isLong ? 'text-[var(--long)] bg-[var(--long)]/12' : 'text-[var(--short)] bg-[var(--short)]/12'
+                                                slTpPosition.isLong ? 'text-[var(--long)] bg-long/12' : 'text-[var(--short)] bg-short/12'
                                             )}
                                         >
                                             {slTpPosition.isLong ? 'Long' : 'Short'}
@@ -455,7 +470,7 @@ export function PositionTable({
                                         <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Stop loss</span>
                                         <span className="text-[10px] text-text-muted">USD</span>
                                     </label>
-                                    <div className="relative rounded-xl border border-[var(--border-color)]/90 bg-[var(--bg-tertiary)]/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-within:border-[var(--primary)]/55 focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all">
+                                    <div className="relative rounded-xl border border-line/90 bg-surface-3/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-within:border-brand/55 focus-within:ring-2 focus-within:ring-brand/15 transition-all">
                                         <input
                                             id="trigger-stop-loss"
                                             type="text"
@@ -476,7 +491,7 @@ export function PositionTable({
                                         <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Take profit</span>
                                         <span className="text-[10px] text-text-muted">USD</span>
                                     </label>
-                                    <div className="relative rounded-xl border border-[var(--border-color)]/90 bg-[var(--bg-tertiary)]/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-within:border-[var(--primary)]/55 focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all">
+                                    <div className="relative rounded-xl border border-line/90 bg-surface-3/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-within:border-brand/55 focus-within:ring-2 focus-within:ring-brand/15 transition-all">
                                         <input
                                             id="trigger-take-profit"
                                             type="text"
@@ -497,7 +512,7 @@ export function PositionTable({
                                         <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Trailing stop</span>
                                         <span className="text-[10px] text-text-muted">BPS</span>
                                     </label>
-                                    <div className="relative rounded-xl border border-[var(--border-color)]/90 bg-[var(--bg-tertiary)]/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-within:border-[var(--primary)]/55 focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all">
+                                    <div className="relative rounded-xl border border-line/90 bg-surface-3/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-within:border-brand/55 focus-within:ring-2 focus-within:ring-brand/15 transition-all">
                                         <input
                                             id="trigger-trailing"
                                             type="text"
@@ -515,7 +530,7 @@ export function PositionTable({
                                 </div>
                             </div>
 
-                            <div className="shrink-0 px-5 pb-5 pt-4 border-t border-[var(--border-color)]/80 bg-[var(--bg-secondary)] flex flex-col-reverse sm:flex-row gap-3">
+                            <div className="shrink-0 px-5 pb-5 pt-4 border-t border-line/80 bg-[var(--bg-secondary)] flex flex-col-reverse sm:flex-row gap-3">
                                 <button
                                     type="button"
                                     onClick={() => setSlTpPosition(null)}
@@ -528,7 +543,7 @@ export function PositionTable({
                                     type="button"
                                     onClick={confirmSlTp}
                                     disabled={slLoading || tpLoading || trLoading}
-                                    className="sm:flex-1 py-3 rounded-xl font-bold text-sm text-white bg-[var(--primary)] hover:opacity-95 active:scale-[0.99] transition-all disabled:opacity-50 shadow-lg shadow-[var(--primary)]/20"
+                                    className="sm:flex-1 py-3 rounded-xl font-bold text-sm text-white bg-[var(--primary)] hover:opacity-95 active:scale-[0.99] transition-all disabled:opacity-50 shadow-lg shadow-brand/20"
                                 >
                                     {slLoading || tpLoading || trLoading ? 'Saving…' : 'Save triggers'}
                                 </button>
@@ -594,12 +609,12 @@ function PositionRow({
     const trBps = (pos as any).trailingStopBps ? parseFloat((pos as any).trailingStopBps.toString()) : 0;
 
     return (
-        <tr data-testid="position-row" className="hover:bg-[var(--bg-tertiary)]/30 transition-colors duration-150">
+        <tr data-testid="position-row" className="hover:bg-surface-3/30 transition-colors duration-150">
             <td className={clsx(cellPad, "font-medium text-text-primary")}>
                 <div className="flex items-center gap-2 min-w-0">
-                    {market && <img src={market.image} className="w-6 h-6 rounded-full ring-1 ring-[var(--border-color)]/60 shrink-0" alt="" />}
+                    {market && <img src={market.image} className="w-6 h-6 rounded-full ring-1 ring-line/60 shrink-0" alt="" />}
                     <span className="truncate">{market?.symbol || 'Unknown'}</span>
-                    <span className={clsx("text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 tracking-wide", pos.isLong ? "text-[var(--long)] bg-[var(--long)]/12" : "text-[var(--short)] bg-[var(--short)]/12")}>
+                    <span className={clsx("text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0 tracking-wide", pos.isLong ? "text-[var(--long)] bg-long/12" : "text-[var(--short)] bg-short/12")}>
                         {pos.isLong ? 'Long' : 'Short'}
                     </span>
                     {isOptimistic && (
@@ -619,7 +634,7 @@ function PositionRow({
                     {!isOptimistic && (
                         <button
                             onClick={() => setActiveCollateralPos(pos)}
-                            className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-[var(--bg-tertiary)] rounded-lg text-text-muted hover:text-text-primary transition-all focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40"
+                            className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-[var(--bg-tertiary)] rounded-lg text-text-muted hover:text-text-primary transition-all focus:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                             title="Edit Collateral"
                         >
                             <Edit2 size={12} />
@@ -691,7 +706,7 @@ function PositionRow({
                         </button>
                         <button
                             onClick={() => setActiveClosePos(pos)}
-                            className="px-3 py-1.5 text-xs font-bold bg-[var(--bg-tertiary)] border border-[var(--border-color)]/80 hover:bg-white/10 text-text-primary rounded-lg transition-colors"
+                            className="px-3 py-1.5 text-xs font-bold bg-[var(--bg-tertiary)] border border-line/80 hover:bg-white/10 text-text-primary rounded-lg transition-colors"
                         >
                             Close
                         </button>
@@ -725,7 +740,7 @@ function MobilePositionCard({
     const trBps = (pos as any).trailingStopBps ? parseFloat((pos as any).trailingStopBps.toString()) : 0;
 
     return (
-        <div data-testid="position-card" className="p-4 bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-color)]/70 shadow-lg">
+        <div data-testid="position-card" className="p-4 bg-[var(--bg-secondary)] rounded-2xl border border-line/70 shadow-lg">
             {/* Header: Market and PnL */}
             <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-2.5 min-w-0">
@@ -807,7 +822,7 @@ function MobilePositionCard({
                             setTrailingStop(trBps > 0 ? trBps.toString() : '');
                         }}
                         disabled={isOptimistic}
-                        className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-tertiary)]/50 text-text-primary text-xs font-bold hover:bg-[var(--bg-tertiary)] transition-colors disabled:opacity-50"
+                        className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[var(--border-color)] bg-surface-3/50 text-text-primary text-xs font-bold hover:bg-[var(--bg-tertiary)] transition-colors disabled:opacity-50"
                         data-testid="mobile-trigger-btn"
                     >
                         <Shield size={14} /> Triggers
@@ -815,7 +830,7 @@ function MobilePositionCard({
                     <button
                         onClick={() => setActiveClosePos(pos)}
                         disabled={isOptimistic}
-                        className="py-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-tertiary)]/50 hover:bg-rose-500/10 hover:text-rose-500 text-text-primary text-xs font-bold transition-colors disabled:opacity-50"
+                        className="py-2.5 rounded-xl border border-[var(--border-color)] bg-surface-3/50 hover:bg-rose-500/10 hover:text-rose-500 text-text-primary text-xs font-bold transition-colors disabled:opacity-50"
                     >
                         Close Position
                     </button>
@@ -824,7 +839,7 @@ function MobilePositionCard({
                     type="button"
                     onClick={() => setActiveTransferPos(pos)}
                     disabled={isOptimistic}
-                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[var(--border-color)] bg-[var(--bg-tertiary)]/50 text-text-primary text-xs font-bold hover:bg-[var(--bg-tertiary)] transition-colors disabled:opacity-50"
+                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-[var(--border-color)] bg-surface-3/50 text-text-primary text-xs font-bold hover:bg-[var(--bg-tertiary)] transition-colors disabled:opacity-50"
                     data-testid="mobile-transfer-btn"
                 >
                     <ArrowRightLeft size={14} /> Transfer Position
@@ -837,7 +852,7 @@ function MobilePositionCard({
 function MobileOrderCard({ order, markets, onCancel, cancelling }: any) {
     const market = markets.find((m: any) => m.marketAddress?.toLowerCase() === order.market?.toLowerCase());
     return (
-        <div className="p-4 bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-color)]/70">
+        <div className="p-4 bg-[var(--bg-secondary)] rounded-2xl border border-line/70">
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                     {market && <img src={market.image} className="w-5 h-5 rounded-full" alt="" />}
@@ -870,7 +885,7 @@ function MobileOrderCard({ order, markets, onCancel, cancelling }: any) {
 function MobileHistoryCard({ t }: any) {
     const isProfit = t.pnl && parseFloat(t.pnl) >= 0;
     return (
-        <div className="p-4 bg-[var(--bg-secondary)] rounded-2xl border border-[var(--border-color)]/70">
+        <div className="p-4 bg-[var(--bg-secondary)] rounded-2xl border border-line/70">
             <div className="flex items-start justify-between mb-2">
                 <div>
                     <div className={clsx("font-bold text-sm", t.side === 'LONG' ? "text-[var(--long)]" : "text-[var(--short)]")}>
@@ -887,7 +902,7 @@ function MobileHistoryCard({ t }: any) {
                     </div>
                 </div>
             </div>
-            <div className="flex justify-between items-center mt-3 pt-3 border-t border-[var(--border-color)]/30">
+            <div className="flex justify-between items-center mt-3 pt-3 border-t border-line/30">
                 <span className="text-xs text-text-secondary">Execute Price</span>
                 <span className="text-sm font-mono text-text-primary">{fmtUsdPrice(parseFloat(t.price))}</span>
             </div>

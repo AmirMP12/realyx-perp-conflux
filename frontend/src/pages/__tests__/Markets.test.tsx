@@ -141,7 +141,7 @@ describe('MarketsPage', () => {
 
         renderWithRouter(<MarketsPage />);
         
-        const favoritesFilter = screen.getByRole('button', { name: /Favorites/i });
+        const favoritesFilter = screen.getByRole('button', { name: /^Favorites$/i });
         await user.click(favoritesFilter);
         
         expect(screen.getAllByText('ETH-USD')[0]).toBeInTheDocument();

@@ -5,22 +5,50 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Realyx — RWA Perpetual Futures DEX on Conflux</title>
   <meta name="description" content="Trade Crypto, Equities, and Commodities. Non-custodial, zero KYC, lightning fast. Built on Conflux eSpace.">
+  <meta name="keywords" content="Realyx, RWA, Perpetual, Futures, Conflux, eSpace, DeFi, Trading, DEX, Leverage, Crypto, Equities, Commodities">
+  <meta name="author" content="Realyx">
+  <meta name="robots" content="index, follow">
+  <meta property="og:site_name" content="Realyx">
   <meta property="og:title" content="Realyx — RWA Perpetual Futures DEX">
   <meta property="og:description" content="Bridging TradFi and DeFi on Conflux eSpace. Trade Crypto, Equities, and Commodities on-chain.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://realyx.vercel.app/">
+  <meta property="og:url" content="https://landing-realyx.vercel.app/">
+  <meta property="og:locale" content="en_US">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Realyx — RWA Perpetual Futures DEX">
   <meta name="twitter:description" content="Trade Crypto, Equities, and Commodities on Conflux. Non-custodial, zero KYC, MEV-resistant.">
-  <meta property="og:image" content="https://realyx.vercel.app/assets/logo.png">
-  <meta name="twitter:image" content="https://realyx.vercel.app/assets/logo.png">
-  <link rel="icon" type="image/png" href="assets/logo.png">
-  <meta name="theme-color" content="#0d0e17">
-  <link rel="canonical" href="https://realyx.vercel.app/">
+  <meta property="og:image" content="https://landing-realyx.vercel.app/assets/logo.png">
+  <meta property="og:image:alt" content="Realyx — RWA Perpetual Futures DEX">
+  <meta name="twitter:image" content="https://landing-realyx.vercel.app/assets/logo.png">
+  <meta name="twitter:image:alt" content="Realyx — RWA Perpetual Futures DEX">
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <meta name="theme-color" content="#10111a">
+  <link rel="canonical" href="https://landing-realyx.vercel.app/">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Realyx",
+    "url": "https://landing-realyx.vercel.app/",
+    "description": "RWA Perpetual Futures DEX on Conflux eSpace. Trade Crypto, Equities, and Commodities — non-custodial, zero KYC.",
+    "publisher": {
+      "@type": "Organization",
+      "name": "Realyx",
+      "url": "https://realyx.vercel.app/",
+      "logo": "https://landing-realyx.vercel.app/assets/logo-rounded.png",
+      "sameAs": [
+        "https://x.com/Realyx_Perp",
+        "https://t.me/Real_yx",
+        "https://github.com/AmirMP12/realyx-perp-conflux"
+      ]
+    }
+  }
+  </script>
 </head>
 <body>
   <a href="#main-content" class="skip-link">Skip to main content</a>
@@ -29,7 +57,7 @@
   <header class="header" id="header" role="banner">
     <div class="container header__inner">
       <a href="#" class="header__logo" aria-label="Realyx Home">
-        <img src="assets/logo.png" alt="Realyx" width="32" height="32">
+        <img src="assets/logo-rounded.png" alt="Realyx" width="32" height="32">
         <span class="header__brand">Realyx</span>
       </a>
       <nav class="header__nav" id="main-nav" role="navigation" aria-label="Main navigation">
@@ -670,9 +698,11 @@
             </div>
             <ul class="roadmap-list">
               <li class="done">Core smart contracts — TradingCore, VaultCore, OracleAggregator, PositionToken</li>
-              <li class="done">Hardhat test cases across core, fuzz, security &amp; e2e suites</li>
+              <li class="done">Cross-margin risk engine (default) + on-chain SL / TP / Trailing stops</li>
+              <li class="done">Social layer — copy trading &amp; referral rebates; RWA market hours &amp; dividends</li>
+              <li class="done">Hardhat test cases across unit, integration, fuzz, security &amp; e2e suites</li>
               <li class="done">PostgreSQL native EVM indexer tracking 15+ on-chain events</li>
-              <li class="done">Full-stack frontend — Markets, Trading, Portfolio, Vault, Analytics, Settings</li>
+              <li class="done">Full-stack frontend — Markets, Trade, Portfolio, Vault, Insurance, Leaderboard, Copy Trading, Referrals, Analytics, Settings</li>
               <li class="done">Keeper bot for decentralised order execution</li>
               <li class="done">Deployed to Conflux eSpace Testnet (Chain ID 71)</li>
             </ul>
@@ -685,7 +715,7 @@
             <ul class="roadmap-list">
               <li>Independent smart-contract security audit</li>
               <li>Conflux eSpace Mainnet launch (Chain ID 1030)</li>
-              <li>Multi-collateral support — USDT0 &amp; AxCNH</li>
+              <li>Live multi-collateral support — USDT0 &amp; AxCNH via CollateralRegistry</li>
               <li>Liquidity mining programme for early <code>realyxLP</code> depositors</li>
               <li>Public Keeper node — anyone can execute orders and earn bounties</li>
             </ul>
@@ -696,9 +726,8 @@
               <span class="roadmap-phase__badge">Phase 3 · Scale</span>
             </div>
             <ul class="roadmap-list">
-              <li>Cross-margin architecture across all open positions</li>
-              <li>Social copy-trading — auto-mirror top leaderboard wallets</li>
-              <li>Expanded RWA markets — Forex, commodities, additional equities</li>
+              <li>Deeper copy-trading automation &amp; on-chain trader profiles</li>
+              <li>Expanded RWA markets — Forex, more commodities &amp; equities</li>
               <li>Governance module for community-driven parameter updates</li>
               <li>Mobile-optimised trading interface</li>
             </ul>
@@ -817,7 +846,7 @@
         <!-- Brand column -->
         <div class="footer__brand-col">
           <a href="#" class="footer__logo" aria-label="Realyx home">
-            <img src="assets/logo.png" alt="Realyx" width="32" height="32">
+            <img src="assets/logo-rounded.png" alt="Realyx" width="32" height="32">
             <span class="footer__logo-name">Realyx</span>
           </a>
           <p class="footer__tagline">RWA Perpetual Futures DEX on Conflux eSpace. Trade Crypto, Equities &amp; Commodities — non-custodial, zero KYC.</p>

@@ -18,17 +18,27 @@ The central nervous system for traders.
 The protocol's liquidity engine. 
 - Serves as the universal counterparty to all trader PnL.
 - Manages Liquidity Provider (LP) deposits, share issuance, and withdrawal queues.
-- Contains the **Insurance Fund**, a dedicated subset of liquidity designed to backstop extreme systemic risk.
+- Hosts the **insurance tranche** as a separate share class *inside the same contract* (`stakeInsurance` / `unstakeInsurance`) — a dedicated slice of capital that backstops bad debt before the main LP pool is touched. There is no standalone `InsuranceFund` contract.
+- Tracks referral rebates accrued from fees (`claimableRebates`).
 
 ### 3. `OracleAggregator`
 The deterministic pricing router.
 - Integrates seamlessly with the **Pyth Network** via a pull-based oracle mechanism.
-- Validates price freshness, confidence intervals, and circuit breakers.
+- Validates price freshness, confidence intervals, and circuit breakers, with TWAP buffering and emergency-price governance paths.
 
 ### 4. `PositionToken` (ERC-721)
 A unique NFT representation of leveraged positions.
 - Each open trade mints a fully transferable, composable `PositionToken` NFT mapping your margin.
-- Enables future capabilities like secondary markets for paper trading or composable DeFi integrations.
+- Enables future capabilities like secondary markets for positions or composable DeFi integrations.
+
+### 5. Supporting contracts
+- **`TradingCoreViews`** — read-only companion for gas-efficient view queries.
+- **`MarketCalendar`** — enforces trading-hours for RWA (equity/commodity) markets; orders revert with `MarketClosed` outside session hours.
+- **`DividendManager`** + **`DividendKeeper`** — settle dividend-style corporate-action adjustments for tokenized equity positions.
+- **`CollateralRegistry`** — registers alternative collateral tokens with per-asset haircuts and exposure caps.
+- **`CopyRegistry`** — on-chain registry powering copy-trading (lead traders ↔ copiers).
+- **`ReferralRegistry`** — referral codes that route fee rebates to referrers.
+- **`AllowListCompliance`** (`IComplianceManager`) — optional per-market access gating consulted by `TradingCore.createOrder`.
 
 ---
 
@@ -83,5 +93,7 @@ By utilizing **Pyth Network's pull-based logic**, Realyx eliminates continuous o
 ## 🔒 Security Posture
 
 - **Circuit Breakers**: `OracleAggregator` halts market execution automatically if oracle freshness or confidence intervals deteriorate.
-- **Insurance Fund Provisioning**: A mandatory slice of Vault TVL explicitly siloed to cover bad debt during flash crashes.
-- **Guardian Quorum**: Protocol parameters are strictly governed by a multi-signature logic layer.
+- **Insurance Tranche**: A dedicated share class inside `VaultCore` is staked explicitly to cover bad debt during flash crashes, before the main LP pool is affected.
+- **Cross-Margin Risk Engine**: `TradingCore` runs cross-margin by default (`crossMarginByDefault = true`) with account-level risk snapshots (`getAccountRisk`, `canLiquidateAccount`).
+- **Compliance Gating**: When an `IComplianceManager` is wired in, `createOrder` enforces `checkCompliance(market)`.
+- **Upgrade Governance**: Core contracts are UUPS-upgradeable; `_authorizeUpgrade` is admin-gated and intended to sit behind a multisig with an off-chain hold. Sensitive parameter changes use 48h timelocks.

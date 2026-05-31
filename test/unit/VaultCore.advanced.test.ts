@@ -74,9 +74,9 @@ describe("VaultCore — advanced (TradingCore-gated paths)", () => {
 
         it("updateExposure reverts when breaching the cap", async () => {
             const { d, coreEoa } = await loadFixture(fundedVault);
-            // The cap compares USDC-precision exposure against a conservative-TVL-derived
-            // bound; push an enormous delta to deterministically exceed it.
-            const huge = ethers.parseUnits("1000000000000000", 6);
+            // Cap ≈ conservativeTVL(1e18-scaled, ~5e24) * 2000/10000 ≈ 1e24 (raw units).
+            // Pass a raw delta above that bound to deterministically exceed the cap.
+            const huge = 10n ** 25n;
             await expect(
                 d.vault.connect(coreEoa).updateExposure(market, huge, true),
             ).to.be.revertedWithCustomError(d.vault, "ExceedsExposureCap");

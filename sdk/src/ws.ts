@@ -8,7 +8,7 @@ import type { WsMessage } from "./types";
 export type WsState = "connecting" | "connected" | "disconnected" | "reconnecting";
 
 export interface RealyxWsOptions {
-  /** WebSocket server URL (e.g. wss://ws.realyx.xyz) */
+  /** WebSocket server URL (e.g. wss://realyx.vercel.app/ws) */
   url: string;
   /** API key for authenticated channels (positions, orders) */
   apiKey?: string;

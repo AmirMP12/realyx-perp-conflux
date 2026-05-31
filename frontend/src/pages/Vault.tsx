@@ -11,6 +11,7 @@ import { useUSDCBalance } from '../hooks/useProgram';
 import { formatCompact, formatPrice } from '../utils/format';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { Skeleton } from '../components/ui';
+import { CollateralAssetsPanel } from '../components/CollateralAssetsPanel';
 
 export function VaultPage() {
     const { isConnected } = useAccount();
@@ -28,7 +29,7 @@ export function VaultPage() {
     const accumulatedFees = stats.accumulatedFees ?? 0;
     const availableLiquidity = stats.availableLiquidity ?? 0;
     const userShares = stats.userShares ?? 0;
-    const compactSharePrice = formatCompact(sharePrice).replace(/([mbt])$/, (s) => s.toUpperCase());
+    const compactSharePrice = `$${formatPrice(sharePrice, 4)}`;
 
     const handleAction = async () => {
         if (!isConnected) return;
@@ -60,7 +61,7 @@ export function VaultPage() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                 <div>
                     <h1 className="text-2xl lg:text-3xl font-bold text-text-primary mb-2 flex items-center gap-3">
-                        <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-gradient-to-br from-[var(--primary)] to-indigo-500 flex items-center justify-center shadow-lg shadow-[var(--primary)]/20">
+                        <div className="w-9 h-9 lg:w-10 lg:h-10 rounded-xl bg-gradient-to-br from-[var(--primary)] to-indigo-500 flex items-center justify-center shadow-lg shadow-brand/20">
                             <TrendingUp className="w-5 h-5 lg:w-6 lg:h-6 text-white" />
                         </div>
                         Liquidity Vault
@@ -173,12 +174,12 @@ export function VaultPage() {
                                                 if (pasted.includes('-')) e.preventDefault();
                                             }}
                                             placeholder="0.00"
-                                            className="w-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-text-primary text-xl sm:text-2xl lg:text-3xl font-mono font-medium py-4 sm:py-5 pl-4 sm:pl-5 pr-28 sm:pr-36 rounded-xl focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-[var(--primary)]/30 transition-all placeholder:text-text-muted/20"
+                                            className="w-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-text-primary text-xl sm:text-2xl lg:text-3xl font-mono font-medium py-4 sm:py-5 pl-4 sm:pl-5 pr-28 sm:pr-36 rounded-xl focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-brand/30 transition-all placeholder:text-text-muted/20"
                                         />
                                         <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 sm:gap-3">
                                             <button
                                                 onClick={handleMax}
-                                                className="text-[10px] sm:text-xs font-bold text-[var(--primary)] bg-[var(--primary)]/10 hover:bg-[var(--primary)]/20 px-2 py-1 rounded-md transition-colors"
+                                                className="text-[10px] sm:text-xs font-bold text-[var(--primary)] bg-brand/10 hover:bg-brand/20 px-2 py-1 rounded-md transition-colors"
                                             >
                                                 MAX
                                             </button>
@@ -191,7 +192,7 @@ export function VaultPage() {
                                 </div>
 
                                 {/* Info Box */}
-                                <div className="rounded-xl bg-[var(--bg-tertiary)]/40 border border-[var(--border-color)]/50 divide-y divide-[var(--border-color)]/50">
+                                <div className="rounded-xl bg-surface-3/40 border border-line/50 divide-y divide-line/50">
                                     <div className="flex justify-between items-center px-4 py-3">
                                         <span className="text-xs sm:text-sm text-text-muted">Exchange Rate</span>
                                         <span className="font-mono text-xs sm:text-sm text-text-primary">1 LP = {formatPrice(sharePrice, 4)} USDC</span>
@@ -214,7 +215,7 @@ export function VaultPage() {
                                             "w-full py-3.5 sm:py-4 rounded-xl font-bold text-sm sm:text-base flex items-center justify-center gap-2 transition-all",
                                             isActionDisabled
                                                 ? "bg-[var(--bg-tertiary)] text-text-muted cursor-not-allowed border border-[var(--border-color)]"
-                                                : "bg-gradient-to-r from-[var(--primary)] to-indigo-500 hover:from-[var(--primary)] hover:to-indigo-400 text-white shadow-lg shadow-[var(--primary)]/20"
+                                                : "bg-gradient-to-r from-[var(--primary)] to-indigo-500 hover:from-[var(--primary)] hover:to-indigo-400 text-white shadow-lg shadow-brand/20"
                                         )}
                                     >
                                         {isDepositing || isWithdrawing ? (
@@ -232,7 +233,7 @@ export function VaultPage() {
                                                 whileHover={{ scale: 1.01 }}
                                                 whileTap={{ scale: 0.98 }}
                                                 onClick={openConnectModal}
-                                                className="w-full py-3.5 sm:py-4 rounded-xl font-bold text-sm sm:text-base bg-gradient-to-r from-[var(--primary)] to-indigo-500 text-white shadow-lg shadow-[var(--primary)]/20 flex items-center justify-center gap-2"
+                                                className="w-full py-3.5 sm:py-4 rounded-xl font-bold text-sm sm:text-base bg-gradient-to-r from-[var(--primary)] to-indigo-500 text-white shadow-lg shadow-brand/20 flex items-center justify-center gap-2"
                                             >
                                                 <Wallet className="w-4 h-4" />
                                                 Connect Wallet
@@ -247,10 +248,13 @@ export function VaultPage() {
 
                 {/* ─── Side Panels ─── */}
                 <div className="space-y-4 sm:space-y-6">
+                    {/* Multi-collateral overview (registry-driven; hidden when none configured) */}
+                    <CollateralAssetsPanel />
+
                     {/* Your Position */}
                     <div className="glass-panel overflow-hidden">
                         <div className="px-5 py-4 border-b border-[var(--border-color)] flex items-center gap-2.5">
-                            <div className="w-8 h-8 rounded-lg bg-[var(--primary)]/10 flex items-center justify-center">
+                            <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center">
                                 <Wallet className="w-4 h-4 text-[var(--primary)]" />
                             </div>
                             <h3 className="text-sm font-bold text-text-primary uppercase tracking-wide">Your Position</h3>
@@ -277,7 +281,7 @@ export function VaultPage() {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="py-8 px-4 text-center rounded-xl border border-dashed border-[var(--border-color)]/80 bg-[var(--bg-tertiary)]/40">
+                                <div className="py-8 px-4 text-center rounded-xl border border-dashed border-line/80 bg-surface-3/40">
                                     <div className="w-14 h-14 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] flex items-center justify-center mx-auto mb-4">
                                         <Wallet className="w-7 h-7 text-text-muted" />
                                     </div>
@@ -301,7 +305,7 @@ export function VaultPage() {
                             </div>
                             <h3 className="text-sm font-bold text-text-primary uppercase tracking-wide">Vault Details</h3>
                         </div>
-                        <div className="divide-y divide-[var(--border-color)]/50">
+                        <div className="divide-y divide-line/50">
                             {[
                                 { label: 'Asset', value: stats.asset || 'USDC', mono: false },
                                 { label: 'Type', value: 'Diversified Pool', mono: false },
@@ -323,22 +327,22 @@ export function VaultPage() {
 
 function StatCard({ icon: Icon, label, value, sublabel, valueColor, loading }: any) {
     return (
-        <div className="glass-panel p-4 sm:p-5 flex flex-col justify-between h-full group hover:border-[var(--border-color-hover)] transition-all">
-            <div className="flex items-center justify-between mb-3 sm:mb-4">
-                <span className="text-text-muted text-[10px] sm:text-xs uppercase tracking-wider font-bold leading-tight">{label}</span>
-                <div className="w-8 h-8 rounded-lg bg-[var(--bg-tertiary)] flex items-center justify-center group-hover:bg-[var(--primary)]/10 transition-colors">
+        <div className="glass-panel p-4 sm:p-5 flex flex-col justify-between h-full min-h-[112px] sm:min-h-[128px] group hover:border-[var(--border-color-hover)] transition-all">
+            <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4">
+                <span className="text-text-muted text-[10px] sm:text-xs uppercase tracking-wider font-bold leading-tight min-w-0 truncate">{label}</span>
+                <div className="w-8 h-8 shrink-0 rounded-lg bg-[var(--bg-tertiary)] flex items-center justify-center group-hover:bg-brand/10 transition-colors">
                     <Icon className="w-4 h-4 text-text-muted/60 group-hover:text-[var(--primary)] transition-colors" />
                 </div>
             </div>
-            <div>
+            <div className="min-w-0">
                 {loading ? (
                     <Skeleton className="h-7 w-24 mb-1" />
                 ) : (
-                    <div className={clsx('text-lg sm:text-2xl font-bold font-mono tracking-tight', valueColor || 'text-text-primary')}>
+                    <div className={clsx('text-lg sm:text-2xl font-bold font-mono tracking-tight truncate', valueColor || 'text-text-primary')} title={typeof value === 'string' ? value : undefined}>
                         {value}
                     </div>
                 )}
-                <div className="text-[10px] sm:text-xs text-text-secondary font-medium mt-1">{sublabel}</div>
+                <div className="text-[10px] sm:text-xs text-text-secondary font-medium mt-1 truncate">{sublabel}</div>
             </div>
         </div>
     );

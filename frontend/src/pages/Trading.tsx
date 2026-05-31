@@ -16,7 +16,7 @@ import { MarketHeader } from '../components/trading/MarketHeader';
 import { TradingForm } from '../components/trading/TradingForm';
 import { PositionTable } from '../components/trading/PositionTable';
 import { MobileControls } from '../components/trading/MobileControls';
-import { TradingViewWidget } from '../components/TradingViewWidget';
+import { ChartPanel } from '../components/trading/ChartPanel';
 import { applyMarketDisplayFallback } from '../utils/market';
 
 export function TradingPage() {
@@ -101,7 +101,7 @@ export function TradingPage() {
             fundingRate: formatted.fundingRate,
         };
     }, [market, shouldFetch, formatted, isMarketDataLoading]);
-    const fundingRate = displayMarket.fundingRate ?? 0;
+    const fundingRate = displayMarket?.fundingRate ?? 0;
     const isLive = !isMarketDataLoading && shouldFetch && currentPrice > 0;
 
 
@@ -110,7 +110,7 @@ export function TradingPage() {
         return (
             <div className="flex items-center justify-center min-h-[60vh]">
                 <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 rounded-full border-4 border-[var(--primary)]/30 border-t-[var(--primary)] animate-spin" />
+                    <div className="w-12 h-12 rounded-full border-4 border-brand/30 border-t-[var(--primary)] animate-spin" />
                     <p className="text-text-muted animate-pulse">Loading Market...</p>
                 </div>
             </div>
@@ -135,16 +135,14 @@ export function TradingPage() {
                 {/* Top Row: Chart & Form */}
                 <div className="flex flex-col lg:flex-row gap-4 w-full lg:h-[720px]">
                     {/* Left/Center: Chart Area */}
-                    <div
+                    <ChartPanel
+                        market={market}
+                        currentPrice={currentPrice}
                         className={clsx(
-                            "flex-1 glass-panel glass-panel-elevated relative overflow-hidden rounded-xl h-[400px] sm:h-[500px] lg:h-full min-h-[400px]",
-                            activeTab !== 'chart' && "hidden lg:block"
+                            'flex-1 h-[420px] sm:h-[520px] lg:h-full min-h-[420px]',
+                            activeTab !== 'chart' && 'hidden lg:flex',
                         )}
-                    >
-                        <div className="w-full h-full absolute inset-0">
-                            <TradingViewWidget marketSymbol={market?.symbol} />
-                        </div>
-                    </div>
+                    />
 
                     {/* Right: Trading Form */}
                     <div
@@ -170,7 +168,7 @@ export function TradingPage() {
                 {/* Bottom Row: Positions Table (Full Width) */}
                 <div
                     className={clsx(
-                        "w-full glass-panel lg:flex-1 min-h-[300px] flex flex-col rounded-xl overflow-hidden transition-all duration-300 shadow-xl border border-[var(--border-color)]/60",
+                        "w-full glass-panel lg:flex-1 min-h-[300px] flex flex-col rounded-xl overflow-hidden transition-all duration-300 shadow-xl border border-line/60",
                         activeTab !== 'positions' && "hidden lg:flex"
                     )}
                     style={{ minHeight: activeTab === 'positions' ? positionPanelHeight : undefined }}

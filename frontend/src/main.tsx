@@ -9,7 +9,12 @@ import { RainbowKitProvider, darkTheme } from '@rainbow-me/rainbowkit';
 import { config } from './config/wagmi';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
+import { initializeTheme } from './stores/settingsStore';
 import './index.css';
+
+// Apply the persisted theme synchronously before first paint to avoid a
+// dark→light flash on reload when the user has selected light mode.
+initializeTheme();
 
 const queryClient = new QueryClient({
     defaultOptions: {

@@ -18,6 +18,25 @@
   --long: #30e0a1;
   --short: #fa3c58;
 
+  /*
+   * RGB channel mirrors of the themeable color tokens. These power Tailwind
+   * colors of the form `rgb(var(--x-rgb) / <alpha-value>)` so opacity
+   * modifiers (e.g. `bg-brand/20`) actually compile. Keep these in sync with
+   * the hex tokens above. (Tailwind cannot apply an opacity modifier to a
+   * CSS variable that holds a hex value, which silently drops the rule.)
+   */
+  --bg-primary-rgb: 16 17 26;
+  --bg-secondary-rgb: 22 22 26;
+  --bg-tertiary-rgb: 31 31 46;
+  --border-color-rgb: 42 42 53;
+  --border-color-hover-rgb: 58 58 69;
+  --text-primary-rgb: 255 255 255;
+  --text-secondary-rgb: 160 160 160;
+  --text-muted-rgb: 101 101 112;
+  --primary-rgb: 45 66 252;
+  --long-rgb: 48 224 161;
+  --short-rgb: 250 60 88;
+
   --radius-card: 8px;
   --radius-modal: 12px;
   --radius-panel: 14px;
@@ -43,6 +62,65 @@
   --notification-failure-bg: rgba(239, 68, 68, 0.12);
   --notification-funding: #8b5cf6;
   --notification-funding-bg: rgba(139, 92, 246, 0.12);
+
+  /* Semantic surface tokens used by panels/gradients (theme-aware). */
+  --panel-surface-from: rgba(27, 28, 39, 0.98);
+  --panel-surface-to: rgba(21, 22, 31, 0.98);
+  --panel-shadow: 0 8px 22px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255, 255, 255, 0.02) inset;
+  --panel-shadow-hover: 0 12px 28px rgba(0, 0, 0, 0.32), 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+  --panel-shadow-elevated: 0 14px 32px rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(255, 255, 255, 0.02);
+  --app-glow-1: rgba(45, 66, 252, 0.14);
+  --app-glow-2: rgba(56, 189, 248, 0.09);
+  --scrollbar-thumb: #3f3f46;
+  --scrollbar-thumb-hover: #52525b;
+  --shimmer-via: rgba(255, 255, 255, 0.05);
+}
+
+/*
+ * Light theme: overrides the full token set. Toggled via the `.light-theme`
+ * class on <html> by the settings store. Previously this class existed but no
+ * light tokens were defined, so "Light mode" was a no-op — this restores it.
+ */
+.light-theme {
+  --bg-primary: #f6f7fb;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #eceef5;
+
+  --text-primary: #0d0f1c;
+  --text-secondary: #4a4f63;
+  --text-muted: #6b7186;
+
+  --border-color: #dde1ec;
+  --border-color-hover: #c4cad9;
+
+  --primary: #2d42fc;
+  --long: #0e9f6e;
+  --short: #e02424;
+
+  --bg-primary-rgb: 246 247 251;
+  --bg-secondary-rgb: 255 255 255;
+  --bg-tertiary-rgb: 236 238 245;
+  --border-color-rgb: 221 225 236;
+  --border-color-hover-rgb: 196 202 217;
+  --text-primary-rgb: 13 15 28;
+  --text-secondary-rgb: 74 79 99;
+  --text-muted-rgb: 107 113 134;
+  --primary-rgb: 45 66 252;
+  --long-rgb: 14 159 110;
+  --short-rgb: 224 36 36;
+
+  --panel-surface-from: #ffffff;
+  --panel-surface-to: #fbfcfe;
+  --panel-shadow: 0 4px 16px rgba(15, 23, 42, 0.08), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+  --panel-shadow-hover: 0 8px 24px rgba(15, 23, 42, 0.12), 0 1px 0 rgba(255, 255, 255, 0.7) inset;
+  --panel-shadow-elevated: 0 12px 28px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.04);
+  --app-glow-1: rgba(45, 66, 252, 0.08);
+  --app-glow-2: rgba(56, 189, 248, 0.06);
+  --scrollbar-thumb: #c4cad9;
+  --scrollbar-thumb-hover: #a8b0c4;
+  --shimmer-via: rgba(15, 23, 42, 0.06);
+
+  color-scheme: light;
 }
 
 /* Toast notification animations */
@@ -121,8 +199,8 @@
     pointer-events: none;
     z-index: -1;
     background:
-      radial-gradient(900px 500px at 8% -10%, rgba(45, 66, 252, 0.14), transparent 55%),
-      radial-gradient(700px 420px at 95% 0%, rgba(56, 189, 248, 0.09), transparent 55%);
+      radial-gradient(900px 500px at 8% -10%, var(--app-glow-1), transparent 55%),
+      radial-gradient(700px 420px at 95% 0%, var(--app-glow-2), transparent 55%);
   }
 
   /* Faster mobile taps — eliminate 300ms delay */
@@ -140,17 +218,17 @@
   /* Pro Panels - Solid, crisp borders, elevated hierarchy */
   .glass-card,
   .glass-panel {
-    background: linear-gradient(180deg, rgba(27, 28, 39, 0.98) 0%, rgba(21, 22, 31, 0.98) 100%);
+    background: linear-gradient(180deg, var(--panel-surface-from) 0%, var(--panel-surface-to) 100%);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-panel);
-    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255, 255, 255, 0.02) inset;
+    box-shadow: var(--panel-shadow);
     transition: border-color var(--transition-snappy), transform var(--transition-snappy), box-shadow var(--transition-smooth);
   }
 
   .glass-card:hover,
   .glass-panel:hover {
     border-color: var(--border-color-hover);
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.32), 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+    box-shadow: var(--panel-shadow-hover);
     transform: translateY(-1px);
   }
 
@@ -163,10 +241,10 @@
 
   /* Primary/hero panels - elevated for chart, trading form */
   .glass-panel-elevated {
-    background: linear-gradient(180deg, rgba(27, 28, 39, 0.98) 0%, rgba(21, 22, 31, 0.98) 100%);
+    background: linear-gradient(180deg, var(--panel-surface-from) 0%, var(--panel-surface-to) 100%);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-panel);
-    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(255, 255, 255, 0.02);
+    box-shadow: var(--panel-shadow-elevated);
   }
 
   /* Buttons */
@@ -288,17 +366,17 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #3f3f46;
+    background: var(--scrollbar-thumb);
     border-radius: 3px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #52525b;
+    background: var(--scrollbar-thumb-hover);
   }
 
   .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: #3f3f46 transparent;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
   }
 
   /* Hide scrollbar completely */

@@ -32,7 +32,10 @@ export function InsurancePage() {
     const [activeTab, setActiveTab] = useState<'stake' | 'unstake'>('stake');
     const [amount, setAmount] = useState('');
 
-    const totalLiquidations = protocolStats?.totalLiquidations ?? '0';
+    const totalLiquidations = (() => {
+        const n = Number(protocolStats?.totalLiquidations ?? 0);
+        return Number.isFinite(n) ? n.toLocaleString() : '0';
+    })();
 
     const handleAction = async () => {
         if (!isConnected) return;
@@ -224,7 +227,7 @@ export function InsurancePage() {
                                 </div>
 
                                 {/* Info Box */}
-                                <div className="rounded-xl bg-[var(--bg-tertiary)]/40 border border-[var(--border-color)]/50 divide-y divide-[var(--border-color)]/50">
+                                <div className="rounded-xl bg-surface-3/40 border border-line/50 divide-y divide-line/50">
                                     <div className="flex justify-between items-center px-4 py-3">
                                         <span className="text-xs sm:text-sm text-text-muted">Exchange Rate</span>
                                         <span className="font-mono text-xs sm:text-sm text-text-primary">1 INS = {insurance.insSharePrice.toFixed(4)} USDC</span>
@@ -242,7 +245,7 @@ export function InsurancePage() {
                                         </div>
                                     )}
                                     {activeTab === 'unstake' && !insurance.circuitBreakerActive && unstakeStatus.phase === 'need_request' && (
-                                        <div className="px-4 py-3 text-amber-400/95 flex gap-2 items-start border-t border-[var(--border-color)]/50">
+                                        <div className="px-4 py-3 text-amber-400/95 flex gap-2 items-start border-t border-line/50">
                                             <Clock className="w-4 h-4 mt-0.5 shrink-0" />
                                             <span className="text-xs sm:text-sm leading-relaxed">
                                                 Unstaking uses a waiting period on-chain. Start the timer below, then return after the cooldown to redeem USDC.
@@ -251,7 +254,7 @@ export function InsurancePage() {
                                         </div>
                                     )}
                                     {activeTab === 'unstake' && !insurance.circuitBreakerActive && unstakeStatus.phase === 'cooldown' && unstakeStatus.unlockAtSec != null && (
-                                        <div className="px-4 py-3 text-sky-300/95 flex gap-2 items-start border-t border-[var(--border-color)]/50">
+                                        <div className="px-4 py-3 text-sky-300/95 flex gap-2 items-start border-t border-line/50">
                                             <Clock className="w-4 h-4 mt-0.5 shrink-0" />
                                             <span className="text-xs sm:text-sm leading-relaxed">
                                                 Waiting period in progress. You can redeem after{' '}
@@ -263,7 +266,7 @@ export function InsurancePage() {
                                         </div>
                                     )}
                                     {activeTab === 'unstake' && unstakeStatus.statusError && (
-                                        <div className="px-4 py-3 text-red-400 flex gap-2 items-start border-t border-[var(--border-color)]/50">
+                                        <div className="px-4 py-3 text-red-400 flex gap-2 items-start border-t border-line/50">
                                             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                                             <span className="text-xs sm:text-sm">
                                                 Could not load unstake status from the chain. Refresh the page or try again later.
@@ -364,7 +367,7 @@ export function InsurancePage() {
                                     </div>
                                 </div>
                             ) : (
-                                <div className="py-8 px-4 text-center rounded-xl border border-dashed border-[var(--border-color)]/80 bg-[var(--bg-tertiary)]/40">
+                                <div className="py-8 px-4 text-center rounded-xl border border-dashed border-line/80 bg-surface-3/40">
                                     <div className="w-14 h-14 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-color)] flex items-center justify-center mx-auto mb-4">
                                         <Wallet className="w-7 h-7 text-text-muted" />
                                     </div>
@@ -394,17 +397,17 @@ export function InsurancePage() {
                                     {[1, 2, 3].map(i => <Skeleton key={i} className="h-14 w-full" />)}
                                 </div>
                             ) : claims.length === 0 ? (
-                                <div className="py-10 px-4 text-center mx-3 my-3 rounded-xl border border-dashed border-[var(--border-color)]/70 bg-[var(--bg-tertiary)]/30">
+                                <div className="py-10 px-4 text-center mx-3 my-3 rounded-xl border border-dashed border-line/70 bg-surface-3/30">
                                     <Shield className="w-9 h-9 text-text-muted mx-auto mb-3 opacity-60" />
                                     <p className="text-text-primary text-sm font-medium mb-1">No recent claims</p>
                                     <p className="text-text-muted text-xs max-w-[240px] mx-auto">Insurance payouts will appear here when they occur.</p>
                                 </div>
                             ) : (
-                                <div className="divide-y divide-[var(--border-color)]/50">
+                                <div className="divide-y divide-line/50">
                                     {claims.map((claim) => (
                                         <motion.div
                                             key={claim.id}
-                                            className="px-5 py-3.5 hover:bg-[var(--bg-tertiary)]/30 transition-colors"
+                                            className="px-5 py-3.5 hover:bg-surface-3/30 transition-colors"
                                             whileHover={{ x: 2 }}
                                         >
                                             <div className="flex justify-between items-start mb-1">
@@ -438,22 +441,22 @@ export function InsurancePage() {
 
 function StatCard({ icon: Icon, label, value, sublabel, valueColor, loading }: any) {
     return (
-        <div className="glass-panel p-4 sm:p-5 flex flex-col justify-between h-full group hover:border-[var(--border-color-hover)] transition-all">
-            <div className="flex items-center justify-between mb-3 sm:mb-4">
-                <span className="text-text-muted text-[10px] sm:text-xs uppercase tracking-wider font-bold leading-tight">{label}</span>
-                <div className="w-8 h-8 rounded-lg bg-[var(--bg-tertiary)] flex items-center justify-center group-hover:bg-emerald-500/10 transition-colors">
+        <div className="glass-panel p-4 sm:p-5 flex flex-col justify-between h-full min-h-[112px] sm:min-h-[128px] group hover:border-[var(--border-color-hover)] transition-all">
+            <div className="flex items-center justify-between gap-2 mb-3 sm:mb-4">
+                <span className="text-text-muted text-[10px] sm:text-xs uppercase tracking-wider font-bold leading-tight min-w-0 truncate">{label}</span>
+                <div className="w-8 h-8 shrink-0 rounded-lg bg-[var(--bg-tertiary)] flex items-center justify-center group-hover:bg-emerald-500/10 transition-colors">
                     <Icon className="w-4 h-4 text-text-muted/60 group-hover:text-emerald-400 transition-colors" />
                 </div>
             </div>
-            <div>
+            <div className="min-w-0">
                 {loading ? (
                     <Skeleton className="h-7 w-24 mb-1" />
                 ) : (
-                    <div className={clsx('text-lg sm:text-2xl font-bold font-mono tracking-tight', valueColor || 'text-text-primary')}>
+                    <div className={clsx('text-lg sm:text-2xl font-bold font-mono tracking-tight truncate', valueColor || 'text-text-primary')} title={typeof value === 'string' ? value : undefined}>
                         {value}
                     </div>
                 )}
-                <div className="text-[10px] sm:text-xs text-text-secondary font-medium mt-1">{sublabel}</div>
+                <div className="text-[10px] sm:text-xs text-text-secondary font-medium mt-1 truncate">{sublabel}</div>
             </div>
         </div>
     );

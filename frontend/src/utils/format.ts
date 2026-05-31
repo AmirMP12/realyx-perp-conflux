@@ -54,3 +54,22 @@ export function formatPercent(value: number, decimals = 2): string {
     const sign = value >= 0 ? '+' : '';
     return `${sign}${value.toFixed(decimals)}%`;
 }
+
+/**
+ * Parse a USD-ish value (number or comma-formatted string) into a finite number.
+ * Returns 0 for null/undefined/NaN so downstream math and display never break.
+ */
+export function safeUsd(n: string | number | null | undefined): number {
+    if (n == null) return 0;
+    const x = typeof n === 'number' ? n : parseFloat(String(n).replace(/,/g, ''));
+    return Number.isFinite(x) ? x : 0;
+}
+
+/**
+ * Truncate an EVM address for display, e.g. 0x1234…abcd.
+ */
+export function truncateAddress(address: string | null | undefined): string {
+    if (!address) return '—';
+    if (address.length <= 13) return address;
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+}

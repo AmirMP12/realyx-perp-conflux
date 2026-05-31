@@ -117,9 +117,12 @@ export function useLivePnL<T extends { marketAddress: string; entryPrice: string
 ): (T & { livePnl: number; markPrice: number })[] {
     return positions.map((pos) => {
         const market = markets.find((m) => (m.marketAddress || '').toLowerCase() === (pos.marketAddress || '').toLowerCase());
-        const markPrice = market?.indexPrice ?? parseFloat(pos.entryPrice);
-        const entry = parseFloat(pos.entryPrice);
-        const size = parseFloat(pos.size);
+        const entryRaw = parseFloat(pos.entryPrice);
+        const entry = Number.isFinite(entryRaw) ? entryRaw : 0;
+        const sizeRaw = parseFloat(pos.size);
+        const size = Number.isFinite(sizeRaw) ? sizeRaw : 0;
+        const markRaw = market?.indexPrice ?? entry;
+        const markPrice = Number.isFinite(markRaw) ? markRaw : entry;
         const livePnl = entry > 0
             ? (pos.isLong ? (markPrice - entry) * size / entry : (entry - markPrice) * size / entry)
             : 0;

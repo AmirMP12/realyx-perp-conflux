@@ -33,9 +33,13 @@ Transparency is a core tenet of the Realyx protocol. This document outlines acti
 **Description:** Realyx anchors to a **6-decimal** standard for stablecoins (mirroring USDC natively). Certain legacy DeFi analytics or integrators blindly assume EVM tokens use 18 decimals.
 - **Caution:** Developers integrating Realyx contracts or reading Vault balances must normalize outputs by `10^6` rather than `10^18`.
 
-### 🏦 Insurance Fund Scalability (Testnet)
-**Description:** On the Testnet instance, the Insurance Fund holds a static bootstrap value. A synchronized flash crash could hypothetically deplete this test fund if simulated open interest is uncapped.
+### 🏦 Insurance Tranche Scalability (Testnet)
+**Description:** On the Testnet instance, the insurance tranche (a share class inside `VaultCore`, not a separate contract) holds a bootstrap value. A synchronized flash crash could hypothetically deplete this test backstop if simulated open interest is uncapped.
 - **Planned Resolution:** Mainnet deployment introduces dynamic, algorithmically enforced Open Interest (OI) ceilings strictly correlated to vault utilization metrics.
+
+### ⏱️ RWA Market Hours
+**Description:** Tokenized equity and commodity markets are gated by `MarketCalendar`. Orders submitted outside session hours revert with `MarketClosed`.
+- **Status:** Intended behavior. The UI surfaces a "market closed" state; crypto markets trade 24/7.
 
 ---
 *Encountered a bug not listed here? Please submit an issue via our [GitHub Repository](https://github.com/AmirMP12/realyx-perp-conflux) or alert the core team on Discord.*

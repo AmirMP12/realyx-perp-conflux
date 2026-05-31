@@ -29,11 +29,11 @@ describe('ProtocolStatsBar', () => {
 
         render(<ProtocolStatsBar />);
 
-        expect(screen.getByText(/24h Vol:/i)).toBeInTheDocument();
+        expect(screen.getByText(/24h Vol/i)).toBeInTheDocument();
         expect(screen.getByText(/\$1\.25m/i)).toBeInTheDocument();
-        expect(screen.getByText(/OI:/i)).toBeInTheDocument();
+        expect(screen.getByText('OI')).toBeInTheDocument();
         expect(screen.getByText(/\$5m/i)).toBeInTheDocument();
-        expect(screen.getByText(/TVL:/i)).toBeInTheDocument();
+        expect(screen.getByText(/TVL/i)).toBeInTheDocument();
         expect(screen.getByText(/\$10m/i)).toBeInTheDocument();
     });
 

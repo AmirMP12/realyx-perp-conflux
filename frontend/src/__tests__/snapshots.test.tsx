@@ -44,6 +44,7 @@ vi.mock('../hooks/useProgram', () => ({
     OrderType: { MARKET_INCREASE: 0, MARKET_DECREASE: 1, LIMIT_INCREASE: 2, LIMIT_DECREASE: 3 },
     useUSDC: vi.fn(() => ({ address: '0x555' })),
     useUSDCBalance: vi.fn(() => ({ balance: 0, loading: false })),
+    useMarginMode: vi.fn(() => ({ isCross: true, mode: 'cross', loading: false })),
     useCreateOrder: vi.fn(() => ({ createOrder: vi.fn(), isPending: false, minExecutionFeeWei: 0n })),
     useOpenPosition: vi.fn(() => ({ executePosition: vi.fn(), isLoading: false, step: 'IDLE' })),
     usePositions: vi.fn(() => ({ positions: [], loading: false, fetchPositions: vi.fn() })),
@@ -61,6 +62,25 @@ vi.mock('../hooks/useProgram', () => ({
 vi.mock('../hooks/usePositions', () => ({
     usePositions: vi.fn(() => ({ positions: [], loading: false, refetch: vi.fn() })),
 }));
+
+vi.mock('../hooks/useCollateral', () => {
+    const usdc = {
+        address: '0x0000000000000000000000000000000000000000',
+        symbol: 'USDC', decimals: 6, isUSDC: true, enabled: true,
+        baseHaircutBps: 0, liquidationHaircutBps: 0, maxHaircutBps: 0,
+        maxProtocolExposure: 0n, totalDeposited: 0n, exposureUsdc: 0n,
+        balance: 0n, balanceFormatted: 0, effectiveUsdc: 0n, effectiveUsdcFormatted: 0,
+        exposureUtilization: null,
+    };
+    return {
+        useCollateralAssets: vi.fn(() => ({
+            usdc, altAssets: [], assets: [usdc], registryConfigured: false,
+            hasAltCollateral: false, ordersEnabled: false, usdcAddress: '0x555',
+            loading: false, refetch: vi.fn(),
+        })),
+        formatHaircut: (bps: number) => `${bps / 100}%`,
+    };
+});
 
 vi.mock('../hooks/useOnChainHistory', () => ({
     useOnChainHistory: vi.fn(() => ({ data: [], isLoading: false, refetch: vi.fn() })),

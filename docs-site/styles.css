@@ -21,57 +21,59 @@
   --toc-w: 220px;
 }
 
-/* ===== DARK THEME (default — defined on :root so variables always exist) ===== */
+/* ===== DARK THEME (default — defined on :root so variables always exist) =====
+   Aligned with the Realyx app (frontend) palette: brand #2d42fc, long #30e0a1,
+   short #fa3c58, on the app's #10111a / #16161a / #1f1f2e surfaces. */
 :root,
 [data-theme="dark"] {
-  --bg: #0d0d0f;
-  --bg-2: #111114;
-  --bg-3: #18181c;
-  --bg-4: #1e1e24;
-  --bg-hover: #22222a;
+  --bg: #10111a;
+  --bg-2: #16161a;
+  --bg-3: #1f1f2e;
+  --bg-4: #252535;
+  --bg-hover: #252535;
   --border: #2a2a35;
-  --border-2: #333340;
-  --text: #e8e8f0;
-  --text-2: #a0a0b8;
-  --text-3: #6b6b85;
-  --accent: #7c6af7;
-  --accent-2: #9d8fff;
-  --accent-bg: rgba(124, 106, 247, 0.12);
-  --accent-border: rgba(124, 106, 247, 0.3);
-  --green: #34d399; --green-bg: rgba(52, 211, 153, 0.1);
-  --yellow: #fbbf24; --yellow-bg: rgba(251, 191, 36, 0.1);
-  --red: #f87171; --red-bg: rgba(248, 113, 113, 0.1);
-  --blue: #60a5fa; --blue-bg: rgba(96, 165, 250, 0.1);
+  --border-2: #3a3a45;
+  --text: #ffffff;
+  --text-2: #a0a0a0;
+  --text-3: #656570;
+  --accent: #2d42fc;
+  --accent-2: #5062ff;
+  --accent-bg: rgba(45, 66, 252, 0.12);
+  --accent-border: rgba(45, 66, 252, 0.3);
+  --green: #30e0a1; --green-bg: rgba(48, 224, 161, 0.1);
+  --yellow: #f59e0b; --yellow-bg: rgba(245, 158, 11, 0.12);
+  --red: #fa3c58; --red-bg: rgba(250, 60, 88, 0.1);
+  --blue: #38bdf8; --blue-bg: rgba(56, 189, 248, 0.1);
   --code-bg: #16161a;
   --code-border: #2a2a35;
   --shadow: 0 1px 3px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.3);
   --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
 }
 
-/* ===== LIGHT THEME ===== */
+/* ===== LIGHT THEME (aligned with the app's .light-theme tokens) ===== */
 [data-theme="light"] {
-  --bg: #ffffff;
-  --bg-2: #f8f8fc;
-  --bg-3: #f0f0f8;
-  --bg-4: #e8e8f4;
-  --bg-hover: #ededf8;
-  --border: #e2e2ee;
-  --border-2: #d0d0e0;
-  --text: #1a1a2e;
-  --text-2: #4a4a6a;
-  --text-3: #8888aa;
-  --accent: #6355e8;
-  --accent-2: #7c6af7;
-  --accent-bg: rgba(99, 85, 232, 0.08);
-  --accent-border: rgba(99, 85, 232, 0.25);
-  --green: #059669; --green-bg: rgba(5, 150, 105, 0.08);
+  --bg: #f6f7fb;
+  --bg-2: #ffffff;
+  --bg-3: #eceef5;
+  --bg-4: #e2e6f0;
+  --bg-hover: #eceef5;
+  --border: #dde1ec;
+  --border-2: #c4cad9;
+  --text: #0d0f1c;
+  --text-2: #4a4f63;
+  --text-3: #6b7186;
+  --accent: #2d42fc;
+  --accent-2: #4f5dfd;
+  --accent-bg: rgba(45, 66, 252, 0.08);
+  --accent-border: rgba(45, 66, 252, 0.25);
+  --green: #0e9f6e; --green-bg: rgba(14, 159, 110, 0.08);
   --yellow: #d97706; --yellow-bg: rgba(217, 119, 6, 0.08);
-  --red: #dc2626; --red-bg: rgba(220, 38, 38, 0.08);
+  --red: #e02424; --red-bg: rgba(224, 36, 36, 0.08);
   --blue: #2563eb; --blue-bg: rgba(37, 99, 235, 0.08);
-  --code-bg: #f4f4f8;
-  --code-border: #e0e0ec;
-  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.06);
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
+  --code-bg: #eceef5;
+  --code-border: #dde1ec;
+  --shadow: 0 1px 3px rgba(15,23,42,0.08), 0 4px 12px rgba(15,23,42,0.06);
+  --shadow-lg: 0 8px 32px rgba(15,23,42,0.12);
 }
 
 /* ===== RESET & BASE ===== */
@@ -376,10 +378,10 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   border-radius: var(--radius-lg); margin: var(--space-5) 0;
   border: 1px solid;
 }
-.callout--info { background: var(--blue-bg); border-color: rgba(96,165,250,0.25); }
-.callout--warning { background: var(--yellow-bg); border-color: rgba(251,191,36,0.25); }
-.callout--danger { background: var(--red-bg); border-color: rgba(248,113,113,0.25); }
-.callout--success { background: var(--green-bg); border-color: rgba(52,211,153,0.25); }
+.callout--info { background: var(--blue-bg); border-color: rgba(56,189,248,0.25); }
+.callout--warning { background: var(--yellow-bg); border-color: rgba(245,158,11,0.25); }
+.callout--danger { background: var(--red-bg); border-color: rgba(250,60,88,0.25); }
+.callout--success { background: var(--green-bg); border-color: rgba(48,224,161,0.25); }
 .callout__icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
 .callout__body { flex: 1; }
 .callout__title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
@@ -396,10 +398,10 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   border-radius: 100px; letter-spacing: 0.03em;
 }
 .badge--purple { background: var(--accent-bg); color: var(--accent-2); border: 1px solid var(--accent-border); }
-.badge--green { background: var(--green-bg); color: var(--green); border: 1px solid rgba(52,211,153,0.25); }
-.badge--yellow { background: var(--yellow-bg); color: var(--yellow); border: 1px solid rgba(251,191,36,0.25); }
-.badge--red { background: var(--red-bg); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
-.badge--blue { background: var(--blue-bg); color: var(--blue); border: 1px solid rgba(96,165,250,0.25); }
+.badge--green { background: var(--green-bg); color: var(--green); border: 1px solid rgba(48,224,161,0.25); }
+.badge--yellow { background: var(--yellow-bg); color: var(--yellow); border: 1px solid rgba(245,158,11,0.25); }
+.badge--red { background: var(--red-bg); color: var(--red); border: 1px solid rgba(250,60,88,0.25); }
+.badge--blue { background: var(--blue-bg); color: var(--blue); border: 1px solid rgba(56,189,248,0.25); }
 
 /* ===== PAGE HEADER ===== */
 .page-header { margin-bottom: var(--space-8); }
@@ -530,7 +532,7 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   margin-bottom: var(--space-4);
 }
 .home-hero__title .gradient {
-  background: linear-gradient(135deg, var(--accent) 0%, #a78bfa 50%, #60a5fa 100%);
+  background: linear-gradient(135deg, var(--accent) 0%, #5062ff 50%, var(--green) 100%);
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   background-clip: text;
 }
@@ -577,7 +579,7 @@ button { cursor: pointer; border: none; background: none; font-family: inherit; 
   width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; margin-top: 2px;
   display: flex; align-items: center; justify-content: center; font-size: 11px;
 }
-.roadmap-item__check--done { background: var(--green-bg); color: var(--green); border: 1px solid rgba(52,211,153,0.3); }
+.roadmap-item__check--done { background: var(--green-bg); color: var(--green); border: 1px solid rgba(48,224,161,0.3); }
 .roadmap-item__check--todo { background: var(--bg-4); color: var(--text-3); border: 1px solid var(--border); }
 .roadmap-item__text { font-size: 14px; color: var(--text-2); line-height: 1.5; }
 

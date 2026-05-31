@@ -86,14 +86,14 @@ export function TransferPositionModal({ isOpen, onClose, onSuccess, position }: 
         <Dialog open={isOpen} onClose={onClose} className="relative z-[100]">
             <DialogBackdrop transition className="fixed inset-0 bg-black/75 backdrop-blur-sm transition duration-200 ease-out data-closed:opacity-0" aria-hidden="true" />
 
-            <div className="fixed inset-0 flex items-center justify-center p-4">
+            <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
                 <DialogPanel
                     transition
-                    className="w-full max-w-md bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl shadow-[0_24px_48px_rgba(0,0,0,0.45)] overflow-hidden transition duration-200 ease-out data-closed:scale-[0.98] data-closed:opacity-0"
+                    className="w-full max-w-md bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-t-2xl rounded-b-none sm:rounded-2xl shadow-[0_24px_48px_rgba(0,0,0,0.45)] overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[min(90dvh,720px)] transition duration-200 ease-out data-closed:opacity-0 data-closed:translate-y-4 sm:data-closed:translate-y-0 sm:data-closed:scale-[0.98] motion-reduce:transition-none"
                     role="dialog"
                     aria-modal="true"
                 >
-                    <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4 border-b border-[var(--border-color)]/80">
+                    <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4 border-b border-line/80 shrink-0">
                         <div className="min-w-0">
                             <Dialog.Title className="text-lg font-bold text-text-primary tracking-tight flex items-center gap-2">
                                 <ArrowRightLeft className="w-5 h-5 text-[var(--primary)] shrink-0" />
@@ -103,7 +103,7 @@ export function TransferPositionModal({ isOpen, onClose, onSuccess, position }: 
                                 <span
                                     className={clsx(
                                         'text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md',
-                                        position.isLong ? 'text-[var(--long)] bg-[var(--long)]/12' : 'text-[var(--short)] bg-[var(--short)]/12'
+                                        position.isLong ? 'text-[var(--long)] bg-long/12' : 'text-[var(--short)] bg-short/12'
                                     )}
                                 >
                                     {position.isLong ? 'Long' : 'Short'}
@@ -124,7 +124,7 @@ export function TransferPositionModal({ isOpen, onClose, onSuccess, position }: 
                         </button>
                     </div>
 
-                    <div className="px-5 py-5 space-y-4">
+                    <div className="px-5 py-5 space-y-4 overflow-y-auto overscroll-contain custom-scrollbar pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-5">
                         {!isConfigured && (
                             <div className="flex gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-200">
                                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -132,7 +132,7 @@ export function TransferPositionModal({ isOpen, onClose, onSuccess, position }: 
                             </div>
                         )}
 
-                        <div className="rounded-xl border border-[var(--border-color)]/80 bg-[var(--bg-tertiary)]/40 px-3 py-2.5 text-xs text-text-secondary leading-relaxed space-y-1.5">
+                        <div className="rounded-xl border border-line/80 bg-surface-3/40 px-3 py-2.5 text-xs text-text-secondary leading-relaxed space-y-1.5">
                             <p>
                                 The position is an NFT. The recipient becomes the on-chain owner and can manage or close it. They must be an{' '}
                                 <strong className="text-text-primary">externally owned account</strong> (not a contract wallet), and their total
@@ -152,7 +152,7 @@ export function TransferPositionModal({ isOpen, onClose, onSuccess, position }: 
                                 placeholder="0x…"
                                 autoComplete="off"
                                 spellCheck={false}
-                                className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--bg-tertiary)] px-3 py-2.5 font-mono text-sm text-text-primary placeholder:text-text-muted/50 focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]/30"
+                                className="w-full rounded-xl border border-[var(--border-color)] bg-[var(--bg-tertiary)] px-3 py-2.5 font-mono text-sm text-text-primary placeholder:text-text-muted/50 focus:border-[var(--primary)] focus:outline-none focus:ring-1 focus:ring-brand/30"
                             />
                             {trimmed && !isAddress(trimmed) && (
                                 <p className="text-xs text-rose-400">Enter a valid 0x address.</p>

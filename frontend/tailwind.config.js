@@ -6,18 +6,31 @@ export default {
         extend: {
             colors: {
                 background: {
-                    DEFAULT: '#10111a', // GMX Deep Navy
-                    secondary: '#16161a', // Card bg
-                    tertiary: '#1f1f2e', // Hover/Input bg
+                    DEFAULT: 'rgb(var(--bg-primary-rgb) / <alpha-value>)',
+                    secondary: 'rgb(var(--bg-secondary-rgb) / <alpha-value>)',
+                    tertiary: 'rgb(var(--bg-tertiary-rgb) / <alpha-value>)',
                 },
                 text: {
-                    primary: '#FFFFFF',
-                    secondary: '#A0A0A0',
-                    muted: '#656570',
+                    primary: 'rgb(var(--text-primary-rgb) / <alpha-value>)',
+                    secondary: 'rgb(var(--text-secondary-rgb) / <alpha-value>)',
+                    muted: 'rgb(var(--text-muted-rgb) / <alpha-value>)',
                 },
                 border: {
-                    DEFAULT: '#2a2a35', // Crisp border
+                    DEFAULT: 'rgb(var(--border-color-rgb) / <alpha-value>)',
                 },
+                /*
+                 * Theme-aware, channel-based tokens. Defined as
+                 * `rgb(var(--x-rgb) / <alpha-value>)` so Tailwind opacity
+                 * modifiers compile correctly (e.g. `bg-brand/20`,
+                 * `border-line/60`) and adapt to light/dark automatically.
+                 * Use these instead of `bg-[var(--token)]/NN`, which Tailwind
+                 * silently drops (CSS vars can't take an opacity modifier).
+                 */
+                brand: 'rgb(var(--primary-rgb) / <alpha-value>)',
+                surface: 'rgb(var(--bg-primary-rgb) / <alpha-value>)',
+                'surface-2': 'rgb(var(--bg-secondary-rgb) / <alpha-value>)',
+                'surface-3': 'rgb(var(--bg-tertiary-rgb) / <alpha-value>)',
+                line: 'rgb(var(--border-color-rgb) / <alpha-value>)',
                 // Primary brand colors - GMX Blue
                 primary: {
                     50: '#eef2ff',
@@ -38,14 +51,14 @@ export default {
                     800: '#16161a',
                     700: '#1f1f2e',
                 },
-                // Trading colors - GMX Style
+                // Trading colors - GMX Style (channel-based so /opacity works)
                 long: {
-                    DEFAULT: '#30e0a1',
+                    DEFAULT: 'rgb(var(--long-rgb) / <alpha-value>)',
                     light: '#5cf2b8',
                     dark: '#22ad79',
                 },
                 short: {
-                    DEFAULT: '#fa3c58',
+                    DEFAULT: 'rgb(var(--short-rgb) / <alpha-value>)',
                     light: '#ff6b81',
                     dark: '#d42a44',
                 },

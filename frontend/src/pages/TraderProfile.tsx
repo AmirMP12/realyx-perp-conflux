@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { getApiBaseUrl } from '../config/api';
-import { formatCompact } from '../utils/format';
+import { formatCompact, safeUsd, truncateAddress } from '../utils/format';
 import { Skeleton } from '../components/ui';
 import { CopyModal } from '../components/CopyModal';
 
@@ -37,17 +37,6 @@ interface TraderProfileData {
     entryPrice: string;
     pnl: string;
   }[];
-}
-
-function safeUsd(n: string | number): number {
-  const x = typeof n === 'number' ? n : parseFloat(String(n).replace(/,/g, ''));
-  return Number.isFinite(x) ? x : 0;
-}
-
-function truncateAddress(address: string) {
-  if (!address) return '—';
-  if (address.length <= 13) return address;
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
 // Environment-aware contract addresses
@@ -121,10 +110,10 @@ export function TraderProfilePage() {
         <p className="text-lg text-orange-400" role="alert">{error || 'Trader not found'}</p>
         <button
           type="button"
-          onClick={() => navigate('/leaderboard')}
+          onClick={() => navigate('/copy-trading')}
           className="px-4 py-2 rounded-lg bg-[var(--bg-tertiary)] text-text-secondary hover:text-text-primary transition-colors text-sm"
         >
-          Back to Leaderboard
+          Back to Copy Trading
         </button>
       </div>
     );
@@ -137,11 +126,11 @@ export function TraderProfilePage() {
       {/* Back Button */}
       <button
         type="button"
-        onClick={() => navigate('/leaderboard')}
+        onClick={() => navigate(-1)}
         className="flex items-center gap-2 text-sm text-text-muted hover:text-text-secondary transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        Back to Leaderboard
+        Back
       </button>
 
       {/* Header */}
@@ -257,10 +246,11 @@ export function TraderProfilePage() {
             No open positions at the moment.
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-[var(--border-color)] bg-[var(--bg-tertiary)]/30">
+                <tr className="border-b border-[var(--border-color)] bg-surface-3/30">
                   <th className="px-6 py-3 text-left text-xs font-bold text-text-secondary uppercase">Market</th>
                   <th className="px-6 py-3 text-right text-xs font-bold text-text-secondary uppercase">Size</th>
                   <th className="px-6 py-3 text-right text-xs font-bold text-text-secondary uppercase">Leverage</th>
@@ -272,7 +262,7 @@ export function TraderProfilePage() {
                 {trader.openPositions.map((pos, i) => {
                   const pnl = safeUsd(pos.pnl);
                   return (
-                    <tr key={i} className="hover:bg-[var(--bg-tertiary)]/30 transition-colors">
+                    <tr key={i} className="hover:bg-surface-3/30 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
                           {pos.isLong ? (
@@ -285,8 +275,8 @@ export function TraderProfilePage() {
                             className={clsx(
                               'text-xs font-medium px-1.5 py-0.5 rounded',
                               pos.isLong
-                                ? 'bg-[var(--long)]/10 text-[var(--long)]'
-                                : 'bg-[var(--short)]/10 text-[var(--short)]'
+                                ? 'bg-long/10 text-[var(--long)]'
+                                : 'bg-short/10 text-[var(--short)]'
                             )}
                           >
                             {pos.isLong ? 'LONG' : 'SHORT'}
@@ -318,6 +308,60 @@ export function TraderProfilePage() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile cards */}
+          <div className="md:hidden divide-y divide-[var(--border-color)]">
+            {trader.openPositions.map((pos, i) => {
+              const pnl = safeUsd(pos.pnl);
+              return (
+                <div key={i} className="p-4">
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {pos.isLong ? (
+                        <TrendingUp className="w-4 h-4 shrink-0 text-[var(--long)]" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4 shrink-0 text-[var(--short)]" />
+                      )}
+                      <span className="font-bold text-sm text-text-primary truncate">{pos.market}</span>
+                      <span
+                        className={clsx(
+                          'text-[10px] font-medium px-1.5 py-0.5 rounded shrink-0',
+                          pos.isLong
+                            ? 'bg-long/10 text-[var(--long)]'
+                            : 'bg-short/10 text-[var(--short)]'
+                        )}
+                      >
+                        {pos.isLong ? 'LONG' : 'SHORT'}
+                      </span>
+                    </div>
+                    <span
+                      className={clsx(
+                        'font-mono text-sm font-bold shrink-0',
+                        pnl >= 0 ? 'text-[var(--long)]' : 'text-[var(--short)]'
+                      )}
+                    >
+                      {pnl >= 0 ? '+' : ''}{formatCompact(pnl)}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <p className="text-text-muted mb-0.5">Size</p>
+                      <p className="font-mono text-text-primary">${formatCompact(safeUsd(pos.size))}</p>
+                    </div>
+                    <div>
+                      <p className="text-text-muted mb-0.5">Leverage</p>
+                      <p className="font-mono text-text-primary">{pos.leverage}x</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-text-muted mb-0.5">Entry</p>
+                      <p className="font-mono text-text-primary">${formatCompact(safeUsd(pos.entryPrice))}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          </>
         )}
       </motion.div>
 

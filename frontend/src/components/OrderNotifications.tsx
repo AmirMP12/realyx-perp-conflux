@@ -412,7 +412,7 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
             <button
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40"
+                className="relative p-2 rounded-xl hover:bg-[var(--bg-tertiary)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
                 aria-label={isOpen ? 'Close notifications' : 'Open notifications'}
                 aria-expanded={isOpen}
             >
@@ -444,7 +444,7 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
                             <button
                                 type="button"
                                 onClick={clearNotifications}
-                                className="text-xs text-text-muted hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40 rounded-md px-1"
+                                className="text-xs text-text-muted hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded-md px-1"
                             >
                                 Clear all
                             </button>
@@ -460,7 +460,7 @@ export function NotificationBell({ className = '' }: NotificationBellProps) {
                             {notifications.map((notification) => (
                                 <div
                                     key={notification.id}
-                                    className={`p-3 hover:bg-[var(--bg-tertiary)]/50 cursor-pointer transition-colors border-l-2 ${getNotificationColor(notification.type)}`}
+                                    className={`p-3 hover:bg-surface-3/50 cursor-pointer transition-colors border-l-2 ${getNotificationColor(notification.type)}`}
                                     onClick={() => markAsRead(notification.id)}
                                 >
                                     <p className="text-sm text-text-primary">{notification.message}</p>

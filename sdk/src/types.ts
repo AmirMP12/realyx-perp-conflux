@@ -6,9 +6,9 @@ import { ethers } from "ethers";
 
 /** Configuration for the RealyxClient */
 export interface RealyxConfig {
-  /** REST API base URL, e.g. https://api.realyx.xyz */
+  /** REST API base URL, e.g. https://realyx.vercel.app/api */
   apiBaseUrl: string;
-  /** WebSocket URL, e.g. wss://ws.realyx.xyz */
+  /** WebSocket URL, e.g. wss://realyx.vercel.app/ws */
   wsUrl?: string;
   /** API key obtained from /api/v1/auth/key */
   apiKey?: string;

@@ -49,7 +49,7 @@ kubectl apply -f infrastructure/kubernetes/
 
 - **ConfigMap `backend-config`**: `POSTGRES_URL`, `CHAIN_ID`, `PORT`, `WS_PORT`, `NODE_ENV`, `METRICS_PORT`. Update `POSTGRES_URL` to your deployed database indexer endpoint.
 - **Secret `backend-secrets`**: Copy `backend-secrets.yaml.example` to `backend-secrets.yaml`, fill values, then apply. Omit or leave placeholders if not used.
-- **Ingress**: Hosts are `realyx` and `api.realyx`. Change in `frontend.yaml` to match your domains.
+- **Ingress**: Single host `realyx.vercel.app` routes `/api` and `/ws` to the backend and `/` to the frontend. Change in `frontend.yaml` to match your domains.
 
 ## Monitoring
 

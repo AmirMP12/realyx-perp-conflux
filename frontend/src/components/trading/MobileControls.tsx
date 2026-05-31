@@ -14,10 +14,10 @@ export function MobileControls({ activeTab, setActiveTab }: MobileControlsProps)
                     type="button"
                     onClick={() => setActiveTab(tab)}
                     className={clsx(
-                        "flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors duration-200 border-b-2 min-h-[44px] touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--primary)]/30",
+                        "flex-1 py-3 text-sm font-bold uppercase tracking-wider transition-colors duration-200 border-b-2 min-h-[44px] touch-manipulation focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/30",
                         activeTab === tab
-                            ? "border-[var(--primary)] text-[var(--primary)] bg-[var(--primary)]/10"
-                            : "border-transparent text-text-muted hover:text-text-primary hover:bg-[var(--bg-tertiary)]/40"
+                            ? "border-[var(--primary)] text-[var(--primary)] bg-brand/10"
+                            : "border-transparent text-text-muted hover:text-text-primary hover:bg-surface-3/40"
                     )}
                 >
                     {tab}

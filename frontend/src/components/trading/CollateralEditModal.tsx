@@ -58,36 +58,36 @@ export function CollateralEditModal({ isOpen, onClose, position }: CollateralEdi
                 aria-hidden="true"
             />
 
-            <div className="fixed inset-0 flex items-center justify-center p-4">
+            <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
                 <DialogPanel
                     transition
-                    className="w-full max-w-md bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl shadow-[0_24px_48px_rgba(0,0,0,0.45)] overflow-hidden transition duration-200 ease-out data-closed:scale-[0.98] data-closed:opacity-0"
+                    className="w-full max-w-md bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-t-2xl rounded-b-none sm:rounded-2xl shadow-[0_24px_48px_rgba(0,0,0,0.45)] overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[min(90dvh,720px)] transition duration-200 ease-out data-closed:opacity-0 data-closed:translate-y-4 sm:data-closed:translate-y-0 sm:data-closed:scale-[0.98] motion-reduce:transition-none"
                     role="dialog"
                     aria-modal="true"
                 >
-                    <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4 border-b border-[var(--border-color)]/80">
+                    <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4 border-b border-line/80 shrink-0">
                         <Dialog.Title className="text-lg font-bold text-text-primary tracking-tight">
                             Edit collateral
                         </Dialog.Title>
                         <button
                             type="button"
                             onClick={onClose}
-                            className="shrink-0 p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-[var(--bg-tertiary)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/50"
+                            className="shrink-0 p-2 rounded-xl text-text-muted hover:text-text-primary hover:bg-[var(--bg-tertiary)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
                             aria-label="Close"
                         >
                             <X className="w-5 h-5" />
                         </button>
                     </div>
 
-                    <div className="px-5 py-5 space-y-5">
-                        <div className="flex p-1 rounded-xl border border-[var(--border-color)]/90 bg-[var(--bg-tertiary)]/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                    <div className="px-5 py-5 space-y-5 overflow-y-auto overscroll-contain custom-scrollbar pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-5">
+                        <div className="flex p-1 rounded-xl border border-line/90 bg-surface-3/50 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                             <button
                                 type="button"
                                 onClick={() => setMode('deposit')}
                                 className={clsx(
-                                    'flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40',
+                                    'flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
                                     mode === 'deposit'
-                                        ? 'bg-[var(--primary)] text-white shadow-md shadow-[var(--primary)]/20'
+                                        ? 'bg-[var(--primary)] text-white shadow-md shadow-brand/20'
                                         : 'text-text-secondary hover:text-text-primary'
                                 )}
                             >
@@ -97,9 +97,9 @@ export function CollateralEditModal({ isOpen, onClose, position }: CollateralEdi
                                 type="button"
                                 onClick={() => setMode('withdraw')}
                                 className={clsx(
-                                    'flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/40',
+                                    'flex-1 py-2.5 text-sm font-semibold rounded-lg transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40',
                                     mode === 'withdraw'
-                                        ? 'bg-[var(--primary)] text-white shadow-md shadow-[var(--primary)]/20'
+                                        ? 'bg-[var(--primary)] text-white shadow-md shadow-brand/20'
                                         : 'text-text-secondary hover:text-text-primary'
                                 )}
                             >
@@ -112,7 +112,7 @@ export function CollateralEditModal({ isOpen, onClose, position }: CollateralEdi
                                 <span>Current collateral</span>
                                 <span className="font-mono tabular-nums text-text-primary">${currentCollateral.toFixed(2)}</span>
                             </div>
-                            <div className="relative rounded-xl border border-[var(--border-color)]/90 bg-[var(--bg-tertiary)]/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-within:border-[var(--primary)]/55 focus-within:ring-2 focus-within:ring-[var(--primary)]/15 transition-all">
+                            <div className="relative rounded-xl border border-line/90 bg-surface-3/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] focus-within:border-brand/55 focus-within:ring-2 focus-within:ring-brand/15 transition-all">
                                 <input
                                     id="collateral-amount"
                                     type="text"
@@ -132,7 +132,7 @@ export function CollateralEditModal({ isOpen, onClose, position }: CollateralEdi
                             )}
                         </div>
 
-                        <div className="rounded-xl border border-[var(--border-color)]/80 bg-[var(--bg-tertiary)]/40 p-4 space-y-3">
+                        <div className="rounded-xl border border-line/80 bg-surface-3/40 p-4 space-y-3">
                             <div className="flex justify-between text-xs gap-3">
                                 <span className="text-text-muted shrink-0">New collateral</span>
                                 <div className="flex items-center gap-2 min-w-0 justify-end font-mono tabular-nums text-right">
@@ -153,7 +153,7 @@ export function CollateralEditModal({ isOpen, onClose, position }: CollateralEdi
                             type="button"
                             onClick={handleSubmit}
                             disabled={loading || !amount.trim() || !Number.isFinite(amountNum) || amountNum <= 0 || withdrawInvalid}
-                            className="w-full py-3 rounded-xl font-bold text-sm text-white bg-[var(--primary)] hover:opacity-95 active:scale-[0.99] transition-all disabled:opacity-45 disabled:cursor-not-allowed shadow-lg shadow-[var(--primary)]/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/50"
+                            className="w-full py-3 rounded-xl font-bold text-sm text-white bg-[var(--primary)] hover:opacity-95 active:scale-[0.99] transition-all disabled:opacity-45 disabled:cursor-not-allowed shadow-lg shadow-brand/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
                         >
                             {loading ? 'Confirming…' : mode === 'deposit' ? 'Deposit collateral' : 'Withdraw collateral'}
                         </button>

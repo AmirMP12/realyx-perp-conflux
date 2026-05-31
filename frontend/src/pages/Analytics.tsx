@@ -1,4 +1,5 @@
 import { ReactNode, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { TrendingUp, TrendingDown, DollarSign, BarChart2, Activity, Loader2, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 import {
@@ -53,10 +54,10 @@ function formatUsdStat(value: unknown): string {
 
 function StatCard({ title, value, change, icon, className = '', loading }: StatCardProps) {
     return (
-        <div className={clsx('glass-card min-w-0 overflow-hidden p-4 md:p-6 flex flex-col justify-between h-[110px] md:h-[130px] hover:bg-[var(--bg-tertiary)]/20 transition-colors', className)}>
+        <div className={clsx('glass-card min-w-0 overflow-hidden p-4 md:p-6 flex flex-col justify-between h-[110px] md:h-[130px] hover:bg-surface-3/20 transition-colors', className)}>
             <div className="flex items-start justify-between gap-2 min-w-0">
                 <span className="text-text-secondary text-xs md:text-sm font-medium uppercase tracking-wider truncate leading-tight mt-1">{title}</span>
-                <div className="text-[var(--primary)] p-1.5 md:p-2 bg-[var(--primary)]/10 rounded-lg shrink-0">{icon}</div>
+                <div className="text-[var(--primary)] p-1.5 md:p-2 bg-brand/10 rounded-lg shrink-0">{icon}</div>
             </div>
             <div
                 className="text-lg sm:text-xl md:text-2xl font-bold text-text-primary font-mono tracking-tight min-w-0 break-words [overflow-wrap:anywhere] leading-tight"
@@ -160,12 +161,12 @@ function OpenInterestChart({ longOI, shortOI }: { longOI: number; shortOI: numbe
     const total = longOI + shortOI;
 
     return (
-        <div className="glass-panel p-4 md:p-6 h-full flex flex-col">
-            <h3 className="text-lg font-bold text-text-primary mb-6 flex items-center gap-2">
+        <div className="glass-panel p-4 md:p-6 h-full flex flex-col overflow-hidden">
+            <h3 className="text-lg font-bold text-text-primary mb-4 flex items-center gap-2 shrink-0">
                 <Activity className="w-5 h-5 text-[var(--primary)]" />
                 OI Composition
             </h3>
-            <div className="flex-1 min-h-[300px] relative">
+            <div className="flex-1 min-h-0 relative">
                 <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                         <Pie
@@ -189,24 +190,24 @@ function OpenInterestChart({ longOI, shortOI }: { longOI: number; shortOI: numbe
                 {/* Center Stats */}
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                     <span className="text-xs text-text-secondary font-medium uppercase tracking-wider">Total OI</span>
-                    <span className="text-lg font-bold text-text-primary font-mono">${(total / 1000).toFixed(1)}K</span>
+                    <span className="text-lg font-bold text-text-primary font-mono">{formatCompact(total)}</span>
                 </div>
             </div>
 
-            <div className="mt-4 space-y-3">
-                <div className="flex justify-between items-center text-sm p-3 rounded-lg bg-[var(--bg-tertiary)]/30 border border-[var(--border-color)]">
+            <div className="mt-4 space-y-2 shrink-0">
+                <div className="flex justify-between items-center text-sm p-2.5 rounded-lg bg-surface-3/30 border border-[var(--border-color)]">
                     <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-emerald-400" />
                         <span className="text-text-secondary">Longs</span>
                     </div>
-                    <span className="font-mono font-bold text-text-primary">${(longOI / 1000).toFixed(2)}K</span>
+                    <span className="font-mono font-bold text-text-primary">{formatCompact(longOI)}</span>
                 </div>
-                <div className="flex justify-between items-center text-sm p-3 rounded-lg bg-[var(--bg-tertiary)]/30 border border-[var(--border-color)]">
+                <div className="flex justify-between items-center text-sm p-2.5 rounded-lg bg-surface-3/30 border border-[var(--border-color)]">
                     <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full bg-rose-400" />
                         <span className="text-text-secondary">Shorts</span>
                     </div>
-                    <span className="font-mono font-bold text-text-primary">${(shortOI / 1000).toFixed(2)}K</span>
+                    <span className="font-mono font-bold text-text-primary">{formatCompact(shortOI)}</span>
                 </div>
             </div>
         </div>
@@ -239,7 +240,7 @@ function Leaderboard({ entries, loading, error }: { entries: LeaderboardEntry[];
                 ) : (
                     <table className="w-full text-left text-sm whitespace-nowrap">
                         <thead className="sticky top-0 bg-[var(--bg-secondary)] z-10">
-                            <tr className="text-xs text-text-secondary uppercase tracking-wider border-b border-[var(--border-color)] bg-[var(--bg-tertiary)]/30">
+                            <tr className="text-xs text-text-secondary uppercase tracking-wider border-b border-[var(--border-color)] bg-surface-3/30">
                                 <th className="p-4 font-medium w-16 text-center">Rank</th>
                                 <th className="p-4 font-medium">Trader</th>
                                 <th className="p-4 font-medium text-right">PnL</th>
@@ -249,7 +250,7 @@ function Leaderboard({ entries, loading, error }: { entries: LeaderboardEntry[];
                         </thead>
                         <tbody className="divide-y divide-[var(--border-color)]">
                             {entries.map((entry) => (
-                                <tr key={entry.rank} className="hover:bg-[var(--bg-tertiary)]/50 transition-colors">
+                                <tr key={entry.rank} className="hover:bg-surface-3/50 transition-colors">
                                     <td className="p-4 text-center">
                                         <span className={clsx(
                                             "inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold",
@@ -262,13 +263,15 @@ function Leaderboard({ entries, loading, error }: { entries: LeaderboardEntry[];
                                         </span>
                                     </td>
                                     <td className="p-4 font-mono text-text-primary">
-                                        {entry.wallet.slice(0, 6)}...{entry.wallet.slice(-4)}
+                                        <Link to={`/trader/${entry.wallet}`} className="text-[var(--primary)] hover:underline">
+                                            {entry.wallet.slice(0, 6)}...{entry.wallet.slice(-4)}
+                                        </Link>
                                     </td>
                                     <td className={clsx("p-4 text-right font-mono font-medium", parseFloat(entry.pnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>
                                         {parseFloat(entry.pnl) >= 0 ? '+' : ''}${parseFloat(entry.pnl).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                                     </td>
                                     <td className="p-4 text-right font-mono text-text-secondary">
-                                        ${(parseFloat(entry.volume) / 1000).toFixed(0)}K
+                                        {formatCompact(parseFloat(entry.volume))}
                                     </td>
                                     <td className="p-4 text-right font-mono text-text-muted">
                                         {entry.trades}
@@ -292,7 +295,7 @@ function Leaderboard({ entries, loading, error }: { entries: LeaderboardEntry[];
                     </div>
                 ) : (
                     entries.map((entry) => (
-                        <div key={entry.rank} className="p-4 hover:bg-[var(--bg-tertiary)]/20">
+                        <div key={entry.rank} className="p-4 hover:bg-surface-3/20">
                             <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
                                     <span className={clsx(
@@ -305,7 +308,9 @@ function Leaderboard({ entries, loading, error }: { entries: LeaderboardEntry[];
                                         {entry.rank}
                                     </span>
                                     <span className="font-mono text-sm font-medium text-text-primary">
-                                        {entry.wallet.slice(0, 6)}...{entry.wallet.slice(-4)}
+                                        <Link to={`/trader/${entry.wallet}`} className="text-[var(--primary)] hover:underline">
+                                            {entry.wallet.slice(0, 6)}...{entry.wallet.slice(-4)}
+                                        </Link>
                                     </span>
                                 </div>
                                 <div className={clsx("font-mono font-bold text-sm", parseFloat(entry.pnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>
@@ -313,7 +318,7 @@ function Leaderboard({ entries, loading, error }: { entries: LeaderboardEntry[];
                                 </div>
                             </div>
                             <div className="flex justify-between text-xs text-text-secondary">
-                                <span>Vol: ${(parseFloat(entry.volume) / 1000).toFixed(0)}K</span>
+                                <span>Vol: {formatCompact(parseFloat(entry.volume))}</span>
                                 <span>Trades: {entry.trades}</span>
                             </div>
                         </div>
@@ -429,11 +434,11 @@ export default function AnalyticsDashboard() {
             </div>
 
             {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-                {/* Left Column: Charts */}
-                <div className="lg:col-span-2 space-y-6">
+            <div className="space-y-4 md:space-y-6">
+                {/* Top Row: Volume (2/3) + OI (1/3) */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
                     {/* Volume Chart */}
-                    <div className="h-[400px]">
+                    <div className="lg:col-span-2 h-[420px]">
                         {historyLoading && formattedHistory.length === 0 ? (
                             <div className="glass-panel p-6 flex flex-col items-center justify-center h-full">
                                 <Loader2 className="w-8 h-8 animate-spin text-text-muted mb-2" />
@@ -447,26 +452,23 @@ export default function AnalyticsDashboard() {
                             </div>
                         )}
                     </div>
-                </div>
 
-                {/* Right Column: OI & Leaderboard */}
-                <div className="space-y-6 flex flex-col">
                     {/* Open Interest Chart */}
-                    <div className="min-h-[450px]">
+                    <div className="h-[420px]">
                         <OpenInterestChart
                             longOI={realTimeLongOI}
                             shortOI={realTimeShortOI}
                         />
                     </div>
+                </div>
 
-                    {/* Leaderboard */}
-                    <div className="flex-1 min-h-[400px]">
-                        <Leaderboard
-                            entries={leaderboardEntries}
-                            loading={leaderboardLoading}
-                            error={leaderboardError}
-                        />
-                    </div>
+                {/* Bottom Row: Leaderboard (full width) */}
+                <div className="min-h-[420px]">
+                    <Leaderboard
+                        entries={leaderboardEntries}
+                        loading={leaderboardLoading}
+                        error={leaderboardError}
+                    />
                 </div>
             </div>
         </div>

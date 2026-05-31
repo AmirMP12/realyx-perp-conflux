@@ -47,7 +47,7 @@ function OrderRow({ entry, side, onClick }: OrderRowProps) {
 
     return (
         <div
-            className="relative flex items-center py-1 px-2 hover:bg-[var(--bg-tertiary)] cursor-pointer transition-colors text-sm"
+            className="relative flex items-center py-1 px-2 hover:bg-[var(--bg-tertiary)] cursor-pointer transition-colors text-[11px] sm:text-sm"
             onClick={onClick}
         >
             {/* Background bar */}

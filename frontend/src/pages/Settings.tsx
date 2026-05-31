@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAccount, useWriteContract, useChainId, useReadContract } from 'wagmi';
-import type { Address } from 'viem';
+import { formatUnits, type Address } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import {
@@ -72,7 +72,7 @@ export function SettingsPage() {
                     {isConnected && address && (
                         <div className="glass-panel p-4">
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--primary)]/20 to-accent-purple/20 flex items-center justify-center border border-[var(--primary)]/30">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-brand/20 to-accent-purple/20 flex items-center justify-center border border-brand/30">
                                     <Wallet className="w-5 h-5 text-[var(--primary)]" />
                                 </div>
                                 <div>
@@ -122,7 +122,7 @@ export function SettingsPage() {
                                 className={clsx(
                                     'w-full flex items-center gap-3 px-3 py-2.5 sm:px-4 sm:py-3 rounded-lg transition-all text-left relative overflow-hidden group',
                                     activeSection === section.id
-                                        ? 'bg-[var(--primary)]/10 text-[var(--primary)] font-medium'
+                                        ? 'bg-brand/10 text-[var(--primary)] font-medium'
                                         : 'text-text-secondary hover:text-text-primary hover:bg-[var(--bg-tertiary)]'
                                 )}
                             >
@@ -283,7 +283,7 @@ const TestnetSettings = () => {
                 </p>
                 {hasBalance && (
                     <div className="mt-2 text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded w-fit">
-                        Balance: {Number(balance) / 1000000} USDC
+                        Balance: {formatUnits(balance as bigint, 6)} USDC
                     </div>
                 )}
             </div>
@@ -347,7 +347,7 @@ function TradingSettings({ settings }: { settings: SettingsState }) {
             <div className="space-y-4">
                 <div className="flex justify-between items-center">
                     <label className="text-sm font-medium text-text-primary">Default Leverage</label>
-                    <span className="font-mono text-[var(--primary)] font-bold bg-[var(--primary)]/10 px-3 py-1 rounded">{settings.defaultLeverage}x</span>
+                    <span className="font-mono text-[var(--primary)] font-bold bg-brand/10 px-3 py-1 rounded">{settings.defaultLeverage}x</span>
                 </div>
                 <input
                     type="range"
@@ -376,7 +376,7 @@ function TradingSettings({ settings }: { settings: SettingsState }) {
                             className={clsx(
                                 "px-4 py-2 rounded-lg text-sm font-mono font-medium transition-all border",
                                 settings.maxSlippage === val
-                                    ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-lg shadow-[var(--primary)]/20"
+                                    ? "bg-[var(--primary)] text-white border-[var(--primary)] shadow-lg shadow-brand/20"
                                     : "bg-[var(--bg-tertiary)] text-text-secondary border-transparent hover:border-[var(--border-color)] hover:text-text-primary"
                             )}
                         >
@@ -398,7 +398,7 @@ function TradingSettings({ settings }: { settings: SettingsState }) {
                             className={clsx(
                                 "px-4 py-3 rounded-xl text-sm font-medium transition-all border text-left flex items-center justify-between group",
                                 settings.defaultOrderType === type
-                                    ? "bg-[var(--primary)]/10 border-[var(--primary)]/50 text-[var(--primary)]"
+                                    ? "bg-brand/10 border-brand/50 text-[var(--primary)]"
                                     : "bg-[var(--bg-tertiary)] border-transparent text-text-secondary hover:text-text-primary"
                             )}
                         >
@@ -433,7 +433,7 @@ function NotificationSettings({ settings: _ }: { settings: SettingsState }) {
         <div className="space-y-8">
             <SectionHeader title="Notifications" description="Manage which alerts you want to receive." />
 
-            <div className="p-4 bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-xl mb-6">
+            <div className="p-4 bg-brand/10 border border-brand/30 rounded-xl mb-6">
                 <h3 className="font-bold text-[var(--primary)] text-sm mb-1">Coming Soon</h3>
                 <p className="text-xs text-text-secondary">
                     We are working on a comprehensive notification system for price alerts and position updates.
@@ -549,7 +549,7 @@ function DisplaySettings({ settings }: { settings: SettingsState }) {
                     className={clsx(
                         "p-4 rounded-xl border text-left transition-all",
                         settings.theme === 'dark'
-                            ? "bg-[var(--primary)]/10 border-[var(--primary)] shadow-lg shadow-[var(--primary)]/10"
+                            ? "bg-brand/10 border-[var(--primary)] shadow-lg shadow-brand/10"
                             : "bg-[var(--bg-tertiary)] border-transparent hover:border-[var(--border-color)]"
                     )}
                 >
@@ -562,17 +562,20 @@ function DisplaySettings({ settings }: { settings: SettingsState }) {
                 </button>
 
                 <button
-                    disabled
+                    onClick={() => settings.setTheme('light')}
                     className={clsx(
-                        "p-4 rounded-xl border text-left transition-all opacity-50 cursor-not-allowed",
-                        "bg-[var(--bg-tertiary)] border-transparent"
+                        "p-4 rounded-xl border text-left transition-all",
+                        settings.theme === 'light'
+                            ? "bg-brand/10 border-[var(--primary)] shadow-lg shadow-brand/10"
+                            : "bg-[var(--bg-tertiary)] border-transparent hover:border-[var(--border-color)]"
                     )}
                 >
                     <div className="flex justify-between items-start mb-2">
-                        <Sun className="w-6 h-6 text-text-muted" />
+                        <Sun className={clsx("w-6 h-6", settings.theme === 'light' ? "text-[var(--primary)]" : "text-text-muted")} />
+                        {settings.theme === 'light' && <div className="w-2 h-2 rounded-full bg-[var(--primary)]" />}
                     </div>
-                    <div className="font-medium text-text-secondary">Light Mode</div>
-                    <div className="text-xs text-text-muted mt-1">Coming Soon</div>
+                    <div className="font-medium text-text-primary">Light Mode</div>
+                    <div className="text-xs text-text-muted mt-1">Bright, high-contrast theme</div>
                 </button>
             </div>
 
@@ -603,7 +606,7 @@ function DisplaySettings({ settings }: { settings: SettingsState }) {
                                 "flex-1 py-3 px-4 rounded-lg text-sm font-medium border transition-all flex items-center justify-center gap-2",
                                 currency === 'CFX' && "opacity-50 cursor-not-allowed",
                                 settings.currency === currency
-                                    ? "bg-[var(--primary)]/10 border-[var(--primary)] text-[var(--primary)]"
+                                    ? "bg-brand/10 border-[var(--primary)] text-[var(--primary)]"
                                     : "bg-[var(--bg-tertiary)] border-transparent text-text-secondary hover:text-text-primary"
                             )}
                         >

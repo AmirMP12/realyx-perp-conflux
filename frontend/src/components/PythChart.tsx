@@ -147,7 +147,7 @@ function PythChartComponent({ feedId, marketSymbol, interval = 60, points = 24 }
             {/* Pyth attribution */}
             <div className="absolute bottom-2 left-2 z-10 text-[10px] text-text-muted/50 flex items-center gap-1">
                 <span>Powered by</span>
-                <span className="font-medium text-[var(--primary)]/70">Pyth Network</span>
+                <span className="font-medium text-brand/70">Pyth Network</span>
             </div>
 
             <div

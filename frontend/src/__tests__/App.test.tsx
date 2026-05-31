@@ -36,6 +36,10 @@ const routerFuture = { v7_startTransition: true, v7_relativeSplatPath: true };
 describe('App', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        // Risk disclosure modal shows on first visit and (correctly) inerts the
+        // rest of the page; mark it seen so layout/nav assertions test the
+        // normal returning-user state.
+        localStorage.setItem('realyx_risk_disclosure_seen', 'true');
         (useAccount as any).mockReturnValue({ isConnected: true });
         (useChainId as any).mockReturnValue(11155111); // Correct chain
         (useMarkets as any).mockReturnValue({ markets: [] });

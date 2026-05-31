@@ -40,10 +40,19 @@ export function ProtocolStatsBar() {
     }, [onChainData, backendOi, marketsOiFallback]);
 
     return (
-        <div className="hidden xl:flex items-center gap-4 text-[11px] text-text-muted whitespace-nowrap">
-            <span className="tabular-nums">24h Vol: <span className="text-text-primary font-medium">{formatCompact(volume24h)}</span></span>
-            <span className="tabular-nums">OI: <span className="text-text-primary font-medium">{formatCompact(oi)}</span></span>
-            <span className="tabular-nums">TVL: <span className="text-text-primary font-medium">{formatCompact(tvl)}</span></span>
+        <div className="hidden xl:flex items-center gap-1.5 text-[11px]">
+            <StatChip label="24h Vol" value={formatCompact(volume24h)} />
+            <StatChip label="OI" value={formatCompact(oi)} />
+            <StatChip label="TVL" value={formatCompact(tvl)} />
+        </div>
+    );
+}
+
+function StatChip({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface-3/50 border border-line/60 whitespace-nowrap">
+            <span className="text-text-muted">{label}</span>
+            <span className="text-text-primary font-semibold tabular-nums">{value}</span>
         </div>
     );
 }

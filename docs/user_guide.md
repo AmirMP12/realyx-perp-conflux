@@ -51,10 +51,26 @@ Liquidity Providers (LPs) act as the backbone of Realyx. By depositing USDC, you
 4. Sit back: LPs actively accrue yield from trader fees, liquidations, and funding rate adjustments.
 
 ### Capital Unstaking
-To ensure protocol solvency, withdrawals follow a strict queue mechanism:
-1. Initiate a **Withdrawal Request** on the Vault page.
-2. Wait out the protocol's **Cooldown Period** (typically calibrated to 7 days).
-3. Once the period lapses, click **Execute Withdrawal** to redeem your USDC + compounded rewards.
+To ensure protocol solvency, large withdrawals follow a queue mechanism:
+1. If enough free liquidity is available, withdrawals settle instantly.
+2. Otherwise, initiate a **Withdrawal Request** on the Vault page.
+3. Wait out the LP **withdrawal cooldown** (default ~1 day; configurable by governance).
+4. Once the period lapses, execute the withdrawal to redeem your USDC + compounded rewards.
+
+### Insurance Staking (optional backstop)
+The insurance pool is a separate share class inside the same `VaultCore` contract:
+- **Stake** USDC via the **Insurance** page to backstop bad debt and earn premium yield.
+- **Unstaking** requires a request followed by a longer **unstake cooldown** (default ~7 days) to keep the backstop solvent during stress.
+
+---
+
+## 4. Social & RWA Features
+
+- **Leaderboard** — Top traders ranked by realized PnL and volume.
+- **Copy Trading** — Follow registered lead traders and mirror their intent flow with your own allocation and leverage caps.
+- **Referrals** — Share your on-chain referral code to earn claimable USDC fee rebates.
+- **Analytics** — Protocol-wide TVL, volume, and open-interest dashboards.
+- **RWA trading hours** — Tokenized equities/commodities follow a `MarketCalendar`; orders on those markets are blocked (revert `MarketClosed`) outside session hours.
 
 ---
 *Disclaimer: Leveraged trading and DeFi participation carry inherent risks. Only trade or provide liquidity with capital you are prepared to lose.*

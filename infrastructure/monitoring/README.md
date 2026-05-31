@@ -4,8 +4,10 @@ Prometheus config and alert rules for the Realyx stack.
 
 ## Layout
 
-- `prometheus.yml` – scrape config and external labels (cluster: realyx, env: production).
+- `prometheus.yml` – scrape config and external labels (cluster: realyx, env: production) for Kubernetes.
+- `prometheus-docker.yml` – scrape config used by the Docker Compose Prometheus service.
 - `alerts/trading-alerts.yml` – alert groups: infrastructure, oracle, trading, vault, indexer.
+- `grafana/provisioning/` – Grafana datasource/dashboard provisioning mounted by the Compose Grafana service.
 
 ## Usage
 
@@ -15,7 +17,7 @@ Prometheus config and alert rules for the Realyx stack.
 docker-compose up -d prometheus grafana
 ```
 
-Prometheus will read `infrastructure/monitoring/prometheus.yml` and `alerts/*.yml` if mounted.
+The Compose `prometheus` service mounts `infrastructure/monitoring/prometheus-docker.yml` and the `grafana` service mounts `grafana/provisioning/`. Grafana is exposed on host port 3003 (admin password via `GRAFANA_PASSWORD`).
 
 **Kubernetes**: Run Prometheus in the same cluster and mount this directory (or the contents) into the Prometheus container so it uses this config and rule files.
 

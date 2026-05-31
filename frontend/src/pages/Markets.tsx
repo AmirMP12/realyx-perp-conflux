@@ -14,6 +14,7 @@ import { Address } from 'viem';
 
 import { applyMarketDisplayFallback } from '../utils/market';
 import { CategoryTag } from '../components/ui/CategoryTag';
+import { MarketLogo } from '../components/MarketLogo';
 
 
 interface DisplayMarket {
@@ -129,9 +130,9 @@ export function MarketsPage() {
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 px-4 md:px-0">
                 <div>
-                    <h1 className="text-2xl md:text-3xl font-bold text-white mb-2 tracking-tight">Markets</h1>
+                    <h1 className="text-2xl md:text-3xl font-bold text-text-primary mb-2 tracking-tight">Markets</h1>
                     <p className="text-text-secondary text-sm md:text-base max-w-2xl">
-                        Trade perpetuals with up to 10x leverage. Crypto, equities, commodities & RWAs.
+                        Trade perpetuals on Crypto, equities, commodities & RWAs.
                     </p>
                 </div>
 
@@ -156,12 +157,12 @@ export function MarketsPage() {
                 {/* Controls */}
                 <div className="p-4 border-b border-[var(--border-color)] flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent)]">
                     <div className="flex flex-wrap items-center gap-2">
-                        <div className="flex bg-[var(--bg-tertiary)]/70 rounded-xl p-1 w-fit border border-[var(--border-color)]/60">
+                        <div className="flex bg-surface-3/70 rounded-xl p-1 w-fit border border-line/60">
                             <button
                                 onClick={() => setFilter('all')}
                                 className={clsx(
                                     "px-4 py-1.5 rounded-lg text-sm font-medium transition-all",
-                                    filter === 'all' ? "bg-[var(--bg-secondary)] text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
+                                    filter === 'all' ? "bg-[var(--bg-secondary)] text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"
                                 )}
                             >
                                 All Markets
@@ -177,14 +178,14 @@ export function MarketsPage() {
                                 Favorites
                             </button>
                         </div>
-                        <div className="flex bg-[var(--bg-tertiary)]/70 rounded-xl p-1 w-fit overflow-x-auto border border-[var(--border-color)]/60">
+                        <div className="flex bg-surface-3/70 rounded-xl p-1 w-fit overflow-x-auto border border-line/60">
                             {categories.map((cat) => (
                                 <button
                                     key={cat.id}
                                     onClick={() => setCategoryFilter(cat.id)}
                                     className={clsx(
                                         "px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all",
-                                        categoryFilter === cat.id ? "bg-[var(--bg-secondary)] text-white shadow-sm" : "text-text-secondary hover:text-text-primary"
+                                        categoryFilter === cat.id ? "bg-[var(--bg-secondary)] text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"
                                     )}
                                 >
                                     {cat.label}
@@ -199,7 +200,7 @@ export function MarketsPage() {
                             placeholder="Search markets..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            className="w-full bg-[#0a0a0f]/60 backdrop-blur-md border border-[var(--border-color)]/80 focus:border-[var(--primary)]/40 rounded-xl pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted outline-none transition-all shadow-[inset_0_1px_1px_rgba(0,0,0,0.3)] focus:ring-1 focus:ring-[var(--primary)]/20 hover:bg-[#0a0a0f]/80"
+                            className="w-full bg-surface/60 backdrop-blur-md border border-line/80 focus:border-brand/40 rounded-xl pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder-text-muted outline-none transition-all shadow-[inset_0_1px_1px_rgba(0,0,0,0.15)] focus:ring-1 focus:ring-brand/20 hover:bg-surface/80"
                         />
                     </div>
                 </div>
@@ -226,7 +227,7 @@ export function MarketsPage() {
                             {filter === 'favorites' ? 'Star markets to add them to your favorites.' : 'Try a different search term.'}
                         </p>
                         {filter === 'favorites' && (
-                            <button onClick={() => setFilter('all')} className="mt-4 px-4 py-2 text-sm font-medium text-[var(--primary)] hover:bg-[var(--primary)]/10 rounded-lg transition-colors">
+                            <button onClick={() => setFilter('all')} className="mt-4 px-4 py-2 text-sm font-medium text-[var(--primary)] hover:bg-brand/10 rounded-lg transition-colors">
                                 View all markets
                             </button>
                         )}
@@ -236,7 +237,7 @@ export function MarketsPage() {
                         {/* Desktop Table */}
                         <div className="hidden md:block overflow-x-auto max-h-[70vh] overflow-y-auto">
                             <table className="w-full text-left">
-                                <thead className="bg-[var(--bg-tertiary)]/60 text-xs uppercase text-text-secondary font-medium sticky top-0 z-10 backdrop-blur-sm">
+                                <thead className="bg-surface-3/60 text-xs uppercase text-text-secondary font-medium sticky top-0 z-10 backdrop-blur-sm">
                                     <tr>
                                         <th className="px-6 py-3">Market</th>
                                         <th className="px-6 py-3 text-right">Price</th>
@@ -248,7 +249,7 @@ export function MarketsPage() {
                                         <th className="px-6 py-3"></th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-[var(--border-color)]/70">
+                                <tbody className="divide-y divide-line/70">
                                     {filteredMarkets.map((market) => (
                                         <MarketRow
                                             key={`${market.id}-${market.marketAddress}`}
@@ -302,7 +303,7 @@ function StatCard({ label, value, loading }: { label: string, value: string, loa
             {loading ? (
                 <Skeleton className="h-7 w-24" />
             ) : (
-                <div className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/80 font-mono tracking-tight tabular-nums">
+                <div className="text-xl font-bold text-text-primary font-mono tracking-tight tabular-nums">
                     {value}
                 </div>
             )}
@@ -316,7 +317,7 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
     const isPositive = market.change24h >= 0;
 
     return (
-        <tr className="hover:bg-[var(--bg-tertiary)]/40 transition-all duration-200 group border-b border-[var(--border-color)]/30 last:border-0">
+        <tr className="hover:bg-surface-3/40 transition-all duration-200 group border-b border-line/30 last:border-0">
             <td className="px-6 py-3">
                 <div className="flex items-center gap-3">
                     <button
@@ -325,6 +326,8 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
                             toggleFavorite(market.id);
                         }}
                         data-testid={`favorite-toggle-${market.id}`}
+                        aria-label={isFavorite ? `Remove ${market.symbol} from favorites` : `Add ${market.symbol} to favorites`}
+                        aria-pressed={isFavorite}
                         className={clsx(
                             "p-1.5 rounded hover:bg-[var(--bg-tertiary)] transition-colors",
                             isFavorite ? "text-amber-400" : "text-text-muted hover:text-amber-400"
@@ -333,7 +336,7 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
                         <Star className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} />
                     </button>
                     <Link to={`/trade/${market.symbol}`} className="flex items-center gap-3">
-                        <img src={market.image} alt={market.symbol} className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)] ring-1 ring-[var(--border-color)]/70" />
+                        <MarketLogo src={market.image} symbol={market.symbol} name={market.name} size="lg" className="rounded-full bg-[var(--bg-tertiary)] ring-1 ring-line/70" />
                         <div>
                             <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
                                 <span className="font-bold text-text-primary text-sm">{market.symbol}</span>
@@ -376,7 +379,7 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
             </td>
             <td className="px-6 py-4 text-right">
                 <Link to={`/trade/${market.symbol}`}>
-                    <button className="px-4 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--primary)] text-text-primary hover:text-white rounded-xl text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-[var(--border-color)]/60 hover:border-transparent">
+                    <button className="px-4 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--primary)] text-text-primary hover:text-white rounded-xl text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-line/60 hover:border-transparent">
                         Trade
                     </button>
                 </Link>
@@ -394,7 +397,7 @@ function MobileMarketCard({ market, isFavorite, toggleFavorite }: { market: Disp
         <Link to={`/trade/${market.symbol}`} className="block p-4 active:bg-[var(--bg-tertiary)] transition-colors relative">
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                    <img src={market.image} alt={market.symbol} className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)]" />
+                    <MarketLogo src={market.image} symbol={market.symbol} name={market.name} size="lg" className="rounded-full bg-[var(--bg-tertiary)]" />
                     <div>
                         <div className="flex items-center gap-2 flex-nowrap whitespace-nowrap">
                             <span className="font-bold text-text-primary text-sm">{market.symbol}</span>
@@ -414,14 +417,16 @@ function MobileMarketCard({ market, isFavorite, toggleFavorite }: { market: Disp
             </div>
 
             <div className="flex items-center justify-between text-xs text-text-secondary mt-2">
-                <div className="flex gap-4 items-center">
-                    <span>
+                <div className="flex gap-3 sm:gap-4 items-center min-w-0">
+                    <span className="whitespace-nowrap">
                         Vol: <span className="text-text-primary font-mono">{formatCompact(market.volume24h)}</span>
                     </span>
+                    <span className="whitespace-nowrap">
                         Funding: <span className={clsx("font-mono", market.fundingRate > 0 ? "text-[var(--short)]" : (market.fundingRate < 0 ? "text-[var(--long)]" : "text-amber-400"))}>
                             {market.fundingRate > 0 ? '+' : ''}{((market.fundingRate * 100) / 8).toFixed(4)}%
                         </span>
-                    <div className="w-[60px] h-[20px] shrink-0">
+                    </span>
+                    <div className="w-[60px] h-[20px] shrink-0 hidden min-[400px]:block">
                         <Sparkline data={prices} width={60} height={20} />
                     </div>
                 </div>
@@ -431,6 +436,8 @@ function MobileMarketCard({ market, isFavorite, toggleFavorite }: { market: Disp
                         e.stopPropagation();
                         toggleFavorite(market.id);
                     }}
+                    aria-label={isFavorite ? `Remove ${market.symbol} from favorites` : `Add ${market.symbol} to favorites`}
+                    aria-pressed={isFavorite}
                     className="p-2 -m-2 z-10"
                 >
                     <Star className={clsx("w-5 h-5", isFavorite ? "text-amber-400 fill-amber-400" : "text-text-muted/50")} />

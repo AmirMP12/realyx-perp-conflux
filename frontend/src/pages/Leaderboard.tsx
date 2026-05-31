@@ -1,27 +1,17 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Trophy, Medal } from 'lucide-react';
 import { useLeaderboard, type LeaderboardTimeframe } from '../hooks/useBackend';
 import { Skeleton } from '../components/ui';
 import clsx from 'clsx';
-import { formatCompact } from '../utils/format';
+import { formatCompact, safeUsd, truncateAddress } from '../utils/format';
 
 const LEADERBOARD_TIMEFRAMES: { label: string; value: LeaderboardTimeframe }[] = [
     { label: '24h', value: '24h' },
     { label: '7d', value: '7d' },
     { label: 'All Time', value: 'all' },
 ];
-
-function safeUsd(n: string | number): number {
-    const x = typeof n === 'number' ? n : parseFloat(String(n).replace(/,/g, ''));
-    return Number.isFinite(x) ? x : 0;
-}
-
-function truncateAddress(address: string) {
-    if (!address) return '—';
-    if (address.length <= 13) return address;
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
 
 export function LeaderboardPage() {
     const [timeframe, setTimeframe] = useState<LeaderboardTimeframe>('all');
@@ -74,64 +64,66 @@ export function LeaderboardPage() {
                 </p>
             ) : null}
 
-            {/* Top 3 Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 lg:mb-8">
-                {loading
-                    ? Array.from({ length: 3 }).map((_, i) => (
-                          <div key={i} className="glass-panel p-4 sm:p-6 space-y-4">
-                              <Skeleton className="h-10 w-full" />
-                              <Skeleton className="h-8 w-2/3" />
-                              <Skeleton className="h-6 w-1/2" />
-                          </div>
-                      ))
-                    : entries.slice(0, 3).map((entry) => (
-                          <motion.div
-                              key={`${entry.rank}-${entry.wallet}`}
-                              initial={{ opacity: 0, y: 20 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              className={clsx(
-                                  'glass-panel p-4 sm:p-6 relative overflow-hidden border-t-4',
-                                  entry.rank === 1
-                                      ? 'border-yellow-400/50 bg-yellow-400/5'
-                                      : entry.rank === 2
-                                        ? 'border-[var(--border-color-hover)] bg-[var(--bg-tertiary)]/40'
-                                        : 'border-orange-400/50 bg-orange-400/5'
-                              )}
-                          >
-                              <div className="flex justify-between items-start mb-4">
-                                  <div className="p-2 rounded-lg bg-[var(--bg-primary)]">{getRankIcon(entry.rank)}</div>
-                                   <div className="bg-[var(--bg-tertiary)] px-2 py-1 rounded text-xs text-text-muted font-mono">
-                                       {truncateAddress(entry.wallet)}
-                                   </div>
+            {/* Top 3 Podium — only when we have a full podium to show */}
+            {(loading || entries.length >= 3) && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6 lg:mb-8">
+                    {loading
+                        ? Array.from({ length: 3 }).map((_, i) => (
+                              <div key={i} className="glass-panel p-4 sm:p-6 space-y-4">
+                                  <Skeleton className="h-10 w-full" />
+                                  <Skeleton className="h-8 w-2/3" />
+                                  <Skeleton className="h-6 w-1/2" />
                               </div>
-                              <div className="space-y-1">
-                                  <div className="text-sm text-text-secondary">Net PnL</div>
-                                  <div
-                                      className={clsx(
-                                          'text-xl sm:text-2xl font-bold font-mono',
-                                          safeUsd(entry.pnl) >= 0 ? 'text-[var(--long)]' : 'text-[var(--short)]'
-                                      )}
-                                  >
-                                      {safeUsd(entry.pnl) >= 0 ? '+' : ''}
-                                      {formatCompact(safeUsd(entry.pnl))}
+                          ))
+                        : entries.slice(0, 3).map((entry) => (
+                              <motion.div
+                                  key={`${entry.rank}-${entry.wallet}`}
+                                  initial={{ opacity: 0, y: 20 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  className={clsx(
+                                      'glass-panel p-4 sm:p-6 relative overflow-hidden border-t-4',
+                                      entry.rank === 1
+                                          ? 'border-yellow-400/50 bg-yellow-400/5'
+                                          : entry.rank === 2
+                                            ? 'border-[var(--border-color-hover)] bg-surface-3/40'
+                                            : 'border-orange-400/50 bg-orange-400/5'
+                                  )}
+                              >
+                                  <div className="flex justify-between items-start mb-4">
+                                      <div className="p-2 rounded-lg bg-[var(--bg-primary)]">{getRankIcon(entry.rank)}</div>
+                                      <Link to={`/trader/${entry.wallet}`} className="bg-[var(--bg-tertiary)] px-2 py-1 rounded text-xs text-text-muted hover:text-[var(--primary)] font-mono transition-colors">
+                                          {truncateAddress(entry.wallet)}
+                                      </Link>
                                   </div>
-                              </div>
-                              <div className="mt-4 pt-4 border-t border-[var(--border-color)] flex justify-between text-sm">
-                                  <span className="text-text-muted">Volume</span>
-                                  <span className="font-mono text-text-primary font-medium">
-                                      {formatCompact(safeUsd(entry.volume))}
-                                  </span>
-                              </div>
-                          </motion.div>
-                      ))}
-            </div>
+                                  <div className="space-y-1">
+                                      <div className="text-sm text-text-secondary">Net PnL</div>
+                                      <div
+                                          className={clsx(
+                                              'text-xl sm:text-2xl font-bold font-mono tabular-nums',
+                                              safeUsd(entry.pnl) >= 0 ? 'text-[var(--long)]' : 'text-[var(--short)]'
+                                          )}
+                                      >
+                                          {safeUsd(entry.pnl) >= 0 ? '+' : ''}
+                                          {formatCompact(safeUsd(entry.pnl))}
+                                      </div>
+                                  </div>
+                                  <div className="mt-4 pt-4 border-t border-[var(--border-color)] flex justify-between text-sm">
+                                      <span className="text-text-muted">Volume</span>
+                                      <span className="font-mono text-text-primary font-medium tabular-nums">
+                                          {formatCompact(safeUsd(entry.volume))}
+                                      </span>
+                                  </div>
+                              </motion.div>
+                          ))}
+                </div>
+            )}
 
             {/* Full Table */}
             <div className="glass-panel overflow-hidden">
                 <div className="overflow-x-auto hidden md:block">
                     <table className="w-full">
                         <thead>
-                            <tr className="border-b border-[var(--border-color)] bg-[var(--bg-tertiary)]/30">
+                            <tr className="border-b border-[var(--border-color)] bg-surface-3/30">
                                 <th className="px-6 py-4 text-left text-xs font-bold text-text-secondary uppercase tracking-wider">Rank</th>
                                 <th className="px-6 py-4 text-left text-xs font-bold text-text-secondary uppercase tracking-wider">Trader</th>
                                 <th className="px-6 py-4 text-right text-xs font-bold text-text-secondary uppercase tracking-wider">Net PnL</th>
@@ -158,18 +150,18 @@ export function LeaderboardPage() {
                                 </tr>
                             ) : (
                                 entries.map((entry) => (
-                                    <tr key={`${entry.rank}-${entry.wallet}`} className="group hover:bg-[var(--bg-tertiary)]/50 transition-colors">
+                                    <tr key={`${entry.rank}-${entry.wallet}`} className="group hover:bg-surface-3/50 transition-colors">
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center gap-2">
                                                 {getRankIcon(entry.rank)}
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="flex items-center gap-2">
+                                            <Link to={`/trader/${entry.wallet}`} className="flex items-center gap-2 group/trader">
                                                  <div className="w-6 h-6 rounded bg-gradient-to-br from-indigo-500 to-purple-500" />
-                                                 <span className="font-mono text-sm text-[var(--primary)] font-medium md:hidden">{truncateAddress(entry.wallet)}</span>
-                                                 <span className="font-mono text-sm text-[var(--primary)] font-medium hidden md:inline">{entry.wallet}</span>
-                                             </div>
+                                                 <span className="font-mono text-sm text-[var(--primary)] font-medium md:hidden group-hover/trader:underline">{truncateAddress(entry.wallet)}</span>
+                                                 <span className="font-mono text-sm text-[var(--primary)] font-medium hidden md:inline group-hover/trader:underline">{entry.wallet}</span>
+                                             </Link>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
                                             <span className={clsx(
@@ -209,7 +201,7 @@ export function LeaderboardPage() {
                         entries.map((entry) => (
                             <div key={`${entry.rank}-${entry.wallet}`} className="p-4 bg-[var(--bg-secondary)]">
                                 <div className="flex items-center justify-between mb-3">
-                                    <div className="flex items-center gap-3">
+                                    <Link to={`/trader/${entry.wallet}`} className="flex items-center gap-3">
                                         <div className="w-8 h-8 flex items-center justify-center">
                                             {getRankIcon(entry.rank)}
                                         </div>
@@ -217,7 +209,7 @@ export function LeaderboardPage() {
                                              <div className="w-6 h-6 rounded bg-gradient-to-br from-indigo-500 to-purple-500" />
                                              <span className="font-mono text-sm text-[var(--primary)] font-bold">{truncateAddress(entry.wallet)}</span>
                                          </div>
-                                    </div>
+                                    </Link>
                                     <div className={clsx(
                                         "font-mono font-bold text-lg",
                                         safeUsd(entry.pnl) >= 0 ? "text-[var(--long)]" : "text-[var(--short)]"

@@ -17,11 +17,47 @@ vi.mock('wagmi', () => ({
 vi.mock('../../../hooks/useProgram', () => ({
     useOpenPosition: vi.fn(),
     useUSDCBalance: vi.fn(),
+    useMarginMode: vi.fn(() => ({ isCross: true, mode: 'cross', loading: false })),
     OrderType: {
         MARKET_INCREASE: 'MARKET_INCREASE',
         LIMIT_INCREASE: 'LIMIT_INCREASE',
     },
 }));
+
+vi.mock('../../../hooks/useCollateral', () => {
+    const usdc = {
+        address: '0x0000000000000000000000000000000000000000',
+        symbol: 'USDC',
+        decimals: 6,
+        isUSDC: true,
+        enabled: true,
+        baseHaircutBps: 0,
+        liquidationHaircutBps: 0,
+        maxHaircutBps: 0,
+        maxProtocolExposure: 0n,
+        totalDeposited: 0n,
+        exposureUsdc: 0n,
+        balance: 0n,
+        balanceFormatted: 0,
+        effectiveUsdc: 0n,
+        effectiveUsdcFormatted: 0,
+        exposureUtilization: null,
+    };
+    return {
+        useCollateralAssets: vi.fn(() => ({
+            usdc,
+            altAssets: [],
+            assets: [usdc],
+            registryConfigured: false,
+            hasAltCollateral: false,
+            ordersEnabled: false,
+            usdcAddress: '0x555',
+            loading: false,
+            refetch: vi.fn(),
+        })),
+        formatHaircut: (bps: number) => `${bps / 100}%`,
+    };
+});
 
 vi.mock('../../../stores', () => ({
     usePositionsStore: vi.fn(),

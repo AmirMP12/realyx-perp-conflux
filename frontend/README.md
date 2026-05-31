@@ -1,6 +1,6 @@
 # Realyx Frontend
 
-React + Vite client for trading, portfolio, vault, insurance, and analytics.
+React + Vite client for trading, portfolio, vault, insurance, leaderboard, copy trading, referrals, and analytics.
 
 ## Setup
 
@@ -48,6 +48,11 @@ npm run preview
 | `VITE_ORACLE_AGGREGATOR_ADDRESS` | required | OracleAggregator contract |
 | `VITE_POSITION_TOKEN_ADDRESS` | `0x4368b5741A105c1ACE50ad98581fDa050685fa8B` (testnet; sync with repo `deployment/confluxTestnet.json`) | PositionToken (ERC721); required for position NFT transfer UI |
 | `VITE_MOCK_USDC_ADDRESS` | required (testnet) | Mock USDC address |
+| `VITE_COLLATERAL_REGISTRY_ADDRESS` | optional | CollateralRegistry (multi-collateral); set after deploy |
+| `VITE_COPY_REGISTRY_ADDRESS` | optional | CopyRegistry for copy trading; set after deploy |
+| `VITE_REFERRAL_REGISTRY_ADDRESS` | optional | ReferralRegistry for referral rebates; set after deploy |
+| `VITE_COPY_BOT_ADDRESS` | optional | CopyBot EOA that mirrors lead-trader orders (CopyModal) |
+| `VITE_USDC_ADDRESS` | optional | USDC used for copy-trading allocations (defaults to mock USDC on testnet) |
 | `VITE_MOCK_MODE` | `false` | UI/testing toggle |
 
 ## ☁️ Vercel & Serverless Mode

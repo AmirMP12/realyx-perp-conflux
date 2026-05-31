@@ -63,14 +63,14 @@ export function ClosePositionModal({ isOpen, onClose, onCloseSuccess, position }
         <Dialog open={isOpen} onClose={onClose} className="relative z-[100]">
             <DialogBackdrop transition className="fixed inset-0 bg-black/75 backdrop-blur-sm transition duration-200 ease-out data-closed:opacity-0" aria-hidden="true" />
 
-            <div className="fixed inset-0 flex items-center justify-center p-4">
+            <div className="fixed inset-0 flex items-end sm:items-center justify-center p-0 sm:p-4 overflow-y-auto">
                 <DialogPanel
                     transition
-                    className="w-full max-w-md bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-2xl shadow-[0_24px_48px_rgba(0,0,0,0.45)] overflow-hidden transition duration-200 ease-out data-closed:scale-[0.98] data-closed:opacity-0"
+                    className="w-full max-w-md bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-t-2xl rounded-b-none sm:rounded-2xl shadow-[0_24px_48px_rgba(0,0,0,0.45)] overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[min(90dvh,720px)] transition duration-200 ease-out data-closed:opacity-0 data-closed:translate-y-4 sm:data-closed:translate-y-0 sm:data-closed:scale-[0.98] motion-reduce:transition-none"
                     role="dialog"
                     aria-modal="true"
                 >
-                    <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4 border-b border-[var(--border-color)]/80">
+                    <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4 border-b border-line/80 shrink-0">
                         <div className="min-w-0">
                             <Dialog.Title className="text-lg font-bold text-text-primary tracking-tight">
                                 Close position
@@ -79,7 +79,7 @@ export function ClosePositionModal({ isOpen, onClose, onCloseSuccess, position }
                                 <span
                                     className={clsx(
                                         'text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md',
-                                        position.isLong ? 'text-[var(--long)] bg-[var(--long)]/12' : 'text-[var(--short)] bg-[var(--short)]/12'
+                                        position.isLong ? 'text-[var(--long)] bg-long/12' : 'text-[var(--short)] bg-short/12'
                                     )}
                                 >
                                     {position.isLong ? 'Long' : 'Short'}
@@ -99,10 +99,10 @@ export function ClosePositionModal({ isOpen, onClose, onCloseSuccess, position }
                         </button>
                     </div>
 
-                    <div className="px-5 py-5 space-y-5">
+                    <div className="px-5 py-5 space-y-5 overflow-y-auto overscroll-contain custom-scrollbar pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:pb-5">
                         <div>
                             <p className="text-xs font-semibold uppercase tracking-wider text-text-secondary mb-3">Close amount</p>
-                            <div className="rounded-xl border border-[var(--border-color)]/90 bg-[var(--bg-tertiary)]/80 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                            <div className="rounded-xl border border-line/90 bg-surface-3/80 px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                                 <p className="text-[11px] font-medium uppercase tracking-wider text-text-muted mb-1">Notional</p>
                                 <p className="text-3xl sm:text-4xl font-bold text-text-primary tabular-nums tracking-tight">
                                     <span className="text-text-secondary text-2xl sm:text-3xl font-semibold align-top mr-0.5">$</span>
@@ -110,7 +110,7 @@ export function ClosePositionModal({ isOpen, onClose, onCloseSuccess, position }
                                 </p>
                                 <div
                                     className={clsx(
-                                        'mt-3 flex items-center justify-between gap-3 pt-3 border-t border-[var(--border-color)]/60 text-sm font-semibold tabular-nums',
+                                        'mt-3 flex items-center justify-between gap-3 pt-3 border-t border-line/60 text-sm font-semibold tabular-nums',
                                         estimatedPnL >= 0 ? 'text-[var(--long)]' : 'text-[var(--short)]'
                                     )}
                                 >
@@ -134,8 +134,8 @@ export function ClosePositionModal({ isOpen, onClose, onCloseSuccess, position }
                                         className={clsx(
                                             'min-h-[44px] rounded-xl text-sm font-bold transition-all border',
                                             percentage === pct
-                                                ? 'bg-[var(--primary)] border-[var(--primary)] text-white shadow-md shadow-[var(--primary)]/25'
-                                                : 'bg-[var(--bg-tertiary)]/60 border-[var(--border-color)] text-text-secondary hover:border-[var(--border-color-hover)] hover:text-text-primary'
+                                                ? 'bg-[var(--primary)] border-[var(--primary)] text-white shadow-md shadow-brand/25'
+                                                : 'bg-surface-3/60 border-[var(--border-color)] text-text-secondary hover:border-[var(--border-color-hover)] hover:text-text-primary'
                                         )}
                                     >
                                         {pct}%
@@ -173,7 +173,7 @@ export function ClosePositionModal({ isOpen, onClose, onCloseSuccess, position }
                                     'sm:flex-[1.35] py-3 rounded-xl text-sm font-bold text-white shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.99]',
                                     isFullClose
                                         ? 'bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 shadow-rose-600/25'
-                                        : 'bg-[var(--primary)] hover:opacity-95 shadow-[var(--primary)]/25'
+                                        : 'bg-[var(--primary)] hover:opacity-95 shadow-brand/25'
                                 )}
                             >
                                 {loading ? 'Closing…' : isFullClose ? 'Close position' : `Close ${percentage}%`}

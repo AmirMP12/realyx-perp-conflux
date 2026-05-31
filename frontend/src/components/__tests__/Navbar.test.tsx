@@ -58,12 +58,12 @@ describe('Navbar', () => {
                 <Navbar />
             </MemoryRouter>
         );
-        
-        const tradeLink = screen.getByText('Trade');
-        expect(tradeLink.className).toContain('text-white bg-[var(--primary)]/20');
-        
-        const marketsLink = screen.getByText('Markets');
-        expect(marketsLink.className).not.toContain('text-white bg-[var(--primary)]/20');
+
+        const tradeLink = screen.getByText('Trade').closest('a');
+        expect(tradeLink).toHaveAttribute('aria-current', 'page');
+
+        const marketsLink = screen.getByText('Markets').closest('a');
+        expect(marketsLink).not.toHaveAttribute('aria-current', 'page');
     });
 
     it('handles click outside to close dropdown', () => {

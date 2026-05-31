@@ -12,6 +12,8 @@ import {
     TRADING_CORE_ABI,
     ORACLE_ABI,
     VAULT_ABI,
+    COLLATERAL_REGISTRY_ADDRESS,
+    COLLATERAL_REGISTRY_ABI,
 } from '../contracts';
 
 export {
@@ -118,6 +120,13 @@ export interface OpenPositionParams {
 /** OrderType enum on chain: 0=MARKET_INCREASE, 1=MARKET_DECREASE, 2=LIMIT_INCREASE, 3=LIMIT_DECREASE */
 export const OrderType = { MARKET_INCREASE: 0, MARKET_DECREASE: 1, LIMIT_INCREASE: 2, LIMIT_DECREASE: 3 } as const;
 
+/** DataTypes.CollateralType enum on chain. */
+export const CollateralType = { NONE: 0, USDC: 1, USDT0: 2, AXCNH: 3, MULTI: 4 } as const;
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000' as Address;
+/** Sentinel time-in-force (GTC) for the struct-based createOrder path. */
+const TIF_GTC = 0;
+
 export function useUSDC() {
     const { data: usdcAddress } = useReadContract({
         address: TRADING_CORE_ADDRESS,
@@ -139,6 +148,21 @@ export function useUSDCDecimals() {
     return { decimals };
 }
 
+/**
+ * Protocol-wide margin mode. The contract applies `crossMarginByDefault` to all
+ * new positions (createOrder takes no per-order margin flag), so this reflects
+ * the mode positions actually open in. Defaults optimistically to the deployed
+ * default (cross) until the read resolves.
+ */
+export function useMarginMode() {
+    const { data, isLoading } = useReadContract({
+        address: TRADING_CORE_ADDRESS,
+        abi: TRADING_CORE_ABI,
+        functionName: 'crossMarginByDefault',
+    });
+    const isCross = data === undefined ? true : Boolean(data);
+    return { isCross, mode: (isCross ? 'cross' : 'isolated') as 'cross' | 'isolated', loading: isLoading };
+}
 /** User's USDC balance (6 decimals). Requires USDC address from useUSDC. */
 export function useUSDCBalance() {
     const { address: userAddress } = useAccount();
@@ -189,6 +213,8 @@ export function useCreateOrder() {
         positionId?: number; // 0 for new position
         orderType?: number; // 0=MARKET_INCREASE, 1=MARKET_DECREASE, 2=LIMIT_INCREASE, 3=LIMIT_DECREASE
         triggerPriceWei?: string; // 18 decimals; required for LIMIT_*
+        /** Non-USDC collateral token. Omit / address(0) settles in USDC via the legacy path. */
+        collateralToken?: Address;
     }) => {
         if (!address) throw new Error('Wallet not connected');
         let baseFee: bigint;
@@ -212,23 +238,59 @@ export function useCreateOrder() {
             ? BigInt(params.triggerPriceWei ?? '0')
             : 0n;
 
-        const request = {
-            chainId,
-            address: TRADING_CORE_ADDRESS,
-            abi: TRADING_CORE_ABI,
-            functionName: 'createOrder',
-            args: [
-                orderType,
-                params.market,
-                BigInt(params.sizeDelta),
-                BigInt(params.collateralDelta),
-                triggerPriceWei,
-                params.isLong,
-                BigInt(params.maxSlippage ?? '100'),
-                BigInt(params.positionId ?? 0),
-            ],
-            value: fee,
-        } as const;
+        const collateralToken = params.collateralToken ?? ZERO_ADDRESS;
+        const useAltCollateral = collateralToken !== ZERO_ADDRESS;
+
+        let request: any;
+        if (useAltCollateral) {
+            // Struct-based createOrder carries `collateralToken` + `collateralType`
+            // so the protocol values the deposit through CollateralRegistry.
+            request = {
+                chainId,
+                address: TRADING_CORE_ADDRESS,
+                abi: TRADING_CORE_ABI,
+                functionName: 'createOrder',
+                args: [{
+                    orderType,
+                    market: params.market,
+                    sizeDelta: BigInt(params.sizeDelta),
+                    collateralDelta: BigInt(params.collateralDelta),
+                    triggerPrice: triggerPriceWei,
+                    isLong: params.isLong,
+                    maxSlippage: BigInt(params.maxSlippage ?? '100'),
+                    positionId: BigInt(params.positionId ?? 0),
+                    collateralType: CollateralType.MULTI,
+                    collateralToken,
+                    tif: TIF_GTC,
+                    stopLossPrice: 0n,
+                    takeProfitPrice: 0n,
+                    visibleSize: 0n,
+                    twapInterval: 0n,
+                    isReduceOnly: false,
+                    owner: ZERO_ADDRESS,
+                }],
+                value: fee,
+            };
+        } else {
+            // Legacy positional path (USDC settlement) preserved for backwards compatibility.
+            request = {
+                chainId,
+                address: TRADING_CORE_ADDRESS,
+                abi: TRADING_CORE_ABI,
+                functionName: 'createOrder',
+                args: [
+                    orderType,
+                    params.market,
+                    BigInt(params.sizeDelta),
+                    BigInt(params.collateralDelta),
+                    triggerPriceWei,
+                    params.isLong,
+                    BigInt(params.maxSlippage ?? '100'),
+                    BigInt(params.positionId ?? 0),
+                ],
+                value: fee,
+            };
+        }
 
         const orderId = await writeContractAsync(request);
         return orderId;
@@ -257,6 +319,8 @@ export function useOpenPosition() {
             trailingStopBps?: string,
             orderType?: number,
             triggerPrice?: string, // decimal string, e.g. "2500.50"
+            /** Optional non-USDC collateral token (must be registered in CollateralRegistry). */
+            collateralToken?: Address,
         }
     ) => {
         setIsLoading(true);
@@ -332,6 +396,69 @@ export function useOpenPosition() {
             const collateralDelta6 = parseUnits(marginUSDC.toFixed(6), 6);
             const triggerPriceWei = isLimit && triggerPriceStr ? parseUnits(triggerPriceStr, 18).toString() : undefined;
 
+            // ─── Alt-collateral path ───────────────────────────────────────
+            // When a non-USDC collateral token is requested, value the required
+            // USDC margin into the token amount via CollateralRegistry, then
+            // approve + post that token. Settlement still happens in USDC.
+            const collateralToken = params.collateralToken;
+            const useAltCollateral = !!collateralToken && collateralToken !== '0x0000000000000000000000000000000000000000';
+            if (useAltCollateral) {
+                if (COLLATERAL_REGISTRY_ADDRESS === '0x0000000000000000000000000000000000000000') {
+                    throw new Error('Collateral registry is not configured on this deployment.');
+                }
+                const token = collateralToken as Address;
+                const [tokenDecimalsRaw, tokenAmountNeeded] = await Promise.all([
+                    publicClient.readContract({ address: token, abi: ERC20_ABI, functionName: 'decimals' }),
+                    publicClient.readContract({
+                        address: COLLATERAL_REGISTRY_ADDRESS, abi: COLLATERAL_REGISTRY_ABI,
+                        functionName: 'getTokenAmountForUsdc', args: [token, collateralDelta6, false],
+                    }),
+                ]) as [number, bigint];
+
+                const [tokenBalance, tokenAllowance] = await Promise.all([
+                    publicClient.readContract({ address: token, abi: ERC20_ABI, functionName: 'balanceOf', args: [address] }),
+                    publicClient.readContract({ address: token, abi: ERC20_ABI, functionName: 'allowance', args: [address, TRADING_CORE_ADDRESS] }),
+                ]) as [bigint, bigint];
+
+                if (tokenBalance < tokenAmountNeeded) {
+                    const sym = await publicClient.readContract({
+                        address: token,
+                        abi: [{ inputs: [], name: 'symbol', outputs: [{ type: 'string' }], stateMutability: 'view', type: 'function' }] as const,
+                        functionName: 'symbol',
+                    }).catch(() => 'collateral');
+                    throw new Error(`Insufficient ${sym} balance for this margin. Need ~${formatUnits(tokenAmountNeeded, tokenDecimalsRaw)}.`);
+                }
+
+                if (!tokenAllowance || tokenAllowance < tokenAmountNeeded) {
+                    setStep('APPROVING');
+                    const hash = await writeContractAsync({
+                        chainId,
+                        address: token,
+                        abi: ERC20_ABI,
+                        functionName: 'approve',
+                        args: [TRADING_CORE_ADDRESS, (2n ** 256n) - 1n],
+                    });
+                    toast.loading('Waiting for collateral approval...');
+                    await publicClient.waitForTransactionReceipt({ hash });
+                    toast.success('Collateral approved');
+                }
+
+                setStep('REVEALING');
+                await createOrder({
+                    market: params.market as Address,
+                    sizeDelta: sizeDelta6.toString(),
+                    collateralDelta: tokenAmountNeeded.toString(),
+                    isLong: params.isLong,
+                    maxSlippage: String(params.maxSlippageBps ?? 300),
+                    positionId: 0,
+                    orderType,
+                    triggerPriceWei,
+                    collateralToken: token,
+                });
+                toast.success('Order submitted. A keeper will execute it shortly.');
+                return true;
+            }
+
             if (walletUsdcBalance < collateralDelta6) {
                 throw new Error('Insufficient USDC balance for this margin amount.');
             }
@@ -394,6 +521,7 @@ export const decodeCreateOrderRevert = (err: any): string | null => {
             '0xd0ad2225': 'Protocol health guard is active. New increase orders are temporarily disabled.',
             '0x1ab7da6b': 'Transaction deadline expired. Please retry.',
             '0xb28e83a9': 'Oracle sources are currently insufficient for this market.',
+            '0xcf6d6d6d': 'Alternative collateral is not enabled on this deployment yet. Use USDC for now.',
         };
 
         const raw = JSON.stringify(err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
@@ -408,6 +536,7 @@ export const mapRevertToMessage = (err: any): string => {
     if (decoded) return decoded;
 
     const text = `${err?.shortMessage ?? ''} ${err?.message ?? ''} ${err?.details ?? ''}`.toLowerCase();
+    if (text.includes('altcollateraldisabled')) return 'Alternative collateral is not enabled on this deployment yet. Use USDC for now.';
     if (text.includes('executionfeetoolow')) return 'Execution fee is too low. Please retry in a few seconds.';
     if (text.includes('breakeractive')) return 'Trading is temporarily blocked by risk circuit breaker for this market.';
     if (text.includes('insufficientcollateral')) return 'Insufficient collateral for this position size/leverage.';

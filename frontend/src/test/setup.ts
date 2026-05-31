@@ -95,77 +95,34 @@ vi.mock('lucide-react', () => {
         component.displayName = name;
         return component;
     };
-    
-    return {
-        __esModule: true,
-        ChevronDown: MockIcon('ChevronDown'),
-        ChevronUp: MockIcon('ChevronUp'),
-        Menu: MockIcon('Menu'),
-        X: MockIcon('X'),
-        Bell: MockIcon('Bell'),
-        LayoutGrid: MockIcon('LayoutGrid'),
-        LayoutDashboard: MockIcon('LayoutDashboard'),
-        History: MockIcon('History'),
-        BarChart2: MockIcon('BarChart2'),
-        Settings: MockIcon('Settings'),
-        LogOut: MockIcon('LogOut'),
-        Copy: MockIcon('Copy'),
-        ExternalLink: MockIcon('ExternalLink'),
-        Wallet: MockIcon('Wallet'),
-        ArrowUpRight: MockIcon('ArrowUpRight'),
-        TrendingUp: MockIcon('TrendingUp'),
-        TrendingDown: MockIcon('TrendingDown'),
-        Info: MockIcon('Info'),
-        AlertCircle: MockIcon('AlertCircle'),
-        CheckCircle: MockIcon('CheckCircle'),
-        CheckCircle2: MockIcon('CheckCircle2'),
-        Search: MockIcon('Search'),
-        Filter: MockIcon('Filter'),
-        ArrowLeft: MockIcon('ArrowLeft'),
-        ArrowRight: MockIcon('ArrowRight'),
-        LineChart: MockIcon('LineChart'),
-        Shield: MockIcon('Shield'),
-        Trophy: MockIcon('Trophy'),
-        Share2: MockIcon('Share2'),
-        PieChart: MockIcon('PieChart'),
-        HelpCircle: MockIcon('HelpCircle'),
-        Edit2: MockIcon('Edit2'),
-        Clock: MockIcon('Clock'),
-        FileText: MockIcon('FileText'),
-        ArrowRightLeft: MockIcon('ArrowRightLeft'),
-        Loader2: MockIcon('Loader2'),
-        Minus: MockIcon('Minus'),
-        Plus: MockIcon('Plus'),
-        ArrowUp: MockIcon('ArrowUp'),
-        ArrowDown: MockIcon('ArrowDown'),
-        User: MockIcon('User'),
-        Lock: MockIcon('Lock'),
-        Zap: MockIcon('Zap'),
-        Eye: MockIcon('Eye'),
-        EyeOff: MockIcon('EyeOff'),
-        Sliders: MockIcon('Sliders'),
-        Monitor: MockIcon('Monitor'),
-        Moon: MockIcon('Moon'),
-        Sun: MockIcon('Sun'),
-        Check: MockIcon('Check'),
-        AlertTriangle: MockIcon('AlertTriangle'),
-        Globe: MockIcon('Globe'),
-        ChevronRight: MockIcon('ChevronRight'),
-        DollarSign: MockIcon('DollarSign'),
-        Radio: MockIcon('Radio'),
-        Star: MockIcon('Star'),
-        ArrowDownUp: MockIcon('ArrowDownUp'),
-        Sparkles: MockIcon('Sparkles'),
-        Activity: MockIcon('Activity'),
-        Medal: MockIcon('Medal'),
-        Gift: MockIcon('Gift'),
-        Users: MockIcon('Users'),
-        Wifi: MockIcon('Wifi'),
-        WifiOff: MockIcon('WifiOff'),
-        CandlestickChart: MockIcon('CandlestickChart'),
-        RefreshCw: MockIcon('RefreshCw'),
-        Coins: MockIcon('Coins'),
+
+    // Use a Proxy so any icon imported from lucide-react resolves to a mock
+    // component on demand. This keeps the mock from breaking whenever new
+    // icons are introduced in the UI (no manual allowlist to maintain).
+    const cache = new Map<string, ReturnType<typeof MockIcon>>();
+    // Props that must NOT resolve to a component: module interop / thenable
+    // checks performed by the test runner during (dynamic) import.
+    const reserved = new Set(['then', 'default', '__esModule', '$$typeof']);
+
+    const resolve = (prop: string) => {
+        if (!cache.has(prop)) cache.set(prop, MockIcon(prop));
+        return cache.get(prop);
     };
+
+    return new Proxy(
+        { __esModule: true },
+        {
+            get(target: any, prop: string | symbol) {
+                if (prop === '__esModule') return true;
+                if (typeof prop !== 'string' || reserved.has(prop)) return target[prop];
+                return resolve(prop);
+            },
+            has(_target, prop: string | symbol) {
+                if (typeof prop !== 'string' || reserved.has(prop)) return false;
+                return true;
+            },
+        },
+    );
 });
 
 vi.mock('@rainbow-me/rainbowkit', () => {

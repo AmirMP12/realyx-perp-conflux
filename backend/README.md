@@ -36,7 +36,7 @@ The backend utilizes a sophisticated SQL-based indexing engine to calculate real
 
 ---
 
-## API (base: `/api`)
+## API (base: `/api`, also mirrored under `/api/v1`)
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -48,15 +48,32 @@ The backend utilizes a sophisticated SQL-based indexing engine to calculate real
 | GET | `/api/stats/history` | Daily metric history |
 | GET | `/api/leaderboard?limit=10&timeframe=all` | Leaderboard by volume/PnL |
 | GET | `/api/insurance/claims?limit=20` | Insurance/bad debt claim events |
+| GET | `/api/referrals/stats?address=0x...` | On-chain referral stats for a wallet |
+| GET | `/api/pyth-refresh` | Refresh cached Pyth prices (optional `CRON_SECRET`) |
 | GET | `/api/sync` | Manual index sync endpoint (optional bearer auth) |
 
 All JSON responses follow `{ success: boolean, data?: T, error?: string }`.
+
+### Copy-trading (social) — `/api/v1/social`
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/v1/social/top-traders` | Lead traders ranked by ROI |
+| GET | `/api/v1/social/trader/:address` | Lead-trader profile + open positions |
+| GET | `/api/v1/social/copier/:address/following` | Lead traders a copier follows |
+| GET | `/api/v1/social/copier/:address/pnl` | Aggregated copied PnL per lead trader |
+| POST | `/api/v1/social/refresh` | Refresh the copy engine cache |
+
+Returns `501`/empty when the copy-trading schema is not provisioned.
 
 ### Internal / authenticated endpoints
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
+| POST | `/api/v1/auth/key` | EIP-712 signature | Issue a tiered API key for a wallet |
+| GET | `/api/v1/auth/verify` | `x-api-key` header | Verify an API key, return tier/owner |
 | POST | `/api/v1/keeper/failure` | `Authorization: Bearer KEEPER_WEBHOOK_SECRET` | Keeper-bot failure webhook (broadcast to user WS). Disabled in prod if no secret. |
+| GET | `/api/v1/keeper/failures/:traderAddress` | — | Historical keeper failures for a user |
 | GET | `/api/debug` | `DEBUG_SECRET` (Bearer or `?key=`) in prod | Indexer/DB diagnostics. Returns 404 in prod when no secret set. |
 | GET | `/api/sync` | `CRON_SECRET` (Bearer) or `?key=force` | Manual index sync. |
 
@@ -103,11 +120,19 @@ failsafe). This makes Kubernetes rolling deploys clean.
 ```text
 backend/
 ├── src/
-│   ├── app.ts           # Express app + route wiring
+│   ├── app.ts           # Express app + route wiring (legacy + /api/v1)
 │   ├── index.ts         # HTTP + optional WS startup
+│   ├── metricsServer.ts # Prometheus metrics server (separate port)
+│   ├── wsServer.ts      # Native WebSocket broadcaster
 │   ├── config.ts        # Env loading and defaults
-│   ├── routes/          # markets, user, stats, leaderboard, insurance, sync, health
-│   └── services/        # indexer, pyth, coingecko, activeMarkets
+│   ├── routes/          # markets, user, stats, leaderboard, insurance, referrals,
+│   │                    #   social, keeper, auth, pyth-refresh, sync, debug, health
+│   ├── services/        # indexer, pyth, coingecko, activeMarkets, copyEngine, fetchMarketsOnchain
+│   ├── middleware/       # rateLimit, metrics
+│   ├── constants/       # markets metadata
+│   ├── abi/             # contract ABIs consumed by the indexer
+│   ├── types/           # shared TS types
+│   └── utils/           # formatting helpers
 ├── package.json
 ├── tsconfig.json
 ├── .env.example

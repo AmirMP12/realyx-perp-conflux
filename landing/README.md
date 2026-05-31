@@ -4,7 +4,7 @@ The marketing site for **Realyx**, a decentralized perpetual futures DEX for Rea
 
 > **This repo is the landing page only.** The protocol, smart contracts, keeper, and app live in [`realyx-perp-conflux`](https://github.com/AmirMP12/realyx-perp-conflux).
 
-🔗 **Live:** [realyx.vercel.app](https://realyx.vercel.app/)
+🔗 **Live:** [landing-realyx.vercel.app](https://landing-realyx.vercel.app/)
 
 ---
 

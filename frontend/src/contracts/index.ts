@@ -21,6 +21,18 @@ export const POSITION_TOKEN_ADDRESS = envAddress(import.meta.env.VITE_POSITION_T
 export const COLLATERAL_REGISTRY_ADDRESS = envAddress(import.meta.env.VITE_COLLATERAL_REGISTRY_ADDRESS);
 export const COPY_REGISTRY_ADDRESS = envAddress(import.meta.env.VITE_COPY_REGISTRY_ADDRESS);
 export const REFERRAL_REGISTRY_ADDRESS = envAddress(import.meta.env.VITE_REFERRAL_REGISTRY_ADDRESS);
+
+/**
+ * Whether the deployed TradingCore accepts non-USDC collateral on `createOrder`.
+ * The current eSpace deployment hard-reverts alt-collateral orders with
+ * `AltCollateralDisabled()`, so this defaults to `false`. Flip it to `true`
+ * (via `VITE_MULTI_COLLATERAL_ORDERS_ENABLED=true`) only once the contract
+ * enables the alt-collateral path; the trading UI then lets users post margin
+ * in any registered token. Until then the multi-collateral panels stay
+ * informational (registry-driven) and orders settle in USDC.
+ */
+export const MULTI_COLLATERAL_ORDERS_ENABLED =
+    String(import.meta.env.VITE_MULTI_COLLATERAL_ORDERS_ENABLED ?? "").trim().toLowerCase() === "true";
 /** Dev fallback = deployment/confluxTestnet.json `contracts.usdc` when using mock USDC. */
 export const MOCK_USDC_ADDRESS = envAddress(
     import.meta.env.VITE_MOCK_USDC_ADDRESS,

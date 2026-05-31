@@ -60,8 +60,8 @@ When a trader submits an order on Realyx, they are technically submitting a cryp
 - The Keeper independently fetches the absolutely newest Pyth Oracle signed pricing data, updating the on-chain oracle and executing the intent in the exact same atomic transaction via `executeOrder`. 
 **Result:** No front-running. No stale-price arbitrage.
 
-**3. Safety via Insurance Fund:**
-In the rare event of extreme, catastrophic market volatility causing PnL inversions (where trader profits massively exceed available Vault liquidity), Realyx employs a staked Insurance Fund that absorbs bad debt prior to the core Vault being struck.
+**3. Safety via Insurance Backstop:**
+In the rare event of extreme, catastrophic market volatility causing PnL inversions (where trader profits massively exceed available Vault liquidity), Realyx employs a staked Insurance backstop that absorbs bad debt prior to the core LP Vault being struck. The insurance pool is not a separate contract — it is a dedicated share class inside `VaultCore.sol` (`stakeInsurance` / `unstakeInsurance`), so backstop capital and LP capital share the same audited accounting surface.
 
 ---
 
@@ -82,7 +82,7 @@ In the rare event of extreme, catastrophic market volatility causing PnL inversi
 ## ⚡ Conflux Integration
 **How does Realyx leverage Conflux features?**
 
-- [x] **eSpace** - All core smart contracts (`TradingCore`, `VaultCore`, `Insurance`) are natively deployed and highly optimized for Conflux eSpace to take advantage of EVM compatibility. By deploying on eSpace, Realyx effortlessly supports MetaMask/Fluent wallets and ensures maximum smart contract testability via Hardhat tooling frameworks.
+- [x] **eSpace** - All core smart contracts (`TradingCore`, `VaultCore`, `OracleAggregator`, `PositionToken`, plus the RWA/social modules) are natively deployed and optimized for Conflux eSpace to leverage EVM compatibility. By deploying on eSpace, Realyx supports MetaMask/Fluent wallets and full Hardhat testability.
 - [x] **Pyth Network** - Native integration with Pyth Network’s pull-based oracle system. This allows the protocol to update prices sub-second directly during trade execution blocks, securing Realyx against front-running and ensuring our index prices mirror Binance/Nasdaq flawlessly.
 - [x] **Other** - Built robustly with a custom native PostgreSQL EVM Web3 Indexer running on an Express Node.js backbone. The indexer strictly listens to Conflux eSpace `blocks` and `logs` to populate our SQL environment in real-time.
 
@@ -93,55 +93,66 @@ In the rare event of extreme, catastrophic market volatility causing PnL inversi
 ### Core Features
 - **NFT Position Tokenization (Transferable Trades):** In a massive leap for DeFi composability, Realyx wraps every open leveraged trade into an official ERC-721 NFT (`PositionToken.sol`). This allows traders to seamlessly transfer, gift, or recursively collateralize their active perpetual positions across standard Web3 ecosystems exactly as they would any standard NFT infrastructure!
 - **Advanced Vault Core System:** A highly resilient share-based accounting mechanism (`VaultCore.sol`). When LPs deposit stablecoins, they dynamically mint `realyxLP` utility tokens. These tokens represent fractional ownership of the entire Vault's collateral pool, structurally guaranteed to track intrinsic protocol profit accrued from trader liquidations, borrow fees, and swap expenses over time.
-- **Safety-First Insurance Backstop System:** Built to absorb systemic tail-risk events. If traders experience immense, catastrophic PnL inversions (e.g. flash-crashes) that would otherwise drain the main liquidity Vault, the explicitly deployed `InsuranceFund.sol` automatically shoulders the bad debt. Insurance stakers earn premium yield in exchange for acting as the protocol's first line of systemic defense.
-- **Global Markets Access:** Trade Crypto, Equities, Commodities, and Forex seamlessly across one decentralized interface.
-- **Dynamic Funding Rates:** Math-driven constant-product algorithms calculate hourly funding fee adjustments to balance long and short skewed demands organically.
+- **Insurance Backstop (share class within the Vault):** Built to absorb systemic tail-risk events. If traders experience immense, catastrophic PnL inversions (e.g. flash-crashes) that would otherwise drain the main liquidity pool, the staked insurance tranche inside `VaultCore` automatically shoulders the bad debt first. Insurance stakers (`stakeInsurance` / `unstakeInsurance`) earn premium yield in exchange for acting as the protocol's first line of systemic defense.
+- **Cross-Margin by Default:** `TradingCore` runs a cross-margin engine (`crossMarginByDefault = true`) with account-level risk snapshots (`getAccountRisk`, `canLiquidateAccount`), so a trader's whole collateral balance offsets risk across their open positions.
+- **Global Markets Access:** Trade Crypto, tokenized Equities (NVDAX, TSLAX, AAPLX, METAX, GOOGLX, NFLXX, COINX, MCDX, CRCLX, …), and Commodities (XAUT/Gold) seamlessly across one decentralized interface.
+- **Dynamic Funding Rates:** Math-driven funding accrues continuously and settles on an **8-hour** interval (`DataTypes.FUNDING_INTERVAL = 8 hours`) to balance long and short skewed demand organically.
 
 ### Advanced Features
-- **Strict Security Parameters:** Unprecedented user security controls including hyper-strict max slippage bounding, isolated margin execution isolating portfolio risk entirely to singular positions, and Keeper-validated timestamps overriding stale oracle reads.
-- **Dynamic Liquidation Engine:** Configurable liquidation threshold structures ensuring vault solvency continuously.
-- **Interactive Analytics:** Real-time charting configurations via TradingView Lightweight Charts, TVL history curves, and Top Trader Leaderboards based on PnL mapping.
-- **Live Triggers Mechanism:** Set and forget Advanced Take-Profit (TP), Stop-Loss (SL), and Trailing Limit bounds integrated deeply at the smart contract EVM level.
+- **Copy Trading:** Lead traders register on `CopyRegistry`; followers mirror their intent flow with per-relationship allocation and leverage caps, surfaced through the in-app Copy Trading and Trader Profile pages.
+- **Referrals & Rebates:** On-chain referral codes (`ReferralRegistry`) route a share of fees back to referrers as claimable USDC rebates (`VaultCore.claimableRebates`).
+- **RWA Corporate Actions:** `DividendManager` + `DividendKeeper` settle dividend-style adjustments for tokenized equity positions, while `MarketCalendar` enforces trading-hours for RWA markets (orders revert with `MarketClosed` outside session hours).
+- **Compliance Hooks:** An optional `IComplianceManager` (e.g. `AllowListCompliance`) can gate markets; `createOrder` enforces `checkCompliance(market)` when a compliance manager is wired in.
+- **Multi-Collateral Ready:** `CollateralRegistry` supports registering alternative collaterals (e.g. USDT0, AxCNH) with per-asset haircuts and exposure caps.
+- **Strict Security Parameters:** Hyper-strict max slippage bounding, configurable max leverage / position-size / exposure caps, and Keeper-validated Pyth timestamps overriding stale oracle reads.
+- **Dynamic Liquidation Engine:** Configurable maintenance/initial margin thresholds ensuring vault solvency continuously.
+- **Interactive Analytics:** Real-time charting via TradingView Lightweight Charts, TVL/volume history curves, and Top Trader Leaderboards based on PnL mapping.
+- **Live Triggers Mechanism:** Set-and-forget Take-Profit (TP), Stop-Loss (SL), and Trailing Stop bounds integrated at the smart-contract level (`setTakeProfit`, `setStopLoss`, `setTrailingStop`).
 
 ### Future Features (Roadmap)
-- **AxCNH and USDT0 Collaterals** - Deep integration to accept multiple conflux native stable/crypto-bridge utilities as underlying collateral.
-- **Social Copy Trading** - Allow retail users to auto-mirror top leaderboard ranks intent flows.
-- **Cross-Margin Architecture** - Realyx currently uses Isolated Margin. We plan to build Cross Margin where an entire portfolio balance offsets liquidation risks.
+- **Additional Native Collaterals** - Deepen `CollateralRegistry` integration to accept more Conflux-native stable/bridge utilities (USDT0/AxCNH) as live underlying collateral.
+- **Decentralized Keeper Network** - Open permissionless keeper participation with on-chain bounty distribution.
+- **Third-Party Security Audit & Mainnet** - Full audit ahead of Conflux eSpace mainnet launch.
 
 ---
 
 ## 🛠️ Technology Architecture
 
 ### Stack Elements
-- **Frontend**: React 18, Vite, Tailwind CSS, Zustand Storing, Framer Motion (Transitions), Wagmi, Viem, RainbowKit, Lucide-React.
-- **Backend Listener**: Context-aware Node.js Runtime.
-- **Database Indexing**: PostgreSQL 16 directly mapped via node-pg to EVM `getLogs` polling routines.
-- **Network**: Conflux eSpace Testnet (Mainnet soon) built via Solidity 0.8.24.
+- **Frontend**: React 18, Vite, Tailwind CSS, Zustand (state), TanStack Query (data), Framer Motion, Wagmi, Viem, RainbowKit, TradingView Lightweight Charts, Lucide-React.
+- **Backend**: Node.js + Express + TypeScript, `pino` logging, `ws` WebSockets, Prometheus metrics.
+- **Database Indexing**: PostgreSQL 16 mapped via `pg` to EVM `getLogs` polling routines.
+- **Contracts**: Solidity 0.8.24, OpenZeppelin (upgradeable), UUPS proxies, Pyth pull oracle, Hardhat + TypeChain.
+- **SDK**: `@realyx/sdk` — TypeScript strategy SDK (REST + WebSocket + ethers v6 order builder) in `sdk/`.
+- **Network**: Conflux eSpace Testnet (chain id 71); Mainnet (1030) planned.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              FRONTEND (React/Vite)                           │
-│  Markets | Trading | Portfolio | Vault | Insurance | Analytics | Settings    │
+│  Markets · Trade · Portfolio · Vault · Insurance · Leaderboard ·             │
+│  Copy Trading · Referrals · Analytics · Settings                             │
 └────────────────────────────────────────┬────────────────────────────────────┘
-                                         │ REST API / WebSockets
+                                         │ REST API / WebSocket (polling on Vercel)
                                          ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              BACKEND (Express Node)                          │
-│  Event Poller | Market Aggregator | Stat Cruncher | Trigger Evaluator        │
+│  Event Indexer | Market Aggregator | Stats | Leaderboard | Copy Engine       │
 └────────────────────────────────────────┬────────────────────────────────────┘
                                          │ SQL + RPC ABI Interactions
          ┌───────────────────────────────┼───────────────────────────────┐
          ▼                               ▼                               ▼
 ┌─────────────────┐           ┌─────────────────┐           ┌─────────────────┐
 │ NATIVE INDEXER  │           │  PYTH NETWORK   │           │ KEEPER NODES     │
-│  (PostgreSQL)   │           │ (Hermes API API)│           │ (Chron Jobs)    │
-│ Persists State  │           │ Fetches TWAPs   │           │ Executes Intents │
+│  (PostgreSQL)   │           │  (Hermes API)   │           │ (keeper-bot.ts)  │
+│ Persists State  │           │ Signed Prices   │           │ Executes Intents │
 └────────┬────────┘           └─────────────────┘           └─────────────────┘
          │
          ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                      CHAIN (Conflux eSpace Testnet)                          │
-│  TradingCore | VaultCore | OracleAggregator | PositionToken | MockUSDC       │
+│                      CHAIN (Conflux eSpace Testnet · 71)                     │
+│  TradingCore · TradingCoreViews · VaultCore · OracleAggregator ·             │
+│  PositionToken · MarketCalendar · DividendManager · ComplianceManager ·      │
+│  DividendKeeper · CollateralRegistry · CopyRegistry · ReferralRegistry       │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -290,36 +301,51 @@ Realyx operates totally independent of AMMs relying on standard USDC balances.
 ## 📜 Complete Contract Documentation
 
 ### Conflux eSpace Deployed Identifiers (Testnet v1)
-| Primary Infrastructure | Contract Address | Conflux Explorer Transparency Link |
-|-------------------------|-------------------|--------------------------------------|
-| **TradingCore Node** | `0x64f277f73bfc81Ad80286a4266c0E0613d867Df3` | [View Core Engine Matrix on ConfluxScan](https://evmtestnet.confluxscan.net/address/0x64f277f73bfc81Ad80286a4266c0E0613d867Df3) |
-| **VaultCore Liquidity**| `0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714` | [View Vault State on ConfluxScan](https://evmtestnet.confluxscan.net/address/0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714) |
-| **ERC721 PositionToken**| `0x4368b5741A105c1ACE50ad98581fDa050685fa8B` | [View Token Tracker on ConfluxScan](https://evmtestnet.confluxscan.net/address/0x4368b5741A105c1ACE50ad98581fDa050685fa8B) |
+> Source of truth: [`deployment/confluxTestnet.json`](deployment/confluxTestnet.json) (chain id `71`). Verify on-chain before reuse.
+
+| Contract | Role | Address |
+|----------|------|---------|
+| **TradingCore** | Order creation, execution, funding, liquidation | [`0x64f277f73bfc81Ad80286a4266c0E0613d867Df3`](https://evmtestnet.confluxscan.org/address/0x64f277f73bfc81Ad80286a4266c0E0613d867Df3) |
+| **TradingCoreViews** | Gas-efficient read/view companion | [`0x944d4030CEc4Bf552d8E46dC684B70B100Eb0b86`](https://evmtestnet.confluxscan.org/address/0x944d4030CEc4Bf552d8E46dC684B70B100Eb0b86) |
+| **VaultCore** | LP liquidity, insurance tranche, borrow/repay | [`0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714`](https://evmtestnet.confluxscan.org/address/0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714) |
+| **OracleAggregator** | Pyth feeds, staleness checks, circuit breakers | [`0x89cC8eAbF2e967d81FD04D1023298A3bDcE67450`](https://evmtestnet.confluxscan.org/address/0x89cC8eAbF2e967d81FD04D1023298A3bDcE67450) |
+| **PositionToken** | ERC-721 position NFT | [`0x4368b5741A105c1ACE50ad98581fDa050685fa8B`](https://evmtestnet.confluxscan.org/address/0x4368b5741A105c1ACE50ad98581fDa050685fa8B) |
+| **MarketCalendar** | RWA trading-hours enforcement | [`0xD3c20cca25Dd8189ed6115A1b65192d831ca732F`](https://evmtestnet.confluxscan.org/address/0xD3c20cca25Dd8189ed6115A1b65192d831ca732F) |
+| **DividendManager** | RWA corporate-action settlement | [`0xa5bd07176Ef68D1ec51BfCCD911d3B586a45c54F`](https://evmtestnet.confluxscan.org/address/0xa5bd07176Ef68D1ec51BfCCD911d3B586a45c54F) |
+| **ComplianceManager** | Optional allow-list / market gating | [`0xa79185D94013FaC946Ce80fDbB8E781200A28F7e`](https://evmtestnet.confluxscan.org/address/0xa79185D94013FaC946Ce80fDbB8E781200A28F7e) |
+| **DividendKeeper** | Dividend settlement keeper | [`0x28B46F65c26BDC6b9c77603B092EDdcd7EADEC82`](https://evmtestnet.confluxscan.org/address/0x28B46F65c26BDC6b9c77603B092EDdcd7EADEC82) |
+| **Mock USDC** | Testnet collateral (mintable in-app) | [`0xa56Ba38f3c820D6cf31a68CBBD0d25c0F5644d35`](https://evmtestnet.confluxscan.org/address/0xa56Ba38f3c820D6cf31a68CBBD0d25c0F5644d35) |
+| **Pyth** | Pyth on-chain price contract | [`0xDd24F84d36BF92C65F92307595335bdFab5Bbd21`](https://evmtestnet.confluxscan.org/address/0xDd24F84d36BF92C65F92307595335bdFab5Bbd21) |
 
 ### Functional Protocol Interfaces
 
 #### `ITradingCore.sol` Example
-We structure our core execution paths utilizing minimal surface area state manipulators. This includes dynamic execution triggers based completely on pending intent structures validated by Keeper price aggregation logic against Pyth bounds.
+We structure core execution paths using a two-phase, intent-based flow. `createOrder` escrows collateral and queues a signed intent; a Keeper then executes it atomically against fresh Pyth data via `executeOrder`.
 
 ```solidity
 interface ITradingCore {
-    // Stage 1: Collateral locked in intent queue
-    function createOrder(
-        address market,
-        uint256 size,
-        uint256 collateral,
-        uint256 leverage,
-        bool isLong,
-        OrderType orderType,
-        uint256 triggerPrice,
-        uint256 maxSlippageBps
-    ) external;
-    
-    // Stage 2: Keeper execution block 
+    // Stage 1: Escrow collateral and queue a signed intent.
+    // Advanced fields (TIF, brackets, iceberg/TWAP) live in CreateOrderParams.
+    // Payable: forward the configured minimum execution fee as msg.value when required.
+    function createOrder(DataTypes.CreateOrderParams calldata params)
+        external
+        payable
+        returns (uint256 orderId);
+
+    // Stage 2: Keeper executes a queued order with fresh oracle data.
+    // priceUpdateData is the Pyth updatePriceFeeds payload (empty when not needed).
     function executeOrder(uint256 orderId, bytes[] calldata priceUpdateData) external payable;
-    
-    // Dynamic boundary limits scaling capabilities
-    function setTriggerOrders(uint256 positionId, uint256 sl, uint256 tp, uint256 trailingStop) external;
+
+    // Cancel a queued order and refund escrow.
+    function cancelOrder(uint256 orderId) external;
+
+    // On-chain trigger orders.
+    function setStopLoss(uint256 positionId, uint256 stopLossPrice) external;
+    function setTakeProfit(uint256 positionId, uint256 takeProfitPrice) external;
+    function setTrailingStop(uint256 positionId, uint256 trailingStopBps) external;
+
+    // Liquidate an underwater position; pays the caller a reward.
+    function liquidatePosition(uint256 positionId) external returns (uint256 liquidatorReward);
 }
 ```
 
@@ -349,18 +375,43 @@ The entire REST API remains strictly permissionless mirroring the ethos of the o
 
 #### Detailed Contract Data Maps
 ```bash
-# Query master statistics 
+# Query master statistics (TVL, 24h volume, OI, liquidations, active traders)
 GET    /api/stats
 
-# Fetch heavily formatted full database indexer market parameters
+# Daily aggregated metric history
+GET    /api/stats/history
+
+# Fetch indexed + on-chain market parameters
 GET    /api/markets
 
-# Track specific EVM user margin states mapped internally over JSON boundaries 
+# Historical price series for a single market
+GET    /api/markets/price-history/:marketId?days=7
+
+# Track a user's open positions
 GET    /api/user/:address/positions
 
-# Pull raw transactional historical action sequences limited chronologically 
+# Pull a user's historical trades
 GET    /api/user/:address/trades?limit=50
+
+# Global trader rankings by Realized PnL / Volume
+GET    /api/leaderboard?limit=10&timeframe=all
+
+# Insurance / bad-debt claim events
+GET    /api/insurance/claims?limit=20
+
+# On-chain referral stats (code, referees, rebates) for an address
+GET    /api/referrals/stats?address=0x...
+
+# Copy-trading social data (v1)
+GET    /api/v1/social/top-traders
+GET    /api/v1/social/trader/:address
+GET    /api/v1/social/copier/:address/following
+
+# Manual index sync trigger (optionally gated by CRON_SECRET)
+GET    /api/sync
 ```
+
+> Both legacy (`/api/...`) and versioned (`/api/v1/...`) prefixes are served. Authenticated/internal routes include `/api/v1/auth/key` (EIP-712 API-key issuance), `/api/v1/keeper/failure` (keeper webhook), and `/api/debug` (guarded in production). Health checks live outside `/api`: `GET /health` and `GET /health/detailed`.
 
 ### WebSocket Streaming
 For high frequency interface adjustments, the backend pushes tick level sub-second differentials heavily via lightweight raw payloads across natively configured websocket buffers on Node `ws`.
@@ -392,8 +443,9 @@ ws.on('message', (msg) => {
 - Realyx enforces administrative overrides for adding additional underlying RWA markets, configuring funding velocities systematically.
 
 ### Current Edge Case Limitations
-- **Issue 1:** Total protocol database synchronization heavily relies on a singular Postgres indexer. Under massive 20,000+ RPS node load on the underlying testnet Conflux EVM state mapping APIs, transient database lag may occur generating minor frontend portfolio staleness.
-- **Issue 2:** The isolated model does not automatically calculate risk adjustments across completely independent positions currently.
+- **Issue 1:** Total protocol database synchronization relies on a single Postgres indexer. Under heavy load against public testnet Conflux EVM RPCs, transient indexer lag may produce brief frontend portfolio staleness. Mitigated by a server-side cache plus Tanstack Query revalidation and a REST polling fallback on serverless.
+- **Issue 2:** RWA equity markets follow `MarketCalendar` session hours, so orders on those markets revert with `MarketClosed` outside trading hours by design.
+- **Issue 3:** The protocol has not yet completed a third-party security audit; testnet only.
 
 ---
 
@@ -411,15 +463,15 @@ ws.on('message', (msg) => {
 - [ ] Multi-chain token integrations natively accepting standard stable utilities (USDT0/AxCNH).
 
 **Phase 3 (Future Scale)**
-- [ ] Execution implementation for complex Cross-Margin isolation.
-- [ ] Smart-Contract governed Social Copy Trading indexing allowing automated intent mirroring.
-- [ ] Deployed standalone containerized Keeper nodes allowing anybody to algorithmically execute trades to earn native execution Bounties.
+- [ ] Expand multi-collateral support (USDT0/AxCNH) live via `CollateralRegistry`.
+- [ ] Deepen Social Copy Trading automation and on-chain trader-profile metadata.
+- [ ] Permissionless containerized Keeper network with on-chain execution bounties.
 
 ---
 
 ## 🤝 Open Contributions Ecosystem
 
-We heavily encourage external analysis and open-source contributions to our execution stacks. Please parse the generic [Contributing Guidelines](CONTRIBUTING.md) structurally determining code paradigms, PR evaluation standards, and open bounties.
+We heavily encourage external analysis and open-source contributions to our execution stacks. Fork the repository, branch, and open a PR following the standard process below.
 
 ### Standard Development Process
 1. Fork the baseline target application repository actively.

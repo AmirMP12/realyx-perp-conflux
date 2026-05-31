@@ -82,7 +82,7 @@ PAGES['what-is-realyx'] = () => `
   <h1 class="page-header__title">What is Realyx?</h1>
   <p class="page-header__desc">A decentralized perpetual futures exchange for Real World Assets and crypto, built on Conflux eSpace.</p>
 </div>
-<p>Realyx is an <strong>intent-based perpetual futures DEX</strong> deployed on Conflux eSpace. It lets traders open leveraged long and short positions on RWA markets — stocks, commodities, forex — and crypto pairs from a single unified interface, while liquidity providers earn real yield by acting as the counterparty through a shared stablecoin vault.</p>
+<p>Realyx is an <strong>intent-based perpetual futures DEX</strong> deployed on Conflux eSpace. It lets traders open leveraged long and short positions on RWA markets — tokenized stocks and commodities — alongside crypto pairs from a single unified interface, while liquidity providers earn real yield by acting as the counterparty through a shared stablecoin vault. (Forex markets are on the roadmap.)</p>
 <div class="callout callout--info"><div class="callout__icon">ℹ️</div><div class="callout__body"><div class="callout__title">Currently on Testnet</div><p>Realyx is deployed on Conflux eSpace Testnet (Chain ID 71). No real funds are at risk. Mainnet launch is planned for Phase 2.</p></div></div>
 <h2>The problem Realyx solves</h2>
 <p>Financial globalization is fragmented. Centralized platforms gatekeep access to global equities through geographical barriers, account minimums, and KYC hurdles. DeFi platforms have historically been limited to crypto assets due to oracle latency and front-running vulnerabilities.</p>
@@ -112,11 +112,11 @@ PAGES['what-is-realyx'] = () => `
 </table>
 <h2>Supported markets</h2>
 <ul>
-  <li><strong>Crypto:</strong> CFX-USD, BTC-USD, ETH-USD</li>
-  <li><strong>Tokenized equities:</strong> TSLAX-USD, NVDAX-USD, AAPLX-USD, METAX-USD, GOOGLX-USD, NFLXX-USD, COINX-USD, MCDX-USD, CRCLX-USD</li>
+  <li><strong>Crypto:</strong> CFX-USD, BTC-USD, ETH-USD (plus crypto-adjacent equities COINX-USD, CRCLX-USD)</li>
+  <li><strong>Tokenized equities:</strong> NVDAX-USD, TSLAX-USD, AAPLX-USD, METAX-USD, GOOGLX-USD, NFLXX-USD, MCDX-USD, HOODX-USD, MSTRX-USD, SPYX-USD</li>
   <li><strong>Tokenized commodities:</strong> XAUT-USD (Tether Gold)</li>
 </ul>
-<p>The full active set is defined per deployment in <code>scripts/setup-market.ts</code> and surfaced by <code>GET /api/markets</code>.</p>
+<p>The full active set is defined per deployment in <code>scripts/setup-market.ts</code> / <code>backend/src/constants/markets.ts</code> and surfaced by <code>GET /api/markets</code>.</p>
 `;
 
 PAGES['key-features'] = () => `
@@ -323,6 +323,23 @@ PAGES['liquidation'] = () => `
 </ul>
 `;
 
+PAGES['social-rwa'] = () => `
+<div class="page-header"><div class="page-header__eyebrow">Core Concepts</div><h1 class="page-header__title">Social &amp; RWA Features</h1><p class="page-header__desc">Copy trading, referrals, and the contracts that make Real World Asset markets work on-chain.</p></div>
+<h2>Copy Trading</h2>
+<p>Lead traders register on <code>CopyRegistry</code> with an optional profit-fee. Followers (copiers) create copy relationships with per-relationship <strong>max allocation</strong> and <strong>max leverage</strong> caps. The backend copy engine mirrors lead-trader intent flow to copiers, and the in-app <strong>Copy Trading</strong> and <strong>Trader Profile</strong> pages surface ROI, win rate, and open positions.</p>
+<div class="callout callout--info"><div class="callout__icon">ℹ️</div><div class="callout__body"><div class="callout__title">Deployment-gated</div><p>Copy-trading data is served from a dedicated indexer schema. On deployments where that schema is not provisioned, the social endpoints return an empty set or <code>501</code> so the UI can render an honest "not enabled" state.</p></div></div>
+<h2>Referrals &amp; Rebates</h2>
+<p>Each wallet can own a referral code on <code>ReferralRegistry</code>. Referred trader fees accrue a rebate to the referrer, claimable in USDC via <code>VaultCore.claimableRebates(referrer)</code>. The <strong>Referrals</strong> page reads on-chain truth: code, referee count, cumulative earned, and pending claim. When the registry is not wired into a deployment, the API returns <code>live: false</code> with zeroed figures rather than fabricated numbers.</p>
+<h2>RWA Market Hours (MarketCalendar)</h2>
+<p>Tokenized equities and commodities follow real-world session hours enforced by <code>MarketCalendar</code>. When a market is outside its session, <code>TradingCore.createOrder</code> reverts with <code>MarketClosed</code>. Crypto markets (CFX, BTC, ETH) trade 24/7.</p>
+<h2>Dividends &amp; Corporate Actions</h2>
+<p><code>DividendManager</code> together with the off-chain <code>DividendKeeper</code> settles dividend-style adjustments for tokenized equity positions, keeping long/short holders economically consistent with the underlying asset's corporate actions.</p>
+<h2>Compliance Gating</h2>
+<p>An optional <code>IComplianceManager</code> (e.g. <code>AllowListCompliance</code>) can gate specific markets. When configured, <code>createOrder</code> calls <code>checkCompliance(market)</code> and reverts with <code>ComplianceCheckFailed</code> for non-permitted users. On open testnet deployments this is typically disabled or set to an allow-list.</p>
+<h2>Multi-Collateral (CollateralRegistry)</h2>
+<p><code>CollateralRegistry</code> lets governance register alternative collateral tokens (e.g. USDT0, AxCNH) with per-asset base/liquidation/max haircuts, a utilization slope, a volatility adder, and an optional protocol-exposure cap. Each collateral is priced through an <code>OracleAggregator</code> feed. USDC remains the canonical 6-decimal settlement asset.</p>
+`;
+
 PAGES['trading-guide'] = () => `
 <div class="page-header"><div class="page-header__eyebrow">User Guides</div><h1 class="page-header__title">Trading Guide</h1><p class="page-header__desc">Everything you need to trade perpetual futures on Realyx.</p></div>
 <h2>Opening a position</h2>
@@ -413,7 +430,7 @@ PAGES['faq'] = () => `
 <p>Conflux eSpace — an EVM-compatible execution environment. Chain ID 71 (testnet) or 1030 (mainnet, coming soon).</p>
 <h2>Trading</h2>
 <h3>What assets can I trade?</h3>
-<p>Crypto pairs (CFX-USD, BTC-USD, ETH-USD), tokenized equities (TSLAX, NVDAX, AAPLX, METAX, GOOGLX, NFLXX, COINX, MCDX, CRCLX), and tokenized gold (XAUT-USD). The active set per deployment is the response of <code>GET /api/markets</code>.</p>
+<p>Crypto pairs (CFX-USD, BTC-USD, ETH-USD), tokenized equities (NVDAX, TSLAX, AAPLX, METAX, GOOGLX, NFLXX, MCDX, HOODX, MSTRX, SPYX), crypto-adjacent equities (COINX, CRCLX), and tokenized gold (XAUT-USD). The active set per deployment is the response of <code>GET /api/markets</code>.</p>
 <h3>What's the maximum leverage?</h3>
 <p>Up to 10x by default, configurable per market. Higher leverage means tighter liquidation prices.</p>
 <h3>Can I get front-run?</h3>
@@ -549,26 +566,28 @@ PAGES['architecture'] = () => `
 <h2>System diagram</h2>
 <pre><code>+------------------------------------------------------------------+
 |                  FRONTEND (React 18 / Vite)                      |
-|  Markets | Trading | Portfolio | Vault | Analytics | Settings    |
+|  Markets | Trade | Portfolio | Vault | Insurance | Leaderboard   |
+|  Copy Trading | Referrals | Analytics | Settings                 |
 +------------------------------+-----------------------------------+
-                               | REST API / WebSocket
+                               | REST API / WebSocket (polling on Vercel)
                                v
 +------------------------------------------------------------------+
 |                  BACKEND (Express / Node.js)                     |
-|  Event Poller | Market Aggregator | Stat Cruncher | Triggers     |
+|  Indexer | Market Aggregator | Stats | Leaderboard | Copy Engine |
 +------------------------------+-----------------------------------+
                                | SQL + JSON-RPC
        +-----------------------+-----------------------+
        v                       v                       v
 +-------------+       +-------------+       +-------------+
 |  PostgreSQL |       | Pyth Network|       |   Keepers   |
-|  (Indexer)  |       |  (Hermes)   |       |  (Bot.ts)   |
+|  (Indexer)  |       |  (Hermes)   |       | (keeper-bot)|
 +------+------+       +-------------+       +-------------+
        |
        v
 +------------------------------------------------------------------+
 |              Conflux eSpace (EVM-compatible L1)                  |
-|  TradingCore | VaultCore | OracleAggregator | PositionToken      |
+|  TradingCore | VaultCore | OracleAggregator | PositionToken |    |
+|  MarketCalendar | DividendManager | Compliance | Registries      |
 +------------------------------------------------------------------+</code></pre>
 <h2>Smart contracts (on-chain)</h2>
 <table>
@@ -580,15 +599,20 @@ PAGES['architecture'] = () => `
     <tr><td><code>OracleAggregator</code></td><td>Pyth price feed integration, staleness checks, circuit breakers</td></tr>
     <tr><td><code>PositionToken</code></td><td>ERC-721 NFT representing each open position</td></tr>
     <tr><td><code>MarketCalendar</code></td><td>Trading hours enforcement for RWA markets</td></tr>
-    <tr><td><code>DividendManager</code></td><td>Corporate action settlement for equity positions</td></tr>
+    <tr><td><code>DividendManager</code> / <code>DividendKeeper</code></td><td>Corporate action settlement for equity positions</td></tr>
+    <tr><td><code>CollateralRegistry</code></td><td>Alternative collateral registration with haircuts/caps</td></tr>
+    <tr><td><code>CopyRegistry</code></td><td>Copy-trading lead/copier registry</td></tr>
+    <tr><td><code>ReferralRegistry</code></td><td>Referral codes and fee rebates</td></tr>
+    <tr><td><code>AllowListCompliance</code></td><td>Optional per-market access gating (IComplianceManager)</td></tr>
   </tbody>
 </table>
 <h2>Backend services</h2>
 <ul>
-  <li><strong>Express API</strong> — REST endpoints for market data, user positions, stats, leaderboard</li>
+  <li><strong>Express API</strong> — REST endpoints for markets, user positions, stats, leaderboard, insurance, referrals, and copy-trading (social)</li>
   <li><strong>PostgreSQL Indexer</strong> — Polls <code>getLogs</code> from Conflux eSpace, persists 15+ event types</li>
-  <li><strong>WebSocket Server</strong> — Pushes real-time price updates and position changes</li>
+  <li><strong>WebSocket Server</strong> — Pushes real-time price updates, stats, and keeper-failure alerts</li>
   <li><strong>Pyth Service</strong> — Fetches latest prices from Hermes for frontend display</li>
+  <li><strong>Copy Engine</strong> — Mirrors lead-trader intent flow to copiers</li>
   <li><strong>Server-side cache</strong> — Caches heavy aggregations (TVL, OI, volume)</li>
 </ul>
 <h2>Frontend stack</h2>
@@ -625,23 +649,16 @@ PAGES['smart-contracts'] = () => `
 <p style="font-size:13px;color:var(--text-3)">Source of truth: <code>deployment/confluxTestnet.json</code> in the repo. RPC <code>https://evmtestnet.confluxrpc.com</code>.</p>
 <h2>TradingCore interface</h2>
 <pre><code>interface ITradingCore {
-  // Phase 1: Lock collateral, record intent
-  function createOrder(
-    OrderType orderType,
-    address market,
-    uint256 sizeDelta,
-    uint256 collateralDelta,
-    uint256 triggerPrice,
-    bool isLong,
-    uint256 maxSlippage,
-    uint256 positionId
-  ) external payable returns (uint256 orderId);
+  // Phase 1: Escrow collateral, queue a signed intent.
+  // Advanced fields (TIF, brackets, iceberg/TWAP) live in CreateOrderParams.
+  function createOrder(DataTypes.CreateOrderParams calldata params)
+    external payable returns (uint256 orderId);
 
   // Phase 2: Keeper executes with fresh Pyth price
   function executeOrder(
     uint256 orderId,
     bytes[] calldata priceUpdateData
-  ) external;
+  ) external payable;
 
   // Cancel a queued order and refund escrowed collateral
   function cancelOrder(uint256 orderId) external;
@@ -657,7 +674,8 @@ PAGES['smart-contracts'] = () => `
   function partialClose(
     uint256 positionId,
     uint256 closePercent,
-    uint256 maxSlippage
+    uint256 minReceive,
+    uint256 deadline
   ) external returns (int256 realizedPnL);
 
   // Liquidate an undercollateralized position
@@ -686,7 +704,7 @@ PAGES['smart-contracts'] = () => `
     external returns (uint256 assets);
 }</code></pre>
 <h2>Upgradeability</h2>
-<p>All core contracts use the <strong>UUPS (Universal Upgradeable Proxy Standard)</strong> pattern. Upgrades require the <code>UPGRADER_ROLE</code> and are governed by a multi-signature quorum.</p>
+<p>All core contracts use the <strong>UUPS (Universal Upgradeable Proxy Standard)</strong> pattern. <code>_authorizeUpgrade</code> is admin-gated (no on-chain timelock) and is intended to sit behind a multi-signature wallet with an off-chain hold. Sensitive parameter changes (treasury, RWA wiring, fee recipients, referral registry) are protected by 48-hour timelocks.</p>
 <h2>Supporting libraries</h2>
 <table>
   <thead><tr><th>Library</th><th>Purpose</th></tr></thead>
@@ -713,7 +731,7 @@ PAGES['api-reference'] = () => `
   </tbody>
 </table>
 <h2>Authentication</h2>
-<p>The entire REST API is <strong>permissionless</strong> — no API keys or authentication required.</p>
+<p>The public read API is <strong>permissionless</strong> — no key required. Optional tiered API keys can be issued via <code>POST /api/v1/auth/key</code> (EIP-712 signature) and verified with the <code>x-api-key</code> header at <code>GET /api/v1/auth/verify</code>. Internal routes (keeper webhook, debug) are bearer-secret gated in production.</p>
 <h2>Response envelope</h2>
 <pre><code>// Success
 { "success": true, "data": { ... } }
@@ -731,7 +749,10 @@ PAGES['api-reference'] = () => `
     <tr><td><span class="method method--get">GET</span></td><td class="endpoint-path">/api/stats</td><td>Protocol summary: TVL, 24h volume, OI, liquidations</td></tr>
     <tr><td><span class="method method--get">GET</span></td><td class="endpoint-path">/api/stats/history</td><td>Daily aggregated metrics (90 days)</td></tr>
     <tr><td><span class="method method--get">GET</span></td><td class="endpoint-path">/api/leaderboard</td><td>Trader rankings (query: <code>?limit=10&amp;timeframe=all</code>)</td></tr>
-    <tr><td><span class="method method--get">GET</span></td><td class="endpoint-path">/api/insurance/claims</td><td>Insurance fund claim history</td></tr>
+    <tr><td><span class="method method--get">GET</span></td><td class="endpoint-path">/api/insurance/claims</td><td>Insurance tranche claim (bad-debt cover) history</td></tr>
+    <tr><td><span class="method method--get">GET</span></td><td class="endpoint-path">/api/referrals/stats</td><td>On-chain referral stats (query: <code>?address=0x...</code>)</td></tr>
+    <tr><td><span class="method method--get">GET</span></td><td class="endpoint-path">/api/v1/social/top-traders</td><td>Registered copy-trading lead traders by ROI</td></tr>
+    <tr><td><span class="method method--get">GET</span></td><td class="endpoint-path">/api/v1/social/trader/:address</td><td>Lead-trader profile and open positions</td></tr>
     <tr><td><span class="method method--get">GET</span></td><td class="endpoint-path">/api/sync</td><td>Trigger an indexer sync (gated by <code>CRON_SECRET</code>)</td></tr>
     <tr><td><span class="method method--get">GET</span></td><td class="endpoint-path">/api/pyth-refresh</td><td>Refresh cached Pyth prices (gated by <code>CRON_SECRET</code>)</td></tr>
     <tr><td><span class="method method--get">GET</span></td><td class="endpoint-path">/health</td><td>Service health check (also <code>/health/detailed</code>)</td></tr>
@@ -767,7 +788,40 @@ ws.onmessage = (msg) => {
 };</code></pre>
 `;
 
+PAGES['sdk'] = () => `
+<div class="page-header"><div class="page-header__eyebrow">Developer Guide</div><h1 class="page-header__title">Strategy SDK</h1><p class="page-header__desc">The <code>@realyx/sdk</code> TypeScript package for market makers and quant users.</p></div>
+<p>The repo ships a lightweight TypeScript SDK in <code>sdk/</code> that wraps the REST API, a managed auto-reconnecting WebSocket, and an ethers v6 order builder. It supports read-only usage and signer-based (or delegated subaccount) trading.</p>
+<h2>What it provides</h2>
+<ul>
+  <li><code>RealyxClient</code> — REST helpers: <code>getMarkets()</code>, <code>getPositions(addr)</code>, <code>getTrades(addr)</code>, <code>getStats()</code>, <code>getLeaderboard()</code></li>
+  <li><code>RealyxWs</code> — managed WebSocket with auto-reconnect and channel subscriptions</li>
+  <li><code>OrderBuilder</code> — construct, sign, and broadcast orders via ethers v6</li>
+  <li>Native subaccount (delegated trading) support — a bot key signs/pays gas for an owner account</li>
+</ul>
+<div class="callout callout--info"><div class="callout__icon">ℹ️</div><div class="callout__body"><div class="callout__title">API surface</div><p>The SDK targets the versioned API (<code>/api/v1/...</code>). It is published as <code>@realyx/sdk</code> and peer-depends on <code>ethers ^6</code>.</p></div></div>
+<h2>Quick example</h2>
+<pre><code>import { RealyxClient } from "@realyx/sdk";
+
+const client = new RealyxClient({
+  apiBaseUrl: "https://realyx.vercel.app",
+  // wsUrl defaults to apiBaseUrl with http→ws + "/ws"
+  // signer or subaccount required only for trading
+});
+
+const markets = await client.getMarkets();
+const stats = await client.getStats();
+
+client.connectAndSubscribe(["BTC-USD"], (msg) => {
+  console.log("ws:", msg);
+});</code></pre>
+<h2>Build</h2>
+<pre><code>cd sdk
+npm install
+npm run build   # tsc → dist/</code></pre>
+`;
+
 PAGES['keeper-node'] = () => `
+<div class="page-header"><div class="page-header__eyebrow">Developer Guide</div><h1 class="page-header__title">Keeper Node</h1><p class="page-header__desc">Run a Keeper node to execute orders and earn execution fees.</p></div>
 <div class="page-header"><div class="page-header__eyebrow">Developer Guide</div><h1 class="page-header__title">Keeper Node</h1><p class="page-header__desc">Run a Keeper node to execute orders and earn execution fees.</p></div>
 <h2>What is a Keeper?</h2>
 <p>Keepers are off-chain bots that monitor the blockchain for pending order intents and execute them by providing fresh Pyth oracle data. Keepers earn an execution fee for each successfully processed order.</p>
@@ -782,20 +836,26 @@ PAGES['keeper-node'] = () => `
 cd realyx-perp-conflux
 npm install
 
-# Set PRIVATE_KEY to your keeper wallet in .env
+# Set KEEPER_PRIVATE_KEY (or PRIVATE_KEY) for your keeper wallet in .env
 cp .env.example .env
 
+# Grant the keeper wallet KEEPER_ROLE
+npm run grant:keeper
+
 # Run the keeper bot
-npx ts-node scripts/keeper-bot.ts</code></pre>
-<p>The bot will poll for pending orders, fetch the latest Pyth VAA from Hermes API, call <code>executeOrder(orderId, priceUpdateData)</code>, and collect the execution fee.</p>
+npm run keeper:bot</code></pre>
+<p>The bot polls for pending orders, fetches the latest Pyth update from the Hermes API, pushes <code>updatePriceFeeds</code> when oracle state is stale, calls <code>executeOrder(orderId, priceUpdateData)</code>, and collects the execution fee.</p>
 <h2>Configuration</h2>
 <table>
   <thead><tr><th>Variable</th><th>Default</th><th>Description</th></tr></thead>
   <tbody>
-    <tr><td><code>KEEPER_POLL_INTERVAL</code></td><td>3000ms</td><td>How often to check for pending orders</td></tr>
-    <tr><td><code>KEEPER_LOOKBACK_BLOCKS</code></td><td>100</td><td>How many blocks back to scan for missed orders</td></tr>
-    <tr><td><code>RPC_URL</code></td><td>—</td><td>Conflux eSpace RPC endpoint</td></tr>
-    <tr><td><code>PRIVATE_KEY</code></td><td>—</td><td>Keeper wallet private key</td></tr>
+    <tr><td><code>KEEPER_PRIVATE_KEY</code></td><td>—</td><td>Keeper wallet private key (falls back to <code>PRIVATE_KEY</code>)</td></tr>
+    <tr><td><code>KEEPER_RPC_URL</code></td><td>chain default</td><td>Conflux eSpace RPC endpoint</td></tr>
+    <tr><td><code>KEEPER_RPC_URLS</code></td><td>—</td><td>Comma-separated fallback RPCs</td></tr>
+    <tr><td><code>KEEPER_HERMES_URL</code></td><td><code>https://hermes.pyth.network</code></td><td>Pyth Hermes endpoint</td></tr>
+    <tr><td><code>KEEPER_POLL_INTERVAL_SECONDS</code></td><td>3</td><td>How often to check for pending orders</td></tr>
+    <tr><td><code>KEEPER_LOOKBACK_BLOCKS</code></td><td>5000</td><td>How many blocks back to scan for missed orders</td></tr>
+    <tr><td><code>KEEPER_TRADING_CORE_ADDRESS</code></td><td>deployment JSON</td><td>Override the TradingCore proxy address</td></tr>
   </tbody>
 </table>
 <div class="callout callout--info"><div class="callout__icon">ℹ️</div><div class="callout__body"><div class="callout__title">Decentralized Keeper network (roadmap)</div><p>Phase 3 plans to open Keeper participation to anyone without requiring a role grant, with on-chain bounty distribution.</p></div></div>
@@ -804,26 +864,29 @@ npx ts-node scripts/keeper-bot.ts</code></pre>
 PAGES['deployment'] = () => `
 <div class="page-header"><div class="page-header__eyebrow">Developer Guide</div><h1 class="page-header__title">Deployment</h1><p class="page-header__desc">Deploy Realyx using Docker Compose, Vercel, or manual setup.</p></div>
 <h2>Docker Compose (recommended)</h2>
-<pre><code>docker-compose -f docker-compose.minimal.yml up -d</code></pre>
-<p>Starts: Frontend (port 3000), Backend API (port 3001), WebSocket (port 3002), PostgreSQL (port 5432).</p>
+<pre><code># Minimal stack (backend + frontend)
+docker-compose -f docker-compose.minimal.yml up -d
+
+# Full stack (adds PostgreSQL, Redis, Prometheus, Grafana)
+docker-compose up -d</code></pre>
+<p>The full <code>docker-compose.yml</code> exposes Frontend on port 3000, Backend API on 3001, WebSocket on 3002, PostgreSQL on 5432, Redis on 6379, Prometheus on 9090, and Grafana on 3003. (The minimal compose maps the backend to host ports 3011/3012 and the frontend to 3010.)</p>
 <h2>Vercel (serverless)</h2>
 <ol>
   <li>Set <code>ENABLE_WS=false</code> in backend environment</li>
   <li>Set <code>VITE_WS_URL=</code> (empty) in frontend environment</li>
-  <li>Deploy via <code>vercel deploy</code> or connect your GitHub repo</li>
+  <li>Build the combined bundle with <code>npm run build</code> (runs <code>build-vercel.mjs</code>), then deploy</li>
 </ol>
-<pre><code>node build-vercel.mjs</code></pre>
 <h2>Contract deployment</h2>
-<pre><code># Deploy to Conflux eSpace Testnet
+<pre><code># Deploy to Conflux eSpace Testnet (writes deployment/confluxTestnet.json)
 npm run deploy:conflux-testnet
 
 # Verify on ConfluxScan
 npm run verify:conflux-testnet
 
-# Write deployment addresses to JSON
-npx ts-node scripts/write-deployment.ts</code></pre>
+# List markets after deploy
+npm run setup:market</code></pre>
 <h2>Kubernetes (production)</h2>
-<p>Kubernetes manifests are available in <code>infrastructure/kubernetes/</code> for production-grade deployments with horizontal scaling, health checks, and monitoring via Prometheus/Grafana.</p>
+<p>Kubernetes manifests are available in <code>infrastructure/kubernetes/</code> for production-grade deployments with health checks and Prometheus/Grafana monitoring under <code>infrastructure/monitoring/</code>.</p>
 `;
 
 PAGES['testing'] = () => `
@@ -836,21 +899,21 @@ npm run test
 npx hardhat coverage</code></pre>
 <p>Tests are organized in <code>test/</code>:</p>
 <ul>
-  <li><code>test/core/</code> — TradingCore, VaultCore, OracleAggregator unit tests</li>
-  <li><code>test/scenarios/</code> — End-to-end trading scenarios</li>
-  <li><code>test/security/</code> — Attack vector tests (flash loans, reentrancy, oracle manipulation)</li>
-  <li><code>test/fuzz/</code> — Property-based fuzz tests</li>
-  <li><code>test/e2e/</code> — Full protocol integration tests</li>
+  <li><code>test/unit/</code> — Per-contract unit tests (TradingCore, VaultCore, OracleAggregator, PositionToken, CollateralRegistry, CopyRegistry, ReferralRegistry, DividendManager, MarketCalendar, libraries, …)</li>
+  <li><code>test/integration/</code> — TradingCore lifecycle, orders, liquidation, and admin flows</li>
+  <li><code>test/security/</code> — Attack-vector and accounting-invariant tests</li>
+  <li><code>test/fuzz/</code> — Property-based fuzz tests (e.g. PositionMath)</li>
+  <li><code>test/e2e/</code> — Full-protocol end-to-end scenario tests</li>
 </ul>
 <h2>Backend tests</h2>
 <pre><code>cd backend && npm test</code></pre>
 <p>Uses Jest. Tests cover REST API endpoints, event ingestion logic, and service layer functions.</p>
 <h2>Frontend tests</h2>
-<pre><code>cd frontend && npm test</code></pre>
-<p>Uses Vitest + Testing Library. Tests cover component rendering, wallet interactions, and data formatting.</p>
-<h2>E2E tests</h2>
-<pre><code>cd frontend && npx playwright test</code></pre>
-<p>Playwright tests simulate full user flows: connecting wallet, minting USDC, opening positions, and closing them.</p>
+<pre><code>cd frontend && npm test   # vitest run</code></pre>
+<p>Uses Vitest + Testing Library. Tests cover component rendering, page logic, wallet interactions, and data formatting.</p>
+<h2>End-to-end protocol tests</h2>
+<pre><code>npm run test   # includes test/e2e/FullProtocol.scenario.test.ts</code></pre>
+<p>The Hardhat suite includes a full-protocol scenario in <code>test/e2e/</code> that exercises deposit → open → execute → close → liquidate across the deployed contract set.</p>
 `;
 
 PAGES['security'] = () => `
@@ -879,17 +942,20 @@ PAGES['security'] = () => `
 <table>
   <thead><tr><th>Role</th><th>Permissions</th></tr></thead>
   <tbody>
-    <tr><td><code>DEFAULT_ADMIN_ROLE</code></td><td>Grant/revoke other roles</td></tr>
-    <tr><td><code>KEEPER_ROLE</code></td><td>Execute orders and liquidations</td></tr>
-    <tr><td><code>OPERATOR_ROLE</code></td><td>Add/update markets, configure parameters</td></tr>
-    <tr><td><code>UPGRADER_ROLE</code></td><td>Upgrade contract implementations (UUPS)</td></tr>
-    <tr><td><code>GUARDIAN_ROLE</code></td><td>Activate emergency mode, pause markets</td></tr>
+    <tr><td><code>DEFAULT_ADMIN_ROLE</code> / <code>ADMIN_ROLE</code></td><td>Grant/revoke roles, admin config, UUPS upgrades, unpause</td></tr>
+    <tr><td><code>OPERATOR_ROLE</code></td><td>Add/update markets, configure feeds and caps</td></tr>
+    <tr><td><code>GUARDIAN_ROLE</code></td><td>Pause, circuit breakers, emergency price/pause</td></tr>
+    <tr><td><code>ORACLE_ROLE</code></td><td>Price / Hermes relay and TWAP recording</td></tr>
+    <tr><td><code>KEEPER_ROLE</code></td><td>Execute orders, health updates, TWAP samples</td></tr>
+    <tr><td><code>LIQUIDATOR_ROLE</code></td><td>Liquidation bots</td></tr>
+    <tr><td><code>TRADING_CORE_ROLE</code></td><td>Held only by the TradingCore proxy on VaultCore (borrow/repay)</td></tr>
   </tbody>
 </table>
+<p>There is no separate <code>UPGRADER_ROLE</code> — UUPS upgrades are authorized by the admin role.</p>
 <h2>Known limitations</h2>
 <ul>
   <li><strong>Single indexer:</strong> Protocol database sync relies on a single PostgreSQL indexer. Under extreme load, transient lag may cause minor frontend staleness.</li>
-  <li><strong>Isolated margin only:</strong> Cross-margin mode is not yet implemented.</li>
+  <li><strong>No third-party audit yet:</strong> The protocol is testnet-only and has not completed a formal external audit.</li>
   <li><strong>Testnet oracle fragility:</strong> Public Pyth Hermes endpoints on testnet may have higher latency than mainnet dedicated infrastructure.</li>
 </ul>
 <h2>Responsible disclosure</h2>
@@ -944,7 +1010,10 @@ PAGES['roadmap'] = () => `
   <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--done">✓</div><div class="roadmap-item__text">Core smart contracts — TradingCore, VaultCore, OracleAggregator, PositionToken</div></div>
   <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--done">✓</div><div class="roadmap-item__text">Hardhat test cases across core, fuzz, security &amp; e2e suites</div></div>
   <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--done">✓</div><div class="roadmap-item__text">PostgreSQL native EVM indexer tracking 15+ on-chain events</div></div>
-  <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--done">✓</div><div class="roadmap-item__text">Full-stack frontend — Markets, Trading, Portfolio, Vault, Analytics, Settings</div></div>
+  <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--done">✓</div><div class="roadmap-item__text">Full-stack frontend — Markets, Trade, Portfolio, Vault, Insurance, Leaderboard, Copy Trading, Referrals, Analytics, Settings</div></div>
+  <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--done">✓</div><div class="roadmap-item__text">Cross-margin risk engine (on by default) with account-level health</div></div>
+  <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--done">✓</div><div class="roadmap-item__text">Social layer — copy trading (CopyRegistry) &amp; referral rebates (ReferralRegistry)</div></div>
+  <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--done">✓</div><div class="roadmap-item__text">RWA tooling — MarketCalendar trading hours, DividendManager corporate actions, optional compliance gating</div></div>
   <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--done">✓</div><div class="roadmap-item__text">Keeper bot for decentralised order execution</div></div>
   <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--done">✓</div><div class="roadmap-item__text">Deployed to Conflux eSpace Testnet (Chain ID 71)</div></div>
 </div>
@@ -952,15 +1021,14 @@ PAGES['roadmap'] = () => `
   <div class="roadmap-phase__header"><div class="roadmap-phase__title">Phase 2 · Post-Hackathon</div><span class="badge badge--yellow">Planned</span></div>
   <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--todo">○</div><div class="roadmap-item__text">Independent smart-contract security audit</div></div>
   <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--todo">○</div><div class="roadmap-item__text">Conflux eSpace Mainnet launch (Chain ID 1030)</div></div>
-  <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--todo">○</div><div class="roadmap-item__text">Multi-collateral support — USDT0 &amp; AxCNH</div></div>
+  <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--todo">○</div><div class="roadmap-item__text">Live multi-collateral support — USDT0 &amp; AxCNH via CollateralRegistry</div></div>
   <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--todo">○</div><div class="roadmap-item__text">Liquidity mining programme for early <code>realyxLP</code> depositors</div></div>
   <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--todo">○</div><div class="roadmap-item__text">Public Keeper node — anyone can execute orders and earn bounties</div></div>
 </div>
 <div class="roadmap-phase">
   <div class="roadmap-phase__header"><div class="roadmap-phase__title">Phase 3 · Scale</div><span class="badge badge--blue">Future</span></div>
-  <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--todo">○</div><div class="roadmap-item__text">Cross-margin architecture across all open positions</div></div>
-  <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--todo">○</div><div class="roadmap-item__text">Social copy-trading — auto-mirror top leaderboard wallets</div></div>
-  <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--todo">○</div><div class="roadmap-item__text">Expanded RWA markets — Forex, commodities, additional equities</div></div>
+  <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--todo">○</div><div class="roadmap-item__text">Deeper copy-trading automation and on-chain trader-profile metadata</div></div>
+  <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--todo">○</div><div class="roadmap-item__text">Expanded RWA markets — Forex, more commodities and equities</div></div>
   <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--todo">○</div><div class="roadmap-item__text">Governance module for community-driven parameter updates</div></div>
   <div class="roadmap-item"><div class="roadmap-item__check roadmap-item__check--todo">○</div><div class="roadmap-item__text">Mobile-optimised trading interface</div></div>
 </div>
@@ -1012,6 +1080,7 @@ const SEARCH_INDEX = [
   { page: 'intent-execution', title: 'Intent-Based Execution', section: 'Core Concepts' },
   { page: 'funding-rates', title: 'Funding Rates', section: 'Core Concepts' },
   { page: 'liquidation', title: 'Liquidation Engine', section: 'Core Concepts' },
+  { page: 'social-rwa', title: 'Social & RWA Features', section: 'Core Concepts' },
   { page: 'trading-guide', title: 'Trading Guide', section: 'User Guides' },
   { page: 'providing-liquidity', title: 'Providing Liquidity', section: 'User Guides' },
   { page: 'nft-positions', title: 'NFT Positions', section: 'User Guides' },
@@ -1022,6 +1091,7 @@ const SEARCH_INDEX = [
   { page: 'architecture', title: 'Architecture', section: 'Developer Guide' },
   { page: 'smart-contracts', title: 'Smart Contracts', section: 'Developer Guide' },
   { page: 'api-reference', title: 'API Reference', section: 'Developer Guide' },
+  { page: 'sdk', title: 'Strategy SDK', section: 'Developer Guide' },
   { page: 'keeper-node', title: 'Keeper Node', section: 'Developer Guide' },
   { page: 'deployment', title: 'Deployment', section: 'Developer Guide' },
   { page: 'testing', title: 'Testing', section: 'Developer Guide' },

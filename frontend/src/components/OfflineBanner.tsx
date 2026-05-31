@@ -45,27 +45,31 @@ export function OfflineBanner() {
 
   return (
     <div
-      className="sticky top-0 z-40 flex items-center justify-between gap-4 px-4 py-2 bg-amber-500/15 border-b border-amber-500/30 text-amber-400 text-sm"
+      className="px-3 sm:px-5 lg:px-8 pt-3"
       role="alert"
       aria-live="polite"
     >
-      <div className="flex items-center gap-2">
-        <WifiOff className="w-4 h-4 shrink-0" aria-hidden />
-        <span>
-          {!apiOk && !wsConnected && 'Connection issue — API and live data may be delayed.'}
-          {apiOk && !wsConnected && 'Live prices unavailable. Data may be delayed.'}
-          {!apiOk && wsConnected && 'API unavailable. Some data may be stale.'}
-        </span>
+      <div className="max-w-[1760px] mx-auto flex items-center justify-between gap-3 sm:gap-4 px-3 sm:px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-sm shadow-[0_6px_20px_rgba(0,0,0,0.18)] backdrop-blur-sm">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-lg bg-amber-500/15">
+            <WifiOff className="w-4 h-4" aria-hidden />
+          </span>
+          <span className="truncate">
+            {!apiOk && !wsConnected && 'Connection issue — API and live data may be delayed.'}
+            {apiOk && !wsConnected && 'Live prices unavailable. Data may be delayed.'}
+            {!apiOk && wsConnected && 'API unavailable. Some data may be stale.'}
+          </span>
+        </div>
+        <button
+          onClick={handleRetry}
+          disabled={retrying}
+          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-medium bg-amber-500/20 hover:bg-amber-500/30 transition-colors disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50"
+          aria-label="Retry connection"
+        >
+          <RefreshCw className={clsx('w-3.5 h-3.5', retrying && 'animate-spin')} />
+          <span className="hidden sm:inline">{retrying ? 'Retrying...' : 'Retry'}</span>
+        </button>
       </div>
-      <button
-        onClick={handleRetry}
-        disabled={retrying}
-        className="flex items-center gap-2 px-3 py-1.5 rounded bg-amber-500/20 hover:bg-amber-500/30 transition-colors disabled:opacity-60"
-        aria-label="Retry connection"
-      >
-        <RefreshCw className={clsx('w-3.5 h-3.5', retrying && 'animate-spin')} />
-        {retrying ? 'Retrying...' : 'Retry'}
-      </button>
     </div>
   );
 }
