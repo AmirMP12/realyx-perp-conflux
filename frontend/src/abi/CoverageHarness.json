@@ -100,7 +100,7 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "collection",
+        "name": "market",
         "type": "address"
       },
       {
@@ -110,7 +110,7 @@
         "type": "uint8"
       },
       {
-        "indexed": true,
+        "indexed": false,
         "internalType": "address",
         "name": "resetBy",
         "type": "address"
@@ -125,7 +125,7 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "collection",
+        "name": "market",
         "type": "address"
       },
       {
@@ -135,7 +135,7 @@
         "type": "uint8"
       },
       {
-        "indexed": true,
+        "indexed": false,
         "internalType": "address",
         "name": "resetBy",
         "type": "address"
@@ -150,7 +150,7 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "collection",
+        "name": "market",
         "type": "address"
       },
       {
@@ -168,7 +168,7 @@
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "price",
+        "name": "actualValue",
         "type": "uint256"
       }
     ],
@@ -472,6 +472,11 @@
             "internalType": "uint8",
             "name": "state",
             "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralToken",
+            "type": "address"
           }
         ],
         "internalType": "struct DataTypes.Position",
@@ -1145,6 +1150,11 @@
             "internalType": "uint8",
             "name": "state",
             "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralToken",
+            "type": "address"
           }
         ],
         "internalType": "struct DataTypes.Position",
@@ -1236,6 +1246,11 @@
             "internalType": "uint8",
             "name": "state",
             "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralToken",
+            "type": "address"
           }
         ],
         "internalType": "struct DataTypes.Position",
@@ -2105,6 +2120,11 @@
         "internalType": "uint8",
         "name": "state",
         "type": "uint8"
+      },
+      {
+        "internalType": "address",
+        "name": "collateralToken",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -2255,6 +2275,11 @@
         "internalType": "uint8",
         "name": "state",
         "type": "uint8"
+      },
+      {
+        "internalType": "address",
+        "name": "collateralToken",
+        "type": "address"
       }
     ],
     "stateMutability": "view",
@@ -2610,6 +2635,59 @@
       {
         "components": [
           {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "tokenAddress",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "borrowedAmount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct DataTypes.PositionCollateral",
+        "name": "c",
+        "type": "tuple"
+      }
+    ],
+    "name": "setPositionCollateral",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "int256",
+        "name": "value",
+        "type": "int256"
+      }
+    ],
+    "name": "setPositionCumulativeFunding",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "components": [
+          {
             "internalType": "uint128",
             "name": "size",
             "type": "uint128"
@@ -2673,6 +2751,11 @@
             "internalType": "uint8",
             "name": "state",
             "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralToken",
+            "type": "address"
           }
         ],
         "internalType": "struct DataTypes.Position",
@@ -2680,7 +2763,7 @@
         "type": "tuple"
       }
     ],
-    "name": "setPosition",
+    "name": "setPositionDetailed",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -2718,60 +2801,7 @@
         "type": "address"
       }
     ],
-    "name": "setPosition",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "id",
-        "type": "uint256"
-      },
-      {
-        "components": [
-          {
-            "internalType": "uint256",
-            "name": "amount",
-            "type": "uint256"
-          },
-          {
-            "internalType": "address",
-            "name": "tokenAddress",
-            "type": "address"
-          },
-          {
-            "internalType": "uint256",
-            "name": "borrowedAmount",
-            "type": "uint256"
-          }
-        ],
-        "internalType": "struct DataTypes.PositionCollateral",
-        "name": "c",
-        "type": "tuple"
-      }
-    ],
-    "name": "setPositionCollateral",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint256",
-        "name": "id",
-        "type": "uint256"
-      },
-      {
-        "internalType": "int256",
-        "name": "value",
-        "type": "int256"
-      }
-    ],
-    "name": "setPositionCumulativeFunding",
+    "name": "setPositionSimple",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -3098,6 +3128,11 @@
       {
         "internalType": "uint256",
         "name": "currentPrice",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "refPrice",
         "type": "uint256"
       }
     ],
@@ -4083,6 +4118,36 @@
         "internalType": "address",
         "name": "usdcAddr",
         "type": "address"
+      },
+      {
+        "internalType": "uint8",
+        "name": "tifRaw",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "stopLossPrice",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "takeProfitPrice",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "visibleSize",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "twapInterval",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "isReduceOnly",
+        "type": "bool"
       }
     ],
     "name": "testTradingLibCreateOrder",

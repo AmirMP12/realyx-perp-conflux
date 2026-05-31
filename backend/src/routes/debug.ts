@@ -1,4 +1,5 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
+import crypto from "crypto";
 import pg from "pg";
 
 const router = Router();
@@ -13,7 +14,35 @@ function getPool(): pg.Pool | null {
   return poolInstance;
 }
 
-router.get("/", async (req: Request, res: Response) => {
+/**
+ * The debug endpoint exposes internal DB/indexer state. In production it must
+ * be protected by `DEBUG_SECRET` (sent as `Authorization: Bearer <secret>` or
+ * `?key=<secret>`); if no secret is configured in production it is disabled.
+ * Outside production it remains open for convenience.
+ */
+function requireDebugAuth(req: Request, res: Response, next: NextFunction): void {
+  if (process.env.NODE_ENV !== "production") {
+    next();
+    return;
+  }
+  const secret = (process.env.DEBUG_SECRET ?? "").trim();
+  if (!secret) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const provided =
+    (req.headers.authorization === `Bearer ${secret}` ? secret : "") ||
+    (typeof req.query.key === "string" ? req.query.key : "");
+  const a = Buffer.from(provided);
+  const b = Buffer.from(secret);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    res.status(401).json({ error: "Unauthorized" });
+    return;
+  }
+  next();
+}
+
+router.get("/", requireDebugAuth, async (req: Request, res: Response) => {
   const pool = getPool();
   if (!pool) {
     return res.json({ error: "No DB connection string configured" });
@@ -36,6 +65,22 @@ router.get("/", async (req: Request, res: Response) => {
 
     const state = await pool.query("SELECT last_synced_block, last_synced_at FROM indexer_state WHERE key = 'trading_core'");
     dbStatus.indexerState = state.rows[0] ? state.rows[0] : "None";
+
+    // Referral rebate indexing observability.
+    try {
+      const rebateCount = await pool.query("SELECT COUNT(*) FROM referral_rebates");
+      const rebateSum = await pool.query("SELECT COALESCE(SUM(amount), 0)::text AS total FROM referral_rebates");
+      const latestRebate = await pool.query("SELECT referrer, amount, block_number, tx_hash, created_at FROM referral_rebates ORDER BY id DESC LIMIT 1");
+      dbStatus.referralRebates = {
+        configured: Boolean((process.env.VAULT_CORE_ADDRESS ?? process.env.DEPLOYED_VAULT_CORE ?? "").trim()),
+        totalRows: rebateCount.rows[0].count,
+        totalAmountRaw: rebateSum.rows[0].total,
+        latest: latestRebate.rows[0] || null,
+      };
+    } catch (rebateErr) {
+      // Table may not exist yet on first boot (created lazily by sync initDB).
+      dbStatus.referralRebates = { error: String(rebateErr) };
+    }
 
     const latestOpenEvent = await pool.query("SELECT * FROM position_events WHERE event_type = 'PositionOpened' ORDER BY id DESC LIMIT 1");
     dbStatus.latestOpenEvent = latestOpenEvent.rows[0] || null;
@@ -81,7 +126,9 @@ router.get("/", async (req: Request, res: Response) => {
     dbStatus.rawVolumeStats = rawVolumeStats.rows;
   } catch (err) {
     dbStatus.error = String(err);
-    if (err instanceof Error && err.stack) dbStatus.stack = err.stack;
+    if (process.env.NODE_ENV !== "production" && err instanceof Error && err.stack) {
+      dbStatus.stack = err.stack;
+    }
   }
 
   return res.json(dbStatus);

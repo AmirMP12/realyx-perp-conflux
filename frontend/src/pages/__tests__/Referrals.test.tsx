@@ -24,6 +24,7 @@ describe('ReferralsPage', () => {
         totalEarned: 150.5,
         pendingClaim: 25.75,
         code: 'REALYX123',
+        live: true,
     };
     const mockLink = 'https://realyx.com/ref/REALYX123';
 
@@ -83,5 +84,17 @@ describe('ReferralsPage', () => {
         vi.mocked(useReferralStats).mockReturnValue({ stats: {}, link: null, loading: false, error: 'Failed to load stats' } as any);
         renderWithRouter(<ReferralsPage />);
         expect(screen.getByRole('alert')).toHaveTextContent('Failed to load stats');
+    });
+
+    it('shows Coming Soon and hides figures when the program is not live', () => {
+        vi.mocked(useReferralStats).mockReturnValue({
+            stats: { referees: 0, totalEarned: 0, pendingClaim: 0, code: 'ABCDEF', live: false },
+            link: 'https://realyx.com/?ref=ABCDEF',
+            loading: false,
+            error: null,
+        } as any);
+        renderWithRouter(<ReferralsPage />);
+        expect(screen.getByText(/Coming Soon/i)).toBeInTheDocument();
+        expect(screen.getByText(/referral rewards are not live/i)).toBeInTheDocument();
     });
 });

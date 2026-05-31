@@ -40,6 +40,19 @@
   },
   {
     "inputs": [],
+    "name": "DEFAULT_TWAP_INTERVAL",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "DUST_THRESHOLD",
     "outputs": [
       {
@@ -249,6 +262,19 @@
   {
     "inputs": [],
     "name": "MIN_ORACLE_SOURCES",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "MIN_TWAP_DATA_POINTS",
     "outputs": [
       {
         "internalType": "uint256",

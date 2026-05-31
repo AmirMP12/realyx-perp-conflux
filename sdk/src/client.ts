@@ -6,46 +6,67 @@
 import { ethers } from "ethers";
 import { RealyxWs } from "./ws";
 import { OrderBuilder } from "./orders";
-import type { RealyxConfig, SubaccountConfig, Market, Position, WsMessage, OrderParams } from "./types";
+import type {
+  RealyxConfig,
+  SubaccountConfig,
+  Market,
+  Position,
+  WsMessage,
+  ProtocolStats,
+  Trade,
+  LeaderboardEntry,
+} from "./types";
 
 export class RealyxClient {
   public readonly config: RealyxConfig;
   public ws: RealyxWs;
   public readonly orders: OrderBuilder;
 
-  private apiBaseUrl: string;
-  private apiKey?: string;
-  private subaccount?: SubaccountConfig;
+  private readonly apiBaseUrl: string;
+  private readonly wsUrl: string;
+  private readonly apiKey?: string;
+  private readonly subaccount?: SubaccountConfig;
+  private readonly requestTimeoutMs: number;
+  private readonly requestRetries: number;
 
   constructor(config: RealyxConfig) {
+    if (!config.apiBaseUrl) {
+      throw new Error("RealyxConfig.apiBaseUrl is required");
+    }
     this.config = config;
     this.apiBaseUrl = config.apiBaseUrl.replace(/\/+$/, ""); // strip trailing slash
+    this.wsUrl = config.wsUrl ?? this.apiBaseUrl.replace(/^http/, "ws") + "/ws";
     this.apiKey = config.apiKey;
     this.subaccount = config.subaccount;
+    this.requestTimeoutMs = config.requestTimeoutMs ?? 15_000;
+    this.requestRetries = config.requestRetries ?? 2;
 
-    // Wire up signer for OrderBuilder
-    let signer: ethers.Signer;
-    if (config.subaccount) {
-      const provider = config.subaccount.provider ?? ethers.getDefaultProvider();
-      signer = new ethers.Wallet(config.subaccount.botPrivateKey, provider);
-    } else {
-      // For direct trading, user must provide a signer separately or use orders.setSigner()
-      signer = ethers.Wallet.createRandom().connect(ethers.getDefaultProvider());
-    }
-
-    // TODO: This should be configurable
-    const tradingCoreAddress = process.env.TRADING_CORE_ADDRESS ?? ethers.ZeroAddress;
+    const tradingCoreAddress =
+      config.tradingCoreAddress ?? process.env.TRADING_CORE_ADDRESS ?? ethers.ZeroAddress;
 
     this.orders = new OrderBuilder({
-      signer,
       tradingCoreAddress,
       subaccount: config.subaccount,
     });
 
+    // Resolve a signer for the OrderBuilder. We do NOT silently create a random
+    // throwaway wallet — that would let a caller think they can trade when they
+    // cannot. Instead, a signer must come from a subaccount or be set explicitly.
+    if (config.subaccount) {
+      const provider = config.subaccount.provider;
+      const signer = provider
+        ? new ethers.Wallet(config.subaccount.botPrivateKey, provider)
+        : new ethers.Wallet(config.subaccount.botPrivateKey);
+      this.orders.setSigner(signer);
+    } else if (config.signer) {
+      this.orders.setSigner(config.signer);
+    }
+    // Otherwise: read-only client. Calling order methods throws a clear error
+    // until `client.orders.setSigner(signer)` is called.
+
     this.ws = new RealyxWs({
-      url: config.wsUrl ?? this.apiBaseUrl.replace(/^http/, "ws") + "/ws",
+      url: this.wsUrl,
       apiKey: config.apiKey,
-      onMessage: undefined, // user sets callbacks
     });
   }
 
@@ -60,12 +81,40 @@ export class RealyxClient {
   }
 
   private async get<T>(path: string): Promise<T> {
-    const res = await fetch(`${this.apiBaseUrl}${path}`, { headers: this.headers() });
-    if (!res.ok) {
-      const body = await res.text();
-      throw new Error(`GET ${path} failed (${res.status}): ${body}`);
+    let lastErr: unknown;
+    for (let attempt = 0; attempt <= this.requestRetries; attempt++) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.requestTimeoutMs);
+      try {
+        const res = await fetch(`${this.apiBaseUrl}${path}`, {
+          headers: this.headers(),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          const body = await res.text();
+          // 4xx are not retried — they won't succeed on retry.
+          if (res.status >= 400 && res.status < 500) {
+            throw new Error(`GET ${path} failed (${res.status}): ${body}`);
+          }
+          lastErr = new Error(`GET ${path} failed (${res.status}): ${body}`);
+        } else {
+          return (await res.json()) as T;
+        }
+      } catch (err) {
+        lastErr = err;
+        // AbortError and 4xx (rethrown above) should bail; for 4xx we already threw.
+        if (err instanceof Error && err.message.includes("failed (4")) {
+          throw err;
+        }
+      } finally {
+        clearTimeout(timer);
+      }
+      // Exponential backoff before the next attempt.
+      if (attempt < this.requestRetries) {
+        await new Promise((r) => setTimeout(r, 250 * Math.pow(2, attempt)));
+      }
     }
-    return res.json() as Promise<T>;
+    throw lastErr instanceof Error ? lastErr : new Error(`GET ${path} failed`);
   }
 
   /**
@@ -82,7 +131,12 @@ export class RealyxClient {
    * GET /api/v1/user/:address/positions
    */
   async getPositions(address: string): Promise<Position[]> {
-    const data = await this.get<{ success: boolean; positions?: Position[]; data?: Position[] }>(`/api/v1/user/${address}/positions`);
+    if (!ethers.isAddress(address)) {
+      throw new Error(`Invalid address: ${address}`);
+    }
+    const data = await this.get<{ success: boolean; positions?: Position[]; data?: Position[] }>(
+      `/api/v1/user/${address}/positions`
+    );
     return data.positions ?? data.data ?? [];
   }
 
@@ -90,8 +144,13 @@ export class RealyxClient {
    * Fetch trade history for a user address.
    * GET /api/v1/user/:address/trades
    */
-  async getTrades(address: string): Promise<any[]> {
-    const data = await this.get<{ success: boolean; trades?: any[]; data?: any[] }>(`/api/v1/user/${address}/trades`);
+  async getTrades(address: string): Promise<Trade[]> {
+    if (!ethers.isAddress(address)) {
+      throw new Error(`Invalid address: ${address}`);
+    }
+    const data = await this.get<{ success: boolean; trades?: Trade[]; data?: Trade[] }>(
+      `/api/v1/user/${address}/trades`
+    );
     return data.trades ?? data.data ?? [];
   }
 
@@ -99,26 +158,34 @@ export class RealyxClient {
    * Fetch stats (volume, open interest, etc.).
    * GET /api/v1/stats
    */
-  async getStats(): Promise<any> {
-    return this.get("/api/v1/stats");
+  async getStats(): Promise<ProtocolStats> {
+    const data = await this.get<{ success?: boolean; data?: ProtocolStats } & ProtocolStats>("/api/v1/stats");
+    return data.data ?? data;
   }
 
   /**
    * Fetch leaderboard.
    * GET /api/v1/leaderboard
    */
-  async getLeaderboard(): Promise<any> {
-    return this.get("/api/v1/leaderboard");
+  async getLeaderboard(): Promise<LeaderboardEntry[]> {
+    const data = await this.get<{ success?: boolean; leaderboard?: LeaderboardEntry[]; data?: LeaderboardEntry[] }>(
+      "/api/v1/leaderboard"
+    );
+    return data.leaderboard ?? data.data ?? [];
   }
 
   // ───── WebSocket Convenience ─────
 
   /**
-   * Connect to WebSocket and subscribe to price feeds for given symbols.
+   * Connect to WebSocket and subscribe to price + trade feeds for given symbols.
+   * Replaces any existing managed socket (the previous one is disconnected first).
    */
   connectAndSubscribe(symbols: string[], onMessage: (msg: WsMessage) => void, onError?: (err: Error) => void) {
+    // Tear down any prior connection to avoid leaking sockets/timers.
+    this.ws.disconnect();
+
     this.ws = new RealyxWs({
-      url: this.ws["url"] ?? this.apiBaseUrl.replace(/^http/, "ws") + "/ws",
+      url: this.wsUrl,
       apiKey: this.apiKey,
       onMessage,
       onError,
@@ -162,7 +229,6 @@ export class RealyxClient {
    */
   getBotAddress(): string | undefined {
     if (this.subaccount) {
-      // Derive from private key — the OrderBuilder's signer is the bot wallet
       return new ethers.Wallet(this.subaccount.botPrivateKey).address;
     }
     return undefined;

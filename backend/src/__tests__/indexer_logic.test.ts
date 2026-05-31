@@ -127,4 +127,46 @@ describe("Indexer Logic Paths", () => {
         const res = await indexer.fetchUserPositions("0x123");
         expect(res).toHaveLength(1);
     });
+
+    it("fetchReferralEarned: returns null when POSTGRES_URL is missing", async () => {
+        delete process.env.POSTGRES_URL;
+        const indexer = await import("../services/indexer.js");
+        expect(await indexer.fetchReferralEarned("0xabc0000000000000000000000000000000000001")).toBeNull();
+    });
+
+    it("fetchReferralEarned: returns null for a non-0x address", async () => {
+        const indexer = await import("../services/indexer.js");
+        expect(await indexer.fetchReferralEarned("not-an-address")).toBeNull();
+    });
+
+    it("fetchReferralEarned: sums indexed rebate rows", async () => {
+        const mPool = {
+            query: jest.fn().mockResolvedValueOnce({ rows: [{ total: "1500000" }] }),
+            on: jest.fn(),
+        };
+        jest.doMock("pg", () => ({
+            __esModule: true,
+            Pool: jest.fn(() => mPool),
+            default: { Pool: jest.fn(() => mPool) }
+        }));
+        const indexer = await import("../services/indexer.js");
+        const res = await indexer.fetchReferralEarned("0xABC0000000000000000000000000000000000001");
+        expect(res).toBe("1500000");
+        // queried with the lower-cased address
+        expect(mPool.query).toHaveBeenCalledWith(expect.any(String), ["0xabc0000000000000000000000000000000000001"]);
+    });
+
+    it("fetchReferralEarned: returns null on query error", async () => {
+        const mPool = {
+            query: jest.fn().mockRejectedValueOnce(new Error("DB Down")),
+            on: jest.fn(),
+        };
+        jest.doMock("pg", () => ({
+            __esModule: true,
+            Pool: jest.fn(() => mPool),
+            default: { Pool: jest.fn(() => mPool) }
+        }));
+        const indexer = await import("../services/indexer.js");
+        expect(await indexer.fetchReferralEarned("0xabc0000000000000000000000000000000000001")).toBeNull();
+    });
 });

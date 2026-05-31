@@ -354,6 +354,8 @@ export interface ReferralStatsNormalized {
     totalEarned: number;
     pendingClaim: number;
     code: string;
+    /** True only when the on-chain referral program is configured and reachable on the backend. */
+    live: boolean;
 }
 
 function pickFiniteNumberFromRecord(obj: Record<string, unknown>, keys: string[]): number {
@@ -380,7 +382,7 @@ function pickNonEmptyString(obj: Record<string, unknown>, keys: string[]): strin
 export function normalizeReferralStats(raw: unknown, walletAddress: string): ReferralStatsNormalized {
     const fallbackCode = referralCodeFromWallet(walletAddress) ?? '';
     if (!raw || typeof raw !== 'object') {
-        return { referees: 0, totalEarned: 0, pendingClaim: 0, code: fallbackCode };
+        return { referees: 0, totalEarned: 0, pendingClaim: 0, code: fallbackCode, live: false };
     }
     const o = raw as Record<string, unknown>;
     const referees = Math.max(
@@ -391,7 +393,11 @@ export function normalizeReferralStats(raw: unknown, walletAddress: string): Ref
     const pendingClaim = Math.max(0, pickFiniteNumberFromRecord(o, ['pendingClaim', 'pending_claim', 'pending', 'claimable', 'claimableAmount', 'pending_amount']));
     const fromApi = pickNonEmptyString(o, ['code', 'referralCode', 'referral_code', 'ref']);
     const code = (fromApi || fallbackCode).toUpperCase();
-    return { referees, totalEarned, pendingClaim, code };
+    // `live` is only true when the backend explicitly reports the on-chain
+    // program is configured. Anything else (offline, missing field) is false so
+    // the UI never implies a working rewards balance that doesn't exist.
+    const live = o.live === true;
+    return { referees, totalEarned, pendingClaim, code, live };
 }
 
 const EMPTY_REFERRAL_STATS: ReferralStatsNormalized = {
@@ -399,6 +405,7 @@ const EMPTY_REFERRAL_STATS: ReferralStatsNormalized = {
     totalEarned: 0,
     pendingClaim: 0,
     code: '',
+    live: false,
 };
 
 const REFERRAL_LIKE_BODY_KEYS = [

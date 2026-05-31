@@ -16,11 +16,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 library WithdrawLib {
     using SafeERC20 for IERC20;
 
-    /// @dev Gas stipend forwarded to externally-controlled accounts on ETH refund.
-    ///      Tuned to comfortably cover Safe / ERC-4337 receive handlers (~30-40k)
-    ///      plus headroom. Larger consumers must withdraw via the dedicated
-    ///      `withdrawWithGas` path (not implemented here on purpose – deliberate cap).
-    uint256 private constant MAX_REFUND_GAS = 50000;
+    uint256 private constant MAX_REFUND_GAS = 200000;
 
     error TransferFailed();
 
@@ -49,5 +45,16 @@ library WithdrawLib {
         if (amount == 0) return;
         balance[sender] = 0;
         usdc.safeTransfer(sender, amount);
+    }
+
+    function withdrawOrderCollateralTokenRefund(
+        mapping(address => mapping(address => uint256)) storage balanceByToken,
+        address sender,
+        address token
+    ) external {
+        uint256 amount = balanceByToken[sender][token];
+        if (amount == 0) return;
+        balanceByToken[sender][token] = 0;
+        IERC20(token).safeTransfer(sender, amount);
     }
 }

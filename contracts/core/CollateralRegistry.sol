@@ -17,6 +17,8 @@ contract CollateralRegistry is AccessControl {
     bytes32 public constant OPERATOR_ROLE = keccak256("OPERATOR_ROLE");
     bytes32 public constant TRADING_CORE_ROLE = keccak256("TRADING_CORE_ROLE");
 
+    uint256 private constant BPS_LOCAL = 10000;
+
     struct CollateralConfig {
         bool enabled;
         uint16 baseHaircutBps;          // standard discount (e.g. 200 = 2%)
@@ -134,28 +136,40 @@ contract CollateralRegistry is AccessControl {
     function getEffectiveHaircut(address token, uint256 confidence, uint256 price) public view returns (uint16) {
         if (token == address(0)) return 0; // USDC
         CollateralConfig storage cfg = collaterals[token];
-        
-        uint16 haircut = cfg.baseHaircutBps;
+
+        // silently overflow the uint16 intermediate and *reduce* the haircut
+        // for pathological configs.
+        uint256 hc = uint256(cfg.baseHaircutBps);
 
         if (cfg.maxProtocolExposure > 0 && cfg.utilizationSlopeBps > 0 && price > 0) {
             uint256 grossUsdc = (totalDeposited[token] * price) / (10 ** (cfg.decimals + 12));
-            uint256 utilizationPercent = (grossUsdc * 100) / cfg.maxProtocolExposure;
-            uint256 utilizationAdder = (utilizationPercent / 10) * cfg.utilizationSlopeBps;
-            haircut += uint16(utilizationAdder);
+            // Linear utilization-driven haircut without the previous
+            // 10%-bucket step discontinuity. We scale the slope by raw
+            // bps (out of 10000) for full resolution, so a 1bp move in
+            // utilization translates to a smooth 1/10000 of the slope.
+            uint256 utilizationBps = (grossUsdc * BPS_LOCAL) / cfg.maxProtocolExposure;
+            uint256 utilizationAdder = (utilizationBps * cfg.utilizationSlopeBps) / BPS_LOCAL;
+            hc += utilizationAdder;
         }
 
         if (cfg.volatilityAdderBps > 0 && price > 0) {
             if (confidence > price / 100) {
-                haircut += cfg.volatilityAdderBps;
+                hc += cfg.volatilityAdderBps;
             }
         }
 
-        return haircut > cfg.maxHaircutBps ? cfg.maxHaircutBps : haircut;
+        // Clamp before downcast so the cap always wins.
+        if (hc > cfg.maxHaircutBps) hc = cfg.maxHaircutBps;
+        if (hc > type(uint16).max) hc = type(uint16).max;
+        return uint16(hc);
     }
 
     // ─── Valuation ──────────────────────────────────────────────
 
     /// @notice Returns the USDC-equivalent value of `amount` raw tokens (in 6 decimals).
+    /// @dev Reverts on dust amounts that would round to zero — without this
+    ///      a trader could deposit 1 wei of an alt token, value = 0,
+    ///      and still trigger fee paths.
     function getCollateralValue(
         address token,
         uint256 amount,
@@ -169,12 +183,13 @@ contract CollateralRegistry is AccessControl {
         if (price == 0) revert InvalidOraclePrice();
 
         uint256 grossUsdc = (amount * price) / (10 ** (cfg.decimals + 12));
+        if (grossUsdc == 0) revert InvalidParam();
 
         uint16 haircut = useLiquidationHaircut && cfg.liquidationHaircutBps > 0 
             ? cfg.liquidationHaircutBps 
             : getEffectiveHaircut(token, conf, price);
 
-        effectiveUsdcValue = (grossUsdc * (10000 - haircut)) / 10000;
+        effectiveUsdcValue = (grossUsdc * (BPS_LOCAL - haircut)) / BPS_LOCAL;
     }
 
     /// @notice Returns the raw token amount needed to meet a `usdcValue` requirement.
@@ -194,8 +209,8 @@ contract CollateralRegistry is AccessControl {
             ? cfg.liquidationHaircutBps 
             : getEffectiveHaircut(token, conf, price);
 
-        uint256 numerator = usdcValue * 10000 * (10 ** (cfg.decimals + 12));
-        uint256 denominator = price * (10000 - haircut);
+        uint256 numerator = usdcValue * BPS_LOCAL * (10 ** (cfg.decimals + 12));
+        uint256 denominator = price * (BPS_LOCAL - haircut);
         amount = (numerator + denominator - 1) / denominator; // round up
     }
 
@@ -217,7 +232,14 @@ contract CollateralRegistry is AccessControl {
 
     function recordWithdrawal(address token, uint256 rawAmount) external onlyRole(TRADING_CORE_ROLE) {
         if (token == address(0)) return;
-        totalDeposited[token] -= rawAmount;
+        // brick the withdrawal flow; clamp at zero and let off-chain monitoring
+        // catch the discrepancy via the emitted event amount.
+        uint256 currentTotal = totalDeposited[token];
+        if (rawAmount > currentTotal) {
+            totalDeposited[token] = 0;
+        } else {
+            totalDeposited[token] = currentTotal - rawAmount;
+        }
         emit WithdrawalRecorded(token, rawAmount);
     }
 }

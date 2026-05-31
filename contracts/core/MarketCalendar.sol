@@ -26,10 +26,23 @@ contract MarketCalendar is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
-    /// @dev `int256(timestamp) + 14h` must remain representable. We bound to
-    ///      `uint64.max` (year 584,554,051,223) which is far past any realistic
-    ///      need and well inside `int256`'s positive range.
-    uint256 private constant MAX_VALID_TIMESTAMP = type(uint64).max;
+    /// @dev Bound to year ~65,000 AD (2_000_000_000_000 seconds since
+    ///      epoch). Far past any realistic deployment lifetime and well
+    ///      inside `int256`'s positive range, while keeping
+    ///      `_timestampToDate` arithmetic comfortably away from overflow.
+    uint256 private constant MAX_VALID_TIMESTAMP = 2_000_000_000_000;
+
+    // ── 48h UUPS upgrade timelock ──
+    uint256 private constant UPGRADE_TIMELOCK = 48 hours;
+    address private _pendingImpl;
+    uint256 private _pendingImplEffective;
+
+    error PendingImplementationMismatch();
+    error UpgradeTimelockActive();
+    error ZeroAddress();
+
+    event ImplementationProposed(address indexed pending, uint256 effective);
+    event ImplementationCancelled(address indexed pending);
 
     struct MarketConfig {
         uint16 openTime;
@@ -51,7 +64,36 @@ contract MarketCalendar is Initializable, AccessControlUpgradeable, UUPSUpgradea
         _grantRole(MANAGER_ROLE, admin);
     }
 
-    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
+        // Enforce 48h staged-implementation timelock to align with the rest
+        // of the protocol. Without this, a single admin key compromise
+        // would allow an immediate implementation swap that could (e.g.)
+        // mark every market as 24x7 to enable trading on stale prices.
+        if (newImplementation != _pendingImpl) revert PendingImplementationMismatch();
+        if (_pendingImplEffective == 0 || block.timestamp < _pendingImplEffective) revert UpgradeTimelockActive();
+        delete _pendingImpl;
+        delete _pendingImplEffective;
+    }
+
+    /// @notice Stage a UUPS upgrade. Effective `UPGRADE_TIMELOCK` later.
+    function proposeImplementation(address newImplementation) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newImplementation == address(0)) revert ZeroAddress();
+        _pendingImpl = newImplementation;
+        _pendingImplEffective = block.timestamp + UPGRADE_TIMELOCK;
+        emit ImplementationProposed(newImplementation, _pendingImplEffective);
+    }
+
+    /// @notice Cancel a pending UUPS upgrade.
+    function cancelPendingImplementation() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        emit ImplementationCancelled(_pendingImpl);
+        delete _pendingImpl;
+        delete _pendingImplEffective;
+    }
+
+    /// @notice Read-only view of any staged UUPS upgrade.
+    function pendingImplementation() external view returns (address pending, uint256 effective) {
+        return (_pendingImpl, _pendingImplEffective);
+    }
 
     function setMarketConfig(
         string memory marketId,
@@ -121,7 +163,12 @@ contract MarketCalendar is Initializable, AccessControlUpgradeable, UUPSUpgradea
 
     function isMarketOpen(string calldata marketId, uint256 timestamp) public view override returns (bool) {
         MarketConfig memory config = marketConfigs[marketId];
-        if (!config.exists) return true;
+        // Unconfigured markets default to CLOSED. Returning true here
+        // previously created a gap during deploy where TradingCore would
+        // accept orders on weekend equity markets because the calendar
+        // hadn't been wired yet. Operators must explicitly call
+        // `setMarketConfig(..., is24x7=true)` for crypto-style markets.
+        if (!config.exists) return false;
         if (config.is24x7) return true;
         // Reject timestamps that would push past int256 after offset.
         if (timestamp > MAX_VALID_TIMESTAMP) revert TimestampOutOfRange();

@@ -52,6 +52,8 @@ router.get("/detailed", async (_req: Request, res: Response) => {
       indexerSet: Boolean(config.postgresUrl),
       rpcSet: Boolean(process.env.RPC_URL?.trim()),
       tradingCoreSet: Boolean((process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE)?.trim()),
+      vaultCoreSet: Boolean((process.env.VAULT_CORE_ADDRESS ?? process.env.DEPLOYED_VAULT_CORE)?.trim()),
+      referralRegistrySet: Boolean((process.env.REFERRAL_REGISTRY_ADDRESS ?? process.env.DEPLOYED_REFERRAL_REGISTRY)?.trim()),
     },
   });
 });

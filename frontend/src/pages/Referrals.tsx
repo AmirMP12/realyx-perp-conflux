@@ -14,6 +14,11 @@ export function ReferralsPage() {
     const { stats, link, loading, error } = useReferralStats();
     const [copied, setCopied] = useState(false);
 
+    // The on-chain referral program is only "live" when the backend can read it
+    // from ReferralRegistry/VaultCore. Until then we keep the shareable link
+    // (wallet-derived) but never imply real rewards balances exist.
+    const programLive = stats.live;
+
     const handleCopy = async () => {
         if (!link) return;
         try {
@@ -99,7 +104,9 @@ export function ReferralsPage() {
                                 </div>
                                 <div className="p-4 bg-[var(--bg-tertiary)]/50 rounded-lg border border-[var(--border-color)] text-center">
                                     <div className="text-text-secondary text-xs uppercase tracking-wider font-bold mb-1">Status</div>
-                                    <div className="text-lg sm:text-2xl font-bold text-emerald-400">Active</div>
+                                    <div className={clsx('text-lg sm:text-2xl font-bold', programLive ? 'text-emerald-400' : 'text-text-muted')}>
+                                        {loading ? <Skeleton className="h-8 w-24 mx-auto" /> : programLive ? 'Active' : 'Coming Soon'}
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -113,19 +120,30 @@ export function ReferralsPage() {
                 </p>
             ) : null}
 
+            {isConnected && !loading && !programLive ? (
+                <div className="max-w-2xl mx-auto">
+                    <div className="p-4 rounded-xl bg-[var(--bg-tertiary)]/50 border border-dashed border-[var(--border-color)] text-center">
+                        <p className="text-sm text-text-secondary leading-relaxed">
+                            On-chain referral rewards are not live on this deployment yet. You can still share your
+                            link now — referral earnings and claims will appear here once the program is enabled.
+                        </p>
+                    </div>
+                </div>
+            ) : null}
+
             {/* Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <StatCard
                     icon={Users}
                     label="Total Referees"
-                    value={String(stats.referees)}
+                    value={programLive ? String(stats.referees) : '—'}
                     sublabel="Active Traders"
                     loading={loading}
                 />
                 <StatCard
                     icon={DollarSign}
                     label="Total Earned"
-                    value={formatCompact(stats.totalEarned)}
+                    value={programLive ? formatCompact(stats.totalEarned) : '—'}
                     sublabel="USDC Commissions"
                     valueColor="text-emerald-400"
                     loading={loading}
@@ -133,7 +151,7 @@ export function ReferralsPage() {
                 <StatCard
                     icon={Gift}
                     label="Pending Claim"
-                    value={formatCompact(stats.pendingClaim)}
+                    value={programLive ? formatCompact(stats.pendingClaim) : '—'}
                     sublabel="Available to Withdraw"
                     loading={loading}
                 />

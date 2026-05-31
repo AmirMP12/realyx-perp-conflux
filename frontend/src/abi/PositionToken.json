@@ -187,12 +187,27 @@
   },
   {
     "inputs": [],
+    "name": "PendingImplementationMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PendingMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "PositionOwnershipUpdateFailed",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "ReentrancyGuardReentrantCall",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TimelockActive",
     "type": "error"
   },
   {
@@ -235,6 +250,11 @@
       }
     ],
     "name": "UUPSUnsupportedProxiableUUID",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UpgradeTimelockActive",
     "type": "error"
   },
   {
@@ -305,9 +325,47 @@
         "internalType": "string",
         "name": "newBaseURI",
         "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "name": "BaseURIProposed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "newBaseURI",
+        "type": "string"
       }
     ],
     "name": "BaseURIUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "pending",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "name": "FeeRecipientProposed",
     "type": "event"
   },
   {
@@ -327,6 +385,38 @@
       }
     ],
     "name": "FeeRecipientUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "pending",
+        "type": "address"
+      }
+    ],
+    "name": "ImplementationCancelled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "pending",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "name": "ImplementationProposed",
     "type": "event"
   },
   {
@@ -704,6 +794,13 @@
   },
   {
     "inputs": [],
+    "name": "cancelPendingImplementation",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "feeRecipient",
     "outputs": [
       {
@@ -984,6 +1081,24 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "pendingImplementation",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "pending",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -1000,6 +1115,45 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "newBaseURI",
+        "type": "string"
+      }
+    ],
+    "name": "proposeBaseURI",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "recipient",
+        "type": "address"
+      }
+    ],
+    "name": "proposeFeeRecipient",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newImplementation",
+        "type": "address"
+      }
+    ],
+    "name": "proposeImplementation",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

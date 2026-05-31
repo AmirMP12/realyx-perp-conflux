@@ -1,1 +1,27 @@
-[]
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "netBadDebt",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "totalAssets",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "ratioBps",
+        "type": "uint256"
+      }
+    ],
+    "name": "BadDebtSoftThresholdCrossed",
+    "type": "event"
+  }
+]

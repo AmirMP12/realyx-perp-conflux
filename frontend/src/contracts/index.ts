@@ -3,6 +3,9 @@ import TradingCoreAbi from "../abi/TradingCore.json";
 import VaultCoreAbi from "../abi/VaultCore.json";
 import OracleAggregatorAbi from "../abi/OracleAggregator.json";
 import IPositionTokenAbi from "../abi/IPositionToken.json";
+import CollateralRegistryAbi from "../abi/CollateralRegistry.json";
+import CopyRegistryAbi from "../abi/CopyRegistry.json";
+import ReferralRegistryAbi from "../abi/ReferralRegistry.json";
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 
@@ -15,6 +18,9 @@ export const TRADING_CORE_ADDRESS = envAddress(import.meta.env.VITE_TRADING_CORE
 export const VAULT_CORE_ADDRESS = envAddress(import.meta.env.VITE_VAULT_CORE_ADDRESS);
 export const ORACLE_AGGREGATOR_ADDRESS = envAddress(import.meta.env.VITE_ORACLE_AGGREGATOR_ADDRESS);
 export const POSITION_TOKEN_ADDRESS = envAddress(import.meta.env.VITE_POSITION_TOKEN_ADDRESS);
+export const COLLATERAL_REGISTRY_ADDRESS = envAddress(import.meta.env.VITE_COLLATERAL_REGISTRY_ADDRESS);
+export const COPY_REGISTRY_ADDRESS = envAddress(import.meta.env.VITE_COPY_REGISTRY_ADDRESS);
+export const REFERRAL_REGISTRY_ADDRESS = envAddress(import.meta.env.VITE_REFERRAL_REGISTRY_ADDRESS);
 /** Dev fallback = deployment/confluxTestnet.json `contracts.usdc` when using mock USDC. */
 export const MOCK_USDC_ADDRESS = envAddress(
     import.meta.env.VITE_MOCK_USDC_ADDRESS,
@@ -26,10 +32,16 @@ export const VAULT_ABI = VaultCoreAbi as any;
 export const ORACLE_ABI = OracleAggregatorAbi as any;
 /** Full ABI for position NFT transfers (`safeTransferFrom`, etc.). */
 export const POSITION_TOKEN_ABI = IPositionTokenAbi as any;
+export const COLLATERAL_REGISTRY_ABI = CollateralRegistryAbi as any;
+export const COPY_REGISTRY_ABI = CopyRegistryAbi as any;
+export const REFERRAL_REGISTRY_ABI = ReferralRegistryAbi as any;
 
 export const getContractAddresses = () => ({
     tradingCore: TRADING_CORE_ADDRESS,
     vaultCore: VAULT_CORE_ADDRESS,
     oracleAggregator: ORACLE_AGGREGATOR_ADDRESS,
     positionToken: POSITION_TOKEN_ADDRESS,
+    collateralRegistry: COLLATERAL_REGISTRY_ADDRESS,
+    copyRegistry: COPY_REGISTRY_ADDRESS,
+    referralRegistry: REFERRAL_REGISTRY_ADDRESS,
 });

@@ -24,6 +24,9 @@ contract DividendManager is Initializable, AccessControlUpgradeable, UUPSUpgrade
     ///      Distribute on the canonical 1e18-scaled unit-of-USDC-per-1e18-of-notional
     ///      and reject anything that would silently round down to ~zero.
     error DividendTooSmall();
+    /// @dev 48h UUPS upgrade timelock errors.
+    error PendingImplementationMismatch();
+    error UpgradeTimelockActive();
 
     uint256 private constant PRECISION = 1e18;
     /// @notice Minimum `amountPerShare` accepted by `distributeDividend`. With
@@ -38,6 +41,14 @@ contract DividendManager is Initializable, AccessControlUpgradeable, UUPSUpgrade
     uint256 public constant MAX_DIVIDEND_PER_SHARE = 1000e18;
     address public tradingCore;
 
+    // ── 48h UUPS upgrade timelock ──
+    uint256 private constant UPGRADE_TIMELOCK = 48 hours;
+    address private _pendingImpl;
+    uint256 private _pendingImplEffective;
+
+    event ImplementationProposed(address indexed pending, uint256 effective);
+    event ImplementationCancelled(address indexed pending);
+
     function initialize(address admin) public initializer {
         __AccessControl_init();
         __UUPSUpgradeable_init();
@@ -46,7 +57,35 @@ contract DividendManager is Initializable, AccessControlUpgradeable, UUPSUpgrade
         _grantRole(MANAGER_ROLE, admin);
     }
 
-    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
+        // 48h staged-implementation timelock. Without this, an admin
+        // compromise could swap in a malicious DividendManager that
+        // distributes catastrophic dividend amounts and drains shorts.
+        if (newImplementation != _pendingImpl) revert PendingImplementationMismatch();
+        if (_pendingImplEffective == 0 || block.timestamp < _pendingImplEffective) revert UpgradeTimelockActive();
+        delete _pendingImpl;
+        delete _pendingImplEffective;
+    }
+
+    /// @notice Stage a UUPS upgrade. Effective `UPGRADE_TIMELOCK` later.
+    function proposeImplementation(address newImplementation) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newImplementation == address(0)) revert ZeroAddress();
+        _pendingImpl = newImplementation;
+        _pendingImplEffective = block.timestamp + UPGRADE_TIMELOCK;
+        emit ImplementationProposed(newImplementation, _pendingImplEffective);
+    }
+
+    /// @notice Cancel a pending UUPS upgrade.
+    function cancelPendingImplementation() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        emit ImplementationCancelled(_pendingImpl);
+        delete _pendingImpl;
+        delete _pendingImplEffective;
+    }
+
+    /// @notice Read-only view of any staged UUPS upgrade.
+    function pendingImplementation() external view returns (address pending, uint256 effective) {
+        return (_pendingImpl, _pendingImplEffective);
+    }
 
     function setTradingCore(address _tradingCore) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (address(_tradingCore) == address(0)) revert ZeroAddress();

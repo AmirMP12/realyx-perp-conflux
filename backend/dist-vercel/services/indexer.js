@@ -71,10 +71,7 @@ const PROTOCOL_VOLUME_24H_SQL = `
   LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
   WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
     AND c.data IS NOT NULL
-    AND (
-      c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint
-      OR (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '5 minutes')
-    )
+    AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '24 hours'))
 `;
 export async function fetchProtocol() {
     if (!process.env.POSTGRES_URL) {
@@ -213,10 +210,7 @@ export async function fetchMarkets() {
           LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
           WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
             AND c.data IS NOT NULL
-            AND (
-              c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '25 hours'))::bigint
-              OR (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '5 minutes')
-            )
+            AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '24 hours'))
           GROUP BY 1
         `);
                 statsRes.rows.forEach((row) => {
@@ -461,9 +455,9 @@ export async function fetchUserTrades(traderAddress, limit) {
 }
 export function leaderboardTimeFilter(timeframe, tableAlias) {
     if (timeframe === "24h")
-        return `AND ${tableAlias}.created_at >= NOW() - INTERVAL '24 hours'`;
+        return `AND ${tableAlias}.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '24 hours'))`;
     if (timeframe === "7d")
-        return `AND ${tableAlias}.created_at >= NOW() - INTERVAL '7 days'`;
+        return `AND ${tableAlias}.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '7 days'))`;
     return "";
 }
 /**
@@ -566,6 +560,91 @@ export async function fetchLeaderboard(limit, timeframe = "all") {
         return [];
     }
 }
+export async function insertKeeperFailure(failure) {
+    if (!process.env.POSTGRES_URL) {
+        console.warn('[indexer] No POSTGRES_URL — keeper failure not persisted:', failure);
+        return null;
+    }
+    try {
+        const pool = getPool();
+        if (!pool)
+            return null;
+        const res = await pool.query(`INSERT INTO keeper_failures (order_id, trader_address, market_address, failure_reason, selector)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, order_id, trader_address, market_address, failure_reason, selector, created_at`, [failure.orderId, failure.traderAddress, failure.marketAddress, failure.failureReason, failure.selector]);
+        const row = res.rows[0];
+        return {
+            id: String(row.id),
+            orderId: String(row.order_id),
+            traderAddress: row.trader_address,
+            marketAddress: row.market_address,
+            failureReason: row.failure_reason,
+            selector: row.selector || '',
+            timestamp: String(Math.floor(new Date(row.created_at).getTime() / 1000)),
+        };
+    }
+    catch (e) {
+        console.error('[indexer] insertKeeperFailure error:', e);
+        return null;
+    }
+}
+export async function fetchKeeperFailures(traderAddress, limit = 20) {
+    if (!process.env.POSTGRES_URL)
+        return [];
+    try {
+        const pool = getPool();
+        if (!pool)
+            return [];
+        const res = await pool.query(`SELECT id, order_id, trader_address, market_address, failure_reason, selector, created_at
+       FROM keeper_failures
+       WHERE lower(trader_address) = $1
+       ORDER BY created_at DESC
+       LIMIT $2`, [traderAddress.toLowerCase(), Math.min(limit, 100)]);
+        return res.rows.map((row) => ({
+            id: String(row.id),
+            orderId: String(row.order_id),
+            traderAddress: row.trader_address,
+            marketAddress: row.market_address,
+            failureReason: row.failure_reason,
+            selector: row.selector || '',
+            timestamp: String(Math.floor(new Date(row.created_at).getTime() / 1000)),
+        }));
+    }
+    catch (e) {
+        console.error('[indexer] fetchKeeperFailures error:', e);
+        return [];
+    }
+}
+export async function fetchFundingPayments(traderAddress, limit = 20) {
+    if (!process.env.POSTGRES_URL)
+        return [];
+    try {
+        const pool = getPool();
+        if (!pool)
+            return [];
+        const res = await pool.query(`SELECT (data::jsonb->>0)::text AS position_id,
+              (data::jsonb->>1)::numeric AS amount,
+              account AS trader_address,
+              market_id AS market_address,
+              EXTRACT(EPOCH FROM created_at)::bigint AS ts
+       FROM position_events
+       WHERE event_type = 'FundingPaid'
+         AND lower(account) = $1
+       ORDER BY created_at DESC
+       LIMIT $2`, [traderAddress.toLowerCase(), Math.min(limit, 100)]);
+        return res.rows.map((row) => ({
+            positionId: String(row.position_id),
+            amount: String(row.amount || '0'),
+            traderAddress: row.trader_address,
+            marketAddress: String(row.market_address || ''),
+            timestamp: String(row.ts),
+        }));
+    }
+    catch (e) {
+        console.error('[indexer] fetchFundingPayments error:', e);
+        return [];
+    }
+}
 export async function fetchBadDebtClaims(_limit) {
     return [];
 }
@@ -576,7 +655,13 @@ export async function fetchProtocolMetrics(limit, periodType = "day") {
         const pool = getPool();
         if (!pool)
             return [];
-        const trunc = periodType === "day" ? "day" : "hour";
+        // Whitelist the period unit and coerce the limit to a bounded integer so
+        // neither value can be used to inject SQL via the INTERVAL / date_trunc
+        // expressions (they cannot be passed as bound parameters).
+        const unit = periodType === "hour" ? "hour" : "day";
+        const trunc = unit;
+        const safeLimit = Math.min(Math.max(Math.trunc(Number(limit) || 0), 1), 1000);
+        const intervalLiteral = `${safeLimit} ${unit}s`;
         const res = await pool.query(`
       WITH opened_sizes AS (
         SELECT DISTINCT ON ((data::jsonb->>0)::text)
@@ -605,7 +690,7 @@ export async function fetchProtocolMetrics(limit, periodType = "day") {
         FROM position_events c
         LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
         WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
-          AND c.created_at >= NOW() - INTERVAL '${limit} ${periodType}s'
+          AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '${intervalLiteral}'))
       )
       SELECT 
         ts::text as timestamp_text,
@@ -617,11 +702,11 @@ export async function fetchProtocolMetrics(limit, periodType = "day") {
       GROUP BY ts
       ORDER BY ts DESC
       LIMIT $1
-    `, [limit]);
+    `, [safeLimit]);
         return res.rows.map((row) => ({
             id: row.timestamp_text,
             period: "daily",
-            periodType,
+            periodType: unit,
             volumeUsd: row.volume_usd_raw,
             tradesCount: String(row.trades_count),
             feesUsd: row.fees_usd_raw,

@@ -10,6 +10,7 @@ import { fetchPythPrices } from "./services/pyth.js";
 import { fetchMarkets, fetchProtocol } from "./services/indexer.js";
 import { getActiveMarketAddresses } from "./services/activeMarkets.js";
 import { toDecimal } from "./utils/format.js";
+import { setWsConnections } from "./middleware/metrics.js";
 
 const POLL_MS = process.env.NODE_ENV === "test" ? 500 : 15_000; // fast polling for tests
 const isTestEnv = process.env.NODE_ENV === "test";
@@ -78,6 +79,7 @@ export function startWsServer() {
 
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
     clients.add(ws);
+    setWsConnections(clients.size);
     (ws as any).isAlive = true;
     ws.on("pong", () => { (ws as any).isAlive = true; });
 
@@ -105,6 +107,7 @@ export function startWsServer() {
     });
     ws.on("close", () => {
       clients.delete(ws);
+      setWsConnections(clients.size);
       // Clean up user-specific tracking
       const traderAddr = (ws as any).traderAddress as string | undefined;
       if (traderAddr) {

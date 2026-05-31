@@ -12,6 +12,13 @@ import "../interfaces/IVaultCore.sol";
  */
 library HealthLib {
     uint256 private constant BPS = 10000;
+    /// @dev Soft warning threshold (half of the hard
+    ///      `MAX_BAD_DEBT_RATIO_BPS = 500`). Crossing this threshold is
+    ///      not yet a halt condition but flags risk for monitoring.
+    uint256 private constant SOFT_BAD_DEBT_RATIO_BPS = 250;
+
+    /// @notice Emitted when net bad debt crosses the soft warning threshold.
+    event BadDebtSoftThresholdCrossed(uint256 netBadDebt, uint256 totalAssets, uint256 ratioBps);
 
     /// @notice Update health using vault TVL only (legacy path, used when insurance is unknown).
     function updateProtocolHealth(uint256 totalAssets, DataTypes.ProtocolHealthState storage ph) external {
@@ -20,6 +27,12 @@ library HealthLib {
             ? net <= (totalAssets * DataTypes.MAX_BAD_DEBT_RATIO_BPS) / BPS
             : true;
         ph.lastHealthCheck = uint64(block.timestamp);
+        if (totalAssets > 0) {
+            uint256 ratio = (net * BPS) / totalAssets;
+            if (ratio >= SOFT_BAD_DEBT_RATIO_BPS && ratio < DataTypes.MAX_BAD_DEBT_RATIO_BPS) {
+                emit BadDebtSoftThresholdCrossed(net, totalAssets, ratio);
+            }
+        }
     }
 
     /// @notice Update health netting insurance assets against the gross bad debt counter .
@@ -36,5 +49,11 @@ library HealthLib {
             ? net <= (totalAssets * DataTypes.MAX_BAD_DEBT_RATIO_BPS) / BPS
             : true;
         ph.lastHealthCheck = uint64(block.timestamp);
+        if (totalAssets > 0) {
+            uint256 ratio = (net * BPS) / totalAssets;
+            if (ratio >= SOFT_BAD_DEBT_RATIO_BPS && ratio < DataTypes.MAX_BAD_DEBT_RATIO_BPS) {
+                emit BadDebtSoftThresholdCrossed(net, totalAssets, ratio);
+            }
+        }
     }
 }

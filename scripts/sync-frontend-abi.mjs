@@ -5,7 +5,15 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const CORE = ["TradingCore", "VaultCore", "OracleAggregator"];
+const CORE = [
+    "TradingCore",
+    "VaultCore",
+    "OracleAggregator",
+    "IPositionToken",
+    "CollateralRegistry",
+    "CopyRegistry",
+    "ReferralRegistry",
+];
 
 const backendAbiDir = path.join(__dirname, "..", "backend", "src", "abi");
 const frontendAbiDir = path.join(__dirname, "..", "frontend", "src", "abi");

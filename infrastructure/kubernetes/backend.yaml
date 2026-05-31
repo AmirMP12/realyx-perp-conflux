@@ -17,10 +17,18 @@ spec:
       annotations:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: backend
           image: realyx/backend:latest
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3001
               name: http
@@ -34,6 +42,15 @@ spec:
             - secretRef:
                 name: backend-secrets
                 optional: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               memory: "256Mi"
@@ -41,18 +58,39 @@ spec:
             limits:
               memory: "512Mi"
               cpu: "500m"
+          # Startup probe gives the process time to come up before liveness
+          # begins, preventing premature restarts on a slow cold start.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            failureThreshold: 30
+            periodSeconds: 2
           livenessProbe:
             httpGet:
               path: /health
               port: 3001
-            initialDelaySeconds: 30
+            initialDelaySeconds: 0
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /health
               port: 3001
             initialDelaySeconds: 5
             periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # Allow in-flight requests to drain before SIGTERM-driven shutdown.
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: tmp
+          emptyDir: {}
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -68,6 +106,8 @@ kind: Service
 metadata:
   name: backend
   namespace: realyx
+  labels:
+    app: backend
 spec:
   selector:
     app: backend
@@ -78,7 +118,22 @@ spec:
     - name: websocket
       port: 3002
       targetPort: 3002
+    # Metrics intentionally NOT exposed via Ingress; scraped in-cluster only.
+    - name: metrics
+      port: 9090
+      targetPort: 9090
   type: ClusterIP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend-pdb
+  namespace: realyx
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: backend
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -105,3 +160,20 @@ spec:
         target:
           type: Utilization
           averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 4
+          periodSeconds: 30
+      selectPolicy: Max

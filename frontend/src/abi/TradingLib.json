@@ -16,6 +16,11 @@
   },
   {
     "inputs": [],
+    "name": "EthRefundFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ExceedsMaxLeverage",
     "type": "error"
   },
@@ -81,7 +86,17 @@
   },
   {
     "inputs": [],
+    "name": "LeverageOverflow",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "LiquidationPriceDeviation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MarketHoursClosed",
     "type": "error"
   },
   {
@@ -116,12 +131,27 @@
   },
   {
     "inputs": [],
+    "name": "OrderUnfillableCancel",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "PositionNotFound",
     "type": "error"
   },
   {
     "inputs": [],
     "name": "PositionNotLiquidatable",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PositionTooSmall",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RateLimitExceededOpen",
     "type": "error"
   },
   {
@@ -148,6 +178,11 @@
   {
     "inputs": [],
     "name": "SlippageExceeded",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TWAPIntervalNotMet",
     "type": "error"
   },
   {

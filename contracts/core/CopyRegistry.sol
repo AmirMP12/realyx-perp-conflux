@@ -27,6 +27,8 @@ contract CopyRegistry is
     /// @notice Maximum profit fee a lead trader can charge (20% = 2000 bps).
     uint256 public constant MAX_PROFIT_FEE_BPS = 2000;
 
+    uint256 public constant MAX_DEREG_BATCH = 50;
+
     /// @notice incrementing counter for lead trader IDs.
     uint256 public nextLeadTraderId;
 
@@ -43,8 +45,22 @@ contract CopyRegistry is
     /// @notice leadTraderId => array of copier addresses (for off-chain enumeration)
     mapping(uint256 => address[]) private _copiersOfLeadTrader;
 
+    /// @notice leadTraderId => true once `deregisterAsLeadTrader` has been
+    ///         invoked. Blocks new `followTrader` calls during the drain
+    ///         so the loop cannot run forever as new copiers are appended.
+    mapping(uint256 => bool) private _leadTraderDraining;
+
     /// @notice Reserve gap for future storage variables.
-    uint256[45] private __gap;
+    uint256[41] private __gap;
+
+    // ── 48h UUPS upgrade timelock ──
+    uint256 private constant UPGRADE_TIMELOCK = 48 hours;
+    address private _pendingImpl;
+    uint256 private _pendingImplEffective;
+
+    error PendingImplementationMismatch();
+    error UpgradeTimelockActive();
+    error ZeroAddress();
 
     // ──────── Events ────────
 
@@ -104,7 +120,38 @@ contract CopyRegistry is
 
     function _authorizeUpgrade(
         address newImplementation
-    ) internal override onlyOwner {}
+    ) internal override onlyOwner {
+        // 48h staged-implementation timelock to align with the rest of the
+        // protocol. Without this, a compromised owner key could swap in a
+        // malicious CopyRegistry that re-routes copy-trading flows.
+        if (newImplementation != _pendingImpl) revert PendingImplementationMismatch();
+        if (_pendingImplEffective == 0 || block.timestamp < _pendingImplEffective) revert UpgradeTimelockActive();
+        delete _pendingImpl;
+        delete _pendingImplEffective;
+    }
+
+    event ImplementationProposed(address indexed pending, uint256 effective);
+    event ImplementationCancelled(address indexed pending);
+
+    /// @notice Stage a UUPS upgrade. Effective `UPGRADE_TIMELOCK` later.
+    function proposeImplementation(address newImplementation) external onlyOwner {
+        if (newImplementation == address(0)) revert ZeroAddress();
+        _pendingImpl = newImplementation;
+        _pendingImplEffective = block.timestamp + UPGRADE_TIMELOCK;
+        emit ImplementationProposed(newImplementation, _pendingImplEffective);
+    }
+
+    /// @notice Cancel a pending UUPS upgrade.
+    function cancelPendingImplementation() external onlyOwner {
+        emit ImplementationCancelled(_pendingImpl);
+        delete _pendingImpl;
+        delete _pendingImplEffective;
+    }
+
+    /// @notice Read-only view of any staged UUPS upgrade.
+    function pendingImplementation() external view returns (address pending, uint256 effective) {
+        return (_pendingImpl, _pendingImplEffective);
+    }
 
     // ──────── Lead Trader Registration ────────
 
@@ -152,22 +199,66 @@ contract CopyRegistry is
         emit LeadTraderUpdated(traderId, profitFeeBps, metadataURI);
     }
 
-    /// @inheritdoc ICopyRegistry
     function deregisterAsLeadTrader() external override {
         uint256 traderId = addressToLeadTraderId[msg.sender];
         if (traderId == 0) revert NotRegistered();
 
-        // Remove all active followers (they keep their existing open positions
-        // but new mirrors stop)
-        address[] memory copiers = _copiersOfLeadTrader[traderId];
-        for (uint256 i = 0; i < copiers.length; i++) {
-            address copier = copiers[i];
-            delete copyRelationships[copier][msg.sender];
-            emit UnfollowedTrader(copier, msg.sender);
+        // Latch the draining flag so new `followTrader` calls cannot
+        // grow the copier list while we drain. Otherwise a malicious or
+        // accidental `followTrader` mid-drain would force the lead
+        // trader to call `deregisterChunk` indefinitely.
+        _leadTraderDraining[traderId] = true;
+
+        // Drain followers in chunks to avoid unbounded gas. Single-call path
+        // is preserved for small follower sets.
+        _deregisterChunk(msg.sender, traderId, MAX_DEREG_BATCH);
+
+        // Only fully delete the lead-trader record once all copiers have been
+        // unfollowed. Otherwise the caller must re-invoke `deregisterChunk`.
+        if (_copiersOfLeadTrader[traderId].length == 0) {
+            delete _copiersOfLeadTrader[traderId];
+            delete addressToLeadTraderId[msg.sender];
+            delete _leadTraders[traderId];
+            delete _leadTraderDraining[traderId];
         }
-        delete _copiersOfLeadTrader[traderId];
-        delete addressToLeadTraderId[msg.sender];
-        delete _leadTraders[traderId];
+    }
+
+    function deregisterChunk(uint256 maxIterations) external {
+        uint256 traderId = addressToLeadTraderId[msg.sender];
+        if (traderId == 0) revert NotRegistered();
+        // Idempotent: ensure the latch stays on across chunks.
+        _leadTraderDraining[traderId] = true;
+        _deregisterChunk(msg.sender, traderId, maxIterations);
+        if (_copiersOfLeadTrader[traderId].length == 0) {
+            delete _copiersOfLeadTrader[traderId];
+            delete addressToLeadTraderId[msg.sender];
+            delete _leadTraders[traderId];
+            delete _leadTraderDraining[traderId];
+        }
+    }
+
+    function _deregisterChunk(address leadTrader, uint256 traderId, uint256 maxIterations) private {
+        address[] storage copiers = _copiersOfLeadTrader[traderId];
+        uint256 len = copiers.length;
+        uint256 toClear = maxIterations < len ? maxIterations : len;
+        for (uint256 i = 0; i < toClear; ) {
+            // Pop from the back to keep O(1) per element.
+            address copier = copiers[copiers.length - 1];
+            delete copyRelationships[copier][leadTrader];
+            copiers.pop();
+            // Decrement activeFollowers in lock-step. Without this, the
+            // counter desyncs across chunked drains and stays at the
+            // pre-drain value forever.
+            if (_leadTraders[traderId].activeFollowers > 0) {
+                _leadTraders[traderId].activeFollowers = uint32(
+                    _leadTraders[traderId].activeFollowers - 1
+                );
+            }
+            emit UnfollowedTrader(copier, leadTrader);
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     // ──────── Copier Following ────────
@@ -186,6 +277,11 @@ contract CopyRegistry is
             revert InvalidMaxLeverage();
 
         uint256 traderId = addressToLeadTraderId[leadTrader];
+        // Refuse to follow a lead trader that is currently being
+        // deregistered. Without this gate, the `_deregisterChunk` loop
+        // can never finish if new copiers keep appending.
+        if (_leadTraderDraining[traderId]) revert NotRegistered();
+
         copyRelationships[msg.sender][leadTrader] = CopyRelationship({
             isActive: true,
             maxAllocation: maxAllocation,

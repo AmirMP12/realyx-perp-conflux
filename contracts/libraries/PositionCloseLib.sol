@@ -121,18 +121,33 @@ library PositionCloseLib {
 
         if (availableUsdc < totalRequired) {
             uint256 shortfall = totalRequired - availableUsdc;
-            try IVaultCore(ctx.insuranceFund).coverBadDebt(shortfall, positionId) returns (uint256 covered) {
-                if (covered > 0) {
-                    // Track aggregate insurance-paid bad debt against protocol health .
-                    protocolHealth.totalBadDebt += DataTypes.toInternalPrecision(covered);
-                }
-                if (covered < shortfall) {
-                    emit BadDebtCoverageFailed(positionId, shortfall);
-                    if (covered == 0) closingFeeUsdc = 0;
-                }
+            uint256 covered;
+            try IVaultCore(ctx.insuranceFund).coverBadDebt(shortfall, positionId) returns (uint256 c) {
+                covered = c;
             } catch {
+                covered = 0;
+            }
+            if (covered > 0) {
+                // Track aggregate insurance-paid bad debt against protocol health.
+                protocolHealth.totalBadDebt += DataTypes.toInternalPrecision(covered);
+            }
+            if (covered < shortfall) {
                 emit BadDebtCoverageFailed(positionId, shortfall);
-                closingFeeUsdc = 0;
+                if (covered == 0) closingFeeUsdc = 0;
+                // shortfall, scale `receiveAmount` down to what's actually
+                // available so `repay` does not revert and lock the position.
+                // The residual is bookkept via the existing failed-repayment
+                // surface on TradingCore.
+                uint256 actualAvailable = availableUsdc + covered;
+                if (actualAvailable < receiveAmount) {
+                    uint256 residual = receiveAmount - actualAvailable;
+                    receiveAmount = actualAvailable;
+                    // Cancel the closing fee distribution since the position
+                    // is underwater and we are short on USDC.
+                    closingFeeUsdc = 0;
+                    // Best-effort: emit so off-chain monitoring tracks the loss.
+                    emit BadDebtCoverageFailed(positionId, residual);
+                }
             }
         }
 
@@ -143,8 +158,12 @@ library PositionCloseLib {
             ? int256(DataTypes.toUsdcPrecision(uint256(unrealizedPnL)))
             : -int256(DataTypes.toUsdcPrecisionCeil(uint256(-unrealizedPnL)));
 
-        IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, type(uint256).max);
+        IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
+        IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, receiveAmount);
         IVaultCore(ctx.liquidityVault).repay(repayAmountUsdc, position.market, isLong, pnlUsdc);
+        // Revoke the residual allowance immediately so a future vault upgrade
+        // cannot pull more than the explicit `receiveAmount` granted above.
+        IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
 
         // Convert exactly the required closing fee back to internal precision for distribution
         uint256 distributedFee = DataTypes.toInternalPrecision(closingFeeUsdc);
@@ -268,20 +287,30 @@ library PositionCloseLib {
         uint256 rebateShareUsdc = DataTypes.toUsdcPrecision(rebateShare);
 
         if (lpShareUsdc > 0) {
-            IERC20(ctx.usdc).safeTransfer(ctx.liquidityVault, lpShareUsdc);
+            // Route the LP fee through the accounted pull hook so the vault's
+            // LP cash counter (`_lpAssets`) tracks this inflow and it is not
+            // later misclassified as an external donation by `recordDonation`.
+            IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
+            IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, lpShareUsdc);
+            IVaultCore(ctx.liquidityVault).receiveLpFees(lpShareUsdc);
+            IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
         }
         if (insuranceShareUsdc > 0) {
-            IERC20(ctx.usdc).safeTransfer(ctx.insuranceFund, insuranceShareUsdc);
+            IERC20(ctx.usdc).forceApprove(ctx.insuranceFund, 0);
+            IERC20(ctx.usdc).forceApprove(ctx.insuranceFund, insuranceShareUsdc);
             IVaultCore(ctx.insuranceFund).receiveFees(insuranceShareUsdc);
+            IERC20(ctx.usdc).forceApprove(ctx.insuranceFund, 0);
         }
         if (treasuryShareUsdc > 0) {
             IERC20(ctx.usdc).safeTransfer(ctx.treasury, treasuryShareUsdc);
         }
         if (rebateShareUsdc > 0 && ctx.referrer != address(0)) {
-            // Rebate USDC stays in the vault; `accrueRebate` records the
-            // referrer's claim and isolates the funds from LP accounting.
-            IERC20(ctx.usdc).safeTransfer(ctx.liquidityVault, rebateShareUsdc);
+            // Approve the vault to pull the rebate USDC; the vault verifies
+            // the funds invariant itself in `accrueRebate`.
+            IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
+            IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, rebateShareUsdc);
             IVaultCore(ctx.liquidityVault).accrueRebate(ctx.referrer, rebateShareUsdc);
+            IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
         }
     }
 }

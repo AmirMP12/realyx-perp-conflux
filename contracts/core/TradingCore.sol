@@ -60,6 +60,13 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     error RWATimelockActive();
     /// @dev Configuration bound checks.
     error InvalidParam();
+    /// @dev Alt-collateral lifecycle (open/close/liquidate fee accounting) is
+    ///      not currently safe to enable. Trades MUST use the canonical USDC
+    ///      collateral path until the alt-collateral fee + repay flow is
+    ///      redesigned end-to-end. This guard is checked at every entry that
+    ///      accepts a `collateralToken` argument to prevent partially-initialized
+    ///      alt positions from being created and then becoming unclosable.
+    error AltCollateralDisabled();
     error PortfolioRiskViolation();
     /// @dev Advanced order-type errors.
     error PostOnlyNotAllowedForMarket();
@@ -67,6 +74,12 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     error ReduceOnlyRequiresPosition();
     error InvalidVisibleSize();
     error IocFokNotFilled();
+    /// @dev IOC/FOK time-in-force directives are accepted by the struct for
+    ///      forward-compatibility but the keeper executor does not yet
+    ///      implement immediate-or-cancel / fill-or-kill semantics. Reject at
+    ///      creation so callers are never misled into believing an IOC/FOK
+    ///      order will not rest on the book (it would otherwise behave as GTC).
+    error UnsupportedTimeInForce();
     error InvalidOraclePrice();
     error SubaccountNotApproved();
 
@@ -128,6 +141,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     mapping(address => uint256) private _keeperFeeBalance;
     mapping(address => uint256) private _orderRefundBalance;
     mapping(address => uint256) private _orderCollateralRefundBalance;
+    mapping(address => mapping(address => uint256)) private _orderCollateralTokenRefundBalance;
 
     IMarketCalendar public marketCalendar;
     IDividendManager public dividendManager;
@@ -176,15 +190,37 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     ///      base-tier fees with no referrer rebate. Hot-path lookups are O(1).
     address public referralRegistry;
 
-    uint256[14] private __gap;
+    // ─── Storage extensions (appended to preserve layout) ───
+    /// @dev Latches `true` after the first successful first-time RWA wire-up
+    ///      so subsequent rotations always go through the 48h timelock, even
+    ///      if a future upgrade clears all three pointers.
+    bool private _rwaContractsInitialized;
+    /// @dev Staged referral registry rotation under 48h timelock.
+    address private _pendingReferralRegistry;
+    uint256 private _pendingReferralRegistryEffective;
+
+    /// @dev Tracks the actual payer of the keeper execution fee per order.
+    ///      For subaccount-delegated orders the bot funds the fee but the
+    ///      order is owned by `effectiveOwner`; on cancel the ETH refund
+    ///      must go to the bot, not the owner.
+    mapping(uint256 => address) private _orderExecutionFeePayer;
+
+    uint256[9] private __gap;
 
     modifier noFlashLoan() {
+        // Key the per-sender same-block lock and interaction-delay on the
+        // ERC-2771-resolved signer, not the raw `msg.sender`. Otherwise every
+        // user routed through one trusted forwarder shares a single per-block
+        // lock, capping all meta-tx users to one action per block (a DoS).
+        // Untrusted callers resolve to `msg.sender` unchanged, preserving the
+        // same-block flash-loan defence.
+        address flActor = _trustedSender();
         (_lastGlobalInteractionBlock, _globalBlockInteractions) = FlashLoanCheck.validateFlashLoan(
-            msg.sender,
+            flActor,
             tx.origin,
             block.number,
             block.timestamp,
-            hasRole(OPERATOR_ROLE, msg.sender),
+            hasRole(OPERATOR_ROLE, flActor),
             maxActionsPerBlock,
             minInteractionDelay,
             _lastInteractionBlock,
@@ -244,10 +280,30 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     modifier checkCompliance(address market) {
+        // ERC-2771 forwarder support: when the call comes through a
+        // trusted forwarder, the last 20 bytes of calldata are the
+        // original signer. The compliance check MUST be against that
+        // signer, not the forwarder. Untrusted forwarders fall through
+        // to `msg.sender` (the default).
+        address user = _trustedSender();
         if (address(complianceManager) != address(0)) {
-            if (!complianceManager.isAllowed(msg.sender, market, bytes(""))) revert ComplianceCheckFailed();
+            if (!complianceManager.isAllowed(user, market, bytes(""))) revert ComplianceCheckFailed();
         }
         _;
+    }
+
+    /// @dev ERC-2771-aware sender resolution. When the caller is a
+    ///      trusted forwarder we extract the original signer from the last
+    ///      20 bytes of calldata; otherwise we return `msg.sender`. Used
+    ///      by compliance and any other identity-sensitive gate.
+    function _trustedSender() internal view returns (address sender) {
+        if (msg.data.length >= 20 && trustedForwarders[msg.sender]) {
+            assembly {
+                sender := shr(96, calldataload(sub(calldatasize(), 20)))
+            }
+        } else {
+            sender = msg.sender;
+        }
     }
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -303,6 +359,11 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         });
     }
 
+    event ContractsUpdated(address indexed vault, address indexed oracle, address indexed positionToken);
+    event CollateralRegistryUpdated(address indexed registry);
+    event TradingViewsUpdated(address indexed views);
+    event MarketCalendarUpdated(address indexed calendar);
+
     /// @notice Wire core external dependencies after deploy.
     /// @param _vc Vault used for borrow/repay and TVL health.
     /// @param _oa Oracle aggregator for prices and breakers.
@@ -312,51 +373,76 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         vaultCore = IVaultCore(_vc);
         oracleAggregator = IOracleAggregator(_oa);
         positionToken = IPositionToken(_pt);
+        emit ContractsUpdated(_vc, _oa, _pt);
     }
 
     /// @notice Wire up the collateral registry.
     function setCollateralRegistry(address _cr) external onlyAdmin {
         if (_cr == address(0)) revert ZeroAddress();
         collateralRegistry = CollateralRegistry(_cr);
+        emit CollateralRegistryUpdated(_cr);
     }
 
     event ReferralRegistryUpdated(address indexed oldRegistry, address indexed newRegistry);
+    event ReferralRegistryProposed(address indexed pending, uint256 effective);
 
-    /// @notice Wire up the optional ReferralRegistry. Pass `address(0)` to
-    ///         disable the program. The registry must have granted this
-    ///         contract `TRADING_CORE_ROLE` so per-trade volume can flow back
-    ///         for tier progression.
-    /// @dev No timelock: the registry only affects fee splits and rebates,
-    ///      not custody. Setting a malicious registry can at worst rebate fees
-    ///      to an arbitrary address; admin already controls the fee config.
+    error PendingReferralRegistryMismatch();
+    error ReferralRegistryTimelockActive();
+
+    uint256 private constant REFERRAL_REGISTRY_TIMELOCK = 48 hours;
+
+    /// @notice Stage a referral registry rotation. Effective `REFERRAL_REGISTRY_TIMELOCK` later.
+    /// @dev Pass `address(0)` to stage disabling the registry.
+    function proposeReferralRegistry(address _registry) external onlyAdmin {
+        _pendingReferralRegistry = _registry;
+        _pendingReferralRegistryEffective = block.timestamp + REFERRAL_REGISTRY_TIMELOCK;
+        emit ReferralRegistryProposed(_registry, _pendingReferralRegistryEffective);
+    }
+
+    /// @notice Apply a staged referral-registry rotation after the timelock.
+    /// @dev The supplied `_registry` must exactly match the staged proposal,
+    ///      preventing a swap-then-mismatch admin trick.
     function setReferralRegistry(address _registry) external onlyAdmin {
+        if (_registry != _pendingReferralRegistry) revert PendingReferralRegistryMismatch();
+        if (_pendingReferralRegistryEffective == 0 || block.timestamp < _pendingReferralRegistryEffective) {
+            revert ReferralRegistryTimelockActive();
+        }
         emit ReferralRegistryUpdated(referralRegistry, _registry);
         referralRegistry = _registry;
+        delete _pendingReferralRegistry;
+        delete _pendingReferralRegistryEffective;
+    }
+
+    /// @notice Read-only view of the staged referral-registry rotation, if any.
+    function pendingReferralRegistry() external view returns (address pending, uint256 effective) {
+        return (_pendingReferralRegistry, _pendingReferralRegistryEffective);
     }
 
     /// @notice Optional modules for session hours, dividend accrual, and allow-list compliance.
     /// @param _calendar Market calendar (zero to disable).
     /// @param _dividendManager Dividend module (zero to disable).
     /// @param _complianceManager Compliance hook (zero to disable).
-    /// @dev First-time configuration (when all current pointers are
-    ///      zero) is allowed immediately. Any subsequent rotation requires
-    ///      `proposeRWAContracts` and a 48h timelock; the executing call must
-    ///      pass the same triple that was proposed.
+    /// @dev First-time configuration (when `_rwaContractsInitialized`
+    ///      is false) is allowed immediately so deploy scripts can
+    ///      finish in one transaction. Any subsequent rotation requires
+    ///      a 48h staged proposal via `proposeRWAContracts`. The
+    ///      `_rwaContractsInitialized` latch is monotonic — once set, an
+    ///      upgrade cannot clear it without a separate timelocked
+    ///      implementation swap, which itself goes through
+    ///      `proposeImplementation` + 48h. Off-chain monitoring should
+    ///      alert on any second `RWAContractsApplied` event that does not
+    ///      correspond to a prior `RWAContractsProposed`.
     function setRWAContracts(
         address _calendar,
         address _dividendManager,
         address _complianceManager
     ) external onlyAdmin {
-        bool firstTimeConfig =
-            address(marketCalendar) == address(0) &&
-            address(dividendManager) == address(0) &&
-            address(complianceManager) == address(0);
-
-        if (firstTimeConfig) {
+        if (!_rwaContractsInitialized) {
             // initial wire-up: set immediately, no timelock required.
             marketCalendar = IMarketCalendar(_calendar);
             dividendManager = IDividendManager(_dividendManager);
             complianceManager = IComplianceManager(_complianceManager);
+            _rwaContractsInitialized = true;
             emit RWAContractsApplied(_calendar, _dividendManager, _complianceManager);
             return;
         }
@@ -406,26 +492,39 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     uint256 private constant MAX_MARKET_ID_BYTES = 32;
 
     error MarketIdTooLong();
+    error MarketIdRebindForbidden();
 
-    /// @notice Map a market contract to a calendar `marketId` string used by `IMarketCalendar`.
+    event MarketIdUpdated(address indexed market, string oldId, string newId);
+
     function setMarketId(address market, string memory marketId) external onlyOperator {
         if (bytes(marketId).length > MAX_MARKET_ID_BYTES) revert MarketIdTooLong();
+        string memory oldId = marketIds[market];
+        // Refuse rebind only when the existing id was non-empty AND
+        // there is at least one open position on this market.
+        if (bytes(oldId).length > 0 && _markets[market].totalLongSize + _markets[market].totalShortSize > 0) {
+            revert MarketIdRebindForbidden();
+        }
         marketIds[market] = marketId;
+        emit MarketIdUpdated(market, oldId, marketId);
     }
 
-    /// @notice Authorize `bot` to trade on behalf of `msg.sender`. Owner pays USDC collateral.
+    /// @notice Authorize `bot` to trade on behalf of `_trustedSender()`. Owner pays USDC collateral.
     /// @dev Emits `SubaccountUpdated`. No timelock – ownership is revocable at any time.
+    ///      ERC-2771-aware: when called through a trusted forwarder the
+    ///      original signer is used as the owner, not the forwarder.
     function addSubaccount(address bot) external {
         if (bot == address(0)) revert ZeroAddress();
-        if (bot == msg.sender) revert InvalidParam(); // cannot self-delegate
-        isSubaccount[msg.sender][bot] = true;
-        emit SubaccountUpdated(msg.sender, bot, true);
+        address owner = _trustedSender();
+        if (bot == owner) revert InvalidParam(); // cannot self-delegate
+        isSubaccount[owner][bot] = true;
+        emit SubaccountUpdated(owner, bot, true);
     }
 
-    /// @notice Revoke `bot`'s authority to trade on behalf of `msg.sender`.
+    /// @notice Revoke `bot`'s authority to trade on behalf of `_trustedSender()`.
     function removeSubaccount(address bot) external {
-        isSubaccount[msg.sender][bot] = false;
-        emit SubaccountUpdated(msg.sender, bot, false);
+        address owner = _trustedSender();
+        isSubaccount[owner][bot] = false;
+        emit SubaccountUpdated(owner, bot, false);
     }
 
     function _checkMarketOpen(address market) internal view {
@@ -552,16 +651,27 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         uint256 _mue,
         uint256 _mpd
     ) external onlyAdmin {
-        // bounded ranges to prevent fat-finger admin actions.
+        // rather than against the in-storage value. This prevents the previous
+        // ordering trap where lowering `_gvl` while `_uvl` remained at the old
+        // (higher) value would revert and force a multi-step admin dance.
+        uint256 newUvl = _uvl > 0 ? _uvl : userDailyVolumeLimit;
+        uint256 newGvl = _gvl > 0 ? _gvl : globalDailyVolumeLimit;
         if (_uvl > 0) {
             if (_uvl < 1_000e6 || _uvl > 1_000_000_000e6) revert TradingLib.InvalidOrder();
-            userDailyVolumeLimit = _uvl;
         }
         if (_gvl > 0) {
-            if (_gvl < userDailyVolumeLimit) revert TradingLib.InvalidOrder();
-            globalDailyVolumeLimit = _gvl;
+            if (newGvl < newUvl) revert TradingLib.InvalidOrder();
         }
-        if (_lat > 0) largeActionThreshold = _lat;
+        if (_uvl > 0) userDailyVolumeLimit = _uvl;
+        if (_gvl > 0) globalDailyVolumeLimit = _gvl;
+        if (_lat > 0) {
+            // Bound large-action threshold to prevent admin-induced
+            // throughput DoS (zero or trivially small thresholds make
+            // every action "large", coupling user throughput to
+            // `largeActionInterval`). Same range as `_uvl`.
+            if (_lat < 1_000e6 || _lat > 1_000_000_000e6) revert TradingLib.InvalidOrder();
+            largeActionThreshold = _lat;
+        }
         if (_lai > 0) {
             if (_lai > 24 hours) revert TradingLib.InvalidOrder();
             largeActionInterval = _lai;
@@ -656,12 +766,19 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     function liquidatePosition(uint256 id) external nonReentrant whenNotPaused onlyLiquidator returns (uint256 reward) {
         // liquidations must respect market session hours; OracleAggregator widens
         // staleness to 4 days when the market is closed, so a stale-price liquidation could
-        // otherwise be forced over weekends/holidays. Guardians may liquidate during halts to
-        // wind down positions in true emergencies (still subject to oracle deviation checks).
+        // otherwise be forced over weekends/holidays.
         DataTypes.Position storage liqPos = _positions[id];
-        if (!hasRole(GUARDIAN_ROLE, msg.sender)) {
-            _checkMarketOpen(liqPos.market);
-        }
+        // Removed the previous guardian-bypass that allowed liquidating
+        // closed-session markets. Combined with manual-price overrides this
+        // enabled mass one-sided liquidations during halts. Closed markets
+        // must wait for re-open or for an explicit `resolveFailedRepayment`
+        // wind-down path. Liquidator must be active session.
+        _checkMarketOpen(liqPos.market);
+        // Refuse to liquidate while a manual emergency-price override is
+        // active. Manual prices set by guardians (even legitimate ones)
+        // can be 5% off Pyth and have zero confidence band, so they
+        // are unsafe to drive liquidation outcomes.
+        if (oracleAggregator.isManualPriceActive(liqPos.market)) revert BreakerActive();
         settlePositionFunding(id);
         reward = TradingLib.liquidatePosition(
             id,
@@ -719,7 +836,14 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             DataTypes.Position storage p = _positions[id];
             if (!complianceManager.isAllowed(newOwner, p.market, "")) revert ComplianceCheckFailed();
         }
-        TradingLib.updatePositionOwner(id, newOwner, oldOwner, maxUserExposure, _positions, _userExposure);
+        TradingLib.updatePositionOwner(id, newOwner, oldOwner, maxUserExposure, _positions, _userExposure, _userPositions);
+        // owner. On NFT transfer they must be cleared so the new owner does
+        // not inherit a poison trigger from the previous holder.
+        DataTypes.Position storage pos = _positions[id];
+        pos.stopLossPrice = 0;
+        pos.takeProfitPrice = 0;
+        pos.trailingStopBps = 0;
+        delete _trailingAnchorPrice[id];
     }
 
     /// @inheritdoc ITradingCore
@@ -761,12 +885,19 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @inheritdoc ITradingCore
     function addCollateral(uint256 id, uint256 amt, uint256 maxLev, bool emg) external nonReentrant whenNotPaused {
         _validateOwner(id);
+        // Defense in depth: refuse alt-collateral tops-ups while the alt
+        // path is disabled. Pre-existing alt positions (if any from a prior
+        // deployment) cannot grow their alt balance and must be migrated.
+        if (_positions[id].collateralToken != address(0)) revert AltCollateralDisabled();
+        // cannot front-run a pending funding settlement to extract value.
+        settlePositionFunding(id);
         TradingLib.addCollateral(id, amt, maxLev, emg, _collateralCtx(), _positions, _positionCollateral, _markets);
     }
 
     /// @inheritdoc ITradingCore
     function withdrawCollateral(uint256 id, uint256 amt) external nonReentrant whenNotPaused checkProtocolHealth {
         _validateOwner(id);
+        settlePositionFunding(id);
         TradingLib.withdrawCollateral(id, amt, _collateralCtx(), _positions, _positionCollateral, _markets);
         _enforcePortfolioRiskFor(msg.sender);
     }
@@ -781,15 +912,36 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         checkCompliance(params.market)
         returns (uint256 orderId)
     {
+        return _createOrderCore(params);
+    }
+
+    /// @dev Shared order-creation core. `params` is `memory` so both the
+    ///      struct-based and legacy positional entry points can feed it.
+    ///      Compliance and anti-flash-loan gating are applied by the public
+    ///      wrappers' modifiers before this runs.
+    function _createOrderCore(DataTypes.CreateOrderParams memory params) internal returns (uint256 orderId) {
+        // ─── Alt-collateral path is intentionally disabled. ───
+        // Both `collateralType` and `collateralToken` MUST be the canonical
+        // USDC values. Mixing alt collateral with the open/close/liquidate
+        // fee accounting (which always ships USDC) currently traps trader
+        // funds; reject at the entry point until properly redesigned.
+        if (params.collateralToken != address(0)) revert AltCollateralDisabled();
+        if (params.collateralType != DataTypes.CollateralType.NONE &&
+            params.collateralType != DataTypes.CollateralType.USDC) {
+            revert AltCollateralDisabled();
+        }
+
         // --- Resolve subaccount delegation ---
         address effectiveOwner = _resolveSubaccountOwner(params.owner);
 
         bool openingIncrease = (params.orderType == DataTypes.OrderType.MARKET_INCREASE ||
             params.orderType == DataTypes.OrderType.LIMIT_INCREASE);
 
-        // --- Pull USDC collateral from the owner if this is a delegated order ---
-        if (effectiveOwner != msg.sender && params.collateralDelta > 0) {
-            usdc.safeTransferFrom(effectiveOwner, address(this), params.collateralDelta);
+        // `effectiveOwner` (passed below as `msgSender`). The wrapper must NOT
+        // pre-pull or the user is debited twice (and may revert / strand funds).
+        // the bot. The base `checkCompliance` modifier validates `msg.sender`.
+        if (effectiveOwner != msg.sender && address(complianceManager) != address(0)) {
+            if (!complianceManager.isAllowed(effectiveOwner, params.market, "")) revert ComplianceCheckFailed();
         }
 
         // --- Post-Only validation ---
@@ -820,6 +972,23 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         if (params.visibleSize > 0 && params.visibleSize > params.sizeDelta) {
             revert InvalidVisibleSize();
         }
+        // not implemented in the executor. Reject any order that requests
+        // them rather than silently drop the directive at execution time.
+        if (params.visibleSize > 0 && params.visibleSize < params.sizeDelta) {
+            revert InvalidVisibleSize();
+        }
+        // IOC/FOK are not enforced by the executor (they would silently behave
+        // as GTC). Reject them explicitly so users are never misled. POST_ONLY
+        // (validated above) and GTC are the supported directives.
+        if (params.tif == DataTypes.TimeInForce.IOC || params.tif == DataTypes.TimeInForce.FOK) {
+            revert UnsupportedTimeInForce();
+        }
+        if (params.isReduceOnly) {
+            if (params.orderType == DataTypes.OrderType.MARKET_INCREASE ||
+                params.orderType == DataTypes.OrderType.LIMIT_INCREASE) {
+                revert ReduceOnlyRequiresPosition();
+            }
+        }
 
         // --- Rate-limit gate for opening/increase orders ---
         if (openingIncrease) {
@@ -838,7 +1007,60 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             address(usdc),
             _orders
         );
+        // Track the actual payer of the execution fee. For non-delegated
+        // orders this equals `effectiveOwner == msg.sender`. For
+        // subaccount-delegated orders the bot pays `msg.value` but the
+        // order is owned by `effectiveOwner`; we record the bot here so
+        // the cancel-side refund flows back to whoever actually paid.
+        if (msg.value > 0) {
+            _orderExecutionFeePayer[orderId] = msg.sender;
+        }
         emit OrderCreated(orderId, effectiveOwner, params.orderType, params.market);
+    }
+
+    /// @notice Legacy 8-arg `createOrder` shim that bundles its arguments into
+    ///         the canonical `CreateOrderParams` struct and forwards to the
+    ///         struct-based entry point. Preserved for backwards compatibility
+    ///         with off-chain integrations and existing test suites that
+    ///         predate the bundled-params refactor.
+    function createOrder(
+        DataTypes.OrderType orderType,
+        address market,
+        uint256 sizeDelta,
+        uint256 collateralDelta,
+        uint256 triggerPrice,
+        bool isLong,
+        uint256 maxSlippage,
+        uint256 positionId
+    )
+        external
+        payable
+        nonReentrant
+        whenNotPaused
+        noFlashLoan
+        checkCompliance(market)
+        returns (uint256)
+    {
+        DataTypes.CreateOrderParams memory params = DataTypes.CreateOrderParams({
+            orderType: orderType,
+            market: market,
+            sizeDelta: sizeDelta,
+            collateralDelta: collateralDelta,
+            triggerPrice: triggerPrice,
+            isLong: isLong,
+            maxSlippage: maxSlippage,
+            positionId: positionId,
+            collateralType: DataTypes.CollateralType.NONE,
+            collateralToken: address(0),
+            tif: DataTypes.TimeInForce.GTC,
+            stopLossPrice: 0,
+            takeProfitPrice: 0,
+            visibleSize: 0,
+            twapInterval: 0,
+            isReduceOnly: false,
+            owner: address(0)
+        });
+        return _createOrderCore(params);
     }
 
     /// @inheritdoc ITradingCore
@@ -912,11 +1134,22 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             protocolHealth
         );
         if (isIncrease) {
+            // Seed the per-position cumulative-funding pointer to the
+            // market's current cumulative funding BEFORE any subsequent
+            // settlement runs. Without this, fresh positions are charged or
+            // credited the entire historical accumulation on first settle.
+            // Defense-in-depth: also done explicitly here in case a future
+            // library change skips it.
+            _positionCumulativeFunding[positionId] = _fundingStates[order.market].cumulativeFunding;
             _enforcePortfolioRiskFor(order.account);
             nextPositionId++;
         }
         if (executionFee > 0) _keeperFeeBalance[msg.sender] += executionFee;
         delete _orders[orderIdOut];
+        // Clean up the per-order execution-fee-payer tracking. The
+        // execution fee was already paid out to the keeper above; no
+        // refund is owed.
+        delete _orderExecutionFeePayer[orderIdOut];
         emit OrderExecuted(orderId, positionId, msg.sender);
     }
 
@@ -927,12 +1160,35 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     /// @inheritdoc ITradingCore
     function cancelOrder(uint256 orderId) external nonReentrant whenNotPaused {
-        TradingLib.cancelOrder(orderId, msg.sender, usdc, _orders, _orderRefundBalance, _orderCollateralRefundBalance);
+        // Snapshot the recorded fee payer before the library deletes the
+        // order. For direct orders this is `msg.sender`; for subaccount
+        // delegations this is the bot that fronted `msg.value` on create.
+        address feePayer = _orderExecutionFeePayer[orderId];
+        delete _orderExecutionFeePayer[orderId];
+        TradingLib.cancelOrder(
+            orderId,
+            msg.sender,
+            feePayer,
+            usdc,
+            _orders,
+            _orderRefundBalance,
+            _orderCollateralRefundBalance,
+            _orderCollateralTokenRefundBalance
+        );
     }
 
     /// @notice Withdraw USDC escrow returned from a cancelled order collateral leg.
     function withdrawOrderCollateralRefund() external nonReentrant {
         WithdrawLib.withdrawOrderCollateralRefund(_orderCollateralRefundBalance, msg.sender, usdc);
+    }
+
+    function withdrawOrderCollateralTokenRefund(address token) external nonReentrant {
+        if (token == address(0)) revert ZeroAddress();
+        WithdrawLib.withdrawOrderCollateralTokenRefund(
+            _orderCollateralTokenRefundBalance,
+            msg.sender,
+            token
+        );
     }
 
     /// @notice Withdraw native ETH refunds from cancelled orders (when applicable).
@@ -964,6 +1220,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice Set the delegate views contract powering `getPositionPnL`, `canLiquidate`, and `getGlobalUnrealizedPnL`.
     function setTradingViews(address _v) external onlyAdmin {
         tradingViews = _v;
+        emit TradingViewsUpdated(_v);
     }
 
     /// @notice Configure account-level portfolio risk controls for cross-margin.
@@ -1035,11 +1292,23 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     /// @notice Remove stale closed-position ids from `u`'s enumeration (self-serve or admin with higher cap).
+    /// @dev Refuses to clean a position that still has an unresolved
+    ///      failed-repayment record so off-chain bookkeeping and
+    ///      `resolveFailedRepayment` stay consistent. Admin path is
+    ///      restricted to `CLOSED` state only — `LIQUIDATED` records are
+    ///      preserved as audit trail.
     function cleanupPositions(address u, uint256 maxClean) external returns (uint256) {
         if (u != msg.sender && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert Unauthorized();
         uint256 cap = hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ? 40 : MAX_CLEANUP;
         uint256 limit = maxClean > cap ? cap : maxClean;
-        return CleanupLib.cleanupPositions(_userPositions[u], _positions, _positionCollateral, limit);
+        return CleanupLib.cleanupPositions(
+            _userPositions[u],
+            _positions,
+            _positionCollateral,
+            limit,
+            _failedRepayments,
+            hasRole(DEFAULT_ADMIN_ROLE, msg.sender)
+        );
     }
 
     /// @notice Batch-update execution/oracle/liquidation tuning; `0` skips a field where documented.
@@ -1080,9 +1349,14 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     /// @notice Configurable funding-interval cap, bounded sanely.
-    /// @param cap New cap, in 8-hour intervals. Bounded `[1, 240]` (10x default).
+    /// @param cap New cap, in 8-hour intervals. Bounded `[1, 72]` ≈ 24 days.
+    /// @dev Tightened from `MAX_FUNDING_INTERVALS * 10` (240 / 80 days) to
+    ///      72 (24 days). Combined with the new non-truncating settlement
+    ///      in `FundingLib`, this bounds the maximum funding shock applied
+    ///      in a single `forceSettleFunding` call. Markets dormant longer
+    ///      than the cap require multiple `forceSettleFunding` calls.
     function setMaxFundingIntervals(uint256 cap) external onlyAdmin {
-        if (cap == 0 || cap > DataTypes.MAX_FUNDING_INTERVALS * 10) revert InvalidParam();
+        if (cap == 0 || cap > 72) revert InvalidParam();
         maxFundingIntervals = cap;
     }
 
@@ -1147,7 +1421,9 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         if (!PortfolioRiskLib.validateOpenPosition(snapshot, portfolioRiskConfig)) revert PortfolioRiskViolation();
     }
 
-    function _authorizeUpgrade(address) internal override onlyAdmin {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {
+        _enforceUpgradeTimelock(newImplementation);
+    }
 
     /// @notice Keeper batch: close positions whose stop-loss / take-profit / trailing conditions are met.
     /// @return count Number of positions successfully processed (implementation-defined semantics).

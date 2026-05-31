@@ -83,7 +83,7 @@ contract OracleAggregator is
     uint256 private constant PROPOSAL_EXPIRY = 1 hours;
     uint256 private constant MAX_WINDOW_HOURS = 24;
     uint256 private constant PAUSE_GAS_LIMIT = 100000;
-    uint256 private constant MIN_TWAP_UPDATE_INTERVAL = 5 minutes;
+    uint256 private constant MIN_TWAP_UPDATE_INTERVAL = 30;
     uint256 public constant PRICE_OVERRIDE_DELAY = 24 hours;
     uint256 private constant MIN_TWAP_DATA_POINTS = 6;
     uint256 private constant EMERGENCY_PRICE_QUORUM = 2;
@@ -137,6 +137,12 @@ contract OracleAggregator is
     mapping(address => uint256) private _manualPriceExpiry;
     mapping(address => EmergencyPriceLib.PendingPriceOverride) private _pendingManualPrices;
 
+    /// @dev NOTE: sequencer-uptime defenses are scaffolded but not wired
+    ///      to a live feed. Conflux eSpace does not have a Chainlink L2
+    ///      sequencer feed; the storage and setters are kept for future
+    ///      compatibility with L2 deployments. The fields below MUST NOT
+    ///      be removed without a planned upgrade that also rebalances the
+    ///      `__gap` array.
     uint256 public sequencerGracePeriod;
     uint256 public defaultMaxStaleness;
     uint256 public defaultMaxDeviationBps;
@@ -163,6 +169,14 @@ contract OracleAggregator is
     mapping(bytes32 => EmergencyPriceLib.EmergencyPriceProposal) private _emergencyPriceProposals;
     uint256 private _emergencyPriceProposalNonce;
 
+    /// @dev Per-guardian per-market last proposal timestamp; rate-limits
+    ///      `proposeEmergencyPrice` so a single guardian cannot keep an
+    ///      override pinned by refreshing it indefinitely.
+    mapping(address => mapping(address => uint256)) private _lastEmergencyPriceProposalAt;
+    /// @dev Minimum seconds between proposals from the same guardian for
+    ///      the same collection. Default 1 hour; admin-tunable.
+    uint256 public emergencyPriceProposalMinInterval;
+
     IMarketCalendar public marketCalendar;
     mapping(address => string) public marketIds;
 
@@ -171,7 +185,7 @@ contract OracleAggregator is
     ///      auto-expiry after `GLOBAL_PAUSE_AUTO_EXPIRY` to avoid indefinite halts.
     uint256 public globalPauseActivatedAt;
 
-    uint256[20] private __gap;
+    uint256[18] private __gap;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -189,13 +203,19 @@ contract OracleAggregator is
         defaultMaxStaleness = 15 minutes;
 
         maxEthStaleness = 1 hours;
-        emergencyPriceQuorum = 2;
+        // Tightened defaults: see `setGuardianQuorum` / `setEmergencyPriceQuorum`.
+        emergencyPriceQuorum = 3;
         sequencerGracePeriod = 30 minutes;
-        guardianQuorum = 2;
+        guardianQuorum = 3;
+        // Default 1h between proposals from the same guardian for the
+        // same market (rate-limit on emergency-price spam).
+        emergencyPriceProposalMinInterval = 1 hours;
     }
 
     /// @custom:oz-upgrades From `UUPSUpgradeable`: only admin may authorize implementation upgrades.
-    function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {
+        _enforceUpgradeTimelock(newImplementation);
+    }
 
     function _getPriceView(
         address collection
@@ -225,7 +245,16 @@ contract OracleAggregator is
             if (pythPrice.price <= 0) revert InvalidSource();
 
             uint256 normalizedPrice = _normalizePythPrice(pythPrice.price, pythPrice.expo);
-            uint256 normalizedConf = _normalizePythPrice(int64(uint64(pythPrice.conf)), pythPrice.expo);
+            // Tiny Pyth prices can normalize to 0 even though the raw
+            // signed value is positive; without this guard the buffer and
+            // downstream consumers see a zero price as a valid sample.
+            if (normalizedPrice == 0) revert InvalidSource();
+            // `pythPrice.conf` is uint64; an `int64(uint64(...))` cast can
+            // overflow to a negative value for adversarially large
+            // confidences and silently zero out the normalized confidence,
+            // bypassing the uncertainty check. Compute confidence directly
+            // in unsigned arithmetic.
+            uint256 normalizedConf = _normalizePythConfidence(uint256(pythPrice.conf), pythPrice.expo);
 
             if (config.maxConfidence > 0) {
                 if (normalizedConf > config.maxConfidence) revert InsufficientConfidence();
@@ -360,6 +389,16 @@ contract OracleAggregator is
     /// @inheritdoc IOracleAggregator
     function recordPricePoint(address collection, uint256 reportedPrice) external onlyOracleOrKeeper {
         if (reportedPrice != 0) revert ReportedPriceMustBeZero();
+
+        // Refuse to seed the TWAP buffer while a manual price override is
+        // live. Otherwise the override price would propagate into TWAP and
+        // erode every TWAP-vs-spot deviation defense (open / close /
+        // liquidate). The buffer pauses cleanly: when the override expires,
+        // future calls resume sampling Pyth.
+        if (_manualPrices[collection] > 0 && block.timestamp <= _manualPriceExpiry[collection]) {
+            return;
+        }
+
         (uint256 currentPrice, uint256 conf, ) = _getPriceView(collection);
 
         TWAPBuffer storage buffer = _twapBuffers[collection];
@@ -503,14 +542,15 @@ contract OracleAggregator is
 
     /// @inheritdoc IOracleAggregator
     function activateGlobalPause() external onlyGuardian {
-        if (!_globalPause) {
-            _globalPause = true;
-            // Stamp the time so the protocol can permissionlessly
-            // resume after `GLOBAL_PAUSE_AUTO_EXPIRY` if no admin/guardian action
-            // re-arms it. This bounds single-guardian halts.
-            globalPauseActivatedAt = block.timestamp;
-            emit GlobalPauseActivated(msg.sender);
-        }
+        // Always (re-)stamp the activation timestamp. The previous
+        // implementation made re-activation a no-op when already paused,
+        // so a guardian who wanted to extend the auto-expiry window had
+        // no way to do so without first calling `deactivateGlobalPause`
+        // (admin-only) and re-activating. Re-stamping lets a guardian
+        // hold the pause indefinitely while quorum forms.
+        _globalPause = true;
+        globalPauseActivatedAt = block.timestamp;
+        emit GlobalPauseActivated(msg.sender);
     }
 
     /// @inheritdoc IOracleAggregator
@@ -589,9 +629,11 @@ contract OracleAggregator is
     }
 
     /// @notice Attach `IMarketCalendar` for session-aware staleness widening when markets are closed.
+    event MarketCalendarUpdated(address indexed calendar);
     function setMarketCalendar(address _calendar) external onlyAdmin {
         if (_calendar == address(0)) revert ZeroAddress();
         marketCalendar = IMarketCalendar(_calendar);
+        emit MarketCalendarUpdated(_calendar);
     }
 
     /// @notice Map a collection address to a calendar `marketId` string.
@@ -643,15 +685,18 @@ contract OracleAggregator is
 
     /// @inheritdoc IOracleAggregator
     function setGuardianQuorum(uint256 quorum) external onlyAdmin {
-        // must be >= 1 to avoid disabling pause altogether.
-        if (quorum < 1 || quorum > 20) revert InvalidSource();
+        // Tightened: minimum 3 (was 1). A single guardian must not be able
+        // to drive the entire emergency-pause + price-override surface.
+        if (quorum < 3 || quorum > 20) revert InvalidSource();
         guardianQuorum = quorum;
     }
 
     /// @inheritdoc IOracleAggregator
     function setEmergencyPriceQuorum(uint256 quorum) external onlyAdmin {
-        // enforce a minimum of 2 confirmers for emergency price overrides.
-        if (quorum < 2 || quorum > 20) revert InvalidSource();
+        // Tightened: minimum of 3 confirmers for emergency price overrides
+        // (was 2). With FAST_TRACK_QUORUM_MULTIPLIER = 2, the fast-track
+        // path now requires at least 6 guardian signatures.
+        if (quorum < 3 || quorum > 20) revert InvalidSource();
         emergencyPriceQuorum = quorum;
     }
 
@@ -675,8 +720,20 @@ contract OracleAggregator is
                 price,
                 validUntil,
                 _emergencyPriceProposalNonce,
-                _emergencyPriceProposals
+                _emergencyPriceProposals,
+                _lastEmergencyPriceProposalAt,
+                emergencyPriceProposalMinInterval
             );
+    }
+
+    event EmergencyPriceProposalMinIntervalUpdated(uint256 newInterval);
+
+    /// @notice Admin-tunable per-guardian per-market rate limit on
+    ///         `proposeEmergencyPrice`. Bounded `[10 minutes, 24 hours]`.
+    function setEmergencyPriceProposalMinInterval(uint256 newInterval) external onlyAdmin {
+        if (newInterval < 10 minutes || newInterval > 24 hours) revert InvalidSource();
+        emergencyPriceProposalMinInterval = newInterval;
+        emit EmergencyPriceProposalMinIntervalUpdated(newInterval);
     }
 
     /// @inheritdoc IOracleAggregator
@@ -693,12 +750,15 @@ contract OracleAggregator is
     }
 
     /// @notice Promote a staged emergency price override after the 24h timelock . Permissionless.
+    /// @dev Re-validates against Pyth at apply time; reverts if the oracle
+    ///      has moved beyond the deviation cap since the proposal was staged.
     function applyPendingEmergencyPrice(address collection) external {
         EmergencyPriceLib.applyPendingEmergencyPrice(
             collection,
             _manualPrices,
             _manualPriceExpiry,
-            _pendingManualPrices
+            _pendingManualPrices,
+            address(this)
         );
     }
 
@@ -713,6 +773,15 @@ contract OracleAggregator is
     ) external view returns (uint256 price, uint256 validUntil, uint256 effectiveTime) {
         EmergencyPriceLib.PendingPriceOverride memory p = _pendingManualPrices[collection];
         return (p.price, p.validUntil, p.effectiveTime);
+    }
+
+    /// @notice True when a manual emergency-price override is currently
+    ///         active for `collection`. Trading paths use this to refuse
+    ///         risk-increasing actions (opens, liquidations) while the
+    ///         override is in effect, so a guardian-set price cannot be
+    ///         exploited to mass-liquidate one side of the book.
+    function isManualPriceActive(address collection) external view returns (bool) {
+        return _manualPrices[collection] > 0 && block.timestamp <= _manualPriceExpiry[collection];
     }
 
     /// @inheritdoc IOracleAggregator
@@ -789,11 +858,31 @@ contract OracleAggregator is
         uint256 p = uint256(int256(price));
 
         int256 decimalDiff = 18 + int256(expo);
+        // overflow `10**decimalDiff`. Pyth feeds in production use negative
+        // expos (~ -8 typical, -18 worst case for high-precision feeds); a
+        // window of [-30, 30] is intentionally generous.
+        if (decimalDiff > 30 || decimalDiff < -30) revert PriceOutOfBounds();
 
         if (decimalDiff >= 0) {
             return p * (10 ** uint256(decimalDiff));
         } else {
             return p / (10 ** uint256(-decimalDiff));
+        }
+    }
+
+    /// @dev Unsigned-only normalization for Pyth confidence values. Mirrors
+    ///      `_normalizePythPrice` exponent handling without the signed
+    ///      detour. Returns 0 on empty input rather than reverting because
+    ///      callers compare against `maxConfidence` and zero is the
+    ///      "no data" sentinel they already handle.
+    function _normalizePythConfidence(uint256 conf, int32 expo) internal pure returns (uint256) {
+        if (conf == 0) return 0;
+        int256 decimalDiff = 18 + int256(expo);
+        if (decimalDiff > 30 || decimalDiff < -30) revert PriceOutOfBounds();
+        if (decimalDiff >= 0) {
+            return conf * (10 ** uint256(decimalDiff));
+        } else {
+            return conf / (10 ** uint256(-decimalDiff));
         }
     }
 

@@ -1,6 +1,11 @@
 [
   {
     "inputs": [],
+    "name": "ClosePriceDeviation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "CloseSizeExceedsPosition",
     "type": "error"
   },
@@ -26,6 +31,11 @@
   },
   {
     "inputs": [],
+    "name": "LeverageOverflow",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "PositionNotFound",
     "type": "error"
   },
@@ -43,6 +53,11 @@
   {
     "inputs": [],
     "name": "SlippageExceeded",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TwapNotReady",
     "type": "error"
   },
   {

@@ -58,6 +58,11 @@ const CONTRACT_ADDRESSES = {
   copyBot: import.meta.env.VITE_COPY_BOT_ADDRESS || '0x0000000000000000000000000000000000000000',
 };
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+/** Copy trading can only run when both the on-chain registry and the bot EOA are configured. */
+const COPY_TRADING_ENABLED =
+  CONTRACT_ADDRESSES.copyRegistry !== ZERO_ADDRESS && CONTRACT_ADDRESSES.copyBot !== ZERO_ADDRESS;
+
 export function TraderProfilePage() {
   const { address } = useParams<{ address: string }>();
   const navigate = useNavigate();
@@ -74,8 +79,10 @@ export function TraderProfilePage() {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${API_BASE}/api/v1/social/trader/${address}`);
+        // API_BASE already ends in `/api` (see getApiBaseUrl); social router is mounted at /api/v1/social.
+        const res = await fetch(`${API_BASE}/v1/social/trader/${address}`);
         if (!res.ok) {
+          if (res.status === 501) throw new Error('Copy trading is not enabled on this deployment yet.');
           throw new Error(res.status === 404 ? 'Trader not found' : 'Failed to load');
         }
         const data = await res.json();
@@ -124,10 +131,6 @@ export function TraderProfilePage() {
   }
 
   const totalPnl = safeUsd(trader.totalPnl);
-  const totalOpenPnl = trader.openPositions.reduce(
-    (sum, p) => sum + safeUsd(p.pnl),
-    0
-  );
 
   return (
     <div className="p-4 lg:p-8 max-w-5xl mx-auto space-y-6 lg:space-y-8">
@@ -170,10 +173,12 @@ export function TraderProfilePage() {
           <button
             type="button"
             onClick={() => setCopyModalOpen(true)}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold text-sm hover:opacity-90 transition-opacity shadow-lg"
+            disabled={!COPY_TRADING_ENABLED}
+            title={COPY_TRADING_ENABLED ? undefined : 'Copy trading is not enabled on this deployment yet'}
+            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold text-sm hover:opacity-90 transition-opacity shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:opacity-50"
           >
             <Copy className="w-4 h-4" />
-            Copy Trader
+            {COPY_TRADING_ENABLED ? 'Copy Trader' : 'Copy Trading Soon'}
           </button>
         </div>
 
@@ -340,7 +345,7 @@ export function TraderProfilePage() {
       )}
 
       {/* Copy Modal */}
-      {address && (
+      {address && COPY_TRADING_ENABLED && (
         <CopyModal
           isOpen={copyModalOpen}
           onClose={() => setCopyModalOpen(false)}

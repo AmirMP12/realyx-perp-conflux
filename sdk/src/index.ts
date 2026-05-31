@@ -9,5 +9,18 @@
 
 export { RealyxClient } from "./client";
 export { RealyxWs } from "./ws";
+export type { RealyxWsOptions, WsState } from "./ws";
 export { OrderBuilder } from "./orders";
-export type { RealyxConfig, SubaccountConfig, OrderParams, Market, Position } from "./types";
+export type { OrderBuilderConfig, CreateOrderTuple } from "./orders";
+export { OrderTypeEnum, TimeInForceEnum } from "./types";
+export type {
+  RealyxConfig,
+  SubaccountConfig,
+  OrderParams,
+  Market,
+  Position,
+  ProtocolStats,
+  Trade,
+  LeaderboardEntry,
+  WsMessage,
+} from "./types";

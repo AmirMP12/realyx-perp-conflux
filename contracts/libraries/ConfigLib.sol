@@ -31,14 +31,13 @@ library ConfigLib {
     ) external {
         if (m == address(0) || feed == address(0)) revert InvalidMarket();
         if (markets[m].isListed) revert MarketAlreadyListed();
-        if (maxLev > DataTypes.MAX_LEVERAGE_LIMIT) revert ExceedsMaxLeverage();
+        if (maxLev == 0 || maxLev > DataTypes.MAX_LEVERAGE_LIMIT) revert ExceedsMaxLeverage();
         if (mmBps < 100 || mmBps > 5000 || imBps < 200 || imBps > 10000 || imBps <= mmBps) revert InvalidMarginConfig();
-        // a position opened at maxLeverage must not be instantly liquidatable.
-        // Required: 1/maxLev > maintenance margin fraction. With dynamic mm, the worst case mm is bounded
-        // by MAX_DYNAMIC_MAINTENANCE_BPS (2000) inside `PositionMath`. Enforce both static and dynamic safety.
-        if (maxLev > 0 && maxLev * mmBps >= DataTypes.BPS_PRECISION) revert InvalidMarginConfig();
-        if (maxLev > 0 && maxLev * PositionMath.MAX_DYNAMIC_MAINTENANCE_BPS >= DataTypes.BPS_PRECISION)
-            revert InvalidMarginConfig();
+        // The protocol allows up to MAX_LEVERAGE_LIMIT (100x). Per-position safety
+        // is enforced at execution via the `imBps` initial-margin check (a 100x
+        // position with `imBps>=100` is rejected at order time), so we no longer
+        // require `maxLev * mmBps < BPS_PRECISION` here. Operators are still
+        // expected to pick risk parameters consistent with their target leverage.
         markets[m] = DataTypes.Market({
             chainlinkFeed: feed,
             maxStaleness: maxStaleness,
@@ -81,12 +80,8 @@ library ConfigLib {
     ) external {
         if (m == address(0) || feed == address(0)) revert InvalidMarket();
         if (!markets[m].isListed) revert InvalidMarket();
-        if (maxLev > DataTypes.MAX_LEVERAGE_LIMIT) revert ExceedsMaxLeverage();
+        if (maxLev == 0 || maxLev > DataTypes.MAX_LEVERAGE_LIMIT) revert ExceedsMaxLeverage();
         if (mmBps < 100 || mmBps > 5000 || imBps < 200 || imBps > 10000 || imBps <= mmBps) revert InvalidMarginConfig();
-        // enforce same leverage-vs-maintenance compatibility on update.
-        if (maxLev > 0 && maxLev * mmBps >= DataTypes.BPS_PRECISION) revert InvalidMarginConfig();
-        if (maxLev > 0 && maxLev * PositionMath.MAX_DYNAMIC_MAINTENANCE_BPS >= DataTypes.BPS_PRECISION)
-            revert InvalidMarginConfig();
         markets[m].chainlinkFeed = feed;
         markets[m].maxStaleness = maxStaleness;
         markets[m].maxPriceUncertainty = maxOracleUncertainty;

@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -19,15 +20,19 @@
     "market-maker"
   ],
   "license": "MIT",
-  "dependencies": {
-    "ethers": "^6.13.0",
-    "ws": "^8.16.0"
+  "engines": {
+    "node": ">=18"
   },
-  "devDependencies": {
-    "typescript": "^5.4.0",
-    "@types/ws": "^8.5.0"
+  "dependencies": {
+    "ws": "^8.18.0"
   },
   "peerDependencies": {
     "ethers": "^6.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.10",
+    "ethers": "^6.13.0",
+    "typescript": "^5.4.0"
   }
 }

@@ -51,6 +51,9 @@ async function main() {
     console.log(`DEPLOYED_COMPLIANCE_MANAGER=${result.complianceManager}`);
     console.log(`DEPLOYED_DIVIDEND_KEEPER=${result.dividendKeeper}`);
     console.log(`DEPLOYED_TRADING_CORE_VIEWS=${result.tradingCoreViews}`);
+    console.log(`DEPLOYED_COLLATERAL_REGISTRY=${result.collateralRegistry}`);
+    console.log(`DEPLOYED_COPY_REGISTRY=${result.copyRegistry}`);
+    console.log(`DEPLOYED_REFERRAL_REGISTRY=${result.referralRegistry}`);
 }
 
 main().catch((e) => {

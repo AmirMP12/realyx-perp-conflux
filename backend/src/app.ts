@@ -16,6 +16,7 @@ import debugRouter from "./routes/debug.js";
 import authRouter from "./routes/auth.js";
 import socialRouter from "./routes/social.js";
 import keeperRouter from "./routes/keeper.js";
+import referralsRouter from "./routes/referrals.js";
 import { broadcastKeeperFailure } from "./wsServer.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
 import { metricsMiddleware } from "./middleware/metrics.js";
@@ -30,10 +31,38 @@ const logger = pino({
 });
 const httpLogger = (pinoHttp as unknown as (opts: { logger: pino.Logger }) => express.RequestHandler)({ logger });
 
+/**
+ * Build CORS options. By default (no CORS_ORIGINS set) all origins are allowed,
+ * preserving existing behaviour for local/dev. In production, set CORS_ORIGINS
+ * to a comma-separated allowlist (e.g. "https://realyx.org,https://app.realyx.org")
+ * to restrict which sites may call the API from a browser.
+ */
+function buildCorsOptions(): cors.CorsOptions {
+  const raw = (process.env.CORS_ORIGINS ?? "").trim();
+  if (!raw) {
+    // Reflect request origin (equivalent to the previous `origin: true`).
+    return { origin: true };
+  }
+  const allowlist = raw
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+  return {
+    origin(origin, callback) {
+      // Allow same-origin / non-browser clients (no Origin header).
+      if (!origin || allowlist.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error("Not allowed by CORS"));
+    },
+  };
+}
+
 const app = express();
 app.use(helmet());
-app.use(cors({ origin: true }));
-app.use(express.json());
+app.use(cors(buildCorsOptions()));
+app.use(express.json({ limit: "1mb" }));
 app.use(httpLogger);
 app.use(metricsMiddleware);
 
@@ -49,6 +78,7 @@ app.use("/api/insurance", insuranceRouter);
 app.use("/api/sync", syncRouter);
 app.use("/api/pyth-refresh", pythRefreshRouter);
 app.use("/api/debug", debugRouter);
+app.use("/api/referrals", referralsRouter);
 
 // Versioned /api/v1/ routes
 app.use("/api/v1/auth", authRouter);
@@ -62,6 +92,7 @@ app.use("/api/v1/pyth-refresh", pythRefreshRouter);
 app.use("/api/v1/debug", debugRouter);
 app.use("/api/v1/keeper", keeperRouter);
 app.use("/api/v1/social", socialRouter);
+app.use("/api/v1/referrals", referralsRouter);
 
 // Attach keeper failure broadcast function for use by the keeper router
 app.use((req: any, _res: any, next: any) => {

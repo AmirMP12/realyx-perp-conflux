@@ -136,7 +136,9 @@ contract ReferralRegistry is
         defaultRebateBps = _defaultRebateBps;
     }
 
-    function _authorizeUpgrade(address) internal override onlyAdmin {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyAdmin {
+        _enforceUpgradeTimelock(newImplementation);
+    }
 
     // ──────────────────────────────────────────────────────
     //  Affiliate actions
@@ -246,6 +248,14 @@ contract ReferralRegistry is
 
         data.referrer = referrer;
         uint32 idxPlusOne = _traderTierIndexPlusOne[trader];
+        // Clamp on read to handle the case where `removeTier` shrank
+        // `_tiers` below a previously-cached index. Without this, hot-path
+        // lookups would revert with an OOB index until the trader's next
+        // volume update, freezing trades on an admin-side error.
+        uint256 len = _tiers.length;
+        if (idxPlusOne > len) {
+            idxPlusOne = uint32(len);
+        }
         data.tierIndex = idxPlusOne;
 
         if (idxPlusOne == 0) {

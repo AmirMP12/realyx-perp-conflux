@@ -206,6 +206,7 @@ describe('useBackend hooks', () => {
                 totalEarned: 1250.5,
                 pendingClaim: 100,
                 code: 'CUSTOM1',
+                live: false,
             });
         });
 
@@ -234,6 +235,12 @@ describe('useBackend hooks', () => {
                 pendingClaim: 0,
                 code: 'ABCDEF',
             });
+        });
+
+        it('marks live only when backend explicitly reports live:true', () => {
+            expect(normalizeReferralStats({ live: true, code: 'PARTNER' }, wallet).live).toBe(true);
+            expect(normalizeReferralStats({ code: 'PARTNER' }, wallet).live).toBe(false);
+            expect(normalizeReferralStats({ live: false }, wallet).live).toBe(false);
         });
     });
 

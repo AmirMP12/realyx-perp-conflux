@@ -38,6 +38,11 @@
   },
   {
     "inputs": [],
+    "name": "AltCollateralDisabled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "BatchSizeExceeded",
     "type": "error"
   },
@@ -54,11 +59,6 @@
   {
     "inputs": [],
     "name": "DeadlineExpired",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "DeviationOutOfRange",
     "type": "error"
   },
   {
@@ -85,11 +85,6 @@
   {
     "inputs": [],
     "name": "EnforcedPause",
-    "type": "error"
-  },
-  {
-    "inputs": [],
-    "name": "ExecutionFeeTooLow",
     "type": "error"
   },
   {
@@ -134,17 +129,47 @@
   },
   {
     "inputs": [],
+    "name": "InvalidOrder",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidParam",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidPrice",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidVisibleSize",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "IocFokNotFilled",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "MarketClosed",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "MaxPositionsExceeded",
+    "name": "MarketIdRebindForbidden",
     "type": "error"
   },
   {
     "inputs": [],
-    "name": "MinPositionDuration",
+    "name": "MarketIdTooLong",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MaxPositionsExceeded",
     "type": "error"
   },
   {
@@ -199,6 +224,26 @@
   },
   {
     "inputs": [],
+    "name": "PendingImplementationMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PendingRWAMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PendingReferralRegistryMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PortfolioRiskViolation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "PositionNotFound",
     "type": "error"
   },
@@ -209,7 +254,27 @@
   },
   {
     "inputs": [],
+    "name": "PostOnlyCrossesBook",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PostOnlyNotAllowedForMarket",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ProtocolUnhealthy",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "RWATimelockActive",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReduceOnlyRequiresPosition",
     "type": "error"
   },
   {
@@ -219,7 +284,12 @@
   },
   {
     "inputs": [],
-    "name": "TransferToContractNotAllowed",
+    "name": "ReferralRegistryTimelockActive",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "SubaccountNotApproved",
     "type": "error"
   },
   {
@@ -241,6 +311,11 @@
   {
     "inputs": [],
     "name": "Unauthorized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UpgradeTimelockActive",
     "type": "error"
   },
   {
@@ -291,6 +366,19 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "address",
+        "name": "registry",
+        "type": "address"
+      }
+    ],
+    "name": "CollateralRegistryUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "uint256",
         "name": "positionId",
         "type": "uint256"
@@ -309,6 +397,31 @@
       }
     ],
     "name": "CollateralWithdrawn",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "vault",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "oracle",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "positionToken",
+        "type": "address"
+      }
+    ],
+    "name": "ContractsUpdated",
     "type": "event"
   },
   {
@@ -391,6 +504,38 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "pending",
+        "type": "address"
+      }
+    ],
+    "name": "ImplementationCancelled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "pending",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "name": "ImplementationProposed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": false,
         "internalType": "uint64",
         "name": "version",
@@ -398,6 +543,63 @@
       }
     ],
     "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "minBps",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "absoluteMinUsdc",
+        "type": "uint256"
+      }
+    ],
+    "name": "LiquidatorRewardFloorUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "calendar",
+        "type": "address"
+      }
+    ],
+    "name": "MarketCalendarUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "market",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "oldId",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "newId",
+        "type": "string"
+      }
+    ],
+    "name": "MarketIdUpdated",
     "type": "event"
   },
   {
@@ -504,31 +706,6 @@
       }
     ],
     "name": "OrderExecuted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "string",
-        "name": "paramName",
-        "type": "string"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "oldValue",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "newValue",
-        "type": "uint256"
-      }
-    ],
-    "name": "ParamsUpdated",
     "type": "event"
   },
   {
@@ -727,6 +904,100 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "address",
+        "name": "calendar",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "dividendManager",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "complianceManager",
+        "type": "address"
+      }
+    ],
+    "name": "RWAContractsApplied",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "calendar",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "dividendManager",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "complianceManager",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "name": "RWAContractsProposed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "pending",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "name": "ReferralRegistryProposed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "oldRegistry",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newRegistry",
+        "type": "address"
+      }
+    ],
+    "name": "ReferralRegistryUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "bytes32",
         "name": "role",
@@ -796,6 +1067,88 @@
       }
     ],
     "name": "RoleRevoked",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "accounts",
+        "type": "address[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "granted",
+        "type": "bool"
+      }
+    ],
+    "name": "RolesBatchUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "owner",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "bot",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "approved",
+        "type": "bool"
+      }
+    ],
+    "name": "SubaccountUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "views",
+        "type": "address"
+      }
+    ],
+    "name": "TradingViewsUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "forwarder",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "trusted",
+        "type": "bool"
+      }
+    ],
+    "name": "TrustedForwarderUpdated",
     "type": "event"
   },
   {
@@ -1017,6 +1370,19 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "bot",
+        "type": "address"
+      }
+    ],
+    "name": "addSubaccount",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bytes32",
         "name": "role",
         "type": "bytes32"
@@ -1077,12 +1443,43 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "canLiquidateAccount",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "liquidatable",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "healthFactor",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "orderId",
         "type": "uint256"
       }
     ],
     "name": "cancelOrder",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "cancelPendingImplementation",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1167,6 +1564,19 @@
   },
   {
     "inputs": [],
+    "name": "collateralRegistry",
+    "outputs": [
+      {
+        "internalType": "contract CollateralRegistry",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "complianceManager",
     "outputs": [
       {
@@ -1176,6 +1586,112 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "enum DataTypes.OrderType",
+            "name": "orderType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "market",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "sizeDelta",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collateralDelta",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "triggerPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "isLong",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxSlippage",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "positionId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint8",
+            "name": "collateralType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralToken",
+            "type": "address"
+          },
+          {
+            "internalType": "enum DataTypes.TimeInForce",
+            "name": "tif",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint256",
+            "name": "stopLossPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "takeProfitPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "visibleSize",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "twapInterval",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "isReduceOnly",
+            "type": "bool"
+          },
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct DataTypes.CreateOrderParams",
+        "name": "params",
+        "type": "tuple"
+      }
+    ],
+    "name": "createOrder",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "orderId",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -1225,11 +1741,24 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "orderId",
+        "name": "",
         "type": "uint256"
       }
     ],
     "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "crossMarginByDefault",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1277,13 +1806,13 @@
       },
       {
         "internalType": "bytes[]",
-        "name": "",
+        "name": "priceUpdateData",
         "type": "bytes[]"
       }
     ],
     "name": "executeOrder",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -1292,6 +1821,11 @@
         "internalType": "uint256[]",
         "name": "positionIds",
         "type": "uint256[]"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "priceUpdateData",
+        "type": "bytes[]"
       }
     ],
     "name": "executeStopLossTakeProfit",
@@ -1302,7 +1836,7 @@
         "type": "uint256"
       }
     ],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
     "type": "function"
   },
   {
@@ -1370,6 +1904,75 @@
         "internalType": "uint256",
         "name": "treasuryShareBps",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "market",
+        "type": "address"
+      }
+    ],
+    "name": "forceSettleFunding",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "getAccountRisk",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "totalNotional",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "totalCollateral",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maintenanceMarginRequirement",
+            "type": "uint256"
+          },
+          {
+            "internalType": "int256",
+            "name": "unrealizedPnL",
+            "type": "int256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "healthFactor",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "crossPositionCount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "liquidatable",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct DataTypes.AccountRiskSnapshot",
+        "name": "",
+        "type": "tuple"
       }
     ],
     "stateMutability": "view",
@@ -1681,6 +2284,11 @@
             "internalType": "uint8",
             "name": "state",
             "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralToken",
+            "type": "address"
           }
         ],
         "internalType": "struct DataTypes.Position",
@@ -1898,6 +2506,30 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "isSubaccount",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "largeActionInterval",
     "outputs": [
@@ -2030,6 +2662,19 @@
   },
   {
     "inputs": [],
+    "name": "maxFundingIntervals",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "maxOracleUncertainty",
     "outputs": [
       {
@@ -2083,6 +2728,19 @@
   {
     "inputs": [],
     "name": "minInteractionDelay",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "minLiquidatorRewardUsdc",
     "outputs": [
       {
         "internalType": "uint256",
@@ -2200,6 +2858,98 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "pendingImplementation",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "pending",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pendingRWAContracts",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "calendar",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "dividendManagerAddr",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "complianceManagerAddr",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "pendingReferralRegistry",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "pending",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "portfolioRiskConfig",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "maintenanceMarginBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint16",
+        "name": "concentrationLimitBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint8",
+        "name": "maxCrossPositions",
+        "type": "uint8"
+      },
+      {
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -2229,6 +2979,55 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newImplementation",
+        "type": "address"
+      }
+    ],
+    "name": "proposeImplementation",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_calendar",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_dividendManager",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "_complianceManager",
+        "type": "address"
+      }
+    ],
+    "name": "proposeRWAContracts",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_registry",
+        "type": "address"
+      }
+    ],
+    "name": "proposeReferralRegistry",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -2301,6 +3100,32 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "referralRegistry",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "bot",
+        "type": "address"
+      }
+    ],
+    "name": "removeSubaccount",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -2358,6 +3183,19 @@
       }
     ],
     "name": "setCircuitBreakerHub",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_cr",
+        "type": "address"
+      }
+    ],
+    "name": "setCollateralRegistry",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -2538,6 +3376,32 @@
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "cap",
+        "type": "uint256"
+      }
+    ],
+    "name": "setMaxFundingIntervals",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "floorUsdc",
+        "type": "uint256"
+      }
+    ],
+    "name": "setMinLiquidatorRewardUsdc",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
         "name": "mps",
         "type": "uint256"
       },
@@ -2580,6 +3444,39 @@
   {
     "inputs": [
       {
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "defaultCrossMargin",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint16",
+        "name": "maintenanceMarginBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint16",
+        "name": "concentrationLimitBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint8",
+        "name": "maxCrossPositions",
+        "type": "uint8"
+      }
+    ],
+    "name": "setPortfolioRiskConfig",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "_calendar",
         "type": "address"
@@ -2596,6 +3493,19 @@
       }
     ],
     "name": "setRWAContracts",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_registry",
+        "type": "address"
+      }
+    ],
+    "name": "setReferralRegistry",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -3002,8 +3912,34 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "withdrawOrderCollateralTokenRefund",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "withdrawOrderRefund",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "amountInternalPrecision",
+        "type": "uint256"
+      }
+    ],
+    "name": "writeDownBadDebt",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

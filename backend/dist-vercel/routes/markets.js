@@ -66,7 +66,7 @@ router.get("/", async (_req, res) => {
         if (markets.length === 0) {
             const fallback = buildFallbackMarkets();
             try {
-                const [protocol, cgPrices, pythPrices] = await Promise.all([fetchProtocol(), fetchCoinGeckoPrices(), fetchPythPrices()]);
+                const [_protocol, cgPrices, pythPrices] = await Promise.all([fetchProtocol(), fetchCoinGeckoPrices(), fetchPythPrices()]);
                 const pythChanges = ENABLE_PYTH_24H
                     ? await Promise.all(fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined)))
                     : fallback.map(() => undefined);
@@ -100,7 +100,7 @@ router.get("/", async (_req, res) => {
                 return activeSet.has(addr.toLowerCase());
             });
         }
-        const [protocol, cgPricesRaw, pythPricesRaw] = await Promise.all([
+        const [_protocol, cgPricesRaw, pythPricesRaw] = await Promise.all([
             fetchProtocol().catch(() => null),
             fetchCoinGeckoPrices().catch(() => ({})),
             fetchPythPrices().catch(() => ({}))
@@ -160,7 +160,7 @@ router.get("/", async (_req, res) => {
         const message = e instanceof Error ? e.message : "Failed to fetch markets";
         try {
             const fallback = buildFallbackMarkets();
-            const [protocol, cgPrRaw, pythPrRaw] = await Promise.all([
+            const [_protocol, cgPrRaw, pythPrRaw] = await Promise.all([
                 fetchProtocol().catch(() => null),
                 fetchCoinGeckoPrices().catch(() => ({})),
                 fetchPythPrices().catch(() => ({}))

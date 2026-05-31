@@ -76,4 +76,20 @@ describe('Health Route Logic Paths', () => {
         expect(res.body.config.rpcSet).toBe(false);
         expect(res.body.config.tradingCoreSet).toBe(false);
     });
+
+    it('reports vaultCore and referralRegistry config flags', async () => {
+        const prevVault = process.env.VAULT_CORE_ADDRESS;
+        const prevRef = process.env.REFERRAL_REGISTRY_ADDRESS;
+        process.env.VAULT_CORE_ADDRESS = '0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714';
+        delete process.env.DEPLOYED_REFERRAL_REGISTRY;
+        delete process.env.REFERRAL_REGISTRY_ADDRESS;
+
+        const res = await request(app).get('/health/detailed');
+        expect(res.body.config.vaultCoreSet).toBe(true);
+        expect(res.body.config.referralRegistrySet).toBe(false);
+
+        if (prevVault === undefined) delete process.env.VAULT_CORE_ADDRESS;
+        else process.env.VAULT_CORE_ADDRESS = prevVault;
+        if (prevRef !== undefined) process.env.REFERRAL_REGISTRY_ADDRESS = prevRef;
+    });
 });

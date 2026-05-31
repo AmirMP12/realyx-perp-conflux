@@ -74,4 +74,30 @@ describe("Debug Route", () => {
         expect(res.status).toBe(200);
         expect(res.body.error).toContain("DB Connection Failed");
     });
+
+    it("should surface referral rebate indexing stats", async () => {
+        process.env.VAULT_CORE_ADDRESS = "0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714";
+        pool.query.mockImplementation((sql: string) => {
+            if (sql.includes("COUNT(*) FROM referral_rebates")) {
+                return Promise.resolve({ rows: [{ count: "7" }] });
+            }
+            if (sql.includes("SUM(amount)") && sql.includes("referral_rebates")) {
+                return Promise.resolve({ rows: [{ total: "4500000" }] });
+            }
+            if (sql.includes("FROM referral_rebates ORDER BY id DESC")) {
+                return Promise.resolve({ rows: [{ referrer: "0xabc", amount: "1500000", block_number: 700, tx_hash: "0xtx", created_at: new Date().toISOString() }] });
+            }
+            return Promise.resolve({ rows: [{ count: "0" }] });
+        });
+
+        const res = await request(app).get("/api/debug");
+        expect(res.status).toBe(200);
+        expect(res.body.referralRebates).toMatchObject({
+            configured: true,
+            totalRows: "7",
+            totalAmountRaw: "4500000",
+        });
+        expect(res.body.referralRebates.latest).toMatchObject({ referrer: "0xabc", amount: "1500000" });
+        delete process.env.VAULT_CORE_ADDRESS;
+    });
 });

@@ -33,9 +33,15 @@ library TradingContextLib {
             try IReferralRegistry(referralRegistry).getTraderReferralData(trader) returns (
                 IReferralRegistry.ReferralData memory d
             ) {
-                referrer = d.referrer;
-                discountBps = d.discountBps;
-                rebateBps = d.rebateBps;
+                // Clamp to BPS and refuse configurations whose discount +
+                // rebate exceed 100% (matches `TradingLib._safeGetReferral`).
+                uint16 dBps = d.discountBps > 10000 ? 10000 : d.discountBps;
+                uint16 rBps = d.rebateBps > 10000 ? 10000 : d.rebateBps;
+                if (uint256(dBps) + uint256(rBps) <= 10000) {
+                    referrer = d.referrer;
+                    discountBps = dBps;
+                    rebateBps = rBps;
+                }
             } catch {
                 // never let registry hiccups brick a close
             }

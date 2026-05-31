@@ -4,6 +4,19 @@ import { getCopyEngine } from "../services/copyEngine.js";
 
 const router = Router();
 
+/**
+ * Postgres "undefined_table" error code. The copy-trading schema
+ * (lead_traders, copy_relationships, …) is not created by the indexer's
+ * `initDB` and has no migration yet, so on deployments without it these
+ * queries would otherwise surface as opaque 500s. We detect that case and
+ * respond with a clear "feature not provisioned" signal instead.
+ */
+const PG_UNDEFINED_TABLE = "42P01";
+
+function isMissingSchema(err: unknown): boolean {
+  return Boolean(err && typeof err === "object" && (err as { code?: string }).code === PG_UNDEFINED_TABLE);
+}
+
 // ─── Types ──────────────────────────────────────────────────────────
 
 interface TraderProfile {
@@ -97,6 +110,9 @@ router.get("/trader/:address", async (req: Request, res: Response) => {
 
     return res.json(profile);
   } catch (err: any) {
+    if (isMissingSchema(err)) {
+      return res.status(501).json({ error: "Copy trading is not enabled on this deployment" });
+    }
     console.error("[social] Error fetching trader profile:", err);
     return res.status(500).json({ error: "Internal server error" });
   }
@@ -138,6 +154,9 @@ router.get(
 
       return res.json({ following });
     } catch (err: any) {
+      if (isMissingSchema(err)) {
+        return res.status(501).json({ error: "Copy trading is not enabled on this deployment" });
+      }
       console.error("[social] Error fetching following list:", err);
       return res.status(500).json({ error: "Internal server error" });
     }
@@ -189,6 +208,9 @@ router.get(
         copierAddress: normalizedAddr,
       });
     } catch (err: any) {
+      if (isMissingSchema(err)) {
+        return res.status(501).json({ error: "Copy trading is not enabled on this deployment" });
+      }
       console.error("[social] Error fetching copier PnL:", err);
       return res.status(500).json({ error: "Internal server error" });
     }
@@ -231,6 +253,11 @@ router.get("/top-traders", async (_req: Request, res: Response) => {
 
     return res.json({ traders });
   } catch (err: any) {
+    if (isMissingSchema(err)) {
+      // No copy-trading schema → no lead traders yet. Return an empty set so
+      // the UI renders an honest "no lead traders" state instead of an error.
+      return res.json({ traders: [] });
+    }
     console.error("[social] Error fetching top traders:", err);
     return res.status(500).json({ error: "Internal server error" });
   }

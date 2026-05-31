@@ -15,11 +15,22 @@ spec:
       labels:
         app: frontend
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: frontend
           image: realyx/frontend:latest
+          imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 80
+            - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           resources:
             requests:
               memory: "64Mi"
@@ -30,13 +41,13 @@ spec:
           livenessProbe:
             httpGet:
               path: /
-              port: 80
+              port: 8080
             initialDelaySeconds: 10
             periodSeconds: 10
           readinessProbe:
             httpGet:
               path: /
-              port: 80
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 5
 ---
@@ -45,13 +56,26 @@ kind: Service
 metadata:
   name: frontend
   namespace: realyx
+  labels:
+    app: frontend
 spec:
   selector:
     app: frontend
   ports:
     - port: 80
-      targetPort: 80
+      targetPort: 8080
   type: ClusterIP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: realyx
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: frontend
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -59,12 +83,12 @@ metadata:
   name: realyx-ingress
   namespace: realyx
   annotations:
-    kubernetes.io/ingress.class: nginx
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
 spec:
+  ingressClassName: nginx
   tls:
     - hosts:
         - realyx.org

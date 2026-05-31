@@ -173,6 +173,40 @@ describe("Sync Route Exhaustive Scenarios", () => {
         expect(res.body.scannedFrom).toBe(1500);
     });
 
+    it("should index RebateAccrued logs into referral_rebates when VaultCore is set", async () => {
+        const originalVault = process.env.VAULT_CORE_ADDRESS;
+        process.env.VAULT_CORE_ADDRESS = "0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714";
+
+        const rebateLog = {
+            topics: ["0xrebate"],
+            data: "0x",
+            address: process.env.VAULT_CORE_ADDRESS,
+            blockNumber: 700,
+            index: 2,
+            transactionHash: "0xRebateTx",
+        };
+        // TradingCore scan returns nothing; VaultCore scan returns one rebate log.
+        sharedMockProvider.getLogs.mockResolvedValue([rebateLog]);
+        sharedMockInterface.parseLog.mockReturnValue({
+            name: "RebateAccrued",
+            args: ["0xReferrer000000000000000000000000000000001", 1500000n],
+        });
+        pool.query.mockResolvedValue({ rows: [], rowCount: 1 });
+
+        const result = await sync.runSync({ fromBlock: 700 });
+        expect(result.rebatesSynced).toBe(1);
+        const rebateInserts = pool.query.mock.calls.filter((c: any) =>
+            String(c[0]).includes("INSERT INTO referral_rebates")
+        );
+        expect(rebateInserts).toHaveLength(1);
+        // referrer lower-cased, raw amount preserved
+        expect(rebateInserts[0][1][0]).toBe("0xreferrer000000000000000000000000000000001");
+        expect(rebateInserts[0][1][1]).toBe("1500000");
+
+        if (originalVault === undefined) delete process.env.VAULT_CORE_ADDRESS;
+        else process.env.VAULT_CORE_ADDRESS = originalVault;
+    });
+
     it("should cover checkAndSync logic (stale data)", async () => {
         const consoleSpy = jest.spyOn(console, "log").mockImplementation();
         // Last sync 1 hour ago

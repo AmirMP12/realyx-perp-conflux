@@ -252,4 +252,10 @@ interface IOracleAggregator {
      * @notice Current guardian quorum for pause proposals.
      */
     function getGuardianQuorum() external view returns (uint256);
+
+    /**
+     * @notice Whether a manual emergency-price override is currently active for `market`.
+     * @dev Trading paths refuse risk-increasing actions (opens, liquidations) while true.
+     */
+    function isManualPriceActive(address market) external view returns (bool);
 }

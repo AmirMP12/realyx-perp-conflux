@@ -206,6 +206,15 @@ library TradingLib {
         return uint64(lev);
     }
 
+    /// @dev Clamp to `uint128.max` instead of reverting via Solidity 0.8
+    ///      checked truncation. Mirrors the pattern in
+    ///      `PositionCloseLib._updateMarketAndFinalize` so increase and
+    ///      partial-close paths handle the no-liquidation sentinel
+    ///      consistently.
+    function _u128Clamp(uint256 v) private pure returns (uint128) {
+        return v > type(uint128).max ? type(uint128).max : uint128(v);
+    }
+
     function settleFunding(
         DataTypes.FundingState storage fundingState,
         DataTypes.Market storage m,
@@ -311,9 +320,16 @@ library TradingLib {
         DataTypes.Position storage p = positions[positionId];
         DataTypes.Market storage m = markets[p.market];
 
+        // Always require a fresh, bounded oracle read. Previously the
+        // `isEmergency` branch skipped the oracle check entirely if the
+        // market was inactive, which let a position owner add collateral
+        // against a stale snapshot during a halt. The market-active state
+        // is still respected: we refuse emergency tops on truly listed-and-
+        // active markets (use `addCollateral(...,emg=false)` instead).
         if (isEmergency) {
             if (m.isActive) revert MarketNotActive();
-        } else {
+        }
+        {
             (uint256 pr, uint256 cf, ) = IOracleAggregator(ctx.oracleAggregator).getPrice(p.market);
             if (pr == 0 || cf > ctx.maxOracleUncertainty / 2) revert InvalidOraclePrice();
         }
@@ -335,7 +351,7 @@ library TradingLib {
         if (maxLeverage > 0 && lev > maxLeverage * PRECISION) revert ExceedsMaxLeverage();
 
         p.leverage = _toLeverageU64(lev);
-        p.liquidationPrice = uint128(
+        p.liquidationPrice = _u128Clamp(
             PositionMath.calculateLiquidationPrice(
                 uint256(p.entryPrice),
                 lev,
@@ -380,7 +396,7 @@ library TradingLib {
         if (lev > uint256(m.maxLeverage) * PRECISION) revert ExceedsMaxLeverage();
 
         p.leverage = _toLeverageU64(lev);
-        p.liquidationPrice = uint128(
+        p.liquidationPrice = _u128Clamp(
             PositionMath.calculateLiquidationPrice(
                 uint256(p.entryPrice),
                 lev,
@@ -396,13 +412,19 @@ library TradingLib {
         }
     }
 
+    /// @notice Migrate per-user bookkeeping when a position NFT is transferred.
+    /// @dev Atomically removes from the old owner's `_userPositions` list and
+    ///      appends to the new owner's list (swap-and-pop preserves O(1)) so
+    ///      cross-margin risk gates, `maxPositionsPerUser`, and account-level
+    ///      liquidation stay consistent across NFT transfers.
     function updatePositionOwner(
         uint256 positionId,
         address newOwner,
         address oldOwner,
         uint256 maxUserExposure,
         mapping(uint256 => DataTypes.Position) storage positions,
-        mapping(address => uint256) storage userExposure
+        mapping(address => uint256) storage userExposure,
+        mapping(address => uint256[]) storage userPositions
     ) public {
         if (newOwner == address(0)) revert ZeroAddress();
 
@@ -422,6 +444,25 @@ library TradingLib {
 
         userExposure[oldOwner] = userExposure[oldOwner] > sz ? userExposure[oldOwner] - sz : 0;
         userExposure[newOwner] += sz;
+
+        // ── Keep `_userPositions` enumeration consistent. ──
+        // Self-transfer is a no-op for the array — guard explicitly so we
+        // never accidentally drop the id.
+        if (newOwner == oldOwner) return;
+
+        uint256[] storage oldList = userPositions[oldOwner];
+        uint256 len = oldList.length;
+        for (uint256 i = 0; i < len; ) {
+            if (oldList[i] == positionId) {
+                oldList[i] = oldList[len - 1];
+                oldList.pop();
+                break;
+            }
+            unchecked {
+                ++i;
+            }
+        }
+        userPositions[newOwner].push(positionId);
     }
 
     function settlePositionFunding(
@@ -495,7 +536,7 @@ library TradingLib {
 
     function createOrder(
         uint256 nextOrderId,
-        DataTypes.CreateOrderParams calldata params,
+        DataTypes.CreateOrderParams memory params,
         uint256 executionFee,
         address msgSender,
         uint256 minExecutionFee,
@@ -510,7 +551,17 @@ library TradingLib {
         if (openingIncrease) {
             if (!IOracleAggregator(oracleAggregatorAddr).isActionAllowed(params.market, 0)) revert BreakerActive();
             uint256 totalRequired = params.collateralDelta;
-            if (totalRequired > 0) IERC20(usdcAddr).safeTransferFrom(msgSender, address(this), totalRequired);
+            if (totalRequired > 0) {
+                // when the order specifies a non-zero `collateralToken`. The execute
+                // path values the deposit via `CollateralRegistry`, so the contract
+                // must hold the actual token to back the position and to refund on
+                // cancellation.
+                if (params.collateralToken != address(0)) {
+                    IERC20(params.collateralToken).safeTransferFrom(msgSender, address(this), totalRequired);
+                } else {
+                    IERC20(usdcAddr).safeTransferFrom(msgSender, address(this), totalRequired);
+                }
+            }
         }
         // For reduce-only decrease orders, derive positionId from params
         orders[orderId] = DataTypes.Order({
@@ -862,6 +913,13 @@ library TradingLib {
             uint256 mmAtEntry = PositionMath.calculateDynamicMaintenanceMargin(internalSize, leverage);
             if (marginInternal <= mmAtEntry) revert InsufficientCollateral();
         }
+        // Enforce initial margin uniformly with `withdrawCollateral` so
+        // opens are never looser than withdraws beneath the configured
+        // `m.initialMargin`.
+        if (m.initialMargin > 0) {
+            uint256 imAtEntry = (internalSize * uint256(m.initialMargin)) / BPS;
+            if (marginInternal < imAtEntry) revert InsufficientCollateral();
+        }
 
         uint256 borrowInternal = internalSize > marginInternal ? internalSize - marginInternal : 0;
         // Ceil so vault transfer covers repay paths that use toUsdcPrecisionCeil (floor borrow would leave a USDC dust shortfall).
@@ -874,10 +932,14 @@ library TradingLib {
 
         positionId = nextPosId;
 
+        // (migration, upgrade, manual write), refuse to overwrite an existing
+        // position record.
+        if (positions[positionId].state != DataTypes.PosStatus.NONE) revert InvalidOrder();
+
         positions[positionId] = DataTypes.Position({
             size: uint128(internalSize),
             entryPrice: uint128(currentPrice),
-            liquidationPrice: uint128(
+            liquidationPrice: _u128Clamp(
                 PositionMath.calculateLiquidationPrice(currentPrice, leverage, internalSize, order.isLong)
             ),
             stopLossPrice: 0,
@@ -892,6 +954,27 @@ library TradingLib {
             trailingStopBps: 0,
             collateralToken: order.collateralToken
         });
+
+        // applied to the freshly-minted position. Validate against current
+        // price (long: SL strictly below, TP strictly above; short opposite)
+        // and revert on contradiction so the caller sees a deterministic
+        // error rather than a silently dropped trigger.
+        if (order.stopLossPrice > 0) {
+            if (order.isLong) {
+                if (order.stopLossPrice >= currentPrice) revert InvalidOrder();
+            } else {
+                if (order.stopLossPrice <= currentPrice) revert InvalidOrder();
+            }
+            positions[positionId].stopLossPrice = uint128(order.stopLossPrice);
+        }
+        if (order.takeProfitPrice > 0) {
+            if (order.isLong) {
+                if (order.takeProfitPrice <= currentPrice) revert InvalidOrder();
+            } else {
+                if (order.takeProfitPrice >= currentPrice) revert InvalidOrder();
+            }
+            positions[positionId].takeProfitPrice = uint128(order.takeProfitPrice);
+        }
 
         positionCollateral[positionId] = DataTypes.PositionCollateral({
             amount: marginInternal,
@@ -1009,6 +1092,10 @@ library TradingLib {
 
     /// @dev Internal-only fetch that returns zero on any unexpected revert so the
     ///      registry is never able to brick a trade. Used by `executeOrderFull`.
+    /// @dev Clamps returned bps so a malicious or misconfigured registry
+    ///      cannot rebate >100% of fees or apply a negative-protocol-fee
+    ///      discount. Refuses to honour any configuration whose discount +
+    ///      rebate exceeds `BPS`.
     function _safeGetReferral(
         address registry,
         address trader
@@ -1016,7 +1103,13 @@ library TradingLib {
         try IReferralRegistry(registry).getTraderReferralData(trader) returns (
             IReferralRegistry.ReferralData memory d
         ) {
-            return (d.referrer, d.discountBps, d.rebateBps);
+            uint16 dBps = d.discountBps > BPS ? uint16(BPS) : d.discountBps;
+            uint16 rBps = d.rebateBps > BPS ? uint16(BPS) : d.rebateBps;
+            if (uint256(dBps) + uint256(rBps) > BPS) {
+                // Configuration is unsafe; treat as unreferred.
+                return (address(0), 0, 0);
+            }
+            return (d.referrer, dBps, rBps);
         } catch {
             return (address(0), 0, 0);
         }
@@ -1039,20 +1132,37 @@ library TradingLib {
         uint256 rebateShareUsdc = DataTypes.toUsdcPrecision(rebateShare);
 
         if (lpShareUsdc > 0) {
-            IERC20(ctx.usdc).safeTransfer(ctx.liquidityVault, lpShareUsdc);
+            // Route the LP fee through the accounted pull hook so the vault's
+            // LP cash counter (`_lpAssets`) tracks this inflow. A raw transfer
+            // here would let `recordDonation` later misclassify the fee as an
+            // external donation. Approve, call, revoke (force-approve pattern).
+            IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
+            IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, lpShareUsdc);
+            IVaultCore(ctx.liquidityVault).receiveLpFees(lpShareUsdc);
+            IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
         }
         if (insuranceShareUsdc > 0) {
-            IERC20(ctx.usdc).safeTransfer(ctx.insuranceFund, insuranceShareUsdc);
+            // Vault now pulls fees in `receiveFees` for the same
+            // funds-arrived invariant as `accrueRebate`. Approve, call,
+            // revoke.
+            IERC20(ctx.usdc).forceApprove(ctx.insuranceFund, 0);
+            IERC20(ctx.usdc).forceApprove(ctx.insuranceFund, insuranceShareUsdc);
             IVaultCore(ctx.insuranceFund).receiveFees(insuranceShareUsdc);
+            IERC20(ctx.usdc).forceApprove(ctx.insuranceFund, 0);
         }
         if (treasuryShareUsdc > 0) {
             IERC20(ctx.usdc).safeTransfer(ctx.treasury, treasuryShareUsdc);
         }
         if (rebateShareUsdc > 0 && ctx.referrer != address(0)) {
-            // Rebate USDC stays in the vault; `accrueRebate` records the
-            // referrer's claim and isolates the funds from LP accounting.
-            IERC20(ctx.usdc).safeTransfer(ctx.liquidityVault, rebateShareUsdc);
+            // Approve the vault to pull the rebate USDC. The vault now
+            // pulls inside `accrueRebate` so the funds invariant is
+            // verified by the vault itself, not trusted from the caller.
+            // Reset to 0 first (force-approve pattern) then back to 0 after
+            // for defense-in-depth.
+            IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
+            IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, rebateShareUsdc);
             IVaultCore(ctx.liquidityVault).accrueRebate(ctx.referrer, rebateShareUsdc);
+            IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
         }
 
         emit FeesDistributed(lpShare, insuranceShare, treasuryShare);
@@ -1104,7 +1214,16 @@ library TradingLib {
         uint256[] storage failedRepaymentIds,
         mapping(uint256 => uint256) storage failedRepaymentIndex
     ) public {
-        if (failedRepayments[positionId].amount > 0 && !failedRepayments[positionId].resolved) {
+        DataTypes.FailedRepayment storage existing = failedRepayments[positionId];
+        if (existing.amount > 0 && !existing.resolved) {
+            // Accumulate: a second failed-repayment leg on the same
+            // position must not be silently dropped (under-reports bad
+            // debt). Update the residual sum and PnL while keeping the
+            // record open until `resolveFailedRepayment` clears it.
+            existing.amount += amount;
+            existing.pnl = pnl;
+            existing.timestamp = block.timestamp;
+            emit FailedRepaymentRecorded(positionId, amount, market, isLong, pnl);
             return;
         }
         failedRepayments[positionId] = DataTypes.FailedRepayment({
@@ -1191,10 +1310,12 @@ library TradingLib {
     function cancelOrder(
         uint256 orderId,
         address msgSender,
+        address executionFeePayer,
         IERC20,
         mapping(uint256 => DataTypes.Order) storage orders,
         mapping(address => uint256) storage orderRefundBalance,
-        mapping(address => uint256) storage orderCollateralRefundBalance
+        mapping(address => uint256) storage orderCollateralRefundBalance,
+        mapping(address => mapping(address => uint256)) storage orderCollateralTokenRefundBalance
     ) external {
         DataTypes.Order memory order = orders[orderId];
         if (order.account == address(0) || order.timestamp == 0) revert OrderNotFound();
@@ -1206,11 +1327,22 @@ library TradingLib {
             (order.orderType == DataTypes.OrderType.MARKET_INCREASE ||
                 order.orderType == DataTypes.OrderType.LIMIT_INCREASE) && order.collateralDelta > 0
         ) {
-            orderCollateralRefundBalance[order.account] += order.collateralDelta;
+            // `createOrder`. USDC and alt-collateral are tracked in disjoint
+            // ledgers so neither flow can shadow the other.
+            if (order.collateralToken != address(0)) {
+                orderCollateralTokenRefundBalance[order.account][order.collateralToken] += order.collateralDelta;
+            } else {
+                orderCollateralRefundBalance[order.account] += order.collateralDelta;
+            }
         }
 
         if (order.executionFee > 0) {
-            orderRefundBalance[msgSender] += order.executionFee;
+            // Credit the actual fee payer (subaccount bots front the
+            // execution fee on the owner's behalf). Default to the order
+            // owner when no explicit payer was recorded — matches legacy
+            // direct-order semantics.
+            address creditTo = executionFeePayer != address(0) ? executionFeePayer : msgSender;
+            orderRefundBalance[creditTo] += order.executionFee;
         }
 
         emit OrderCancelled(orderId, "User Cancelled");

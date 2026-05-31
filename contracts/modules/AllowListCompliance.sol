@@ -15,13 +15,24 @@ contract AllowListCompliance is Initializable, AccessControlUpgradeable, UUPSUpg
     bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
 
     error BatchSizeExceeded();
+    error ZeroAddress();
+    /// @dev 48h UUPS upgrade timelock errors.
+    error PendingImplementationMismatch();
+    error UpgradeTimelockActive();
 
     mapping(address => bool) public isWhitelisted;
     mapping(address => bool) public userCountryBlocked;
 
+    // ── 48h UUPS upgrade timelock ──
+    uint256 private constant UPGRADE_TIMELOCK = 48 hours;
+    address private _pendingImpl;
+    uint256 private _pendingImplEffective;
+
     event UserWhitelisted(address indexed user, bool status);
     event WhitelistBatchUpdated(address[] users, bool status);
     event UserCountryBlockUpdated(address indexed user, bool blocked);
+    event ImplementationProposed(address indexed pending, uint256 effective);
+    event ImplementationCancelled(address indexed pending);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -37,7 +48,36 @@ contract AllowListCompliance is Initializable, AccessControlUpgradeable, UUPSUpg
         _grantRole(MANAGER_ROLE, admin);
     }
 
-    function _authorizeUpgrade(address) internal override onlyRole(DEFAULT_ADMIN_ROLE) {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
+        // 48h staged-implementation timelock. A compromised admin
+        // cannot immediately replace the compliance module to silently
+        // flip users to "not allowed" (DoS) or whitelist sanctioned
+        // addresses; the swap must be staged for 48h first.
+        if (newImplementation != _pendingImpl) revert PendingImplementationMismatch();
+        if (_pendingImplEffective == 0 || block.timestamp < _pendingImplEffective) revert UpgradeTimelockActive();
+        delete _pendingImpl;
+        delete _pendingImplEffective;
+    }
+
+    /// @notice Stage a UUPS upgrade. Effective `UPGRADE_TIMELOCK` later.
+    function proposeImplementation(address newImplementation) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (newImplementation == address(0)) revert ZeroAddress();
+        _pendingImpl = newImplementation;
+        _pendingImplEffective = block.timestamp + UPGRADE_TIMELOCK;
+        emit ImplementationProposed(newImplementation, _pendingImplEffective);
+    }
+
+    /// @notice Cancel a pending UUPS upgrade.
+    function cancelPendingImplementation() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        emit ImplementationCancelled(_pendingImpl);
+        delete _pendingImpl;
+        delete _pendingImplEffective;
+    }
+
+    /// @notice Read-only view of any staged UUPS upgrade.
+    function pendingImplementation() external view returns (address pending, uint256 effective) {
+        return (_pendingImpl, _pendingImplEffective);
+    }
 
     function setWhitelist(address user, bool status) external onlyRole(MANAGER_ROLE) {
         isWhitelisted[user] = status;

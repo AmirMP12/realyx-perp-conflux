@@ -1,6 +1,11 @@
 [
   {
     "inputs": [],
+    "name": "CastOverflow",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "DivisionByZero",
     "type": "error"
   },
@@ -38,5 +43,18 @@
     "inputs": [],
     "name": "PositionSizeTooLarge",
     "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MAX_DYNAMIC_MAINTENANCE_BPS",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   }
 ]

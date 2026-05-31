@@ -31,6 +31,9 @@ function loadAddresses(): { name: string; address: string }[] {
     push("AllowListCompliance", "DEPLOYED_COMPLIANCE_MANAGER");
     push("DividendKeeper", "DEPLOYED_DIVIDEND_KEEPER");
     push("TradingCoreViews", "DEPLOYED_TRADING_CORE_VIEWS");
+    push("CollateralRegistry", "DEPLOYED_COLLATERAL_REGISTRY");
+    push("CopyRegistry", "DEPLOYED_COPY_REGISTRY");
+    push("ReferralRegistry", "DEPLOYED_REFERRAL_REGISTRY");
     push("MockUSDC", "DEPLOYED_MOCK_USDC");
     push("MockPythWrapper", "DEPLOYED_MOCK_PYTH");
 
@@ -62,6 +65,9 @@ function loadAddresses(): { name: string; address: string }[] {
         complianceManager: "AllowListCompliance",
         dividendKeeper: "DividendKeeper",
         tradingCoreViews: "TradingCoreViews",
+        collateralRegistry: "CollateralRegistry",
+        copyRegistry: "CopyRegistry",
+        referralRegistry: "ReferralRegistry",
         mockUsdc: "MockUSDC",
         mockPyth: "MockPythWrapper",
     };
@@ -100,6 +106,32 @@ async function main() {
                     address,
                     contract: "contracts/test/MockPyth.sol:MockPythWrapper",
                     constructorArguments: [3600, 0],
+                });
+            } else if (name === "CollateralRegistry") {
+                // Non-upgradeable; constructor (admin, oracleAggregator).
+                const adminArg = process.env.DEPLOYER_ADDRESS?.trim();
+                const oracleArg =
+                    process.env.DEPLOYED_ORACLE_AGGREGATOR?.trim() ||
+                    (process.env.HARDHAT_NETWORK
+                        ? (
+                              JSON.parse(
+                                  fs.readFileSync(
+                                      path.join(process.cwd(), "deployment", `${process.env.HARDHAT_NETWORK}.json`),
+                                      "utf-8",
+                                  ),
+                              ) as DeploymentData
+                          ).contracts?.oracleAggregator
+                        : undefined);
+                if (!adminArg || !oracleArg) {
+                    console.warn(
+                        `Skipping CollateralRegistry verify: need DEPLOYER_ADDRESS and DEPLOYED_ORACLE_AGGREGATOR (constructor args).`,
+                    );
+                    continue;
+                }
+                await run("verify:verify", {
+                    address,
+                    contract: "contracts/core/CollateralRegistry.sol:CollateralRegistry",
+                    constructorArguments: [adminArg, oracleArg],
                 });
             } else {
                 console.log(`Verifying: ${name} at ${address}`);

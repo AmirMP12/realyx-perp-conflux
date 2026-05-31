@@ -746,47 +746,33 @@ export async function fetchKeeperFailures(traderAddress: string, limit: number =
   }
 }
 
-export interface FundingPayment {
-  positionId: string;
-  amount: string;
-  traderAddress: string;
-  marketAddress: string;
-  timestamp: string;
-}
-
-export async function fetchFundingPayments(traderAddress: string, limit: number = 20): Promise<FundingPayment[]> {
-  if (!process.env.POSTGRES_URL) return [];
-  try {
-    const pool = getPool();
-    if (!pool) return [];
-    const res = await pool.query(
-      `SELECT (data::jsonb->>0)::text AS position_id,
-              (data::jsonb->>1)::numeric AS amount,
-              account AS trader_address,
-              market_id AS market_address,
-              EXTRACT(EPOCH FROM created_at)::bigint AS ts
-       FROM position_events
-       WHERE event_type = 'FundingPaid'
-         AND lower(account) = $1
-       ORDER BY created_at DESC
-       LIMIT $2`,
-      [traderAddress.toLowerCase(), Math.min(limit, 100)]
-    );
-    return res.rows.map((row: any) => ({
-      positionId: String(row.position_id),
-      amount: String(row.amount || '0'),
-      traderAddress: row.trader_address,
-      marketAddress: String(row.market_address || ''),
-      timestamp: String(row.ts),
-    }));
-  } catch (e) {
-    console.error('[indexer] fetchFundingPayments error:', e);
-    return [];
-  }
-}
-
 export async function fetchBadDebtClaims(_limit: number): Promise<BadDebtClaim[]> {
   return [];
+}
+
+/**
+ * Cumulative referral rebates earned by `referrer`, summed from indexed
+ * VaultCore `RebateAccrued` events (USDC, 6 dp, as a raw integer string).
+ * Returns null when the indexer DB is unavailable so callers can fall back to
+ * an on-chain log scan.
+ */
+export async function fetchReferralEarned(referrer: string): Promise<string | null> {
+  const addr = referrer.toLowerCase();
+  if (!addr.startsWith("0x") || !process.env.POSTGRES_URL) return null;
+  try {
+    const pool = getPool();
+    if (!pool) return null;
+    const res = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0)::text AS total
+       FROM referral_rebates
+       WHERE referrer = $1`,
+      [addr]
+    );
+    return String(res.rows[0]?.total ?? "0");
+  } catch (e) {
+    console.error("[indexer] fetchReferralEarned error:", e);
+    return null;
+  }
 }
 
 export async function fetchProtocolMetrics(
@@ -798,8 +784,13 @@ export async function fetchProtocolMetrics(
     const pool = getPool();
     if (!pool) return [];
 
-
-    const trunc = periodType === "day" ? "day" : "hour";
+    // Whitelist the period unit and coerce the limit to a bounded integer so
+    // neither value can be used to inject SQL via the INTERVAL / date_trunc
+    // expressions (they cannot be passed as bound parameters).
+    const unit = periodType === "hour" ? "hour" : "day";
+    const trunc = unit;
+    const safeLimit = Math.min(Math.max(Math.trunc(Number(limit) || 0), 1), 1000);
+    const intervalLiteral = `${safeLimit} ${unit}s`;
 
     const res = await pool.query(`
       WITH opened_sizes AS (
@@ -829,7 +820,7 @@ export async function fetchProtocolMetrics(
         FROM position_events c
         LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
         WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
-          AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '${limit} ${periodType}s'))
+          AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '${intervalLiteral}'))
       )
       SELECT 
         ts::text as timestamp_text,
@@ -841,12 +832,12 @@ export async function fetchProtocolMetrics(
       GROUP BY ts
       ORDER BY ts DESC
       LIMIT $1
-    `, [limit]);
+    `, [safeLimit]);
 
     return res.rows.map((row: any) => ({
       id: row.timestamp_text,
       period: "daily",
-      periodType,
+      periodType: unit,
       volumeUsd: row.volume_usd_raw,
       tradesCount: String(row.trades_count),
       feesUsd: row.fees_usd_raw,

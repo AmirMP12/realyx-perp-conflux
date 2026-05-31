@@ -12,4 +12,6 @@ contract MockVaultRevertingRepay {
     }
 
     function receiveFees(uint256) external pure {}
+
+    function receiveLpFees(uint256) external pure {}
 }

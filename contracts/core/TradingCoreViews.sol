@@ -117,11 +117,45 @@ contract TradingCoreViews is Ownable {
             address market = ITradingCoreExtended(core).activeMarketAt(i);
             DataTypes.Market memory m = ITradingCore(core).getMarketInfo(market);
             if (m.isActive && (m.totalLongSize > 0 || m.totalShortSize > 0)) {
-                (uint256 price, , ) = oracleAggregator.getPrice(market);
-                if (price > 0) {
-                    int256 longPnL = int256((m.totalLongSize * price) / 1e18) - int256(m.totalLongCost);
-                    int256 shortPnL = int256(m.totalShortCost) - int256((m.totalShortSize * price) / 1e18);
-                    totalPnL += longPnL + shortPnL;
+                // Per-market fault isolation: a single stale / over-confidence /
+                // unconfigured feed must NOT revert the whole aggregation.
+                // Previously any reverting market poisoned this view, and the
+                // vault's `try/catch` then fell back to a ZERO trader-PnL
+                // adjustment on the conservative (withdrawal) path — letting
+                // LPs over-withdraw against unpriced, possibly-profitable
+                // trader positions. We instead skip the unreadable market's
+                // contribution here; the vault treats an unreadable market as
+                // "no offsetting credit", which is conservative for LP exits.
+                try oracleAggregator.getPrice(market) returns (uint256 price, uint256, uint256) {
+                    if (price > 0) {
+                        // Bound `size * price` to prevent silent int256
+                        // overflow on extreme OI configs. With internal
+                        // precision (1e18) sizes and ~1e18 prices, the
+                        // product can grow large; we conservatively cap at
+                        // half int256.max so the subtraction below cannot
+                        // wrap. A position too large to compute PnL safely
+                        // is reported as zero for the purposes of the
+                        // global aggregate (a position cap upstream is the
+                        // correct fix; this is defense in depth).
+                        uint256 longCurrent = (m.totalLongSize * price) / 1e18;
+                        uint256 shortCurrent = (m.totalShortSize * price) / 1e18;
+                        uint256 maxSafe = uint256(type(int256).max) / 2;
+                        if (
+                            longCurrent <= maxSafe &&
+                            shortCurrent <= maxSafe &&
+                            m.totalLongCost <= maxSafe &&
+                            m.totalShortCost <= maxSafe
+                        ) {
+                            int256 longPnL = int256(longCurrent) - int256(m.totalLongCost);
+                            int256 shortPnL = int256(m.totalShortCost) - int256(shortCurrent);
+                            totalPnL += longPnL + shortPnL;
+                        }
+                    }
+                } catch {
+                    // Unreadable market: skip its contribution. Combined with
+                    // the vault's conservative-total consumer (which subtracts
+                    // only positive aggregate trader PnL), skipping cannot
+                    // inflate LP withdrawable value beyond the priced markets.
                 }
             }
             unchecked {

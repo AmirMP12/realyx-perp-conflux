@@ -53,6 +53,16 @@ async function initDB() {
       );
       ALTER TABLE position_events ADD COLUMN IF NOT EXISTS size_usd NUMERIC DEFAULT 0;
       ALTER TABLE position_events ADD COLUMN IF NOT EXISTS block_time BIGINT;
+
+      CREATE TABLE IF NOT EXISTS api_keys (
+        id SERIAL PRIMARY KEY,
+        key_hash VARCHAR(64) NOT NULL UNIQUE,
+        owner_address VARCHAR(42) NOT NULL,
+        tier VARCHAR(10) NOT NULL DEFAULT 'FREE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_api_keys_owner ON api_keys(owner_address);
+      CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
     `);
     }
     catch (error) {
@@ -88,7 +98,6 @@ export async function runSync(options) {
         "PositionClosed(uint256,address,int256,uint256,uint256)",
         "PositionLiquidated(uint256,address,uint256,uint256)"
     ].map(sig => ethers.id(sig));
-    let iterations = 0;
     let totalSynced = 0;
     let currentStart = startBlock;
     let finalTo = startBlock - 1;
@@ -213,7 +222,7 @@ async function runRepair(pool, provider) {
         const missing = await pool.query(`
       SELECT id, block_number FROM position_events 
       WHERE block_time IS NULL 
-      ORDER BY id DESC LIMIT 50
+      ORDER BY id DESC LIMIT 500
     `);
         if (missing.rows.length === 0)
             return;

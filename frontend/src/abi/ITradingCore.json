@@ -465,6 +465,30 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "canLiquidateAccount",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "can",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "healthFactor",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "orderId",
         "type": "uint256"
@@ -519,44 +543,96 @@
   {
     "inputs": [
       {
-        "internalType": "enum DataTypes.OrderType",
-        "name": "orderType",
-        "type": "uint8"
-      },
-      {
-        "internalType": "address",
-        "name": "market",
-        "type": "address"
-      },
-      {
-        "internalType": "uint256",
-        "name": "sizeDelta",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "collateralDelta",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "triggerPrice",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bool",
-        "name": "isLong",
-        "type": "bool"
-      },
-      {
-        "internalType": "uint256",
-        "name": "maxSlippage",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "positionId",
-        "type": "uint256"
+        "components": [
+          {
+            "internalType": "enum DataTypes.OrderType",
+            "name": "orderType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "market",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "sizeDelta",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collateralDelta",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "triggerPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "isLong",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxSlippage",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "positionId",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint8",
+            "name": "collateralType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralToken",
+            "type": "address"
+          },
+          {
+            "internalType": "enum DataTypes.TimeInForce",
+            "name": "tif",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint256",
+            "name": "stopLossPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "takeProfitPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "visibleSize",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "twapInterval",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "isReduceOnly",
+            "type": "bool"
+          },
+          {
+            "internalType": "address",
+            "name": "owner",
+            "type": "address"
+          }
+        ],
+        "internalType": "struct DataTypes.CreateOrderParams",
+        "name": "params",
+        "type": "tuple"
       }
     ],
     "name": "createOrder",
@@ -585,7 +661,63 @@
     ],
     "name": "executeOrder",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      }
+    ],
+    "name": "getAccountRisk",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "totalNotional",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "totalCollateral",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maintenanceMarginRequirement",
+            "type": "uint256"
+          },
+          {
+            "internalType": "int256",
+            "name": "unrealizedPnL",
+            "type": "int256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "healthFactor",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "crossPositionCount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "bool",
+            "name": "liquidatable",
+            "type": "bool"
+          }
+        ],
+        "internalType": "struct DataTypes.AccountRiskSnapshot",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -814,6 +946,11 @@
             "internalType": "uint8",
             "name": "state",
             "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralToken",
+            "type": "address"
           }
         ],
         "internalType": "struct DataTypes.Position",

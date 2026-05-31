@@ -52,10 +52,23 @@ The backend utilizes a sophisticated SQL-based indexing engine to calculate real
 
 All JSON responses follow `{ success: boolean, data?: T, error?: string }`.
 
-## Health
+### Internal / authenticated endpoints
 
-- `GET /health` basic liveness
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | `/api/v1/keeper/failure` | `Authorization: Bearer KEEPER_WEBHOOK_SECRET` | Keeper-bot failure webhook (broadcast to user WS). Disabled in prod if no secret. |
+| GET | `/api/debug` | `DEBUG_SECRET` (Bearer or `?key=`) in prod | Indexer/DB diagnostics. Returns 404 in prod when no secret set. |
+| GET | `/api/sync` | `CRON_SECRET` (Bearer) or `?key=force` | Manual index sync. |
+
+## Health & Metrics
+
+- `GET /health` basic liveness (public API port)
 - `GET /health/detailed` dependency and config checks
+- `GET /metrics` Prometheus metrics on `METRICS_PORT` (separate internal port, not exposed via Ingress)
+
+Metrics include default Node/process metrics, `http_requests_total`,
+`http_request_duration_seconds`, and `ws_active_connections`. These back the
+Prometheus scrape config and alert rules in `infrastructure/monitoring/`.
 
 ## Environment Variables
 
@@ -73,8 +86,17 @@ All JSON responses follow `{ success: boolean, data?: T, error?: string }`.
 | TRADING_CORE_ADDRESS | - | TradingCore used by active market filters/sync |
 | DEPLOYED_TRADING_CORE | - | Alternate TradingCore env fallback |
 | CRON_SECRET | - | Optional bearer token for `/api/sync` |
+| CORS_ORIGINS | - | Comma-separated browser CORS allowlist. Unset reflects any origin (dev only) |
+| KEEPER_WEBHOOK_SECRET | - | Bearer secret for `/api/v1/keeper/failure`. Required in prod |
+| DEBUG_SECRET | - | Secret guarding `/api/debug` in prod (Bearer or `?key=`) |
 | NODE_ENV | development | Runtime mode |
-| METRICS_PORT | 9090 | Metrics port config |
+| METRICS_PORT | 9090 | Prometheus metrics server port (`/metrics`) |
+
+## Graceful shutdown
+
+On `SIGTERM`/`SIGINT` the server stops the background sync loop, closes the
+WebSocket and metrics servers, and drains in-flight HTTP connections (10s
+failsafe). This makes Kubernetes rolling deploys clean.
 
 ## Structure
 

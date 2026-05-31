@@ -9,6 +9,11 @@ const TRADING_CORE_SYNC_ABI = [
   "event PositionLiquidated(uint256 indexed positionId, address indexed liquidator, uint256 liquidationPrice, uint256 liquidationFee)",
 ] as const;
 
+/** VaultCore referral-rebate accrual; indexed so /api/referrals can sum cumulative earnings cheaply. */
+const VAULT_REBATE_SYNC_ABI = [
+  "event RebateAccrued(address indexed referrer, uint256 amount)",
+] as const;
+
 const router = express.Router();
 
 let poolInstance: pg.Pool | null = null;
@@ -65,6 +70,19 @@ async function initDB() {
       );
       CREATE INDEX IF NOT EXISTS idx_api_keys_owner ON api_keys(owner_address);
       CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
+
+      CREATE TABLE IF NOT EXISTS referral_rebates (
+        id SERIAL PRIMARY KEY,
+        referrer VARCHAR(42) NOT NULL,
+        amount NUMERIC NOT NULL,
+        block_number BIGINT NOT NULL,
+        log_index INTEGER NOT NULL,
+        tx_hash VARCHAR(66) NOT NULL,
+        block_time BIGINT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (tx_hash, log_index)
+      );
+      CREATE INDEX IF NOT EXISTS idx_referral_rebates_referrer ON referral_rebates(referrer);
     `);
   } catch (error) {
     console.error("Failed to initialize database:", error);
@@ -85,6 +103,9 @@ export async function runSync(options?: { fromBlock?: number }) {
   }
 
   const iface = new ethers.Interface(TRADING_CORE_SYNC_ABI);
+  const rebateIface = new ethers.Interface(VAULT_REBATE_SYNC_ABI);
+  const vaultCoreAddress = (process.env.VAULT_CORE_ADDRESS ?? process.env.DEPLOYED_VAULT_CORE ?? "").trim();
+  const rebateTopic = ethers.id("RebateAccrued(address,uint256)");
 
   let startBlock = 248000000; // Reset to 248M (April 14th deployment) to avoid scanning empty history
   const stateResult = await pool.query(`SELECT last_synced_block FROM indexer_state WHERE key = 'trading_core'`);
@@ -108,6 +129,7 @@ export async function runSync(options?: { fromBlock?: number }) {
   ].map(sig => ethers.id(sig));
 
   let totalSynced = 0;
+  let rebatesSynced = 0;
   let currentStart = startBlock;
   let finalTo = startBlock - 1;
   const CHUNK = 50000;
@@ -122,14 +144,29 @@ export async function runSync(options?: { fromBlock?: number }) {
     }
 
     const currentTo = Math.min(currentStart + CHUNK, latestBlock);
-    const batchLogs = await provider.getLogs({
-      address: tradingCoreAddress,
-      fromBlock: currentStart,
-      toBlock: currentTo,
-      topics: [targetTopics]
-    });
+    const [batchLogs, rebateLogs] = await Promise.all([
+      provider.getLogs({
+        address: tradingCoreAddress,
+        fromBlock: currentStart,
+        toBlock: currentTo,
+        topics: [targetTopics]
+      }),
+      // Referral rebates live on VaultCore; skip the scan entirely when unset.
+      vaultCoreAddress
+        ? provider.getLogs({
+            address: vaultCoreAddress,
+            fromBlock: currentStart,
+            toBlock: currentTo,
+            topics: [rebateTopic]
+          }).catch((e: any) => {
+            console.error("[sync] rebate getLogs failed:", e?.message ?? e);
+            return [] as any[];
+          })
+        : Promise.resolve([] as any[]),
+    ]);
 
     totalSynced += await processLogs(batchLogs, iface, pool, provider);
+    rebatesSynced += await processRebateLogs(rebateLogs, rebateIface, pool, provider);
     finalTo = currentTo;
     if (currentTo >= latestBlock) break;
     currentStart = currentTo + 1;
@@ -147,6 +184,7 @@ export async function runSync(options?: { fromBlock?: number }) {
   return {
     success: true,
     eventsSynced: totalSynced,
+    rebatesSynced,
     scannedFrom: startBlock,
     scannedTo: finalTo,
     latestBlock,
@@ -233,6 +271,52 @@ async function processLogs(logs: any[], iface: ethers.Interface, pool: pg.Pool, 
       inserted++;
     } catch (err) {
       console.error("Parse error", err);
+    }
+  }
+  return inserted;
+}
+
+/**
+ * Persist VaultCore `RebateAccrued(referrer, amount)` logs. Idempotent via the
+ * `(tx_hash, log_index)` unique constraint so re-scans (overlapping ranges,
+ * lazy-sync pulses) never double-count cumulative referral earnings.
+ */
+async function processRebateLogs(
+  logs: any[],
+  iface: ethers.Interface,
+  pool: pg.Pool,
+  provider: ethers.Provider,
+) {
+  let inserted = 0;
+  let lastBlock = -1;
+  let lastTime = 0;
+
+  for (const log of logs) {
+    try {
+      const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+      if (!parsed) continue;
+
+      const referrer = String(parsed.args[0]).toLowerCase();
+      const amount = (parsed.args[1] as bigint).toString();
+
+      let blockTime;
+      if (log.blockNumber === lastBlock) {
+        blockTime = lastTime;
+      } else {
+        blockTime = await getBlockTime(log.blockNumber, provider);
+        lastBlock = log.blockNumber;
+        lastTime = blockTime;
+      }
+
+      const result = await pool.query(
+        `INSERT INTO referral_rebates (referrer, amount, block_number, log_index, tx_hash, block_time)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (tx_hash, log_index) DO NOTHING`,
+        [referrer, amount, log.blockNumber, log.index ?? log.logIndex ?? 0, log.transactionHash, blockTime]
+      );
+      inserted += result.rowCount ?? 0;
+    } catch (err) {
+      console.error("Rebate parse error", err);
     }
   }
   return inserted;

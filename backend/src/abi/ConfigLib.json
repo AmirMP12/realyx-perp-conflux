@@ -23,5 +23,36 @@
     "inputs": [],
     "name": "MaxActiveMarketsExceeded",
     "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "market",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "maxLeverage",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "maxPositionSize",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "maxTotalExposure",
+        "type": "uint256"
+      }
+    ],
+    "name": "MarketUpdated",
+    "type": "event"
   }
 ]

@@ -316,6 +316,11 @@
         "internalType": "uint8",
         "name": "state",
         "type": "uint8"
+      },
+      {
+        "internalType": "address",
+        "name": "collateralToken",
+        "type": "address"
       }
     ],
     "stateMutability": "view",

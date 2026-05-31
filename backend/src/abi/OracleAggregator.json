@@ -179,6 +179,11 @@
   },
   {
     "inputs": [],
+    "name": "EmergencyPriceValidUntilOutOfRange",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "EnforcedPause",
     "type": "error"
   },
@@ -214,6 +219,11 @@
   },
   {
     "inputs": [],
+    "name": "InsufficientUpdateFee",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidCooldownSeconds",
     "type": "error"
   },
@@ -244,7 +254,22 @@
   },
   {
     "inputs": [],
+    "name": "MarketIdTooLong",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "MaxConfidenceRequired",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "NoEthUsdFeed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoPendingOverride",
     "type": "error"
   },
   {
@@ -304,6 +329,21 @@
   },
   {
     "inputs": [],
+    "name": "OracleUnreachableForOverride",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PendingImplementationMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PendingOverrideTimelockActive",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "PriceOutOfBounds",
     "type": "error"
   },
@@ -334,7 +374,17 @@
   },
   {
     "inputs": [],
+    "name": "PythUpdateFailed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ReentrancyGuardReentrantCall",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "ReportedPriceMustBeZero",
     "type": "error"
   },
   {
@@ -369,6 +419,11 @@
   },
   {
     "inputs": [],
+    "name": "TooManyPausables",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "UUPSUnauthorizedCallContext",
     "type": "error"
   },
@@ -385,6 +440,11 @@
   },
   {
     "inputs": [],
+    "name": "UpgradeTimelockActive",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
   },
@@ -394,7 +454,7 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "collection",
+        "name": "market",
         "type": "address"
       },
       {
@@ -444,7 +504,7 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "collection",
+        "name": "market",
         "type": "address"
       },
       {
@@ -454,32 +514,7 @@
         "type": "uint8"
       },
       {
-        "indexed": true,
-        "internalType": "address",
-        "name": "resetBy",
-        "type": "address"
-      }
-    ],
-    "name": "BreakerReset",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "collection",
-        "type": "address"
-      },
-      {
         "indexed": false,
-        "internalType": "enum DataTypes.BreakerType",
-        "name": "breakerType",
-        "type": "uint8"
-      },
-      {
-        "indexed": true,
         "internalType": "address",
         "name": "resetBy",
         "type": "address"
@@ -525,38 +560,7 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "collection",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "enum DataTypes.BreakerType",
-        "name": "breakerType",
-        "type": "uint8"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "threshold",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "price",
-        "type": "uint256"
-      }
-    ],
-    "name": "BreakerTriggered",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "collection",
+        "name": "market",
         "type": "address"
       },
       {
@@ -611,50 +615,6 @@
       }
     ],
     "name": "EmergencyPauseExecuted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "pauseId",
-        "type": "bytes32"
-      },
-      {
-        "indexed": false,
-        "internalType": "address[]",
-        "name": "targets",
-        "type": "address[]"
-      }
-    ],
-    "name": "EmergencyPauseExecuted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "pauseId",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "proposer",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "address[]",
-        "name": "targets",
-        "type": "address[]"
-      }
-    ],
-    "name": "EmergencyPauseProposed",
     "type": "event"
   },
   {
@@ -730,31 +690,13 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "proposalId",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "collection",
-        "type": "address"
-      },
-      {
         "indexed": false,
         "internalType": "uint256",
-        "name": "price",
+        "name": "newInterval",
         "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "proposer",
-        "type": "address"
       }
     ],
-    "name": "EmergencyPriceProposed",
+    "name": "EmergencyPriceProposalMinIntervalUpdated",
     "type": "event"
   },
   {
@@ -805,6 +747,19 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "timestamp",
+        "type": "uint256"
+      }
+    ],
+    "name": "GlobalPauseAutoExpired",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "address",
         "name": "deactivator",
@@ -818,6 +773,38 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": true,
+        "internalType": "address",
+        "name": "pending",
+        "type": "address"
+      }
+    ],
+    "name": "ImplementationCancelled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "pending",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "name": "ImplementationProposed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": false,
         "internalType": "uint64",
         "name": "version",
@@ -825,6 +812,19 @@
       }
     ],
     "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "calendar",
+        "type": "address"
+      }
+    ],
+    "name": "MarketCalendarUpdated",
     "type": "event"
   },
   {
@@ -846,37 +846,6 @@
       {
         "indexed": true,
         "internalType": "address",
-        "name": "market",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "pythPrice",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "aggregatedPrice",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "deviationBps",
-        "type": "uint256"
-      }
-    ],
-    "name": "PriceDeviation",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
         "name": "collection",
         "type": "address"
       },
@@ -888,37 +857,6 @@
       }
     ],
     "name": "PriceOverrideExecuted",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "address",
-        "name": "market",
-        "type": "address"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "price",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "confidence",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "uint256",
-        "name": "timestamp",
-        "type": "uint256"
-      }
-    ],
-    "name": "PriceUpdated",
     "type": "event"
   },
   {
@@ -1020,6 +958,31 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "bytes32",
+        "name": "role",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "address[]",
+        "name": "accounts",
+        "type": "address[]"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "granted",
+        "type": "bool"
+      }
+    ],
+    "name": "RolesBatchUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "address",
         "name": "market",
         "type": "address"
@@ -1087,6 +1050,19 @@
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "GLOBAL_PAUSE_AUTO_EXPIRY",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -1224,6 +1200,19 @@
         "type": "address"
       }
     ],
+    "name": "applyPendingEmergencyPrice",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      }
+    ],
     "name": "autoResetBreakers",
     "outputs": [],
     "stateMutability": "nonpayable",
@@ -1271,10 +1260,30 @@
         "internalType": "address",
         "name": "collection",
         "type": "address"
+      }
+    ],
+    "name": "cancelPendingEmergencyPrice",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "cancelPendingImplementation",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
       },
       {
         "internalType": "uint256",
-        "name": "currentPrice",
+        "name": "",
         "type": "uint256"
       },
       {
@@ -1305,6 +1314,19 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "target",
+        "type": "address"
+      }
+    ],
+    "name": "clearFailedPauseTarget",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -1401,6 +1423,19 @@
   },
   {
     "inputs": [],
+    "name": "emergencyPriceProposalMinInterval",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "emergencyPriceQuorum",
     "outputs": [
       {
@@ -1423,6 +1458,13 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "expireGlobalPause",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -1659,6 +1701,35 @@
         "type": "address"
       }
     ],
+    "name": "getPendingEmergencyPrice",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "validUntil",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "effectiveTime",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      }
+    ],
     "name": "getPrice",
     "outputs": [
       {
@@ -1814,6 +1885,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "globalPauseActivatedAt",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -1950,6 +2034,25 @@
         "type": "address"
       }
     ],
+    "name": "isManualPriceActive",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      }
+    ],
     "name": "isMarketRestricted",
     "outputs": [
       {
@@ -2056,6 +2159,24 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "pendingImplementation",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "pending",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address[]",
@@ -2109,6 +2230,19 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "newImplementation",
+        "type": "address"
+      }
+    ],
+    "name": "proposeImplementation",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "proxiableUUID",
     "outputs": [
@@ -2143,7 +2277,7 @@
       },
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "reportedPrice",
         "type": "uint256"
       }
     ],
@@ -2298,6 +2432,32 @@
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "staleness",
+        "type": "uint256"
+      }
+    ],
+    "name": "setDefaultMaxStaleness",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "newInterval",
+        "type": "uint256"
+      }
+    ],
+    "name": "setEmergencyPriceProposalMinInterval",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
         "name": "quorum",
         "type": "uint256"
       }
@@ -2367,6 +2527,19 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "staleness",
+        "type": "uint256"
+      }
+    ],
+    "name": "setMaxEthStaleness",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "collection",
         "type": "address"
@@ -2388,6 +2561,19 @@
       }
     ],
     "name": "setPythFeed",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "gracePeriod",
+        "type": "uint256"
+      }
+    ],
+    "name": "setSequencerGracePeriod",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -2434,6 +2620,25 @@
     "name": "unpause",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes[]",
+        "name": "priceUpdateData",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "updatePrices",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "feeRefund",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "payable",
     "type": "function"
   },
   {

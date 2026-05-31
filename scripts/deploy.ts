@@ -115,6 +115,8 @@ export interface DeployResult {
     usdc: string;
     pyth: string;
     collateralRegistry: string;
+    copyRegistry: string;
+    referralRegistry: string;
 }
 
 export async function deployAll(network: NetworkName): Promise<DeployResult> {
@@ -211,15 +213,45 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     const vaultCore = await vaultProxy.getAddress();
     console.log("VaultCore (proxy):", vaultCore);
 
+    // CollateralRegistry is a non-upgradeable AccessControl contract with a
+    // constructor `(admin, oracleAggregator)` — not a UUPS proxy.
     const CollateralRegistry = await ethers.getContractFactory("CollateralRegistry");
-    const collateralRegistryProxy = await upgrades.deployProxy(CollateralRegistry, [admin, oracleAggregator], {
+    const collateralRegistryContract = await CollateralRegistry.deploy(
+        admin,
+        oracleAggregator,
+        ...(normalOverrides ? [normalOverrides] : []),
+    );
+    await collateralRegistryContract.waitForDeployment();
+    const collateralRegistry = await collateralRegistryContract.getAddress();
+    console.log("CollateralRegistry:", collateralRegistry);
+
+    // CopyRegistry — UUPS proxy, Ownable, owner = admin.
+    const CopyRegistry = await ethers.getContractFactory("CopyRegistry");
+    const copyRegistryProxy = await upgrades.deployProxy(CopyRegistry, [admin], {
         kind: "uups",
         initializer: "initialize",
         ...txOverrides,
     });
-    await collateralRegistryProxy.waitForDeployment();
-    const collateralRegistry = await collateralRegistryProxy.getAddress();
-    console.log("CollateralRegistry (proxy):", collateralRegistry);
+    await copyRegistryProxy.waitForDeployment();
+    const copyRegistry = await copyRegistryProxy.getAddress();
+    console.log("CopyRegistry (proxy):", copyRegistry);
+
+    // ReferralRegistry — UUPS proxy. initialize(admin, defaultDiscountBps, defaultRebateBps).
+    const referralDefaultDiscountBps = Number(process.env.REFERRAL_DEFAULT_DISCOUNT_BPS ?? "500"); // 5%
+    const referralDefaultRebateBps = Number(process.env.REFERRAL_DEFAULT_REBATE_BPS ?? "1000"); // 10%
+    const ReferralRegistry = await ethers.getContractFactory("ReferralRegistry");
+    const referralRegistryProxy = await upgrades.deployProxy(
+        ReferralRegistry,
+        [admin, referralDefaultDiscountBps, referralDefaultRebateBps],
+        {
+            kind: "uups",
+            initializer: "initialize",
+            ...txOverrides,
+        },
+    );
+    await referralRegistryProxy.waitForDeployment();
+    const referralRegistry = await referralRegistryProxy.getAddress();
+    console.log("ReferralRegistry (proxy):", referralRegistry);
 
     const PositionToken = await ethers.getContractFactory("PositionToken");
     const positionTokenProxy = await upgrades.deployProxy(
@@ -277,7 +309,6 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     const rateLimitLib = await deployLib("RateLimitLib");
     const tradingContextLib = await deployLib("TradingContextLib");
     const withdrawLib = await deployLib("WithdrawLib");
-    const collateralRouterLib = await deployLib("CollateralRouterLib");
 
     const tradingCoreLibraries: Record<string, string> = {
         [libAddr("CleanupLib")]: cleanupLib,
@@ -291,7 +322,6 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
         [libAddr("TradingContextLib")]: tradingContextLib,
         [libAddr("TradingLib")]: tradingLibAddress,
         [libAddr("WithdrawLib")]: withdrawLib,
-        [libAddr("CollateralRouterLib")]: collateralRouterLib,
     };
 
     const TradingCore = await ethers.getContractFactory("TradingCore", {
@@ -356,6 +386,37 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     await withRetryUnderpriced(normalOverrides, (o) => tc.setCollateralRegistry(collateralRegistry, o ?? {}));
     console.log("TradingCore.setCollateralRegistry ok");
 
+    const TRADING_CORE_ROLE = ethers.keccak256(ethers.toUtf8Bytes("TRADING_CORE_ROLE"));
+
+    // CollateralRegistry: let TradingCore record deposits/withdrawals for exposure caps.
+    const cr = await ethers.getContractAt("CollateralRegistry", collateralRegistry);
+    await withRetryUnderpriced(normalOverrides, (o) => cr.grantRole(TRADING_CORE_ROLE, tradingCore, o ?? {}));
+    console.log("CollateralRegistry: TradingCore granted TRADING_CORE_ROLE");
+
+    // ReferralRegistry: TradingCore records per-trade volume via recordReferralVolume (onlyTradingCore).
+    const rr = await ethers.getContractAt("ReferralRegistry", referralRegistry);
+    await withRetryUnderpriced(normalOverrides, (o) => rr.grantRole(TRADING_CORE_ROLE, tradingCore, o ?? {}));
+    console.log("ReferralRegistry: TradingCore granted TRADING_CORE_ROLE");
+
+    // Wire the referral registry into TradingCore. `setReferralRegistry` enforces a
+    // 48h staged timelock, so we always propose here. On local networks we fast-forward
+    // and apply immediately; on live networks an operator runs the apply after the delay.
+    await withRetryUnderpriced(normalOverrides, (o) => tc.proposeReferralRegistry(referralRegistry, o ?? {}));
+    console.log("TradingCore.proposeReferralRegistry ok");
+    const net = await ethers.provider.getNetwork();
+    if (net.chainId === 31337n) {
+        const REFERRAL_REGISTRY_TIMELOCK = 48 * 60 * 60;
+        await ethers.provider.send("evm_increaseTime", [REFERRAL_REGISTRY_TIMELOCK + 1]);
+        await ethers.provider.send("evm_mine", []);
+        await tc.setReferralRegistry(referralRegistry);
+        console.log("TradingCore.setReferralRegistry ok (local fast-forward)");
+    } else {
+        console.log(
+            "TradingCore.setReferralRegistry pending: run after 48h ->",
+            `tc.setReferralRegistry(${referralRegistry})`,
+        );
+    }
+
     const dm = await ethers.getContractAt("DividendManager", dividendManager);
     await withRetryUnderpriced(normalOverrides, (o) => dm.setTradingCore(tradingCore, o ?? {}));
     console.log("DividendManager.setTradingCore ok");
@@ -392,5 +453,7 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
         usdc: usdcAddress,
         pyth: pythAddress,
         collateralRegistry,
+        copyRegistry,
+        referralRegistry,
     };
 }

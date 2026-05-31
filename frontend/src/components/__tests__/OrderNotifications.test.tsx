@@ -6,6 +6,9 @@ import toast from 'react-hot-toast';
 
 vi.mock('wagmi', () => ({
     useAccount: vi.fn(),
+    // NotificationBell -> useOrderNotifications -> usePositions reads on-chain data.
+    useReadContract: vi.fn(() => ({ data: undefined, isLoading: false, refetch: vi.fn() })),
+    useReadContracts: vi.fn(() => ({ data: undefined, isLoading: false, refetch: vi.fn() })),
 }));
 
 vi.mock('react-hot-toast', () => ({

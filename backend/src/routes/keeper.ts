@@ -1,14 +1,45 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
+import crypto from "crypto";
 import { insertKeeperFailure } from "../services/indexer.js";
 
 const router = Router();
+
+/**
+ * Authenticate internal keeper webhooks.
+ *
+ * The keeper-bot must send `Authorization: Bearer <KEEPER_WEBHOOK_SECRET>`.
+ * If the secret is not configured the endpoint is refused (fail closed) in
+ * production, but allowed in non-production to keep local development simple.
+ */
+function requireKeeperAuth(req: Request, res: Response, next: NextFunction): void {
+  const secret = (process.env.KEEPER_WEBHOOK_SECRET ?? "").trim();
+
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      res.status(503).json({ success: false, error: "Keeper webhook not configured" });
+      return;
+    }
+    next();
+    return;
+  }
+
+  const header = req.headers.authorization ?? "";
+  const expected = `Bearer ${secret}`;
+  const a = Buffer.from(header);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    res.status(401).json({ success: false, error: "Unauthorized" });
+    return;
+  }
+  next();
+}
 
 /**
  * POST /api/v1/keeper/failure (internal)
  * Receives keeper failure webhooks from the keeper-bot and persists them,
  * then the wsServer broadcasts to the user channel.
  */
-router.post("/failure", async (req: Request, res: Response) => {
+router.post("/failure", requireKeeperAuth, async (req: Request, res: Response) => {
   try {
     const { orderId, traderAddress, marketAddress, failureReason, selector } = req.body;
 

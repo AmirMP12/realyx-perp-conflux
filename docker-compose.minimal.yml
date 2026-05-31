@@ -40,7 +40,7 @@ services:
         VITE_TRADING_CORE_ADDRESS: ${VITE_TRADING_CORE_ADDRESS:-0x64f277f73bfc81Ad80286a4266c0E0613d867Df3}
         VITE_MOCK_USDC_ADDRESS: ${VITE_MOCK_USDC_ADDRESS:-0xa56Ba38f3c820D6cf31a68CBBD0d25c0F5644d35}
     ports:
-      - "3010:80"
+      - "3010:8080"
     depends_on:
       - backend
     restart: unless-stopped

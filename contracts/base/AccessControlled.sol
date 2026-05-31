@@ -33,7 +33,12 @@ abstract contract AccessControlled is Initializable, AccessControlUpgradeable, P
 
     address public circuitBreakerHub;
 
-    uint256[50] private __gap;
+    uint256 internal constant UPGRADE_TIMELOCK = 48 hours;
+    address internal _pendingImplementation;
+    uint256 internal _pendingImplementationEffective;
+    bytes32 internal _pendingImplementationHash;
+
+    uint256[47] private __gap;
 
     /// @dev Emitted on every batch role mutation so off-chain monitoring can audit
     ///      privileged changes without iterating individual `RoleGranted` events.
@@ -170,5 +175,44 @@ abstract contract AccessControlled is Initializable, AccessControlUpgradeable, P
             }
         }
         return false;
+    }
+
+    error PendingImplementationMismatch();
+    error UpgradeTimelockActive();
+
+    event ImplementationProposed(address indexed pending, uint256 effective);
+    event ImplementationCancelled(address indexed pending);
+
+    /// @notice Stage a UUPS upgrade. Effective `UPGRADE_TIMELOCK` later.
+    /// @dev Children call this from `proposeUpgrade(...)` wrappers; the actual
+    ///      upgrade authorization (`_authorizeUpgrade`) checks the staged
+    ///      proposal matches the live request.
+    function proposeImplementation(address newImplementation) external onlyAdmin {
+        if (newImplementation == address(0)) revert ZeroAddress();
+        _pendingImplementation = newImplementation;
+        _pendingImplementationEffective = block.timestamp + UPGRADE_TIMELOCK;
+        emit ImplementationProposed(newImplementation, _pendingImplementationEffective);
+    }
+
+    /// @notice Cancel a pending UUPS upgrade.
+    function cancelPendingImplementation() external onlyAdmin {
+        emit ImplementationCancelled(_pendingImplementation);
+        delete _pendingImplementation;
+        delete _pendingImplementationEffective;
+    }
+
+    /// @notice Read-only view of any staged UUPS upgrade.
+    function pendingImplementation() external view returns (address pending, uint256 effective) {
+        return (_pendingImplementation, _pendingImplementationEffective);
+    }
+
+    /// @dev Helper called by child `_authorizeUpgrade` overrides. Reverts
+    ///      unless `newImplementation` exactly matches the staged proposal
+    ///      and the timelock has elapsed.
+    function _enforceUpgradeTimelock(address newImplementation) internal {
+        if (newImplementation != _pendingImplementation) revert PendingImplementationMismatch();
+        if (block.timestamp < _pendingImplementationEffective) revert UpgradeTimelockActive();
+        delete _pendingImplementation;
+        delete _pendingImplementationEffective;
     }
 }

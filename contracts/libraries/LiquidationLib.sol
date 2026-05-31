@@ -57,7 +57,7 @@ library LiquidationLib {
         LiquidatePositionContext memory ctx,
         mapping(uint256 => DataTypes.Position) storage positions,
         mapping(uint256 => DataTypes.PositionCollateral) storage positionCollateral,
-        mapping(address => DataTypes.Market) storage /* markets */,
+        mapping(address => DataTypes.Market) storage markets,
         mapping(address => uint256) storage userExposure,
         DataTypes.ProtocolHealthState storage protocolHealth
     ) external returns (uint256 liquidatorReward) {
@@ -129,7 +129,6 @@ library LiquidationLib {
             if (covered < shortfall) {
                 uint256 actualAvailable = availableUsdc + covered;
 
-                // Audit H-01 fix: when insurance + collateral cannot cover the
                 // full repayment, repay the vault with what's available, record
                 // the residual via `recordFailedRepayment`, and still close the
                 // position. Previously the revert at this point created a
@@ -143,7 +142,6 @@ library LiquidationLib {
                     {
                         uint256 residual = totalRequired - (availableUsdc + covered);
                         emit InsufficientBalanceForLiquidation(positionId, totalNeededUsdc, actualAvailable);
-                        // M-01 fix: record the residual as a failed repayment so
                         // governance / tooling can track and resolve the shortfall later.
                         ITradingCore(ctx.tradingCore).recordFailedRepayment(
                             positionId,
@@ -206,13 +204,32 @@ library LiquidationLib {
             IERC20(ctx.usdc).safeTransfer(msg.sender, liquidatorReward);
         }
         if (insuranceAmountUsdc > 0) {
-            IERC20(ctx.usdc).safeTransfer(ctx.insuranceFund, insuranceAmountUsdc);
+            // Vault pulls fees in `receiveFees` (verified funds invariant).
+            IERC20(ctx.usdc).forceApprove(ctx.insuranceFund, 0);
+            IERC20(ctx.usdc).forceApprove(ctx.insuranceFund, insuranceAmountUsdc);
             IVaultCore(ctx.insuranceFund).receiveFees(insuranceAmountUsdc);
+            IERC20(ctx.usdc).forceApprove(ctx.insuranceFund, 0);
         }
 
         address owner = IPositionToken(ctx.positionToken).ownerOf(positionId);
         uint256 exposureDecrease = DataTypes.toUsdcPrecision(uint256(position.size));
         userExposure[owner] = userExposure[owner] > exposureDecrease ? userExposure[owner] - exposureDecrease : 0;
+
+        // this, `m.totalLong/Short(Size|Cost)` accumulate phantom OI that
+        // breaks funding rate, exposure caps, and global PnL. Mirrors
+        // `PositionCloseLib._updateMarketAndFinalize`.
+        {
+            DataTypes.Market storage m = markets[position.market];
+            uint256 sz = uint256(position.size);
+            uint256 cost = (sz * uint256(position.entryPrice)) / PRECISION;
+            if (isLong) {
+                m.totalLongSize = m.totalLongSize > sz ? m.totalLongSize - sz : 0;
+                m.totalLongCost = m.totalLongCost > cost ? m.totalLongCost - cost : 0;
+            } else {
+                m.totalShortSize = m.totalShortSize > sz ? m.totalShortSize - sz : 0;
+                m.totalShortCost = m.totalShortCost > cost ? m.totalShortCost - cost : 0;
+            }
+        }
 
         position.state = DataTypes.PosStatus.LIQUIDATED;
         IPositionToken(ctx.positionToken).burn(positionId);

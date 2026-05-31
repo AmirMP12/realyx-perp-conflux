@@ -32,6 +32,11 @@
         "type": "address"
       },
       {
+        "internalType": "address",
+        "name": "collateralRegistry",
+        "type": "address"
+      },
+      {
         "components": [
           {
             "internalType": "uint256",
@@ -67,6 +72,16 @@
         "internalType": "struct DataTypes.FeeConfig",
         "name": "fc",
         "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "referralRegistry",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "trader",
+        "type": "address"
       }
     ],
     "name": "buildCloseCtx",
@@ -101,6 +116,11 @@
           {
             "internalType": "address",
             "name": "insuranceFund",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralRegistry",
             "type": "address"
           },
           {
@@ -139,6 +159,21 @@
             "internalType": "struct DataTypes.FeeConfig",
             "name": "feeConfig",
             "type": "tuple"
+          },
+          {
+            "internalType": "address",
+            "name": "referrer",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "referralDiscountBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "referralRebateBps",
+            "type": "uint16"
           }
         ],
         "internalType": "struct TradingLib.ClosePositionContext",
@@ -146,7 +181,7 @@
         "type": "tuple"
       }
     ],
-    "stateMutability": "pure",
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -159,6 +194,16 @@
       {
         "internalType": "address",
         "name": "oa",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "collateralRegistry_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "collateralToken_",
         "type": "address"
       },
       {
@@ -179,6 +224,16 @@
           {
             "internalType": "address",
             "name": "oracleAggregator",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralRegistry",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralToken",
             "type": "address"
           },
           {
@@ -225,6 +280,16 @@
       {
         "internalType": "address",
         "name": "insurance",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "tradingCore",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "collateralRegistry",
         "type": "address"
       },
       {
@@ -292,6 +357,16 @@
           {
             "internalType": "address",
             "name": "insuranceFund",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "tradingCore",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralRegistry",
             "type": "address"
           },
           {

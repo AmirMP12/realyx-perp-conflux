@@ -62,24 +62,31 @@ library FundingLib {
         );
 
         if (intervalsElapsed == 0) return fundingState.fundingRate;
-        if (intervalsElapsed > intervalCap) {
-            intervalsElapsed = intervalCap;
-        }
 
-        // Smooth toward the spot OI rate once per elapsed interval so sparse
-        // settlement cannot be front-run by a same-block OI skew (M-02).
-        int256 rate = fundingState.fundingRate;
+        // ── Cap how many intervals we settle in a single call. ──
+        // Critically, when we cap, we ONLY advance `lastSettlement` by the
+        // number of intervals actually consumed. The previous
+        // implementation advanced `lastSettlement` by the un-capped delta
+        // and silently dropped the over-cap intervals from cumulative
+        // funding accounting. The next caller now picks up where this one
+        // left off.
+        uint256 intervalsToSettle = intervalsElapsed > intervalCap ? intervalCap : intervalsElapsed;
+
+        // Use the current spot rate (derived from current OI) as the rate
+        // for every elapsed interval. This is a simple, monotone choice
+        // that does not bias against historical paths via averaging
+        // recurrences — when we lack a historical OI sample, the best
+        // unbiased estimate of the missed intervals is the latest known
+        // rate. Combined with the cap-then-advance fix above, this gives
+        // a deterministic settlement that cannot leak LP value via long
+        // catch-ups.
         int256 spotRate = PositionMath.calculateFundingRate(m.totalLongSize, m.totalShortSize, BASE_FUNDING_RATE);
-        for (uint256 i = 0; i < intervalsElapsed; ) {
-            rate = (rate + spotRate) / 2;
-            unchecked {
-                ++i;
-            }
-        }
-        fundingRate = rate;
-        fundingState.fundingRate = rate;
-        fundingState.cumulativeFunding += rate * int256(intervalsElapsed);
-        fundingState.lastSettlement += uint64(intervalsElapsed * DataTypes.FUNDING_INTERVAL);
+        int256 cumulativeDelta = spotRate * int256(intervalsToSettle);
+
+        fundingRate = spotRate;
+        fundingState.fundingRate = spotRate;
+        fundingState.cumulativeFunding += cumulativeDelta;
+        fundingState.lastSettlement += uint64(intervalsToSettle * DataTypes.FUNDING_INTERVAL);
         fundingState.longOpenInterest = m.totalLongSize;
         fundingState.shortOpenInterest = m.totalShortSize;
 

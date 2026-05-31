@@ -8,8 +8,48 @@ import { fetchPythPrices } from "./services/pyth.js";
 import { fetchMarkets, fetchProtocol } from "./services/indexer.js";
 import { getActiveMarketAddresses } from "./services/activeMarkets.js";
 import { toDecimal } from "./utils/format.js";
+import { setWsConnections } from "./middleware/metrics.js";
 const POLL_MS = process.env.NODE_ENV === "test" ? 500 : 15_000; // fast polling for tests
 const isTestEnv = process.env.NODE_ENV === "test";
+/**
+ * User-specific WebSocket client tracking.
+ * Key: lowercased trader address, Value: set of connected WebSockets for that user.
+ */
+const userClients = new Map();
+/**
+ * Broadcast a JSON payload to all WebSocket clients subscribed for a specific user address.
+ */
+export function broadcastToUser(traderAddress, type, data) {
+    const addr = traderAddress.toLowerCase();
+    const sockets = userClients.get(addr);
+    if (!sockets || sockets.size === 0)
+        return;
+    const payload = JSON.stringify({ type, data, traderAddress: addr });
+    sockets.forEach((ws) => {
+        if (ws.readyState !== 1) {
+            sockets?.delete(ws);
+            return;
+        }
+        try {
+            ws.send(payload);
+        }
+        catch (err) {
+            if (!isTestEnv)
+                console.error("[ws] send-to-user error:", err);
+        }
+    });
+}
+/**
+ * Keeper failure broadcast hook — callable from the keeper router.
+ * Pushes a KEEPER_FAILURE notification to the specific user's WebSocket.
+ */
+export function broadcastKeeperFailure(data) {
+    broadcastToUser(data.traderAddress, "KEEPER_FAILURE", {
+        orderId: data.orderId,
+        failureReason: data.failureReason,
+        timestamp: Math.floor(Date.now() / 1000),
+    });
+}
 const MARKET_META = {
     "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c": { name: "Conflux", symbol: "CFX-USD" },
     "0x986a383f6de4a24dd3f524f0f93546229b58265f": { name: "Bitcoin", symbol: "BTC-USD" },
@@ -31,6 +71,7 @@ export function startWsServer() {
     const clients = new Set();
     wss.on("connection", (ws, req) => {
         clients.add(ws);
+        setWsConnections(clients.size);
         ws.isAlive = true;
         ws.on("pong", () => { ws.isAlive = true; });
         const ip = req.socket.remoteAddress ?? "unknown";
@@ -42,6 +83,17 @@ export function startWsServer() {
                 if (msg.type === "subscribe" && Array.isArray(msg.channels)) {
                     ws.channels = msg.channels;
                 }
+                // User-specific subscription: frontend sends { type: "subscribe:user", address: "0x..." }
+                if (msg.type === "subscribe:user" && typeof msg.address === "string" && msg.address.startsWith("0x")) {
+                    const addr = msg.address.toLowerCase();
+                    ws.traderAddress = addr;
+                    if (!userClients.has(addr)) {
+                        userClients.set(addr, new Set());
+                    }
+                    userClients.get(addr).add(ws);
+                    if (!isTestEnv)
+                        console.info(`[ws] User subscribed: ${addr}`);
+                }
             }
             catch {
                 /* ignore invalid message */
@@ -49,6 +101,17 @@ export function startWsServer() {
         });
         ws.on("close", () => {
             clients.delete(ws);
+            setWsConnections(clients.size);
+            // Clean up user-specific tracking
+            const traderAddr = ws.traderAddress;
+            if (traderAddr) {
+                const userSet = userClients.get(traderAddr);
+                if (userSet) {
+                    userSet.delete(ws);
+                    if (userSet.size === 0)
+                        userClients.delete(traderAddr);
+                }
+            }
             if (!isTestEnv)
                 console.info(`[ws] Client disconnected, total: ${clients.size}`);
         });

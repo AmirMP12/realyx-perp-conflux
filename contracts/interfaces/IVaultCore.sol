@@ -164,6 +164,15 @@ interface IVaultCore {
     function receiveFees(uint256 amount) external;
 
     /**
+     * @notice Credit the LP-pool fee share from `TradingCore` into LP accounting.
+     * @param amount USDC fee amount routed to LPs.
+     * @dev Pulls USDC from the caller and increments the LP cash counter so the
+     *      donation baseline never misclassifies LP fee income as an external
+     *      donation. Caller must approve the vault for `amount` first.
+     */
+    function receiveLpFees(uint256 amount) external;
+
+    /**
      * @notice Sweep insurance surplus above target to treasury and/or stakers per configuration.
      */
     function distributeSurplus() external;

@@ -32,6 +32,9 @@ contract PositionToken is ERC721Upgradeable, AccessControlUpgradeable, UUPSUpgra
     error PositionOwnershipUpdateFailed();
     error PendingMismatch();
     error TimelockActive();
+    /// @dev UUPS upgrades on this contract are timelocked.
+    error PendingImplementationMismatch();
+    error UpgradeTimelockActive();
 
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
@@ -59,7 +62,14 @@ contract PositionToken is ERC721Upgradeable, AccessControlUpgradeable, UUPSUpgra
     bytes32 private _pendingBaseURIHash;
     uint256 private _pendingBaseURIEffective;
 
-    uint256[39] private __gap;
+    // 48h UUPS upgrade timelock state, parallel to AccessControlled's
+    // `_pendingImplementation` (which this contract does not inherit).
+    // Stored explicitly to avoid a wider refactor.
+    uint256 private constant UPGRADE_TIMELOCK = 48 hours;
+    address private _pendingImpl;
+    uint256 private _pendingImplEffective;
+
+    uint256[37] private __gap;
 
     event PositionTokenMinted(address indexed to, uint256 indexed tokenId, address indexed market, bool isLong);
     event PositionTokenBurned(uint256 indexed tokenId);
@@ -90,7 +100,37 @@ contract PositionToken is ERC721Upgradeable, AccessControlUpgradeable, UUPSUpgra
         baseTokenURI = baseURI_;
     }
 
-    function _authorizeUpgrade(address) internal override onlyRole(UPGRADER_ROLE) {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {
+        // Enforce the 48h staged-implementation timelock to align with
+        // TradingCore / VaultCore / OracleAggregator / ReferralRegistry.
+        if (newImplementation != _pendingImpl) revert PendingImplementationMismatch();
+        if (_pendingImplEffective == 0 || block.timestamp < _pendingImplEffective) revert UpgradeTimelockActive();
+        delete _pendingImpl;
+        delete _pendingImplEffective;
+    }
+
+    event ImplementationProposed(address indexed pending, uint256 effective);
+    event ImplementationCancelled(address indexed pending);
+
+    /// @notice Stage a UUPS upgrade. Effective `UPGRADE_TIMELOCK` later.
+    function proposeImplementation(address newImplementation) external onlyRole(UPGRADER_ROLE) {
+        if (newImplementation == address(0)) revert ZeroAddress();
+        _pendingImpl = newImplementation;
+        _pendingImplEffective = block.timestamp + UPGRADE_TIMELOCK;
+        emit ImplementationProposed(newImplementation, _pendingImplEffective);
+    }
+
+    /// @notice Cancel a pending UUPS upgrade.
+    function cancelPendingImplementation() external onlyRole(UPGRADER_ROLE) {
+        emit ImplementationCancelled(_pendingImpl);
+        delete _pendingImpl;
+        delete _pendingImplEffective;
+    }
+
+    /// @notice Read-only view of any staged UUPS upgrade.
+    function pendingImplementation() external view returns (address pending, uint256 effective) {
+        return (_pendingImpl, _pendingImplEffective);
+    }
 
     function setTradingCore(address _tradingCore) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (_tradingCore == address(0)) revert ZeroAddress();
@@ -142,12 +182,13 @@ contract PositionToken is ERC721Upgradeable, AccessControlUpgradeable, UUPSUpgra
         emit BaseURIProposed(newBaseURI, _pendingBaseURIEffective);
     }
 
-    function _checkNotContract(address to) private view {
-        uint256 size;
-        assembly {
-            size := extcodesize(to)
-        }
-        if (size > 0 && !whitelistedContracts[to]) revert ContractRecipientNotAllowed();
+    function _checkNotContract(address /* to */) private pure {
+        // Removed the previous extcodesize gate. Smart-account wallets
+        // (Safe, ERC-4337, EIP-7702) are first-class users; a blanket
+        // contract-recipient rejection blocks them entirely. ERC721's
+        // `_safeMint` already invokes `onERC721Received` which is the
+        // correct receiver-capability check. Compliance gating still
+        // enforces sanction lists upstream via `complianceManager`.
     }
 
     function setContractWhitelist(address contractAddr, bool allowed) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -203,19 +244,20 @@ contract PositionToken is ERC721Upgradeable, AccessControlUpgradeable, UUPSUpgra
     ) internal virtual override nonReentrant returns (address from) {
         from = _ownerOf(tokenId);
         if (from != address(0) && to != address(0) && tradingCore != address(0)) {
-            // Preserve panic data so the user-facing revert can show
-            // meaningful diagnostics for overflow/division-by-zero.
-            try ITradingCore(tradingCore).updatePositionOwner(tokenId, to, from) {} catch Error(string memory reason) {
+            // Defensive try/catch around the trading-core callback. We do
+            // NOT forward raw revert data via assembly anymore — that was
+            // a footgun for marketplaces and indexers (an upgraded
+            // tradingCore could revert with arbitrary calldata that
+            // surfaces through standard ERC721 transfer paths). Instead we
+            // surface a typed error containing the reason string when
+            // available; panic codes / custom errors are bucketed under
+            // `PositionOwnershipUpdateFailed`.
+            try ITradingCore(tradingCore).updatePositionOwner(tokenId, to, from) {
+                // ok
+            } catch Error(string memory reason) {
                 revert TradingCoreUpdateFailed(reason);
-            } catch (bytes memory data) {
-                if (data.length == 0) {
-                    revert PositionOwnershipUpdateFailed();
-                }
-                // Trust boundary: `tradingCore` is admin-configured. Forward raw
-                // revert data (custom errors / panic codes) verbatim for decoding.
-                assembly {
-                    revert(add(data, 32), mload(data))
-                }
+            } catch {
+                revert PositionOwnershipUpdateFailed();
             }
         }
         from = super._update(to, tokenId, auth);

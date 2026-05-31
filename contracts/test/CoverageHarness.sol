@@ -222,6 +222,8 @@ contract CoverageHarness {
     mapping(address => uint256[]) private _userPositionList;
 
     // --- TradingLib Deep Boosters ---
+    mapping(address => mapping(address => uint256)) private _harnessTokenRefunds;
+
     function boostCancelOrder(
         uint256 orderId,
         address user,
@@ -240,10 +242,12 @@ contract CoverageHarness {
         TradingLib.cancelOrder(
             orderId,
             msgSender,
+            address(0), // executionFeePayer (test harness uses owner default)
             IERC20(address(0)),
             _harnessOrders,
             orderRefundBalance,
-            orderCollateralRefundBalance
+            orderCollateralRefundBalance,
+            _harnessTokenRefunds
         );
     }
     mapping(uint256 => DataTypes.Order) private _harnessOrders;
@@ -610,7 +614,7 @@ contract CoverageHarness {
         address oldOwner,
         uint256 maxUserExposure
     ) external {
-        TradingLib.updatePositionOwner(positionId, newOwner, oldOwner, maxUserExposure, positions, userExposure);
+        TradingLib.updatePositionOwner(positionId, newOwner, oldOwner, maxUserExposure, positions, userExposure, _userPositionList);
     }
 
     function testAddCollateral(
@@ -888,7 +892,14 @@ contract CoverageHarness {
 
     // CleanupLib Wrappers
     function testCleanupPositions(uint256 maxCleanup) external returns (uint256) {
-        return CleanupLib.cleanupPositions(cleanupUserPositions, positions, positionCollaterals, maxCleanup);
+        return CleanupLib.cleanupPositions(
+            cleanupUserPositions,
+            positions,
+            positionCollaterals,
+            maxCleanup,
+            _harnessFailedRepayments,
+            false /* adminPath: harness simulates self-cleanup */
+        );
     }
 
     function addCleanupPosition(uint256 id) external {

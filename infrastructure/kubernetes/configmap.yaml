@@ -15,3 +15,5 @@ data:
   VAULT_CORE_ADDRESS: "0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714"
   ORACLE_AGGREGATOR_ADDRESS: "0x89cC8eAbF2e967d81FD04D1023298A3bDcE67450"
   SUBGRAPH_URL: "https://api.thegraph.com/subgraphs/name/<your-org>/realyx"
+  # Comma-separated browser CORS allowlist. Leave unset to reflect any origin (dev only).
+  CORS_ORIGINS: "https://realyx.org,https://api.realyx.org"

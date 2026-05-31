@@ -14,6 +14,21 @@ export interface RealyxConfig {
   apiKey?: string;
   /** Subaccount / delegated trading configuration */
   subaccount?: SubaccountConfig;
+  /**
+   * TradingCore contract address used by the OrderBuilder.
+   * If omitted, falls back to `process.env.TRADING_CORE_ADDRESS`.
+   */
+  tradingCoreAddress?: string;
+  /**
+   * Explicit signer for direct (non-subaccount) trading. When provided, the
+   * OrderBuilder will sign and broadcast with this wallet. Alternatively call
+   * `client.orders.setSigner(signer)` after construction.
+   */
+  signer?: ethers.Signer;
+  /** Request timeout for REST calls in ms (default 15_000). */
+  requestTimeoutMs?: number;
+  /** Number of retries for transient REST failures (default 2). */
+  requestRetries?: number;
 }
 
 /**
@@ -26,7 +41,7 @@ export interface SubaccountConfig {
   ownerAddress: string;
   /** Private key of the subaccount bot (must be approved via TradingCore.addSubaccount) */
   botPrivateKey: string;
-  /** Optional: ethers provider or RPC URL for the bot wallet */
+  /** Optional: ethers provider for the bot wallet */
   provider?: ethers.Provider;
 }
 
@@ -109,6 +124,38 @@ export interface Position {
   collateral: string;
   unrealizedPnl: string;
   status: string;
+}
+
+/** Aggregate protocol stats returned from /stats */
+export interface ProtocolStats {
+  volume24h?: string;
+  cumulativeVolumeUsd?: string;
+  totalOpenInterest?: string;
+  totalMarkets?: number;
+  [key: string]: unknown;
+}
+
+/** A single trade history record. */
+export interface Trade {
+  id?: number | string;
+  market: string;
+  side?: "LONG" | "SHORT";
+  size: string;
+  price: string;
+  fee?: string;
+  pnl?: string | null;
+  type?: string;
+  timestamp?: string | number;
+  [key: string]: unknown;
+}
+
+/** A leaderboard entry. */
+export interface LeaderboardEntry {
+  address: string;
+  totalVolumeUsd?: string;
+  totalRealizedPnl?: string;
+  totalTrades?: number;
+  [key: string]: unknown;
 }
 
 /** WebSocket message types */

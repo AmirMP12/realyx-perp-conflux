@@ -17,7 +17,7 @@ library EmergencyPauseLib {
         mapping(address => bool) hasConfirmed;
     }
     uint256 private constant PROPOSAL_EXPIRY = 1 hours;
-    uint256 private constant PAUSE_GAS_LIMIT = 100000;
+    uint256 private constant PAUSE_GAS_LIMIT = 200000;
 
     error ProposalNotFound();
     error ProposalExpired();
@@ -69,9 +69,10 @@ library EmergencyPauseLib {
         address[] storage failedList
     ) private {
         proposal.executed = true;
-        while (failedList.length > 0) {
-            failedList.pop();
-        }
+        // Do NOT clear the global `failedList` here. The list is shared
+        // across pause executions; clearing it on every execute would make
+        // `clearFailedPauseTarget` and off-chain monitoring inconsistent.
+        // Cleanup is the operator's responsibility via `clearFailedPauseTarget`.
 
         uint256 len = proposal.targets.length;
         for (uint256 i = 0; i < len; ) {
@@ -79,8 +80,10 @@ library EmergencyPauseLib {
             if (pausables[target]) {
                 (bool success, ) = target.call{gas: PAUSE_GAS_LIMIT}(abi.encodeWithSignature("pause()"));
                 if (!success) {
-                    failedTargets[target] = true;
-                    failedList.push(target);
+                    if (!failedTargets[target]) {
+                        failedTargets[target] = true;
+                        failedList.push(target);
+                    }
                     emit EmergencyPauseTargetFailed(pauseId, target);
                 }
             }
