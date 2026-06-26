@@ -5,7 +5,6 @@ import pino from "pino";
 import pinoHttp from "pino-http";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
 import { logger } from "./logger.js";
 import marketsRouter from "./routes/markets.js";
 import userRouter from "./routes/user.js";
@@ -27,9 +26,6 @@ import { apiRateLimitCluster } from "./middleware/rateLimit.js";
 import { metricsMiddleware } from "./middleware/metrics.js";
 
 const httpLogger = (pinoHttp as unknown as (opts: { logger: pino.Logger }) => express.RequestHandler)({ logger });
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 /**
  * Build CORS options. By default (no CORS_ORIGINS set) all origins are allowed,
@@ -118,9 +114,10 @@ app.use(["/api", "/health"], (_req: any, res: any) => {
 // Dockerfile), serve it from the same origin so one service/URL hosts both the
 // app and the API. The SPA's client-side router owns all non-API paths, so
 // unmatched routes fall back to index.html. When no build is present (API-only
-// deploy) the previous JSON-404 behaviour is preserved.
+// deploy) the previous JSON-404 behaviour is preserved. The runtime container's
+// working directory is /app and the built SPA is copied to /app/public.
 const frontendDist =
-  (process.env.FRONTEND_DIST ?? "").trim() || path.resolve(__dirname, "../public");
+  (process.env.FRONTEND_DIST ?? "").trim() || path.resolve(process.cwd(), "public");
 const hasFrontend = fs.existsSync(path.join(frontendDist, "index.html"));
 
 if (hasFrontend) {
