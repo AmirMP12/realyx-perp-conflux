@@ -76,11 +76,6 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # ── Runtime ──────────────────────────────────────────────────
 FROM node:20-alpine AS runtime
-# tini provides proper PID 1 signal handling for graceful shutdown. The OS
-# upgrade is best-effort: a flaky Alpine mirror during build must not fail the
-# whole image, so it is allowed to no-op while tini install is retried.
-RUN apk upgrade --no-cache || true \
-    && (apk add --no-cache tini || apk add --no-cache tini)
 
 WORKDIR /app
 ENV NODE_ENV=production
@@ -100,5 +95,6 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "require('http').get('http://127.0.0.1:'+(process.env.PORT||3001)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 
-ENTRYPOINT ["/sbin/tini", "--"]
+# Node runs as PID 1. index.js registers SIGTERM/SIGINT handlers for graceful
+# shutdown, so a separate init (tini) is not required.
 CMD ["node", "dist/index.js"]
