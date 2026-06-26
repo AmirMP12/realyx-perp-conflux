@@ -1,6 +1,9 @@
-# Build context trimming for the root-context keeper image (Dockerfile.keeper).
-# The backend/ and frontend/ services build from their own roots and have their
-# own .dockerignore files, so this only affects the keeper/liquidation image.
+# Build-context trimming for the repo-root images: Dockerfile.keeper
+# (keeper/liquidation bots) and Dockerfile.fullstack (frontend SPA + API).
+# backend/ and frontend/ SOURCE must stay in context for the full-stack build;
+# only the heavy generated/installed directories below are excluded. The
+# backend/ and frontend/ services that build from their own roots have their
+# own .dockerignore files.
 .git
 node_modules
 **/node_modules
@@ -12,7 +15,6 @@ typechain-types
 coverage
 **/coverage
 .openzeppelin
-frontend
 docs-site
 docs
 landing
