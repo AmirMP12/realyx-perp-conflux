@@ -1,26 +1,22 @@
-import pg from "pg";
-const { Pool } = pg;
+import { getWritePool, getReadPool, resetPools } from "./db.js";
+import { logger } from "../logger.js";
 
-let poolInstance: any = null;
+/**
+ * Back-compat shim. Historically `getPool()` returned a single primary pool used
+ * for every query. Reads now prefer the replica (when `POSTGRES_READ_URL` is
+ * set) and writes always hit the primary, but the existing call sites keep
+ * working: `getPool()` returns the primary (writer) so write paths are
+ * unaffected, while read helpers below call `getReadPool()` explicitly.
+ */
 export function resetPool(): void {
-  poolInstance = null;
+  resetPools();
 }
 export function getPool(): any {
-  if (poolInstance) return poolInstance;
-  if (!process.env.POSTGRES_URL) return null;
-  
-  poolInstance = new Pool({
-    connectionString: process.env.POSTGRES_URL,
-    ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
-    // Serverless-safe defaults: fail fast instead of hanging and timing out.
-    max: 1,
-    idleTimeoutMillis: 10_000,
-    connectionTimeoutMillis: 3_000,
-    query_timeout: 5_000,
-    statement_timeout: 5_000,
-    allowExitOnIdle: true,
-  });
-  return poolInstance;
+  return getWritePool();
+}
+/** Reader pool for the heavy, user-agnostic aggregate scans. */
+function getQueryPool(): any {
+  return getReadPool();
 }
 
 
@@ -130,54 +126,52 @@ export interface ProtocolMetric {
 
 const PROTOCOL_CUMULATIVE_VOLUME_SQL = `
   WITH opened_sizes AS (
-    SELECT DISTINCT ON ((data::jsonb->>0)::text)
-      (data::jsonb->>0)::text AS position_id,
-      (data::jsonb->>4)::numeric AS size_raw
+    SELECT DISTINCT ON (position_id)
+      position_id,
+      size_raw
     FROM position_events
-    WHERE event_type = 'PositionOpened'
-    ORDER BY (data::jsonb->>0)::text, id ASC
+    WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
+    ORDER BY position_id, id ASC
   )
   SELECT 
     COALESCE(SUM(
       CASE
-        WHEN c.size_usd > 0 THEN c.size_usd
-        WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
-          THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
+        WHEN c.event_type = 'PositionOpened' AND c.size_raw IS NOT NULL
+          THEN c.size_raw / POWER(10::numeric, 18)
         WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
           THEN o.size_raw / POWER(10::numeric, 18)
         ELSE 0::numeric
       END
     ), 0)::numeric AS volume_usd
   FROM position_events c
-  LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
+  LEFT JOIN opened_sizes o ON o.position_id = c.position_id
   WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
-    AND c.data IS NOT NULL
+    AND c.position_id IS NOT NULL
 `;
 
 const PROTOCOL_VOLUME_24H_SQL = `
   WITH opened_sizes AS (
-    SELECT DISTINCT ON ((data::jsonb->>0)::text)
-      (data::jsonb->>0)::text AS position_id,
-      (data::jsonb->>4)::numeric AS size_raw
+    SELECT DISTINCT ON (position_id)
+      position_id,
+      size_raw
     FROM position_events
-    WHERE event_type = 'PositionOpened'
-    ORDER BY (data::jsonb->>0)::text, id ASC
+    WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
+    ORDER BY position_id, id ASC
   )
   SELECT 
     COALESCE(SUM(
       CASE
-        WHEN c.size_usd > 0 THEN c.size_usd
-        WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
-          THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
+        WHEN c.event_type = 'PositionOpened' AND c.size_raw IS NOT NULL
+          THEN c.size_raw / POWER(10::numeric, 18)
         WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
           THEN o.size_raw / POWER(10::numeric, 18)
         ELSE 0::numeric
       END
     ), 0)::numeric AS volume_usd
   FROM position_events c
-  LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
+  LEFT JOIN opened_sizes o ON o.position_id = c.position_id
   WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
-    AND c.data IS NOT NULL
+    AND c.position_id IS NOT NULL
     AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '24 hours'))
 `;
 
@@ -187,16 +181,16 @@ export async function fetchProtocol(): Promise<Protocol | null> {
     return null;
   }
   try {
-    const pool = getPool();
+    const pool = getQueryPool();
     if (!pool) return null;
     const [res, vol24Res, volTotalRes] = await Promise.all([
       pool.query(`SELECT event_type, COUNT(*) as count FROM position_events GROUP BY event_type`),
       pool.query(PROTOCOL_VOLUME_24H_SQL).catch((e: any) => {
-        console.error("Volume 24h query failed:", e);
+        logger.error({ err: e }, "Volume 24h query failed");
         return { rows: [{ volume_usd: "0" }] };
       }),
       pool.query(PROTOCOL_CUMULATIVE_VOLUME_SQL).catch((e: any) => {
-        console.error("Volume total query failed:", e);
+        logger.error({ err: e }, "Volume total query failed");
         return { rows: [{ volume_usd: "0" }] };
       }),
     ]);
@@ -220,7 +214,7 @@ export async function fetchProtocol(): Promise<Protocol | null> {
       totalLiquidations: String(liq),
       tvl: "0",
     };
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -232,29 +226,29 @@ export async function fetchProtocol(): Promise<Protocol | null> {
 export async function fetchActiveTraders24h(): Promise<number> {
   if (!process.env.POSTGRES_URL) return 0;
   try {
-    const pool = getPool();
+    const pool = getQueryPool();
     if (!pool) return 0;
     const res = await pool.query(`
       WITH opened_for_liq AS (
-        SELECT DISTINCT ON ((data->>0)::text)
-          (data->>0)::text AS position_id,
+        SELECT DISTINCT ON (position_id)
+          position_id,
           lower(account) AS trader
         FROM position_events
-        WHERE event_type = 'PositionOpened'
-        ORDER BY (data->>0)::text, id ASC
+        WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
+        ORDER BY position_id, id ASC
       ),
       recent AS (
         SELECT lower(account) AS w
         FROM position_events
         WHERE event_type IN ('PositionOpened', 'PositionClosed')
-          AND data IS NOT NULL
+          AND position_id IS NOT NULL
           AND created_at >= NOW() - INTERVAL '24 hours'
         UNION
         SELECT o.trader AS w
         FROM position_events c
-        INNER JOIN opened_for_liq o ON o.position_id = (c.data->>0)::text
+        INNER JOIN opened_for_liq o ON o.position_id = c.position_id
         WHERE c.event_type = 'PositionLiquidated'
-          AND c.data IS NOT NULL
+          AND c.position_id IS NOT NULL
           AND c.created_at >= NOW() - INTERVAL '24 hours'
       )
       SELECT COUNT(DISTINCT w)::int AS n FROM recent WHERE w IS NOT NULL AND w LIKE '0x%'
@@ -275,7 +269,7 @@ export async function fetchMarkets(): Promise<Market[]> {
     const onchainRaw = await fetchMarketsOnChain();
     const onchainMap = new Map(onchainRaw.map(m => [m.marketAddress.toLowerCase(), m]));
     
-    const pool = getPool();
+    const pool = getQueryPool();
     const hasDB = Boolean(process.env.POSTGRES_URL && pool);
 
     // Fetch 24h stats from DB
@@ -284,25 +278,23 @@ export async function fetchMarkets(): Promise<Market[]> {
       try {
         const statsRes = await pool.query(`
           WITH opened_sizes AS (
-            SELECT DISTINCT ON ((data::jsonb->>0)::text)
-              (data::jsonb->>0)::text AS position_id,
-              (data::jsonb->>4)::numeric AS size_raw,
-              (data::jsonb->>2)::text AS open_market_id
+            SELECT DISTINCT ON (position_id)
+              position_id,
+              size_raw,
+              market_id AS open_market_id
             FROM position_events
-            WHERE event_type = 'PositionOpened'
-            ORDER BY (data::jsonb->>0)::text, id ASC
+            WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
+            ORDER BY position_id, id ASC
           )
           SELECT 
             LOWER(CASE 
               WHEN c.market_id IS NOT NULL AND c.market_id <> '0x' THEN c.market_id
-              WHEN c.event_type = 'PositionOpened' THEN (c.data->>2)::text
               ELSE o.open_market_id
             END) AS market_id,
             COALESCE(SUM(
               CASE
-                WHEN c.size_usd > 0 THEN c.size_usd
-                WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
-                  THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
+                WHEN c.event_type = 'PositionOpened' AND c.size_raw IS NOT NULL
+                  THEN c.size_raw / POWER(10::numeric, 18)
                 WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
                   THEN o.size_raw / POWER(10::numeric, 18)
                 ELSE 0::numeric
@@ -310,9 +302,9 @@ export async function fetchMarkets(): Promise<Market[]> {
             ), 0)::text AS volume24h,
             COUNT(*)::int AS trades24h
           FROM position_events c
-          LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
+          LEFT JOIN opened_sizes o ON o.position_id = c.position_id
           WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
-            AND c.data IS NOT NULL
+            AND c.position_id IS NOT NULL
             AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '24 hours'))
           GROUP BY 1
         `);
@@ -324,7 +316,7 @@ export async function fetchMarkets(): Promise<Market[]> {
           }
         });
       } catch (e) {
-        console.error("Market-volume query failed:", e);
+        logger.error({ err: e }, "Market-volume query failed");
       }
     }
 
@@ -376,7 +368,7 @@ export async function fetchMarkets(): Promise<Market[]> {
     return merged;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    console.warn("[indexer] fetchMarkets critical failure:", msg);
+    logger.warn({ err: msg }, "[indexer] fetchMarkets critical failure");
   }
   return [];
 }
@@ -385,7 +377,7 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
   const trader = traderAddress.toLowerCase();
   if (!trader.startsWith("0x") || !process.env.POSTGRES_URL) return [];
   try {
-    const pool = getPool();
+    const pool = getQueryPool();
     if (!pool) return [];
     const res = await pool.query(
       `SELECT o.* 
@@ -395,7 +387,7 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
          AND NOT EXISTS (
            SELECT 1 FROM position_events c
            WHERE c.event_type IN ('PositionClosed', 'PositionLiquidated')
-             AND (c.data->>0)::text = (o.data->>0)::text
+             AND c.position_id = o.position_id
          )
        ORDER BY o.id DESC LIMIT 50`,
       [trader]
@@ -407,24 +399,44 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
       let entryPrice = "0";
       let margin = "0";
       let leverage = "1";
+      let positionIdStr = "0";
       let args: any[] = [];
       try {
         args = JSON.parse(row.data || "[]");
-        isLong = String(args[3]) === "true";
-        size = args[4] || "0";
-        leverage = args[5] || "1";
-        entryPrice = args[6] || "0";
-        
-        if (BigInt(leverage) > 0n) {
-          margin = (BigInt(size) / BigInt(leverage)).toString();
-        }
       } catch {
         /* ignore malformed JSON in position_events.data */
       }
+      try {
+        // Prefer the typed columns; fall back to legacy positional JSON for any
+        // pre-migration row that hasn't been backfilled yet.
+        const hasTyped = row.size_raw != null || row.is_long != null || row.position_id != null;
+        if (hasTyped) {
+          positionIdStr = row.position_id != null ? String(row.position_id) : String(args[0] ?? "0");
+          isLong = row.is_long === true || String(row.is_long) === "true";
+          size = row.size_raw != null ? String(row.size_raw) : "0";
+          leverage = row.leverage_raw != null ? String(row.leverage_raw) : "1";
+          entryPrice = row.entry_price != null ? String(row.entry_price) : "0";
+        } else {
+          positionIdStr = String(args[0] ?? "0");
+          isLong = String(args[3]) === "true";
+          size = args[4] || "0";
+          leverage = args[5] || "1";
+          entryPrice = args[6] || "0";
+        }
+
+        if (BigInt(leverage) > 0n) {
+          // size and leverage are both 1e18-scaled, so the bare quotient drops
+          // the 1e18 factor. Re-apply PRECISION (1e18) so margin stays in the
+          // same internal precision as size (the route formats it via toDecimal18).
+          margin = ((BigInt(size) * (10n ** 18n)) / BigInt(leverage)).toString();
+        }
+      } catch {
+        /* ignore conversion errors */
+      }
 
       return {
-        id: String(args[0]),
-        positionId: String(args[0]),
+        id: positionIdStr,
+        positionId: positionIdStr,
         tokenId: String(row.id),
         trader: { id: trader },
         market: { id: row.market_id, marketAddress: row.market_id },
@@ -443,7 +455,7 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
         txHash: row.tx_hash,
       };
     });
-  } catch (e) {
+  } catch {
     return [];
   }
 }
@@ -452,7 +464,7 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
   const trader = traderAddress.toLowerCase();
   if (!trader.startsWith("0x") || !process.env.POSTGRES_URL) return [];
   try {
-    const pool = getPool();
+    const pool = getQueryPool();
     if (!pool) return [];
     // UNION events where user is account (direct action) OR where user is the trader whose position was liquidated
     const res = await pool.query(
@@ -460,13 +472,15 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
          -- Direct events (Open, Close, self-Liq)
          SELECT e.*, 
                 o.data AS open_data, 
-                o.market_id AS open_market_id
+                o.market_id AS open_market_id,
+                o.is_long AS open_is_long,
+                o.size_raw AS open_size_raw
          FROM position_events e
          LEFT JOIN LATERAL (
-           SELECT data, market_id
+           SELECT data, market_id, is_long, size_raw
            FROM position_events
            WHERE event_type = 'PositionOpened'
-             AND (data->>0)::text = (e.data->>0)::text
+             AND position_id = e.position_id
            ORDER BY id ASC
            LIMIT 1
          ) o ON e.event_type IN ('PositionClosed', 'PositionLiquidated')
@@ -477,10 +491,12 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
          -- Liquidation events where user was the trader but account on record is liquidator
          SELECT e.*, 
                 o.data AS open_data, 
-                o.market_id AS open_market_id
+                o.market_id AS open_market_id,
+                o.is_long AS open_is_long,
+                o.size_raw AS open_size_raw
          FROM position_events e
          INNER JOIN position_events o ON o.event_type = 'PositionOpened'
-           AND (o.data->>0)::text = (e.data->>0)::text
+           AND o.position_id = e.position_id
          WHERE e.event_type = 'PositionLiquidated'
            AND lower(e.account) != $1
            AND lower(o.account) = $1
@@ -495,41 +511,52 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
       let price = "0";
       let pnl = "0";
       let marketId = row.market_id || "0x";
+      let positionIdStr = "0";
       let args: any[] = [];
       try {
         args = JSON.parse(row.data || "[]");
+      } catch {
+        /* ignore malformed JSON */
+      }
+      let openArgs: any[] | null = null;
+      if (row.open_data) {
+        try {
+          openArgs = typeof row.open_data === 'string' ? JSON.parse(row.open_data) : row.open_data;
+        } catch {
+          openArgs = null;
+        }
+      }
+      positionIdStr = row.position_id != null ? String(row.position_id) : String(args[0] ?? "0");
+
+      // Resolve the open position's direction/size, preferring the typed
+      // columns carried over from the matching PositionOpened row.
+      const resolveFromOpen = () => {
+        if (row.open_is_long != null || row.open_size_raw != null) {
+          isLong = row.open_is_long === true || String(row.open_is_long) === "true";
+          size = row.open_size_raw != null ? String(row.open_size_raw) : "0";
+        } else if (openArgs) {
+          isLong = String(openArgs[3]) === "true";
+          size = openArgs[4] || "0";
+        }
+        if ((!marketId || marketId === "0x") && row.open_market_id) {
+          marketId = row.open_market_id;
+        }
+      };
+
+      try {
         if (row.event_type === "PositionOpened") {
-          isLong = String(args[3]) === "true";
-          size = args[4] || "0";
-          price = args[6] || "0";
+          isLong = row.is_long != null
+            ? (row.is_long === true || String(row.is_long) === "true")
+            : String(args[3]) === "true";
+          size = row.size_raw != null ? String(row.size_raw) : (args[4] || "0");
+          price = row.entry_price != null ? String(row.entry_price) : (args[6] || "0");
         } else if (row.event_type === "PositionClosed") {
-          pnl = args[2] || "0";
-          price = args[3] || "0";
-          // Resolve isLong and size from the open event
-          if (row.open_data) {
-            try {
-              const openArgs = typeof row.open_data === 'string' ? JSON.parse(row.open_data) : row.open_data;
-              isLong = String(openArgs[3]) === "true";
-              size = openArgs[4] || "0";
-            } catch { /* ignore */ }
-          }
-          // Resolve market_id from open event if current is placeholder
-          if ((!marketId || marketId === "0x") && row.open_market_id) {
-            marketId = row.open_market_id;
-          }
+          pnl = row.realized_pnl != null ? String(row.realized_pnl) : (args[2] || "0");
+          price = row.exit_price != null ? String(row.exit_price) : (args[3] || "0");
+          resolveFromOpen();
         } else if (row.event_type === "PositionLiquidated") {
-          price = args[2] || "0";
-          // Resolve isLong and size from the open event
-          if (row.open_data) {
-            try {
-              const openArgs = typeof row.open_data === 'string' ? JSON.parse(row.open_data) : row.open_data;
-              isLong = String(openArgs[3]) === "true";
-              size = openArgs[4] || "0";
-            } catch { /* ignore */ }
-          }
-          if ((!marketId || marketId === "0x") && row.open_market_id) {
-            marketId = row.open_market_id;
-          }
+          price = row.exit_price != null ? String(row.exit_price) : (args[2] || "0");
+          resolveFromOpen();
         }
       } catch {
         /* ignore malformed JSON */
@@ -541,7 +568,7 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
 
       return {
         id: String(row.id),
-        position: { positionId: String(args[0]) },
+        position: { positionId: positionIdStr },
         trader: { id: trader },
         market: { id: marketId },
         type,
@@ -556,7 +583,7 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
         txHash: row.tx_hash,
       };
     });
-  } catch (e) {
+  } catch {
     return [];
   }
 }
@@ -581,7 +608,7 @@ export async function fetchLeaderboard(
 ): Promise<User[]> {
   if (!process.env.POSTGRES_URL) return [];
   try {
-    const pool = getPool();
+    const pool = getQueryPool();
     if (!pool) return [];
     const safeLimit = Math.min(Math.max(limit, 1), 100);
     const tf: LeaderboardTimeframe =
@@ -591,47 +618,50 @@ export async function fetchLeaderboard(
     const res = await pool.query(
       `
       WITH opened AS (
-        SELECT DISTINCT ON ((data::jsonb->>0)::text)
-          (data::jsonb->>0)::text AS position_id,
+        SELECT DISTINCT ON (position_id)
+          position_id,
           account,
-          COALESCE((data::jsonb->>4)::numeric, 0) AS size_raw,
-          COALESCE((data::jsonb->>5)::numeric, 0) AS leverage_raw
+          COALESCE(size_raw, 0) AS size_raw,
+          COALESCE(leverage_raw, 0) AS leverage_raw
         FROM position_events
-        WHERE event_type = 'PositionOpened' AND data IS NOT NULL
-        ORDER BY (data::jsonb->>0)::text, id ASC
+        WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
+        ORDER BY position_id, id ASC
       ),
       all_events AS (
         -- Every position open is volume
         SELECT lower(account) AS addr_key, account AS address_display,
-               (data::jsonb->>0)::text AS position_id,
+               position_id,
                0::numeric AS pnl_raw,
-               created_at
+               created_at,
+               block_time
         FROM position_events
-        WHERE event_type = 'PositionOpened' AND data IS NOT NULL
+        WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
 
         UNION ALL
 
         -- Every position close is volume + pnl
         SELECT lower(account) AS addr_key, account AS address_display,
-               (data::jsonb->>0)::text AS position_id,
-               (data::jsonb->>2)::numeric AS pnl_raw,
-               created_at
+               position_id,
+               COALESCE(realized_pnl, 0) AS pnl_raw,
+               created_at,
+               block_time
         FROM position_events
-        WHERE event_type = 'PositionClosed' AND data IS NOT NULL
+        WHERE event_type = 'PositionClosed' AND position_id IS NOT NULL
 
         UNION ALL
 
         -- Every liquidation is loss of margin
         SELECT lower(e.account) AS addr_key, e.account AS address_display,
-               (e.data::jsonb->>0)::text AS position_id,
+               e.position_id,
                CASE 
                  WHEN o.leverage_raw > 0 THEN -(o.size_raw / (o.leverage_raw / POWER(10::numeric, 18)))
                  ELSE 0::numeric 
                END AS pnl_raw,
-               e.created_at
+               e.created_at,
+               e.block_time
         FROM position_events e
-        LEFT JOIN opened o ON o.position_id = (e.data::jsonb->>0)::text
-        WHERE e.event_type = 'PositionLiquidated' AND e.data IS NOT NULL
+        LEFT JOIN opened o ON o.position_id = e.position_id
+        WHERE e.event_type = 'PositionLiquidated' AND e.position_id IS NOT NULL
       )
       SELECT
         MAX(e.address_display) AS address,
@@ -663,17 +693,7 @@ export async function fetchLeaderboard(
       totalRealizedPnl: row.total_realized_pnl ?? "0",
     }));
   } catch (e) {
-    console.error("[indexer] fetchLeaderboard error:", e);
-    
-    // Provide a development dummy set so the UI doesn't look broken locally
-    if (process.env.NODE_ENV !== "production") {
-      return [
-        { id: "0x1111111111111111111111111111111111111111", address: "0x1111111111111111111111111111111111111111", totalTrades: "45", totalVolumeUsd: "150400.00", totalRealizedPnl: "12300000000000000000000" },
-        { id: "0x2222222222222222222222222222222222222222", address: "0x2222222222222222222222222222222222222222", totalTrades: "12", totalVolumeUsd: "50000.00", totalRealizedPnl: "8400000000000000000000" },
-        { id: "0x3333333333333333333333333333333333333333", address: "0x3333333333333333333333333333333333333333", totalTrades: "8", totalVolumeUsd: "12500.00", totalRealizedPnl: "1100000000000000000000" },
-      ];
-    }
-    
+    logger.error({ err: e }, "[indexer] fetchLeaderboard error");
     return [];
   }
 }
@@ -690,7 +710,7 @@ export interface KeeperFailure {
 
 export async function insertKeeperFailure(failure: Omit<KeeperFailure, 'id' | 'timestamp'>): Promise<KeeperFailure | null> {
   if (!process.env.POSTGRES_URL) {
-    console.warn('[indexer] No POSTGRES_URL — keeper failure not persisted:', failure);
+    logger.warn({ failure }, "[indexer] No POSTGRES_URL — keeper failure not persisted");
     return null;
   }
   try {
@@ -713,7 +733,7 @@ export async function insertKeeperFailure(failure: Omit<KeeperFailure, 'id' | 't
       timestamp: String(Math.floor(new Date(row.created_at).getTime() / 1000)),
     };
   } catch (e) {
-    console.error('[indexer] insertKeeperFailure error:', e);
+    logger.error({ err: e }, "[indexer] insertKeeperFailure error");
     return null;
   }
 }
@@ -721,7 +741,7 @@ export async function insertKeeperFailure(failure: Omit<KeeperFailure, 'id' | 't
 export async function fetchKeeperFailures(traderAddress: string, limit: number = 20): Promise<KeeperFailure[]> {
   if (!process.env.POSTGRES_URL) return [];
   try {
-    const pool = getPool();
+    const pool = getQueryPool();
     if (!pool) return [];
     const res = await pool.query(
       `SELECT id, order_id, trader_address, market_address, failure_reason, selector, created_at
@@ -741,13 +761,48 @@ export async function fetchKeeperFailures(traderAddress: string, limit: number =
       timestamp: String(Math.floor(new Date(row.created_at).getTime() / 1000)),
     }));
   } catch (e) {
-    console.error('[indexer] fetchKeeperFailures error:', e);
+    logger.error({ err: e }, "[indexer] fetchKeeperFailures error");
     return [];
   }
 }
 
-export async function fetchBadDebtClaims(_limit: number): Promise<BadDebtClaim[]> {
-  return [];
+/**
+ * Recent insurance-fund payouts, sourced from indexed VaultCore
+ * `BadDebtCovered(claimId, amount, positionId)` events. `amount` is the USDC
+ * (6 dp) actually paid out of the insurance fund. Returns an empty list when
+ * the indexer DB is unavailable so the API degrades gracefully.
+ */
+export async function fetchBadDebtClaims(limit: number): Promise<BadDebtClaim[]> {
+  if (!process.env.POSTGRES_URL) return [];
+  try {
+    const pool = getQueryPool();
+    if (!pool) return [];
+    const safeLimit = Math.min(Math.max(Math.trunc(Number(limit) || 0), 1), 50);
+    const res = await pool.query(
+      `SELECT id, claim_id, position_id, amount, block_number, tx_hash, block_time
+       FROM bad_debt_claims
+       ORDER BY block_number DESC, log_index DESC
+       LIMIT $1`,
+      [safeLimit]
+    );
+    return res.rows.map((row: any) => {
+      const ts = row.block_time != null ? String(row.block_time) : "0";
+      return {
+        id: String(row.id),
+        claimId: String(row.claim_id),
+        positionId: String(row.position_id),
+        amount: String(row.amount),
+        // A `BadDebtCovered` event is itself the payout, so submitted == covered.
+        submittedAt: ts,
+        coveredAt: ts,
+        blockNumber: String(row.block_number),
+        txHash: String(row.tx_hash),
+      };
+    });
+  } catch (e) {
+    logger.error({ err: e }, "[indexer] fetchBadDebtClaims error");
+    return [];
+  }
 }
 
 /**
@@ -760,7 +815,7 @@ export async function fetchReferralEarned(referrer: string): Promise<string | nu
   const addr = referrer.toLowerCase();
   if (!addr.startsWith("0x") || !process.env.POSTGRES_URL) return null;
   try {
-    const pool = getPool();
+    const pool = getQueryPool();
     if (!pool) return null;
     const res = await pool.query(
       `SELECT COALESCE(SUM(amount), 0)::text AS total
@@ -770,7 +825,7 @@ export async function fetchReferralEarned(referrer: string): Promise<string | nu
     );
     return String(res.rows[0]?.total ?? "0");
   } catch (e) {
-    console.error("[indexer] fetchReferralEarned error:", e);
+    logger.error({ err: e }, "[indexer] fetchReferralEarned error");
     return null;
   }
 }
@@ -781,7 +836,7 @@ export async function fetchProtocolMetrics(
 ): Promise<ProtocolMetric[]> {
   if (!process.env.POSTGRES_URL) return [];
   try {
-    const pool = getPool();
+    const pool = getQueryPool();
     if (!pool) return [];
 
     // Whitelist the period unit and coerce the limit to a bounded integer so
@@ -794,32 +849,33 @@ export async function fetchProtocolMetrics(
 
     const res = await pool.query(`
       WITH opened_sizes AS (
-        SELECT DISTINCT ON ((data::jsonb->>0)::text)
-          (data::jsonb->>0)::text AS position_id,
-          (data::jsonb->>4)::numeric AS size_raw
+        SELECT DISTINCT ON (position_id)
+          position_id,
+          size_raw
         FROM position_events
-        WHERE event_type = 'PositionOpened'
-        ORDER BY (data::jsonb->>0)::text, id ASC
+        WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
+        ORDER BY position_id, id ASC
       ),
       event_metrics AS (
         SELECT 
-          date_trunc('${trunc}', c.created_at) as ts,
+          date_trunc('${trunc}', to_timestamp(c.block_time) AT TIME ZONE 'UTC') as ts,
           CASE
-            WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
-              THEN (c.data::jsonb->>4)::numeric
+            WHEN c.event_type = 'PositionOpened' AND c.size_raw IS NOT NULL
+              THEN c.size_raw
             WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
               THEN o.size_raw
             ELSE 0::numeric
           END AS volume_raw,
           CASE
-            WHEN c.event_type = 'PositionClosed' AND c.data::jsonb->>4 IS NOT NULL
-              THEN (c.data::jsonb->>4)::numeric
+            WHEN c.event_type = 'PositionClosed' AND c.fee IS NOT NULL
+              THEN c.fee
             ELSE 0::numeric
           END AS fees_raw,
           1 as trade_count
         FROM position_events c
-        LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
+        LEFT JOIN opened_sizes o ON o.position_id = c.position_id
         WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
+          AND c.position_id IS NOT NULL
           AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '${intervalLiteral}'))
       )
       SELECT 
@@ -848,7 +904,7 @@ export async function fetchProtocolMetrics(
       timestamp: String(row.timestamp_unix),
     }));
   } catch (e) {
-    console.error("[indexer] fetchProtocolMetrics error:", e);
+    logger.error({ err: e }, "[indexer] fetchProtocolMetrics error");
     return [];
   }
 }

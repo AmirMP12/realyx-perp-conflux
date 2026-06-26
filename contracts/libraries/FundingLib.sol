@@ -7,6 +7,29 @@ import "./PositionMath.sol";
 /**
  * @title FundingLib
  * @notice Library for funding rate calculations and settlements
+ * @dev Funding-imbalance accrual: funding owed per position is
+ *      `size * cumulativeDelta`. When long and short open interest are
+ *      imbalanced, the total paid by the heavy side does not exactly equal the
+ *      total received by the light side. The residual is absorbed by the vault
+ *      (LP pool), because position collateral is debited/credited individually
+ *      via `applyFundingToCollateral` against funds that are ultimately settled
+ *      with the vault on close/liquidation. This is an intentional, documented
+ *      LP P&L source (LPs are the funding counterparty of last resort), bounded
+ *      by `BASE_FUNDING_RATE` per interval and the per-call interval cap.
+ *      Rounding uses integer division (floor on magnitude), so the residual
+ *      cannot be repeatedly farmed for a profit beyond sub-wei dust.
+ *
+ *      OI SNAPSHOT APPROXIMATION: when several intervals have
+ *      elapsed since the last settlement, `_settleFundingWithCap` applies the
+ *      CURRENT instantaneous OI-derived rate to every missed interval rather
+ *      than replaying the historical OI path (no per-interval history is
+ *      stored). For a market whose long/short imbalance changed materially
+ *      between settlements this misprices the catch-up intervals; the
+ *      difference accrues to LPs. This is an accepted approximation, bounded by
+ *      `BASE_FUNDING_RATE` (~1bp/interval) and the interval cap, and is
+ *      minimised in practice by settling funding on every position touch
+ *      (`TradingCore.settlePositionFunding` advances the market accumulator
+ *      before each per-position settle).
  */
 library FundingLib {
     using PositionMath for DataTypes.Position;
@@ -34,12 +57,13 @@ library FundingLib {
         address market,
         uint256 intervalCap
     ) external returns (int256 fundingRate) {
-        return _settleFundingWithCap(
-            fundingState,
-            m,
-            market,
-            intervalCap == 0 ? DataTypes.MAX_FUNDING_INTERVALS : intervalCap
-        );
+        return
+            _settleFundingWithCap(
+                fundingState,
+                m,
+                market,
+                intervalCap == 0 ? DataTypes.MAX_FUNDING_INTERVALS : intervalCap
+            );
     }
 
     function _settleFundingWithCap(

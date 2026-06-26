@@ -30,7 +30,7 @@ contract LiquidationLibHarness {
             openTimestamp: uint40(block.timestamp),
             trailingStopBps: 0,
             flags: flags,
-            collateralType: DataTypes.CollateralType.USDC,
+            collateralType: DataTypes.CollateralType.USDT0,
             state: state,
             collateralToken: address(0)
         });

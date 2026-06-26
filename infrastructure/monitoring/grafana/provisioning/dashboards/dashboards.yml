@@ -1,0 +1,14 @@
+# Grafana dashboard provisioning — auto-loads JSON dashboards from disk.
+apiVersion: 1
+providers:
+  - name: Realyx
+    orgId: 1
+    folder: Realyx
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      foldersFromFilesStructure: false

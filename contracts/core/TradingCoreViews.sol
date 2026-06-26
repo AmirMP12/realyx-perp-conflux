@@ -112,6 +112,23 @@ contract TradingCoreViews is Ownable {
     }
 
     function getGlobalUnrealizedPnL(address core) external view returns (int256 totalPnL) {
+        (totalPnL, ) = _globalUnrealizedPnL(core);
+    }
+
+    /// @notice Same aggregation as `getGlobalUnrealizedPnL` but also reports
+    ///         whether every active market with open interest could be priced.
+    /// @return totalPnL Signed aggregate unrealized PnL (internal precision).
+    /// @return complete False if any active market with open OI was unreadable
+    ///         (stale/over-confidence/unconfigured feed) and therefore skipped.
+    ///         Consumers pricing LP withdrawals must treat `complete == false`
+    ///         as "trader profit may be understated" and refuse to let LPs exit
+    ///         against the unpriced (possibly-profitable) trader positions.
+    function getGlobalUnrealizedPnLDetailed(address core) external view returns (int256 totalPnL, bool complete) {
+        return _globalUnrealizedPnL(core);
+    }
+
+    function _globalUnrealizedPnL(address core) internal view returns (int256 totalPnL, bool complete) {
+        complete = true;
         uint256 count = ITradingCoreExtended(core).activeMarketCount();
         for (uint256 i = 0; i < count; ) {
             address market = ITradingCoreExtended(core).activeMarketAt(i);
@@ -123,9 +140,9 @@ contract TradingCoreViews is Ownable {
                 // vault's `try/catch` then fell back to a ZERO trader-PnL
                 // adjustment on the conservative (withdrawal) path — letting
                 // LPs over-withdraw against unpriced, possibly-profitable
-                // trader positions. We instead skip the unreadable market's
-                // contribution here; the vault treats an unreadable market as
-                // "no offsetting credit", which is conservative for LP exits.
+                // trader positions. We skip the unreadable market's
+                // contribution here and flag `complete = false` so the vault
+                // can refuse LP exits while any OI-bearing market is unpriced.
                 try oracleAggregator.getPrice(market) returns (uint256 price, uint256, uint256) {
                     if (price > 0) {
                         // Bound `size * price` to prevent silent int256
@@ -149,13 +166,18 @@ contract TradingCoreViews is Ownable {
                             int256 longPnL = int256(longCurrent) - int256(m.totalLongCost);
                             int256 shortPnL = int256(m.totalShortCost) - int256(shortCurrent);
                             totalPnL += longPnL + shortPnL;
+                        } else {
+                            // Could not safely value this market's PnL.
+                            complete = false;
                         }
+                    } else {
+                        // Zero price = unusable read for this market.
+                        complete = false;
                     }
                 } catch {
-                    // Unreadable market: skip its contribution. Combined with
-                    // the vault's conservative-total consumer (which subtracts
-                    // only positive aggregate trader PnL), skipping cannot
-                    // inflate LP withdrawable value beyond the priced markets.
+                    // Unreadable market: skip its contribution and flag the
+                    // aggregate as incomplete so LP-exit consumers can refuse.
+                    complete = false;
                 }
             }
             unchecked {

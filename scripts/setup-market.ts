@@ -1,5 +1,5 @@
-import { ethers } from "hardhat";
-import { requireEnv } from "./helpers";
+import { ethers, network } from "hardhat";
+import { loadDeployment } from "./write-deployment";
 
 const MIN_GAS_GWEI = 2;
 const RETRY_DELAY_MS = 4000;
@@ -69,6 +69,7 @@ function formatRevertReason(e: unknown): string {
             "0xed39399c": "InvalidMarginConfig()",
             "0x9db8d5b1": "InvalidMarket()",
             "0x6979bd5a": "ExceedsMaxLeverage()",
+            "0x9f60563a": "MaxConfidenceRequired()",
         };
         reason = known[sig] ?? `revert (selector ${sig})`;
     }
@@ -99,9 +100,33 @@ async function withRetryUnderpriced<T>(
     throw new Error("unreachable");
 }
 
-function getMarketsFromEnv(): { marketAddress: string; pythFeedId: string; marketId: string }[] {
+const UINT64_MAX = (1n << 64n) - 1n;
+// `OracleAggregator.setPythFeed` rejects a zero `maxConfidence`
+// (`MaxConfidenceRequired()`); operators must pick an explicit per-feed
+// confidence cap. The cap is an ABSOLUTE confidence band normalized to 18
+// decimals (same scale as the normalized price) and is stored as uint64, so
+// it must be <= UINT64_MAX. Defaulting to UINT64_MAX is the most permissive
+// valid setting and avoids `InsufficientConfidence` reverts on price reads;
+// tighten per feed via MAX_CONFIDENCE (single value) or a comma-separated list.
+const DEFAULT_MAX_CONFIDENCE = UINT64_MAX;
+
+function parseMaxConfidence(raw: string | undefined): bigint {
+    const v = raw?.trim();
+    if (!v) return DEFAULT_MAX_CONFIDENCE;
+    const parsed = BigInt(v);
+    if (parsed <= 0n) throw new Error(`MAX_CONFIDENCE must be > 0 (got ${v})`);
+    if (parsed > UINT64_MAX) throw new Error(`MAX_CONFIDENCE must be <= uint64 max (${UINT64_MAX}); got ${v}`);
+    return parsed;
+}
+
+function getMarketsFromEnv(): { marketAddress: string; pythFeedId: string; marketId: string; maxConfidence: bigint }[] {
     const multiAddrs = process.env.MARKET_ADDRESSES?.trim();
     const multiFeeds = process.env.PYTH_FEED_IDS?.trim();
+    // MAX_CONFIDENCE may be a single shared value or a comma-separated list
+    // aligned 1:1 with MARKET_ADDRESSES. Empty entries fall back to the default.
+    const confEntries = (process.env.MAX_CONFIDENCE || "").split(",").map((s) => s.trim());
+    const sharedConf = confEntries.length === 1 ? parseMaxConfidence(confEntries[0]) : undefined;
+    const confFor = (i: number): bigint => sharedConf ?? parseMaxConfidence(confEntries[i]);
     if (multiAddrs && multiFeeds) {
         const addrs = multiAddrs
             .split(",")
@@ -121,21 +146,59 @@ function getMarketsFromEnv(): { marketAddress: string; pythFeedId: string; marke
             marketAddress,
             pythFeedId: feeds[i]!,
             marketId: marketIds[i] ?? "",
+            maxConfidence: confFor(i),
         }));
     }
     const marketAddress = process.env.MARKET_ADDRESS?.trim();
     const pythFeedId = process.env.PYTH_FEED_ID?.trim();
     if (marketAddress && pythFeedId) {
-        return [{ marketAddress, pythFeedId, marketId: process.env.MARKET_ID || "" }];
+        return [
+            {
+                marketAddress,
+                pythFeedId,
+                marketId: process.env.MARKET_ID || "",
+                maxConfidence: parseMaxConfidence(process.env.MAX_CONFIDENCE),
+            },
+        ];
     }
     throw new Error(
         "Set either MARKET_ADDRESS + PYTH_FEED_ID (single) or MARKET_ADDRESSES + PYTH_FEED_IDS (comma-separated)",
     );
 }
 
+/**
+ * Resolve a deployed contract address. The canonical deployment file
+ * (deployment/<network>.json) is the source of truth, since it is rewritten on
+ * every deploy and so always points at the latest contracts. The matching
+ * DEPLOYED_* env var is only a fallback for networks without a deployment file.
+ * Hand-maintained .env entries are the usual cause of markets being wired into
+ * a stale/old contract, so the file deliberately wins when both are present.
+ */
+function resolveDeployedAddress(contractKey: string, envName: string): string {
+    const envAddr = process.env[envName]?.trim();
+    const deployment = loadDeployment(network.name);
+    const fromFile = deployment?.contracts?.[contractKey];
+
+    if (fromFile) {
+        if (envAddr && envAddr.toLowerCase() !== String(fromFile).toLowerCase()) {
+            console.warn(
+                `WARNING: ${envName}=${envAddr} is stale; deployment/${network.name}.json has ` +
+                    `${contractKey}=${fromFile}. Using the deployment file address.`,
+            );
+        }
+        console.log(`${contractKey}: ${fromFile} (from deployment/${network.name}.json)`);
+        return String(fromFile);
+    }
+    if (envAddr) {
+        console.log(`${contractKey}: ${envAddr} (from ${envName}; no deployment/${network.name}.json found)`);
+        return envAddr;
+    }
+    throw new Error(`${contractKey} not found in deployment/${network.name}.json and ${envName} is not set in .env`);
+}
+
 async function main() {
-    const oracleAddr = requireEnv("DEPLOYED_ORACLE_AGGREGATOR");
-    const tradingCoreAddr = requireEnv("DEPLOYED_TRADING_CORE");
+    const oracleAddr = resolveDeployedAddress("oracleAggregator", "DEPLOYED_ORACLE_AGGREGATOR");
+    const tradingCoreAddr = resolveDeployedAddress("tradingCore", "DEPLOYED_TRADING_CORE");
     const markets = getMarketsFromEnv();
 
     const maxLeverage = BigInt(process.env.MAX_LEVERAGE || "10");
@@ -155,7 +218,7 @@ async function main() {
     console.log("TradingCore active markets:", activeCount.toString(), "/", MAX_ACTIVE_MARKETS.toString());
 
     for (let i = 0; i < markets.length; i++) {
-        const { marketAddress, pythFeedId, marketId } = markets[i]!;
+        const { marketAddress, pythFeedId, marketId, maxConfidence } = markets[i]!;
         console.log(`\n--- Market ${i + 1}/${markets.length}: ${marketAddress} ${marketId || ""} ---`);
 
         const hex = pythFeedId.startsWith("0x") ? pythFeedId : "0x" + pythFeedId;
@@ -163,9 +226,9 @@ async function main() {
 
         try {
             await withRetryUnderpriced(overrides, (o) =>
-                oracle.setPythFeed(marketAddress, feedIdBytes32, maxStaleness, 0, o ?? {}),
+                oracle.setPythFeed(marketAddress, feedIdBytes32, maxStaleness, maxConfidence, o ?? {}),
             );
-            console.log("OracleAggregator.setPythFeed ok");
+            console.log("OracleAggregator.setPythFeed ok (maxConfidence", maxConfidence.toString() + ")");
 
             await withRetryUnderpriced(
                 overrides,

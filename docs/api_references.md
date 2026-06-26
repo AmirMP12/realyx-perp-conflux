@@ -7,7 +7,7 @@ Backend API and optional realtime channel for the Realyx frontend.
 | Environment | REST Base URL | Realtime |
 |---|---|---|
 | Local | `http://localhost:3001/api` | `ws://localhost:3002` when `ENABLE_WS=true` |
-| Vercel (single project) | `/api` | No native backend websocket (use polling) |
+| Serverless (single project) | `/api` | No native backend websocket (use polling) |
 
 ## REST Endpoints
 
@@ -21,6 +21,8 @@ Both the legacy (`/api/...`) and versioned (`/api/v1/...`) prefixes are served a
 | GET | `/user/:address/trades?limit=20` | Trade history for wallet |
 | GET | `/stats` | Protocol summary metrics: TVL, 24h Volume, Open Interest, Active Traders, Liquidations |
 | GET | `/stats/history` | Daily aggregated metrics: Volume, Trades, Fees |
+| GET | `/vault/yield` | LP real-yield breakdown — APR by source (borrow/trading fees, funding, liquidations) + 30d APR history, normalized to live TVL |
+| GET | `/status` | Public transparency feed — overall + per-component health (oracle, RPC, indexer, vault), uptime, vault solvency ratio, insurance-fund size |
 | GET | `/leaderboard?limit=10&timeframe=all` | Global trader rankings by Realized PnL and Volume |
 | GET | `/insurance/claims?limit=20` | History of covered bad debt claims from the insurance tranche |
 | GET | `/referrals/stats?address=0x...` | On-chain referral stats (code, referees, totalEarned, pendingClaim) |
@@ -80,4 +82,4 @@ Typical message types:
 - `stats_update`
 - `funding_update`
 
-On Vercel, keep `VITE_WS_URL` empty and rely on polling endpoints (frontend already supports this mode).
+In serverless mode, keep `VITE_WS_URL` empty and rely on polling endpoints (frontend already supports this mode).

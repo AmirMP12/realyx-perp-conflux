@@ -74,7 +74,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
             className={clsx(
                 'relative inline-flex items-center justify-center font-semibold whitespace-nowrap',
                 'transition-[transform,background,box-shadow,filter,border-color] duration-200',
-                'focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]',
                 'disabled:opacity-50 disabled:pointer-events-none disabled:translate-y-0',
                 'motion-reduce:transform-none motion-reduce:transition-none',
                 SIZE[size],

@@ -76,7 +76,7 @@ describe("Debug Route", () => {
     });
 
     it("should surface referral rebate indexing stats", async () => {
-        process.env.VAULT_CORE_ADDRESS = "0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714";
+        process.env.VAULT_CORE_ADDRESS = "0x98E011A8782aF36C5Ad6051bC54B86a7c0705F67";
         pool.query.mockImplementation((sql: string) => {
             if (sql.includes("COUNT(*) FROM referral_rebates")) {
                 return Promise.resolve({ rows: [{ count: "7" }] });

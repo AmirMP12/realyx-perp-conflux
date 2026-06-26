@@ -27,6 +27,15 @@ library PositionMath {
     uint256 private constant MIN_MAINTENANCE_MARGIN_BPS = 100;
     uint256 private constant DEFAULT_MAINTENANCE_MARGIN_BPS = 500;
     uint256 public constant MAX_DYNAMIC_MAINTENANCE_BPS = 2000; // hard cap at 20%
+    /// @dev Maintenance margin is additionally capped to this fraction of the
+    ///      position's initial-margin requirement (size / leverage). Without
+    ///      this, the fixed-plus-leverage bps curve below exceeds `1/leverage`
+    ///      above ~16x, which made any high-leverage position instantly
+    ///      liquidatable at entry (i.e. impossible to open). Capping at 50% of
+    ///      the initial margin guarantees a fresh position at any leverage up to
+    ///      `MAX_LEVERAGE_LIMIT` (100x) opens with a health factor of ~2.0,
+    ///      matching the standard "maintenance = half of initial" perp model.
+    uint256 private constant MAINTENANCE_TO_INITIAL_CAP_BPS = 5000;
     uint256 private constant NO_LIQUIDATION_PRICE = type(uint128).max;
 
     /// @notice SafeCast helpers. Use at every uint256 → uintN
@@ -116,6 +125,23 @@ library PositionMath {
         }
 
         margin = (size * totalBps) / BPS;
+
+        // ── Initial-margin cap ──
+        // The bps curve above grows with leverage, and beyond ~16x it exceeds
+        // the position's initial-margin budget (size / leverage). When that
+        // happens a freshly-opened position is already liquidatable at entry,
+        // which makes high-leverage markets impossible to open. Cap the
+        // maintenance margin at `MAINTENANCE_TO_INITIAL_CAP_BPS` (50%) of the
+        // initial margin so a new position at ANY configured leverage up to
+        // `MAX_LEVERAGE_LIMIT` (100x) opens with a health factor of ~2.0. At
+        // low leverage the bps curve is well below this cap and is unaffected.
+        if (leverage > 0) {
+            uint256 initialMargin = (size * PRECISION) / leverage;
+            uint256 cap = (initialMargin * MAINTENANCE_TO_INITIAL_CAP_BPS) / BPS;
+            if (margin > cap) {
+                margin = cap;
+            }
+        }
     }
 
     function calculateLiquidationPrice(
@@ -363,7 +389,11 @@ library PositionMath {
     }
 
     /// @notice Ratchet the trailing anchor toward favorable price moves.
-    function updateTrailingAnchor(bool isLong, uint256 currentPrice, uint256 anchorPrice) internal pure returns (uint256) {
+    function updateTrailingAnchor(
+        bool isLong,
+        uint256 currentPrice,
+        uint256 anchorPrice
+    ) internal pure returns (uint256) {
         if (anchorPrice == 0) return currentPrice;
         if (isLong) {
             return currentPrice > anchorPrice ? currentPrice : anchorPrice;

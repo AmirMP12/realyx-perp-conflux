@@ -1,6 +1,11 @@
 [
   {
     "inputs": [],
+    "name": "CastOverflow",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "DivisionByZero",
     "type": "error"
   },
@@ -68,6 +73,50 @@
       }
     ],
     "name": "calcClosingFee",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "size",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "makerBps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "takerBps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minFee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "isMarket",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "referralDiscountBps",
+        "type": "uint256"
+      }
+    ],
+    "name": "calcClosingFeeRef",
     "outputs": [
       {
         "internalType": "uint256",
@@ -483,6 +532,40 @@
       },
       {
         "internalType": "uint256",
+        "name": "takerBps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minFee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "referralDiscountBps",
+        "type": "uint256"
+      }
+    ],
+    "name": "calcOpeningFeeRef",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "size",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
         "name": "entry",
         "type": "uint256"
       },
@@ -652,6 +735,159 @@
         "type": "uint64"
       },
       {
+        "internalType": "uint8",
+        "name": "state",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "collateral",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "currentPrice",
+        "type": "uint256"
+      }
+    ],
+    "name": "canLiquidateExt",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "liq",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "hf",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getDefaultFeeConfig",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "makerFeeBps",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "takerFeeBps",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "minFeeUsdc",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "lpShareBps",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "insuranceShareBps",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "treasuryShareBps",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct DataTypes.FeeConfig",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint128",
+        "name": "size",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "entry",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint8",
+        "name": "flags",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint64",
+        "name": "leverage",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint8",
+        "name": "state",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "collateral",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "currentPrice",
+        "type": "uint256"
+      }
+    ],
+    "name": "getPositionPnLExt",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "pnl",
+        "type": "int256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "hf",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint128",
+        "name": "size",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "entry",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint8",
+        "name": "flags",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint64",
+        "name": "leverage",
+        "type": "uint64"
+      },
+      {
         "internalType": "uint256",
         "name": "currentPrice",
         "type": "uint256"
@@ -725,6 +961,50 @@
   {
     "inputs": [
       {
+        "internalType": "uint128",
+        "name": "size",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "entry",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint64",
+        "name": "leverage",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint256",
+        "name": "currentPrice",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "collateral",
+        "type": "uint256"
+      }
+    ],
+    "name": "isLiquidatableSentinelLong",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "a",
         "type": "uint256"
@@ -771,6 +1051,60 @@
     ],
     "name": "splitFees",
     "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "total",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "lpBps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "insBps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "treasBps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "rebateBps",
+        "type": "uint256"
+      }
+    ],
+    "name": "splitFeesWithRebate",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
       {
         "internalType": "uint256",
         "name": "",
@@ -866,6 +1200,63 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "v",
+        "type": "uint256"
+      }
+    ],
+    "name": "toUint128",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "v",
+        "type": "uint256"
+      }
+    ],
+    "name": "toUint16",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "v",
+        "type": "uint256"
+      }
+    ],
+    "name": "toUint64",
+    "outputs": [
+      {
+        "internalType": "uint64",
+        "name": "",
+        "type": "uint64"
       }
     ],
     "stateMutability": "pure",

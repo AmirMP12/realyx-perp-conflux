@@ -81,10 +81,7 @@ library EmergencyPriceLib {
         // guardian can fill the proposals storage with cheap proposals
         // (each unique nonce) and effectively keep an override pinned by
         // refreshing it every `validUntil` window.
-        if (
-            minIntervalSeconds > 0 &&
-            block.timestamp < lastProposalAt[msg.sender][collection] + minIntervalSeconds
-        ) {
+        if (minIntervalSeconds > 0 && block.timestamp < lastProposalAt[msg.sender][collection] + minIntervalSeconds) {
             revert ProposalAlreadyExists();
         }
         lastProposalAt[msg.sender][collection] = block.timestamp;
@@ -160,11 +157,7 @@ library EmergencyPriceLib {
         //             explicitly. The proposal stays `executed=true` but no
         //             override is staged or applied; guardians can re-submit
         //             once the oracle recovers.
-        try IOracleAggregator(oracleAggregator).getPrice(proposal.collection) returns (
-            uint256 p,
-            uint256,
-            uint256
-        ) {
+        try IOracleAggregator(oracleAggregator).getPrice(proposal.collection) returns (uint256 p, uint256, uint256) {
             refPrice = p;
             hasRefPrice = refPrice > 0;
         } catch {

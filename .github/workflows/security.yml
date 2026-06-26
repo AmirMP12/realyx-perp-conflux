@@ -1,0 +1,127 @@
+name: Security
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Weekly scan to catch newly-disclosed advisories in unchanged code.
+    - cron: '0 6 * * 1'
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # Static analysis of the Solidity contracts.
+  slither:
+    name: Slither (contracts)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Slither
+        uses: crytic/slither-action@v0.4.0
+        id: slither
+        continue-on-error: true
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          fail-on: high
+          sarif: results.sarif
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && steps.slither.outputs.sarif != ''
+        with:
+          sarif_file: ${{ steps.slither.outputs.sarif }}
+
+      - name: Fail on high-severity findings
+        if: steps.slither.outcome == 'failure'
+        run: |
+          echo "::error::Slither reported high-severity findings. See the SARIF results in the Security tab."
+          exit 1
+
+  # CodeQL for the TypeScript/JavaScript codebase (backend, frontend, sdk, scripts).
+  codeql:
+    name: CodeQL (JS/TS)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript-typescript"
+
+  # Dependency vulnerability gate. Gates the build on CRITICAL advisories in
+  # production dependencies (currently zero). HIGH/MODERATE issues — largely in
+  # the web3 stack (wagmi/viem/walletconnect) where fixes require major-version
+  # migrations — are tracked and proposed as reviewable PRs by Dependabot, and
+  # also surfaced in the Security tab via the Trivy filesystem scan below.
+  npm-audit:
+    name: npm audit (prod deps)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: ['.', 'backend', 'frontend', 'sdk']
+    defaults:
+      run:
+        working-directory: ${{ matrix.dir }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Audit production dependencies (fail on critical)
+        run: npm audit --omit=dev --audit-level=critical
+
+  # Filesystem scan for vulnerable dependencies and leaked secrets across the repo.
+  trivy-fs:
+    name: Trivy (filesystem)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'vuln,secret'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-fs.sarif'

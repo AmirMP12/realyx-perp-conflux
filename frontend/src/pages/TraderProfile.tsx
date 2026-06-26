@@ -41,7 +41,7 @@ interface TraderProfileData {
 
 // Environment-aware contract addresses
 const CONTRACT_ADDRESSES = {
-  usdc: import.meta.env.VITE_USDC_ADDRESS || '0x0000000000000000000000000000000000000000',
+  usdt0: import.meta.env.VITE_USDT0_ADDRESS || '0x0000000000000000000000000000000000000000',
   tradingCore: import.meta.env.VITE_TRADING_CORE_ADDRESS || '0x0000000000000000000000000000000000000000',
   copyRegistry: import.meta.env.VITE_COPY_REGISTRY_ADDRESS || '0x0000000000000000000000000000000000000000',
   copyBot: import.meta.env.VITE_COPY_BOT_ADDRESS || '0x0000000000000000000000000000000000000000',
@@ -396,7 +396,7 @@ export function TraderProfilePage() {
           leadTraderAddress={address}
           leadTraderName={truncateAddress(address)}
           profitFeeBps={trader.profitFeeBps}
-          usdcAddress={CONTRACT_ADDRESSES.usdc}
+          usdcAddress={CONTRACT_ADDRESSES.usdt0}
           tradingCoreAddress={CONTRACT_ADDRESSES.tradingCore}
           copyRegistryAddress={CONTRACT_ADDRESSES.copyRegistry}
           copyBotAddress={CONTRACT_ADDRESSES.copyBot}

@@ -74,6 +74,21 @@ router.post("/key", async (req: any, res: any) => {
       return res.status(401).json({ success: false, error: "Signature does not match owner" });
     }
 
+    // One-time-use nonce. Atomically claim (owner, nonce): the unique
+    // constraint means a replayed signature (same owner + nonce) hits the
+    // conflict and returns no row, so a captured signature can never be used to
+    // mint additional keys. Done before issuing so the grant is truly single-use.
+    const claim = await pool.query(
+      `INSERT INTO api_key_nonces (owner_address, nonce)
+       VALUES ($1, $2)
+       ON CONFLICT (owner_address, nonce) DO NOTHING
+       RETURNING owner_address`,
+      [ownerAddr, nonceBn.toString()]
+    );
+    if (claim.rowCount === 0) {
+      return res.status(409).json({ success: false, error: "Nonce already used; sign with a fresh nonce" });
+    }
+
     // Generate an opaque API key (32 bytes of randomness, hex-encoded)
     const apiKey = "realyx_" + crypto.randomBytes(32).toString("hex");
     const keyHash = crypto.createHash("sha256").update(apiKey).digest("hex");

@@ -64,7 +64,7 @@ describe('OrderNotifications', () => {
         await act(async () => {
             wsInstance.onopen();
         });
-        expect(wsInstance.send).toHaveBeenCalledWith(expect.stringContaining('auth'));
+        expect(wsInstance.send).toHaveBeenCalledWith(expect.stringContaining('subscribe:user'));
         
         // Simulate notification message
         await act(async () => {
@@ -174,6 +174,26 @@ describe('OrderNotifications', () => {
         });
         
         // Sound logic hit
+    });
+
+    it('handles a direct KEEPER_FAILURE broadcast from the backend', async () => {
+        render(<NotificationBell />);
+        await act(async () => {
+            wsInstance.onopen();
+        });
+
+        await act(async () => {
+            wsInstance.onmessage({
+                data: JSON.stringify({
+                    type: 'KEEPER_FAILURE',
+                    traderAddress: '0x123',
+                    data: { orderId: 42, failureReason: 'stale price' },
+                }),
+            });
+        });
+
+        expect(toast).toHaveBeenCalledWith(expect.stringContaining('Order #42 execution failed'), expect.anything());
+        expect(screen.getByText('1')).toBeInTheDocument();
     });
 
     it('handles WebSocket error and close', async () => {

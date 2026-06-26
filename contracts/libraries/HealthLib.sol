@@ -23,9 +23,7 @@ library HealthLib {
     /// @notice Update health using vault TVL only (legacy path, used when insurance is unknown).
     function updateProtocolHealth(uint256 totalAssets, DataTypes.ProtocolHealthState storage ph) external {
         uint256 net = ph.totalBadDebt;
-        ph.isHealthy = totalAssets > 0
-            ? net <= (totalAssets * DataTypes.MAX_BAD_DEBT_RATIO_BPS) / BPS
-            : true;
+        ph.isHealthy = totalAssets > 0 ? net <= (totalAssets * DataTypes.MAX_BAD_DEBT_RATIO_BPS) / BPS : true;
         ph.lastHealthCheck = uint64(block.timestamp);
         if (totalAssets > 0) {
             uint256 ratio = (net * BPS) / totalAssets;
@@ -45,9 +43,7 @@ library HealthLib {
     ) external {
         uint256 gross = ph.totalBadDebt;
         uint256 net = gross > insuranceAssets ? gross - insuranceAssets : 0;
-        ph.isHealthy = totalAssets > 0
-            ? net <= (totalAssets * DataTypes.MAX_BAD_DEBT_RATIO_BPS) / BPS
-            : true;
+        ph.isHealthy = totalAssets > 0 ? net <= (totalAssets * DataTypes.MAX_BAD_DEBT_RATIO_BPS) / BPS : true;
         ph.lastHealthCheck = uint64(block.timestamp);
         if (totalAssets > 0) {
             uint256 ratio = (net * BPS) / totalAssets;

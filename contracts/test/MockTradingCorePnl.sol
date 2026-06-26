@@ -17,4 +17,9 @@ contract MockTradingCorePnl {
         if (shouldRevert) revert("mock pnl revert");
         return pnl;
     }
+
+    function getGlobalUnrealizedPnLDetailed() external view returns (int256, bool) {
+        if (shouldRevert) revert("mock pnl revert");
+        return (pnl, true);
+    }
 }

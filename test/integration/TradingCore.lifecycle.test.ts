@@ -52,9 +52,9 @@ describe("TradingCore — position lifecycle (integration)", () => {
 
         it("charges an opening fee routed to the vault/treasury", async () => {
             const d = await loadFixture(deployConfigured);
-            const treasuryBefore = await d.usdc.balanceOf(d.treasury.address);
+            const treasuryBefore = await d.usdt0.balanceOf(d.treasury.address);
             await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(50_000), collateralUsdc: usdc(6_000) });
-            const treasuryAfter = await d.usdc.balanceOf(d.treasury.address);
+            const treasuryAfter = await d.usdt0.balanceOf(d.treasury.address);
             expect(treasuryAfter).to.be.greaterThanOrEqual(treasuryBefore);
         });
     });
@@ -65,9 +65,9 @@ describe("TradingCore — position lifecycle (integration)", () => {
             const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
             await time.increase(120);
             await setPythPrice(d.pyth, d.feedId, 55_000n * 10n ** 18n);
-            const before = await d.usdc.balanceOf(d.alice.address);
+            const before = await d.usdt0.balanceOf(d.alice.address);
             await closeFull(d, d.alice, id);
-            expect(await d.usdc.balanceOf(d.alice.address)).to.be.greaterThan(before);
+            expect(await d.usdt0.balanceOf(d.alice.address)).to.be.greaterThan(before);
             expect((await d.tradingCore.getPosition(id)).state).to.equal(PosStatus.CLOSED);
         });
 
@@ -76,9 +76,9 @@ describe("TradingCore — position lifecycle (integration)", () => {
             const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
             await time.increase(120);
             await setPythPrice(d.pyth, d.feedId, 48_000n * 10n ** 18n); // -4%
-            const before = await d.usdc.balanceOf(d.alice.address);
+            const before = await d.usdt0.balanceOf(d.alice.address);
             await closeFull(d, d.alice, id);
-            const gained = (await d.usdc.balanceOf(d.alice.address)) - before;
+            const gained = (await d.usdt0.balanceOf(d.alice.address)) - before;
             expect(gained).to.be.lessThan(usdc(2_000));
         });
 
@@ -140,9 +140,9 @@ describe("TradingCore — position lifecycle (integration)", () => {
             const d = await loadFixture(deployConfigured);
             const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(5_000) });
             await time.increase(5);
-            const before = await d.usdc.balanceOf(d.alice.address);
+            const before = await d.usdt0.balanceOf(d.alice.address);
             await d.tradingCore.connect(d.alice).withdrawCollateral(id, usdc(500));
-            expect(await d.usdc.balanceOf(d.alice.address)).to.be.greaterThan(before);
+            expect(await d.usdt0.balanceOf(d.alice.address)).to.be.greaterThan(before);
         });
 
         it("reverts withdrawing collateral that would breach margin", async () => {

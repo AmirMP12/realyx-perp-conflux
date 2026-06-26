@@ -58,7 +58,7 @@ const PLACEHOLDER_MARKETS: BackendMarket[] = Object.entries(MARKET_DISPLAY_FALLB
 
 const STALE_MS = 30_000; // 30s cache so multiple components share one request
 const HAS_WS = Boolean((import.meta.env.VITE_WS_URL ?? '').trim());
-const MARKETS_POLL_MS = HAS_WS ? 1_000 : 5_000; // 1s when WS provides live updates; 5s when REST-only (Vercel)
+const MARKETS_POLL_MS = HAS_WS ? 1_000 : 5_000; // 1s when WS provides live updates; 5s when REST-only
 
 export interface TradeHistoryItem {
     id: number;

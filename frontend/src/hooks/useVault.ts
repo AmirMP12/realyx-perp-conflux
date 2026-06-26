@@ -10,6 +10,7 @@ const ERC20_ABI = [
     { inputs: [{ name: 'account', type: 'address' }], name: 'balanceOf', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
     { inputs: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }], name: 'allowance', outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view', type: 'function' },
     { inputs: [], name: 'decimals', outputs: [{ type: 'uint8' }], stateMutability: 'view', type: 'function' },
+    { inputs: [], name: 'symbol', outputs: [{ type: 'string' }], stateMutability: 'view', type: 'function' },
 ] as const;
 
 const UNSTAKE_REQUESTED = parseAbiItem('event UnstakeRequested(address indexed user, uint256 timestamp)');
@@ -82,7 +83,7 @@ export function useVaultDeposit() {
             return false;
         }
         if (!usdcAddress) {
-            toast.error("USDC address not found");
+            toast.error("USDT0 address not found");
             return false;
         }
         setLoading(true);
@@ -109,7 +110,7 @@ export function useVaultDeposit() {
                     functionName: 'approve',
                     args: [VAULT_CORE_ADDRESS, (2n ** 256n) - 1n],
                 });
-                toast.loading("Approving USDC...");
+                toast.loading("Approving USDT0...");
                 if (publicClient) await publicClient.waitForTransactionReceipt({ hash });
             }
 
@@ -149,19 +150,37 @@ export function useVaultWithdraw() {
         try {
             const assetsWei = parseUnits(amountUSDC.toFixed(assetDecimals), assetDecimals);
 
-            const shares = await publicClient.readContract({
-                address: VAULT_CORE_ADDRESS,
-                abi: VAULT_ABI,
-                functionName: 'convertToShares',
-                args: [assetsWei]
-            });
+            const [shares, lpBalance] = await Promise.all([
+                publicClient.readContract({
+                    address: VAULT_CORE_ADDRESS,
+                    abi: VAULT_ABI,
+                    functionName: 'convertToShares',
+                    args: [assetsWei]
+                }) as Promise<bigint>,
+                publicClient.readContract({
+                    address: VAULT_CORE_ADDRESS,
+                    abi: VAULT_ABI,
+                    functionName: 'lpBalanceOf',
+                    args: [address]
+                }) as Promise<bigint>,
+            ]);
+
+            // The UI prices the user's balance on `totalAssets()` while the contract
+            // burns shares against the (lower) conservative mark, so converting a
+            // "max" USD amount can yield slightly more shares than the user owns and
+            // revert. Clamp to the on-chain balance to keep max-withdraw reliable.
+            const sharesToBurn = shares > lpBalance ? lpBalance : shares;
+            if (sharesToBurn === 0n) {
+                toast.error('Amount too small');
+                return false;
+            }
 
             await writeContractAsync({
                 chainId,
                 address: VAULT_CORE_ADDRESS,
                 abi: VAULT_ABI,
                 functionName: 'withdraw',
-                args: [shares, address, address]
+                args: [sharesToBurn, address, address]
             });
             toast.success("Withdrawal successful");
             return true;
@@ -191,6 +210,13 @@ export function useVaultStats() {
         address: VAULT_CORE_ADDRESS,
         abi: VAULT_ABI,
         functionName: 'asset',
+    });
+
+    const { data: assetSymbol } = useReadContract({
+        address: assetAddress as `0x${string}` | undefined,
+        abi: ERC20_ABI,
+        functionName: 'symbol',
+        query: { enabled: !!assetAddress },
     });
 
     const { data: lpTotalShares } = useReadContract({
@@ -260,7 +286,7 @@ export function useVaultStats() {
             accumulatedFees: fees,
             availableLiquidity,
             isPaused: isPaused ?? false,
-            asset: assetAddress ? 'USDC' : 'USDC' // For now default to USDC, but we have the address if needed
+            asset: (assetSymbol as string | undefined) || 'USDT0',
         },
         loading: isLoadingTotalAssets && !timedOut
     };
@@ -481,7 +507,7 @@ export function useStakeInsurance() {
             return false;
         }
         if (!usdcAddress) {
-            toast.error('USDC address not found');
+            toast.error('USDT0 address not found');
             return false;
         }
         setLoading(true);

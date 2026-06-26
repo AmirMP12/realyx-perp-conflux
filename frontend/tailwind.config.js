@@ -31,18 +31,23 @@ export default {
                 'surface-2': 'rgb(var(--bg-secondary-rgb) / <alpha-value>)',
                 'surface-3': 'rgb(var(--bg-tertiary-rgb) / <alpha-value>)',
                 line: 'rgb(var(--border-color-rgb) / <alpha-value>)',
-                // Primary brand colors - GMX Blue
+                /*
+                 * Realyx brand palette — institutional indigo. The DEFAULT/900
+                 * stay wired to the existing `--primary` so components and
+                 * snapshots are unaffected; the surrounding scale is tuned to a
+                 * calmer, TradFi-grade indigo rather than a generic perp-DEX blue.
+                 */
                 primary: {
-                    50: '#eef2ff',
-                    100: '#e0e7ff',
-                    200: '#c7d2fe',
-                    300: '#a5b4fc',
+                    50: '#eef1ff',
+                    100: '#e0e5ff',
+                    200: '#c4ccfe',
+                    300: '#9fa9fc',
                     400: '#818cf8',
                     500: '#6366f1',
                     600: '#4f46e5',
                     700: '#4338ca',
                     800: '#3730a3',
-                    900: '#2d42fc', // GMX Blue
+                    900: '#2d42fc',
                     DEFAULT: '#2d42fc',
                 },
                 // Dark theme backgrounds
@@ -51,7 +56,7 @@ export default {
                     800: '#16161a',
                     700: '#1f1f2e',
                 },
-                // Trading colors - GMX Style (channel-based so /opacity works)
+                // Trading colors (channel-based so /opacity modifiers compile)
                 long: {
                     DEFAULT: 'rgb(var(--long-rgb) / <alpha-value>)',
                     light: '#5cf2b8',
@@ -68,6 +73,9 @@ export default {
                     pink: '#FF0080',
                     cyan: '#00DFD8',
                     yellow: '#FFd700',
+                    // RWA gold — signals real-world-asset backing (TradFi cue).
+                    // Use for RWA/equity affordances, dividend markers, etc.
+                    rwa: '#d4a23a',
                 },
             },
             fontFamily: {
@@ -78,8 +86,8 @@ export default {
             backgroundImage: {
                 'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
                 'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
-                'gradient-premium': 'linear-gradient(135deg, rgba(14, 165, 233, 0.1) 0%, rgba(121, 40, 202, 0.1) 100%)',
-                'gradient-glow': 'radial-gradient(circle at center, rgba(14, 165, 233, 0.15), transparent 70%)',
+                'gradient-premium': 'linear-gradient(135deg, rgba(45, 66, 252, 0.1) 0%, rgba(121, 40, 202, 0.1) 100%)',
+                'gradient-glow': 'radial-gradient(circle at center, rgba(45, 66, 252, 0.15), transparent 70%)',
                 'glass-gradient': 'linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%)',
             },
             animation: {
@@ -96,8 +104,8 @@ export default {
                     '100%': { transform: 'translateX(100%)' },
                 },
                 glow: {
-                    '0%': { boxShadow: '0 0 10px rgba(14, 165, 233, 0.2)' },
-                    '100%': { boxShadow: '0 0 25px rgba(14, 165, 233, 0.5)' },
+                    '0%': { boxShadow: '0 0 10px rgba(45, 66, 252, 0.2)' },
+                    '100%': { boxShadow: '0 0 25px rgba(45, 66, 252, 0.5)' },
                 },
                 float: {
                     '0%, 100%': { transform: 'translateY(0)' },
@@ -113,9 +121,9 @@ export default {
                 },
             },
             boxShadow: {
-                'glow-sm': '0 0 15px rgba(14, 165, 233, 0.15)',
-                'glow': '0 0 25px rgba(14, 165, 233, 0.25)',
-                'glow-lg': '0 0 40px rgba(14, 165, 233, 0.35)',
+                'glow-sm': '0 0 15px rgba(45, 66, 252, 0.15)',
+                'glow': '0 0 25px rgba(45, 66, 252, 0.25)',
+                'glow-lg': '0 0 40px rgba(45, 66, 252, 0.35)',
                 'nav': '0 4px 30px rgba(0, 0, 0, 0.1)',
                 'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.37)',
                 'modal': '0 25px 50px -12px rgba(0, 0, 0, 0.5)',

@@ -1,16 +1,26 @@
 /**
- * RealyxWs — Managed WebSocket wrapper with auto-reconnect, heartbeat, and subscriptions.
+ * RealyxWs — Managed WebSocket wrapper with auto-reconnect, heartbeat, and
+ * subscriptions.
+ *
+ * Protocol (matches backend/src/wsServer.ts):
+ *  - Channel subscribe:  { type: "subscribe", channels: ["prices","stats","funding"] }
+ *    The server stores the *latest* channel list per connection (replace
+ *    semantics), so we always send the full active set.
+ *  - User subscribe:     { type: "subscribe:user", address: "0x…" }
+ *  - App-level heartbeat: { type: "ping", ts } → server replies { type: "pong", ts }
+ *  - Inbound broadcasts:  price_update / funding_update / stats_update and
+ *    user-targeted notifications such as KEEPER_FAILURE.
  */
 
 import WebSocket from "ws";
-import type { WsMessage } from "./types";
+import type { WsChannel, WsMessage } from "./types";
 
 export type WsState = "connecting" | "connected" | "disconnected" | "reconnecting";
 
 export interface RealyxWsOptions {
-  /** WebSocket server URL (e.g. wss://realyx.vercel.app/ws) */
+  /** WebSocket server URL (e.g. wss://app.realyx.example/ws) */
   url: string;
-  /** API key for authenticated channels (positions, orders) */
+  /** API key (reserved; the backend WS server does not currently authenticate) */
   apiKey?: string;
   /** Reconnect delay in ms (default 1000, exponential backoff up to 30s) */
   reconnectDelay?: number;
@@ -43,7 +53,11 @@ export class RealyxWs {
   private onStateChange?: (state: WsState) => void;
   private onError?: (err: Error) => void;
 
-  private subscriptions: Set<string> = new Set();
+  /** Active broadcast channels (replace-semantics on the server). */
+  private channels: Set<WsChannel> = new Set();
+  /** Lowercased trader address for user-targeted notifications, if any. */
+  private userAddress: string | null = null;
+
   private reconnectAttempts = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
@@ -88,14 +102,10 @@ export class RealyxWs {
       this.setState("connected");
       this.startPing();
 
-      // Authenticate if we have an API key
-      if (this.apiKey) {
-        this.safeSend(ws, { type: "auth", apiKey: this.apiKey });
-      }
-
-      // Re-subscribe to previously active channels
-      for (const channel of this.subscriptions) {
-        this.safeSend(ws, { type: "subscribe", channel });
+      // Re-send the full subscription state on (re)connect.
+      this.sendChannels();
+      if (this.userAddress) {
+        this.safeSend(ws, { type: "subscribe:user", address: this.userAddress });
       }
     });
 
@@ -109,20 +119,26 @@ export class RealyxWs {
         raw = data as string;
       }
 
+      let msg: WsMessage;
       try {
-        const msg = JSON.parse(raw) as WsMessage;
-        this.onMessage?.(msg);
+        msg = JSON.parse(raw) as WsMessage;
       } catch {
         // Ignore malformed messages
+        return;
       }
+
+      // Resolve the app-level pong heartbeat internally.
+      if (msg.type === "pong") {
+        this.clearPongTimer();
+        return;
+      }
+      this.onMessage?.(msg);
     });
 
     ws.on("pong", () => {
-      // Server is alive — clear the pending pong-timeout.
-      if (this.pongTimer) {
-        clearTimeout(this.pongTimer);
-        this.pongTimer = null;
-      }
+      // Protocol-level pong (server's heartbeat ping → ws auto-pong) also
+      // counts as liveness.
+      this.clearPongTimer();
     });
 
     ws.on("close", () => {
@@ -141,39 +157,54 @@ export class RealyxWs {
     });
   }
 
-  /** Subscribe to a channel (e.g. "price:BTC", "trades:*", "orderbook:ETH") */
-  subscribe(channel: string) {
-    this.subscriptions.add(channel);
+  /**
+   * Subscribe to a broadcast channel. Valid channels: "prices", "stats",
+   * "funding". The full active set is resent to the server on every change.
+   */
+  subscribe(channel: WsChannel) {
+    if (!this.channels.has(channel)) {
+      this.channels.add(channel);
+      this.sendChannels();
+    }
+  }
+
+  /** Unsubscribe from a broadcast channel. */
+  unsubscribe(channel: WsChannel) {
+    if (this.channels.delete(channel)) {
+      this.sendChannels();
+    }
+  }
+
+  /** Subscribe to all market price ticks. */
+  subscribePrices() {
+    this.subscribe("prices");
+  }
+
+  /** Subscribe to protocol-wide stats updates. */
+  subscribeStats() {
+    this.subscribe("stats");
+  }
+
+  /** Subscribe to funding-rate updates. */
+  subscribeFunding() {
+    this.subscribe("funding");
+  }
+
+  /**
+   * Subscribe to user-targeted notifications (e.g. KEEPER_FAILURE) for a
+   * specific trader address.
+   */
+  subscribeUser(address: string) {
+    const addr = address.toLowerCase();
+    this.userAddress = addr;
     if (this.ws?.readyState === WebSocket.OPEN) {
-      this.safeSend(this.ws, { type: "subscribe", channel });
+      this.safeSend(this.ws, { type: "subscribe:user", address: addr });
     }
   }
 
-  /** Unsubscribe from a channel */
-  unsubscribe(channel: string) {
-    this.subscriptions.delete(channel);
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.safeSend(this.ws, { type: "unsubscribe", channel });
-    }
-  }
-
-  /** Subscribe to all price feeds for a set of symbols */
-  subscribePrices(symbols: string[]) {
-    for (const sym of symbols) {
-      this.subscribe(`price:${sym}`);
-    }
-  }
-
-  /** Subscribe to trades for a set of symbols */
-  subscribeTrades(symbols: string[]) {
-    for (const sym of symbols) {
-      this.subscribe(`trades:${sym}`);
-    }
-  }
-
-  /** Subscribe to position updates (requires authentication) */
-  subscribePositions() {
-    this.subscribe("positions");
+  /** The set of channels currently subscribed. */
+  get activeChannels(): WsChannel[] {
+    return [...this.channels];
   }
 
   /** Gracefully disconnect (no reconnect) */
@@ -188,8 +219,16 @@ export class RealyxWs {
       this.ws.close(1000, "Client disconnect");
       this.ws = null;
     }
-    this.subscriptions.clear();
+    this.channels.clear();
+    this.userAddress = null;
     this.setState("disconnected");
+  }
+
+  /** Push the current channel set to the server (replace semantics). */
+  private sendChannels() {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.safeSend(this.ws, { type: "subscribe", channels: [...this.channels] });
+    }
   }
 
   private safeSend(ws: WebSocket, payload: unknown) {
@@ -226,7 +265,15 @@ export class RealyxWs {
     this.stopPing();
     this.pingTimer = setInterval(() => {
       if (this.ws?.readyState === WebSocket.OPEN) {
-        this.ws.ping();
+        // App-level ping (the backend understands { type: "ping" } and replies
+        // with { type: "pong" }). A protocol-level ping is sent too so liveness
+        // works even if app handling changes.
+        this.safeSend(this.ws, { type: "ping", ts: Date.now() });
+        try {
+          this.ws.ping();
+        } catch {
+          /* ignore */
+        }
         // Expect a pong within pongTimeout, otherwise force-close → reconnect.
         if (this.pongTimer) clearTimeout(this.pongTimer);
         this.pongTimer = setTimeout(() => {
@@ -242,14 +289,18 @@ export class RealyxWs {
     }, this.pingInterval);
   }
 
+  private clearPongTimer() {
+    if (this.pongTimer) {
+      clearTimeout(this.pongTimer);
+      this.pongTimer = null;
+    }
+  }
+
   private stopPing() {
     if (this.pingTimer) {
       clearInterval(this.pingTimer);
       this.pingTimer = null;
     }
-    if (this.pongTimer) {
-      clearTimeout(this.pongTimer);
-      this.pongTimer = null;
-    }
+    this.clearPongTimer();
   }
 }

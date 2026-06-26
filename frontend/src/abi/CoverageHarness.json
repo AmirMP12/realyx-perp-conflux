@@ -434,14 +434,9 @@
             "type": "uint128"
           },
           {
-            "internalType": "uint64",
+            "internalType": "uint128",
             "name": "leverage",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
-            "name": "lastFundingTime",
-            "type": "uint64"
+            "type": "uint128"
           },
           {
             "internalType": "address",
@@ -477,6 +472,11 @@
             "internalType": "address",
             "name": "collateralToken",
             "type": "address"
+          },
+          {
+            "internalType": "uint64",
+            "name": "lastFundingTime",
+            "type": "uint64"
           }
         ],
         "internalType": "struct DataTypes.Position",
@@ -856,6 +856,54 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "orderId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "msgSender",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "collateralDelta",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint8",
+        "name": "orderType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "executionFee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "executionFeePayer",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "collateralToken",
+        "type": "address"
+      }
+    ],
+    "name": "boostCancelOrderRich",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "oracle",
         "type": "address"
@@ -1112,14 +1160,9 @@
             "type": "uint128"
           },
           {
-            "internalType": "uint64",
+            "internalType": "uint128",
             "name": "leverage",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
-            "name": "lastFundingTime",
-            "type": "uint64"
+            "type": "uint128"
           },
           {
             "internalType": "address",
@@ -1155,6 +1198,11 @@
             "internalType": "address",
             "name": "collateralToken",
             "type": "address"
+          },
+          {
+            "internalType": "uint64",
+            "name": "lastFundingTime",
+            "type": "uint64"
           }
         ],
         "internalType": "struct DataTypes.Position",
@@ -1208,14 +1256,9 @@
             "type": "uint128"
           },
           {
-            "internalType": "uint64",
+            "internalType": "uint128",
             "name": "leverage",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
-            "name": "lastFundingTime",
-            "type": "uint64"
+            "type": "uint128"
           },
           {
             "internalType": "address",
@@ -1251,6 +1294,11 @@
             "internalType": "address",
             "name": "collateralToken",
             "type": "address"
+          },
+          {
+            "internalType": "uint64",
+            "name": "lastFundingTime",
+            "type": "uint64"
           }
         ],
         "internalType": "struct DataTypes.Position",
@@ -1553,6 +1601,49 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "market",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "isActive",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "isListed",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint128",
+        "name": "maxPositionSize",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "maxTotalExposure",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint64",
+        "name": "maxLeverage",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint16",
+        "name": "initialMargin",
+        "type": "uint16"
+      }
+    ],
+    "name": "configureOpenMarket",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "m",
         "type": "address"
       },
@@ -1615,6 +1706,204 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "positionId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "closeSize",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minReceive",
+        "type": "uint256"
+      }
+    ],
+    "name": "driveClose",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "",
+        "type": "int256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "positionId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "internalType": "uint8",
+        "name": "orderType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "uint256",
+        "name": "sizeDelta",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "triggerPrice",
+        "type": "uint256"
+      }
+    ],
+    "name": "driveDecrease",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256[]",
+        "name": "positionIds",
+        "type": "uint256[]"
+      },
+      {
+        "internalType": "address",
+        "name": "referralRegistry_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "dividendManagerAddr",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "marketCalendar_",
+        "type": "address"
+      }
+    ],
+    "name": "driveExecuteSLTP",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "account",
+            "type": "address"
+          },
+          {
+            "internalType": "uint8",
+            "name": "orderType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "bool",
+            "name": "isLong",
+            "type": "bool"
+          },
+          {
+            "internalType": "uint256",
+            "name": "sizeDelta",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "collateralDelta",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "triggerPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxSlippage",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "stopLossPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "takeProfitPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "currentPrice",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "minPositionSize",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxUserExposure",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "userDailyVolumeLimit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "globalDailyVolumeLimit",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "nextPositionId",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct CoverageHarness.OpenInput",
+        "name": "i",
+        "type": "tuple"
+      }
+    ],
+    "name": "driveOpen",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "dustAccumulator",
     "outputs": [
@@ -1670,6 +1959,157 @@
       {
         "internalType": "uint256",
         "name": "shortOpenInterest",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "name": "getDrivenCollateral",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "amount",
+            "type": "uint256"
+          },
+          {
+            "internalType": "address",
+            "name": "tokenAddress",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "borrowedAmount",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct DataTypes.PositionCollateral",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "name": "getDrivenPosition",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "uint128",
+            "name": "size",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint128",
+            "name": "entryPrice",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint128",
+            "name": "liquidationPrice",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint128",
+            "name": "stopLossPrice",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint128",
+            "name": "takeProfitPrice",
+            "type": "uint128"
+          },
+          {
+            "internalType": "uint128",
+            "name": "leverage",
+            "type": "uint128"
+          },
+          {
+            "internalType": "address",
+            "name": "market",
+            "type": "address"
+          },
+          {
+            "internalType": "uint40",
+            "name": "openTimestamp",
+            "type": "uint40"
+          },
+          {
+            "internalType": "uint16",
+            "name": "trailingStopBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint8",
+            "name": "flags",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "collateralType",
+            "type": "uint8"
+          },
+          {
+            "internalType": "uint8",
+            "name": "state",
+            "type": "uint8"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralToken",
+            "type": "address"
+          },
+          {
+            "internalType": "uint64",
+            "name": "lastFundingTime",
+            "type": "uint64"
+          }
+        ],
+        "internalType": "struct DataTypes.Position",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "getOrderTokenRefund",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
         "type": "uint256"
       }
     ],
@@ -2002,6 +2442,123 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "openMarketAddr",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "openOracle",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "openPositionToken",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "openReferralDiscountBps",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "openReferralRebateBps",
+    "outputs": [
+      {
+        "internalType": "uint16",
+        "name": "",
+        "type": "uint16"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "openReferrer",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "openUsdc",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "openVault",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "openZeroFees",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -2010,6 +2567,30 @@
       }
     ],
     "name": "orderCollateralRefundBalance",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "orderCollateralTokenRefundBalance",
     "outputs": [
       {
         "internalType": "uint256",
@@ -2082,14 +2663,9 @@
         "type": "uint128"
       },
       {
-        "internalType": "uint64",
+        "internalType": "uint128",
         "name": "leverage",
-        "type": "uint64"
-      },
-      {
-        "internalType": "uint64",
-        "name": "lastFundingTime",
-        "type": "uint64"
+        "type": "uint128"
       },
       {
         "internalType": "address",
@@ -2125,6 +2701,11 @@
         "internalType": "address",
         "name": "collateralToken",
         "type": "address"
+      },
+      {
+        "internalType": "uint64",
+        "name": "lastFundingTime",
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -2237,14 +2818,9 @@
         "type": "uint128"
       },
       {
-        "internalType": "uint64",
+        "internalType": "uint128",
         "name": "leverage",
-        "type": "uint64"
-      },
-      {
-        "internalType": "uint64",
-        "name": "lastFundingTime",
-        "type": "uint64"
+        "type": "uint128"
       },
       {
         "internalType": "address",
@@ -2280,6 +2856,11 @@
         "internalType": "address",
         "name": "collateralToken",
         "type": "address"
+      },
+      {
+        "internalType": "uint64",
+        "name": "lastFundingTime",
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -2340,6 +2921,29 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "account",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "dayVol",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "globalVol",
+        "type": "uint256"
+      }
+    ],
+    "name": "seedOpenDailyVolume",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "id",
         "type": "uint256"
@@ -2351,6 +2955,24 @@
       }
     ],
     "name": "setCollateral",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint16",
+        "name": "trailingStopBps",
+        "type": "uint16"
+      }
+    ],
+    "name": "setDrivenTrailingStop",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -2452,6 +3074,47 @@
       }
     ],
     "name": "setFundingState",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bool",
+        "name": "resolved",
+        "type": "bool"
+      }
+    ],
+    "name": "setHarnessFailedRepayment",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "m",
+        "type": "address"
+      },
+      {
+        "internalType": "uint64",
+        "name": "ts",
+        "type": "uint64"
+      }
+    ],
+    "name": "setHarnessFundingLastSettlement",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -2593,6 +3256,70 @@
     "inputs": [
       {
         "internalType": "address",
+        "name": "pt",
+        "type": "address"
+      }
+    ],
+    "name": "setOpenPositionToken",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "referrer",
+        "type": "address"
+      },
+      {
+        "internalType": "uint16",
+        "name": "discountBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint16",
+        "name": "rebateBps",
+        "type": "uint16"
+      }
+    ],
+    "name": "setOpenReferral",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "usdc_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "vault_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "oracle_",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "zeroFees_",
+        "type": "bool"
+      }
+    ],
+    "name": "setOpenWiring",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
         "name": "user",
         "type": "address"
       },
@@ -2603,6 +3330,29 @@
       }
     ],
     "name": "setOrderCollateralRefundBalance",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "user",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      }
+    ],
+    "name": "setOrderCollateralTokenRefundBalance",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -2713,14 +3463,9 @@
             "type": "uint128"
           },
           {
-            "internalType": "uint64",
+            "internalType": "uint128",
             "name": "leverage",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
-            "name": "lastFundingTime",
-            "type": "uint64"
+            "type": "uint128"
           },
           {
             "internalType": "address",
@@ -2756,6 +3501,11 @@
             "internalType": "address",
             "name": "collateralToken",
             "type": "address"
+          },
+          {
+            "internalType": "uint64",
+            "name": "lastFundingTime",
+            "type": "uint64"
           }
         ],
         "internalType": "struct DataTypes.Position",
@@ -2832,6 +3582,24 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "anchor",
+        "type": "uint256"
+      }
+    ],
+    "name": "setTrailingAnchor",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "forwarder",
         "type": "address"
@@ -2899,6 +3667,60 @@
       }
     ],
     "name": "testAddCollateral",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "positionId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "int256",
+        "name": "fundingPaid",
+        "type": "int256"
+      },
+      {
+        "internalType": "int256",
+        "name": "cumulativeFunding",
+        "type": "int256"
+      }
+    ],
+    "name": "testApplyFundingToCollateral",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "keeper",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "priceUpdateData",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "testApplyPythUpdateAndRefund",
+    "outputs": [],
+    "stateMutability": "payable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      }
+    ],
+    "name": "testAutoResetBreakers",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -3116,6 +3938,25 @@
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "market",
+        "type": "address"
+      }
+    ],
+    "name": "testCheckMarketOpenMock",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "pure",
     "type": "function"
   },
   {
@@ -3355,6 +4196,25 @@
       }
     ],
     "name": "testCleanupPositions",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "maxCleanup",
+        "type": "uint256"
+      }
+    ],
+    "name": "testCleanupPositionsAdmin",
     "outputs": [
       {
         "internalType": "uint256",
@@ -4032,6 +4892,25 @@
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "lev",
+        "type": "uint256"
+      }
+    ],
+    "name": "testToLeverageU128",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
         "name": "internalAmount",
         "type": "uint256"
       }
@@ -4273,6 +5152,25 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "v",
+        "type": "uint256"
+      }
+    ],
+    "name": "testU128Clamp",
+    "outputs": [
+      {
+        "internalType": "uint128",
+        "name": "",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "m",
         "type": "address"
@@ -4418,6 +5316,24 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minInteractionDelay",
+        "type": "uint256"
+      }
+    ],
+    "name": "testValidateFlashLoanDelay",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "uint256",
         "name": "expected",
         "type": "uint256"
@@ -4509,6 +5425,24 @@
       }
     ],
     "name": "testWithdrawOrderCollateralRefund",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "sender",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "testWithdrawOrderCollateralTokenRefund",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

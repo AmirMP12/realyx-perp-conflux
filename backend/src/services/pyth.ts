@@ -2,6 +2,8 @@
  * Pyth Hermes (real-time) and Benchmarks (history) for prices and charts.
  */
 
+import { logger } from "../logger.js";
+
 const HERMES_BASE = "https://hermes.pyth.network";
 const BENCHMARKS_BASE = "https://benchmarks.pyth.network";
 const CACHE_MS = 1_000; // 1s for live prices (trading protocol)
@@ -86,7 +88,7 @@ export async function fetchPythPrices(): Promise<Record<string, number>> {
     cachedAt = Date.now();
     return byMarket;
   } catch (e) {
-    console.warn("[pyth] Hermes fetch failed:", e);
+    logger.warn({ err: e }, "[pyth] Hermes fetch failed");
     return cachedPrices;
   }
 }
@@ -151,7 +153,7 @@ export async function fetchPythPriceHistory(
     if (data.s !== "ok" || !Array.isArray(data.t) || !Array.isArray(data.c)) return [];
     return data.t.map((t, i) => ({ timestamp: t * 1000, value: data.c![i] ?? 0 }));
   } catch (e) {
-    console.warn("[pyth] Benchmarks history failed:", symbol, e);
+    logger.warn({ err: e, symbol }, "[pyth] Benchmarks history failed");
     return [];
   }
 }

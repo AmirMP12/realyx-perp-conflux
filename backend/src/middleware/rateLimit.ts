@@ -14,6 +14,7 @@
 
 import crypto from "crypto";
 import pg from "pg";
+import { cacheIncr, isRedisActive } from "../services/cache.js";
 
 const windowMs = 60_000; // 1 minute
 
@@ -172,6 +173,71 @@ export function apiRateLimit(
   }
 
   next();
+}
+
+/**
+ * Cluster-wide async rate limiter.
+ *
+ * When the shared Redis backend is active, enforces limits across ALL replicas
+ * via an atomic INCR on a per-window bucket key — without this, an N-instance
+ * deployment effectively multiplies every limit by N. When Redis is not active
+ * (single instance / no REDIS_URL) or errors, it transparently delegates to the
+ * synchronous in-memory limiter above, preserving existing behaviour and tests.
+ */
+export async function apiRateLimitCluster(
+  req: { ip?: string; headers?: Record<string, string | string[] | undefined> },
+  res: unknown,
+  next: (err?: unknown) => void
+): Promise<void> {
+  try {
+    // Guard against partially-mocked cache modules in tests and any runtime
+    // error: if Redis isn't active (or the helpers are unavailable) use the
+    // synchronous in-memory limiter.
+    const redisActive = typeof isRedisActive === "function" && isRedisActive();
+    if (!redisActive) {
+      apiRateLimit(req, res, next);
+      return;
+    }
+
+    const ip = getClientIp(req);
+    const apiKey = req.headers?.["x-api-key"] as string | undefined;
+
+    let bucketKey: string;
+    let limit = TIER_LIMITS.FREE;
+    if (apiKey) {
+      const hash = hashKey(apiKey);
+      bucketKey = `rl:key:${hash}`;
+      const tier = await resolveTier(apiKey);
+      limit = TIER_LIMITS[tier] ?? TIER_LIMITS.FREE;
+    } else {
+      bucketKey = `rl:ip:${ip}`;
+    }
+
+    const count = typeof cacheIncr === "function" ? await cacheIncr(bucketKey, windowMs) : null;
+    if (count == null) {
+      // Redis hiccup — fall back to the per-process limiter so we never fail open.
+      apiRateLimit(req, res, next);
+      return;
+    }
+
+    if (count > limit) {
+      const r = res as { status?: (code: number) => { json: (body: unknown) => unknown } };
+      if (typeof r?.status === "function") {
+        r.status(429).json({ success: false, error: "Too many requests" });
+        return;
+      }
+      const err = new Error("Too Many Requests") as Error & { status?: number };
+      err.status = 429;
+      next(err);
+      return;
+    }
+
+    next();
+  } catch {
+    // A cluster-limiter failure must never hang or 500 a request: fall back to
+    // the synchronous in-memory limiter, which always calls next()/responds.
+    apiRateLimit(req, res, next);
+  }
 }
 
 export function checkWsRateLimit(ip: string): boolean {

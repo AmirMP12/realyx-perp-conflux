@@ -157,7 +157,7 @@ describe('SettingsPage', () => {
         expect(openSpy).toHaveBeenCalled();
         
         // Mint
-        const mintBtn = screen.getByText(/Mint 1,000 Mock USDC/i);
+        const mintBtn = screen.getByText(/Mint 1,000 Mock USDT0/i);
         await user.click(mintBtn);
         expect(writeContractAsync).toHaveBeenCalled();
     });

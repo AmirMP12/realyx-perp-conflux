@@ -43,6 +43,60 @@ contract FeeCalculatorPositionMathHarness {
         return FeeCalculator.calculateOpeningFee(size, cfg);
     }
 
+    function calcOpeningFeeRef(
+        uint256 size,
+        uint256 takerBps,
+        uint256 minFee,
+        uint256 referralDiscountBps
+    ) external pure returns (uint256) {
+        DataTypes.FeeConfig memory cfg = DataTypes.FeeConfig({
+            makerFeeBps: 2,
+            takerFeeBps: takerBps,
+            minFeeUsdc: minFee,
+            lpShareBps: 7000,
+            insuranceShareBps: 2000,
+            treasuryShareBps: 1000
+        });
+        return FeeCalculator.calculateOpeningFee(size, cfg, referralDiscountBps);
+    }
+
+    function calcClosingFeeRef(
+        uint256 size,
+        uint256 makerBps,
+        uint256 takerBps,
+        uint256 minFee,
+        bool isMarket,
+        uint256 referralDiscountBps
+    ) external pure returns (uint256) {
+        DataTypes.FeeConfig memory cfg = DataTypes.FeeConfig({
+            makerFeeBps: makerBps,
+            takerFeeBps: takerBps,
+            minFeeUsdc: minFee,
+            lpShareBps: 7000,
+            insuranceShareBps: 2000,
+            treasuryShareBps: 1000
+        });
+        return FeeCalculator.calculateClosingFee(size, cfg, isMarket, referralDiscountBps);
+    }
+
+    function splitFeesWithRebate(
+        uint256 total,
+        uint256 lpBps,
+        uint256 insBps,
+        uint256 treasBps,
+        uint256 rebateBps
+    ) external pure returns (uint256, uint256, uint256, uint256) {
+        DataTypes.FeeConfig memory cfg = DataTypes.FeeConfig({
+            makerFeeBps: 2,
+            takerFeeBps: 5,
+            minFeeUsdc: 0,
+            lpShareBps: lpBps,
+            insuranceShareBps: insBps,
+            treasuryShareBps: treasBps
+        });
+        return FeeCalculator.splitFeesWithRebate(total, cfg, rebateBps);
+    }
+
     function calcClosingFee(
         uint256 size,
         uint256 makerBps,
@@ -249,8 +303,77 @@ contract FeeCalculatorPositionMathHarness {
         return PositionMath.isLiquidatable(pos, currentPrice, collateral);
     }
 
+    function getPositionPnLExt(
+        uint128 size,
+        uint128 entry,
+        uint8 flags,
+        uint64 leverage,
+        uint8 state,
+        uint256 collateral,
+        uint256 currentPrice
+    ) external pure returns (int256 pnl, uint256 hf) {
+        DataTypes.Position memory pos;
+        pos.size = size;
+        pos.entryPrice = entry;
+        pos.flags = flags;
+        pos.leverage = leverage;
+        pos.state = DataTypes.PosStatus(state);
+        return PositionMath.getPositionPnLExt(pos, collateral, currentPrice);
+    }
+
+    function canLiquidateExt(
+        uint128 size,
+        uint128 entry,
+        uint8 flags,
+        uint64 leverage,
+        uint8 state,
+        uint256 collateral,
+        uint256 currentPrice
+    ) external pure returns (bool liq, uint256 hf) {
+        DataTypes.Position memory pos;
+        pos.size = size;
+        pos.entryPrice = entry;
+        pos.flags = flags;
+        pos.leverage = leverage;
+        pos.state = DataTypes.PosStatus(state);
+        return PositionMath.canLiquidateExt(pos, collateral, currentPrice);
+    }
+
+    function isLiquidatableSentinelLong(
+        uint128 size,
+        uint128 entry,
+        uint64 leverage,
+        uint256 currentPrice,
+        uint256 collateral
+    ) external pure returns (bool, uint256) {
+        DataTypes.Position memory pos;
+        pos.size = size;
+        pos.entryPrice = entry;
+        pos.flags = 1; // long
+        pos.state = DataTypes.PosStatus.OPEN;
+        pos.leverage = leverage;
+        pos.liquidationPrice = type(uint128).max; // no-liquidation sentinel
+        return PositionMath.isLiquidatable(pos, currentPrice, collateral);
+    }
+
     function safeMul(uint256 a, uint256 b) external pure returns (uint256) {
         return PositionMath.safeMul(a, b);
+    }
+
+    function toUint128(uint256 v) external pure returns (uint128) {
+        return PositionMath.toUint128(v);
+    }
+
+    function toUint64(uint256 v) external pure returns (uint64) {
+        return PositionMath.toUint64(v);
+    }
+
+    function toUint16(uint256 v) external pure returns (uint16) {
+        return PositionMath.toUint16(v);
+    }
+
+    function getDefaultFeeConfig() external pure returns (DataTypes.FeeConfig memory) {
+        return FeeCalculator.getDefaultFeeConfig();
     }
 
     // ================== DataTypes Helpers ==================

@@ -142,6 +142,49 @@ library FeeCalculator {
         insuranceFee = totalFee - liquidatorFee;
     }
 
+    /// @notice Liquidation fee variant that caps on the ACTUAL remaining
+    ///         collateral value rather than a health-factor-derived proxy.
+    /// @dev The 3-arg overload above bounds the fee by `size * healthFactor`,
+    ///      which is dimensionally `size * (equity / maintenanceMargin)` — not
+    ///      the position's remaining value — so the cap is far looser than its
+    ///      name implies (it almost never binds). This overload bounds the fee
+    ///      at half of `effectiveCollateralInternal` (collateral + unrealized
+    ///      PnL, floored at zero), the genuine value available to pay the fee.
+    ///      Callers in the liquidation path supply that figure directly; the
+    ///      authoritative funds check still lives in `LiquidationLib`.
+    /// @param size Position size (internal precision).
+    /// @param healthFactor Position health factor (1e18 scale) for tier selection.
+    /// @param tiers Liquidation fee tier configuration.
+    /// @param effectiveCollateralInternal Remaining collateral value after PnL
+    ///        (internal precision, already floored at zero by the caller).
+    function calculateLiquidationFee(
+        uint256 size,
+        uint256 healthFactor,
+        DataTypes.LiquidationFeeTiers memory tiers,
+        uint256 effectiveCollateralInternal
+    ) internal pure returns (uint256 totalFee, uint256 liquidatorFee, uint256 insuranceFee) {
+        uint256 feeBps;
+
+        if (healthFactor >= 8e17) {
+            feeBps = tiers.nearThresholdBps;
+        } else if (healthFactor >= 5e17) {
+            feeBps = tiers.mediumRiskBps;
+        } else {
+            feeBps = tiers.deeplyUnderwaterBps;
+        }
+
+        totalFee = (size * feeBps) / BPS;
+
+        // Cap at half of the genuine remaining collateral value.
+        uint256 maxFee = effectiveCollateralInternal / 2;
+        if (totalFee > maxFee) {
+            totalFee = maxFee;
+        }
+
+        liquidatorFee = (totalFee * tiers.liquidatorShareBps) / BPS;
+        insuranceFee = totalFee - liquidatorFee;
+    }
+
     function getDefaultLiquidationTiers() internal pure returns (DataTypes.LiquidationFeeTiers memory tiers) {
         tiers = DataTypes.LiquidationFeeTiers({
             nearThresholdBps: 250,
@@ -176,11 +219,7 @@ library FeeCalculator {
         uint256 totalFee,
         DataTypes.FeeConfig memory config,
         uint256 rebateBps
-    )
-        internal
-        pure
-        returns (uint256 lpShare, uint256 insuranceShare, uint256 treasuryShare, uint256 rebateShare)
-    {
+    ) internal pure returns (uint256 lpShare, uint256 insuranceShare, uint256 treasuryShare, uint256 rebateShare) {
         if (config.lpShareBps + config.insuranceShareBps + config.treasuryShareBps != BPS) {
             revert InvalidFeeConfig();
         }

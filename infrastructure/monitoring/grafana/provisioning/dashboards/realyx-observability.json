@@ -1,0 +1,203 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "graphTooltip": 1,
+  "title": "Realyx — Observability & Data Quality",
+  "uid": "realyx-observability",
+  "tags": ["realyx", "observability"],
+  "timezone": "",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": { "from": "now-6h", "to": "now" },
+  "refresh": "30s",
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Indexer",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Indexer lag (blocks behind head)",
+      "description": "realyx_indexer_lag_blocks — how far the event store is behind chain head. Alert > 50.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 50 }, { "color": "red", "value": 200 } ] }
+        }
+      },
+      "targets": [ { "expr": "realyx_indexer_lag_blocks", "legendFormat": "lag (blocks)", "refId": "A" } ]
+    },
+    {
+      "type": "stat",
+      "title": "Seconds since last indexer sync",
+      "description": "Flatlines if the indexer wedges. Alert if it climbs.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 120 }, { "color": "red", "value": 600 } ] }
+        }
+      },
+      "targets": [ { "expr": "time() - realyx_indexer_last_sync_timestamp_seconds", "legendFormat": "since last sync", "refId": "A" } ]
+    },
+    {
+      "type": "stat",
+      "title": "Reorgs (1h)",
+      "description": "realyx_indexer_reorg_total — chain reorgs the indexer resolved.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 3 }, { "color": "red", "value": 10 } ] }
+        }
+      },
+      "targets": [ { "expr": "increase(realyx_indexer_reorg_total[1h])", "legendFormat": "reorgs/1h", "refId": "A" } ]
+    },
+    {
+      "type": "row",
+      "title": "RPC pool",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 }
+    },
+    {
+      "type": "timeseries",
+      "title": "RPC error rate (per endpoint)",
+      "description": "Failure ratio of pool RPC calls per endpoint over 5m. Alert > 20%.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 10 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 0.2 }, { "color": "red", "value": 0.5 } ] }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (endpoint) (rate(realyx_rpc_requests_total{outcome=\"failure\"}[5m])) / clamp_min(sum by (endpoint) (rate(realyx_rpc_requests_total[5m])), 0.0001)",
+          "legendFormat": "{{endpoint}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "RPC circuit state (0 closed / 0.5 half-open / 1 open)",
+      "description": "realyx_rpc_circuit_state — failover visibility per endpoint.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 10 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "max": 1,
+          "custom": { "drawStyle": "line", "lineInterpolation": "stepAfter", "fillOpacity": 15, "lineWidth": 2 }
+        }
+      },
+      "targets": [ { "expr": "realyx_rpc_circuit_state", "legendFormat": "{{endpoint}}", "refId": "A" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "RPC p95 latency (per endpoint)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 18 },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 } } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, endpoint) (rate(realyx_rpc_request_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{endpoint}} p95",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Keeper & WebSocket",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 26 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Keeper execution latency (p50 / p95)",
+      "description": "realyx_keeper_execution_latency_seconds — order-create → on-chain execution.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 27 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 13 } ] }
+        }
+      },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(realyx_keeper_execution_latency_seconds_bucket[5m])))", "legendFormat": "p50", "refId": "A" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(realyx_keeper_execution_latency_seconds_bucket[5m])))", "legendFormat": "p95", "refId": "B" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Keeper failures (rate /5m)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "none", "custom": { "drawStyle": "bars", "fillOpacity": 40 } } },
+      "targets": [ { "expr": "rate(realyx_keeper_failures_total[5m])", "legendFormat": "failures/s", "refId": "A" } ]
+    },
+    {
+      "type": "stat",
+      "title": "Active WS connections",
+      "description": "ws_active_connections",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 27 },
+      "fieldConfig": { "defaults": { "unit": "none", "thresholds": { "mode": "absolute", "steps": [ { "color": "blue", "value": null } ] } } },
+      "targets": [ { "expr": "ws_active_connections", "legendFormat": "connections", "refId": "A" } ]
+    },
+    {
+      "type": "row",
+      "title": "Data quality",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 35 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Reconciliation drift (indexed vs on-chain)",
+      "description": "realyx_reconciliation_drift_ratio — relative drift per metric. Alert > 5%.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": { "drawStyle": "line", "fillOpacity": 10, "lineWidth": 2 },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 0.05 }, { "color": "red", "value": 0.15 } ] }
+        }
+      },
+      "targets": [ { "expr": "realyx_reconciliation_drift_ratio", "legendFormat": "{{metric}}", "refId": "A" } ]
+    },
+    {
+      "type": "stat",
+      "title": "Seconds since last reconciliation",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 36 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 900 }, { "color": "red", "value": 1800 } ] }
+        }
+      },
+      "targets": [ { "expr": "time() - realyx_reconciliation_last_run_timestamp_seconds", "legendFormat": "since last run", "refId": "A" } ]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP 5xx error rate",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 36 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "custom": { "drawStyle": "line", "fillOpacity": 10 } } },
+      "targets": [
+        { "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_requests_total[5m])), 0.0001)", "legendFormat": "5xx rate", "refId": "A" }
+      ]
+    }
+  ]
+}

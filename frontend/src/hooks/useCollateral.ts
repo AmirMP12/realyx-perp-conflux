@@ -31,11 +31,11 @@ export interface CollateralConfig {
 
 /** A collateral asset the protocol can accept, enriched with the connected user's balance. */
 export interface CollateralAsset {
-    /** Token address. `0x000…000` represents canonical USDC settlement. */
+    /** Token address. `0x000…000` represents canonical USDT0 settlement. */
     address: Address;
     symbol: string;
     decimals: number;
-    /** True for the canonical USDC settlement asset (never haircut, always accepted). */
+    /** True for the canonical USDT0 settlement asset (never haircut, always accepted). */
     isUSDC: boolean;
     enabled: boolean;
     /** Standard (non-liquidation) haircut in basis points. USDC = 0. */
@@ -62,7 +62,7 @@ export interface CollateralAsset {
 
 const USDC_PLACEHOLDER: Omit<CollateralAsset, 'balance' | 'balanceFormatted' | 'effectiveUsdc' | 'effectiveUsdcFormatted'> = {
     address: ZERO_ADDRESS,
-    symbol: 'USDC',
+    symbol: 'USDT0',
     decimals: 6,
     isUSDC: true,
     enabled: true,
@@ -84,7 +84,7 @@ function num(v: unknown, fallback = 0): number {
  * assets the protocol supports, each enriched with the connected wallet's balance
  * and the post-haircut USDC value.
  *
- * USDC is always present as the canonical settlement asset (address `0x0`, no haircut).
+ * USDT0 is always present as the canonical settlement asset (address `0x0`, no haircut).
  * Alt collateral entries come straight from `getRegisteredTokens()`.
  */
 export function useCollateralAssets() {
@@ -159,7 +159,7 @@ export function useCollateralAssets() {
     const usdc: CollateralAsset = useMemo(() => ({
         ...USDC_PLACEHOLDER,
         address: ZERO_ADDRESS,
-        symbol: 'USDC',
+        symbol: 'USDT0',
         decimals: usdcDecimals,
         balance: 0n,
         balanceFormatted: 0,
@@ -218,11 +218,11 @@ export function useCollateralAssets() {
     };
 
     return {
-        /** Canonical USDC settlement asset (always first). */
+        /** Canonical USDT0 settlement asset (always first). */
         usdc,
-        /** Registered non-USDC collateral tokens. */
+        /** Registered non-USDT0 collateral tokens. */
         altAssets,
-        /** USDC followed by every registered alt collateral. */
+        /** USDT0 followed by every registered alt collateral. */
         assets,
         /** Registry address actually exists in env/deployment. */
         registryConfigured,

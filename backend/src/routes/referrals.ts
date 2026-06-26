@@ -14,9 +14,11 @@ import type { ApiResponse } from "../types/index.js";
  *                           table (cheap, reliable); falls back to a bounded
  *                           on-chain log scan when the indexer DB is unavailable.
  *
- * The referral program is only "live" when both the ReferralRegistry and
- * VaultCore addresses are configured. When the registry is not wired into the
- * active deployment (e.g. testnet without referrals), the route returns
+ * The referral program is "live" whenever the ReferralRegistry address is
+ * configured. VaultCore is optional: when it is also configured, `pendingClaim`
+ * and `totalEarned` are read from chain/indexer; when it is absent they simply
+ * stay 0 while the program remains live. When the registry itself is not wired
+ * into the active deployment (e.g. testnet without referrals), the route returns
  * `live: false` with zeroed figures so the frontend can label the feature
  * honestly instead of showing fake numbers.
  */

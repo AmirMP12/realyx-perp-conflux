@@ -31,6 +31,16 @@ jobs:
       - name: Compile contracts
         run: npm run compile
 
+      - name: Verify exported ABIs are in sync
+        run: |
+          npm run export-abi
+          npm run sync:frontend-abi
+          if [ -n "$(git status --porcelain -- backend/src/abi frontend/src/abi)" ]; then
+            echo "::error::Exported ABIs are out of sync. Run 'npm run contracts:sync && npm run sync:frontend-abi' locally and commit."
+            git diff --stat -- backend/src/abi frontend/src/abi
+            exit 1
+          fi
+
       - name: Run tests
         run: npx hardhat test
 
@@ -138,6 +148,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      security-events: write
     strategy:
       matrix:
         include:
@@ -166,9 +177,37 @@ jobs:
             type=semver,pattern={{version}}
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: ${{ matrix.context }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          sbom: true
+          provenance: true
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          format: 'sarif'
+          output: 'trivy-${{ matrix.image }}.sarif'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-${{ matrix.image }}.sarif'
+          category: 'trivy-${{ matrix.image }}'
+
+      - name: Fail on HIGH/CRITICAL image vulnerabilities
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          format: 'table'
+          exit-code: '1'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true

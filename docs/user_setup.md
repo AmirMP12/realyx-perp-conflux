@@ -40,7 +40,7 @@ cp .env.example .env
 *Action Item: Define the `POSTGRES_URL`, network ports, and PostgreSQL credentials.*
 Also set:
 - `ENABLE_WS=true` for local native websocket mode.
-- `ENABLE_WS=false` for Vercel/serverless polling mode.
+- `ENABLE_WS=false` for serverless polling mode.
 
 ### 📱 Frontend UX Scope
 ```bash
@@ -48,7 +48,7 @@ cd ../frontend
 cp .env.example .env
 ```
 *Action Item: Input your `VITE_WALLET_CONNECT_PROJECT_ID` and sync contract addresses with `deployment/confluxTestnet.json`.*
-For Vercel-only deployments keep `VITE_WS_URL` empty.
+For serverless deployments keep `VITE_WS_URL` empty.
 
 ---
 

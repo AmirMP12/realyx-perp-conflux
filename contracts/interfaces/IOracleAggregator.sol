@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import "../libraries/DataTypes.sol";
 import "../libraries/Events.sol";
+import "./IPriceSource.sol";
 
 /**
  * @title IOracleAggregator
@@ -65,6 +66,15 @@ interface IOracleAggregator {
      */
     /// @param reportedPrice Must be zero; the observation is taken from the trusted oracle snapshot.
     function recordPricePoint(address market, uint256 reportedPrice) external;
+
+    /**
+     * @notice Permissionless TWAP-buffer seeding from the trusted oracle snapshot.
+     * @dev Liveness backstop so the TWAP-deviation / validity gates cannot stall on
+     *      keeper/oracle downtime. Caller supplies no price; the 30s spacing guard and
+     *      manual-override pause still apply.
+     * @param market Market/collection address.
+     */
+    function pokeTWAP(address market) external;
 
     /**
      * @notice Push Pyth price-feed updates atomically prior to a price-sensitive read.
@@ -258,4 +268,28 @@ interface IOracleAggregator {
      * @dev Trading paths refuse risk-increasing actions (opens, liquidations) while true.
      */
     function isManualPriceActive(address market) external view returns (bool);
+
+    /**
+     * @notice Wire (or clear, with `address(0)`) the independent secondary price
+     *         source (e.g. a RedStone adapter) used for cross-source deviation checks.
+     * @dev Pyth remains primary; the secondary is only consulted for markets with
+     *      `setCrossCheckEnabled(market, true)` while the deviation guard is non-zero.
+     */
+    function setSecondarySource(address source) external;
+
+    /**
+     * @notice Set the max tolerated deviation (bps) between primary and secondary
+     *         prices before a price read reverts. 0 disables the guard.
+     */
+    function setCrossSourceMaxDeviationBps(uint256 bps) external;
+
+    /**
+     * @notice Opt `market` in/out of the cross-source deviation guard.
+     */
+    function setCrossCheckEnabled(address market, bool enabled) external;
+
+    /**
+     * @notice The configured independent secondary price source, or `address(0)`.
+     */
+    function secondarySource() external view returns (IPriceSource);
 }

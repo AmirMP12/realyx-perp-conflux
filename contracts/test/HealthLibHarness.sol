@@ -15,6 +15,10 @@ contract HealthLibHarness {
         HealthLib.updateProtocolHealth(totalAssets, ph);
     }
 
+    function updateWithInsurance(uint256 totalAssets, uint256 insuranceAssets) external {
+        HealthLib.updateProtocolHealthWithInsurance(totalAssets, insuranceAssets, ph);
+    }
+
     function getState() external view returns (bool, uint256, uint64) {
         return (ph.isHealthy, ph.totalBadDebt, ph.lastHealthCheck);
     }

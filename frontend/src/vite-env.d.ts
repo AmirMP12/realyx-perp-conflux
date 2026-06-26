@@ -13,7 +13,8 @@ interface ImportMetaEnv {
     readonly VITE_VAULT_CORE_ADDRESS?: string;
     readonly VITE_ORACLE_AGGREGATOR_ADDRESS?: string;
     readonly VITE_POSITION_TOKEN_ADDRESS?: string;
-    readonly VITE_MOCK_USDC_ADDRESS?: string;
+    readonly VITE_MOCK_USDT0_ADDRESS?: string;
+    readonly VITE_USDT0_ADDRESS?: string;
 }
 
 interface ImportMeta {

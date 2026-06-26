@@ -50,8 +50,8 @@ describe('UI Components', () => {
             expect(toast.custom).toHaveBeenCalled();
         });
         
-        // Covering branches in the GlassToast internal logic by rendering it or checking color variants
-        // Since GlassToast is not exported, we rely on showToast branch testing.
+        // GlassToast is internal and not exported, so we exercise its color variants
+        // through showToast by sending different toast types.
         it('handles different types', () => {
             showToast('error', 'Error Title');
             showToast('info', 'Info Title');

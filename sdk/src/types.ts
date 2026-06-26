@@ -1,14 +1,18 @@
 /**
  * SDK Type Definitions
+ *
+ * The REST shapes below mirror the backend's response payloads exactly
+ * (see backend/src/types/index.ts and the route handlers). Keeping these in
+ * lockstep guarantees that fields the SDK exposes actually exist at runtime.
  */
 
 import { ethers } from "ethers";
 
 /** Configuration for the RealyxClient */
 export interface RealyxConfig {
-  /** REST API base URL, e.g. https://realyx.vercel.app/api */
+  /** REST API base URL, e.g. https://app.realyx.example/api */
   apiBaseUrl: string;
-  /** WebSocket URL, e.g. wss://realyx.vercel.app/ws */
+  /** WebSocket URL, e.g. wss://app.realyx.example/ws */
   wsUrl?: string;
   /** API key obtained from /api/v1/auth/key */
   apiKey?: string;
@@ -96,73 +100,163 @@ export enum TimeInForceEnum {
   POST_ONLY = 3,
 }
 
-/** Market info returned from API */
+/** Asset category as returned by GET /api/v1/markets. */
+export type MarketCategory = "CRYPTO" | "STOCK" | "COMMODITY" | "FOREX";
+
+/**
+ * Market info returned from GET /api/v1/markets.
+ * Mirrors the backend `BackendMarket` shape.
+ */
 export interface Market {
-  address: string;
-  symbol: string;
+  /** Lowercased market address (also the row id) */
+  id: string;
   name: string;
-  markPrice: string;
+  symbol: string;
+  /** Logo/image URL (may be empty) */
+  image: string;
+  /** Market contract address */
+  marketAddress: string;
+  category?: MarketCategory;
+  /** Oracle/index price (human units) */
   indexPrice: string;
+  /** Last traded / mark price (human units) */
+  lastPrice: string;
+  /** 24h notional volume in USD */
+  volume24h: string;
+  /** Long open interest (18-decimal human string) */
+  longOI: string;
+  /** Short open interest (18-decimal human string) */
+  shortOI: string;
+  /** Funding rate (human units, 6dp) */
   fundingRate: string;
   maxLeverage: number;
-  maxPositionSize: string;
-  isActive: boolean;
-  longOpenInterest: string;
-  shortOpenInterest: string;
+  /** True when trading is paused (inverse of "active") */
+  isPaused: boolean;
+  /** 24h price change percentage (optional) */
+  change24h?: number;
 }
 
-/** Position info returned from API */
+/**
+ * Position info returned from GET /api/v1/user/:address/positions.
+ * Mirrors the backend `BackendPosition` shape.
+ */
 export interface Position {
   id: number;
-  owner: string;
-  market: string;
+  /** Market is returned as a nested object, not a bare address. */
+  market: {
+    id: string;
+    name: string;
+    symbol: string;
+    collectionName: string;
+    collectionImage: string;
+  };
+  side: "LONG" | "SHORT";
   size: string;
   entryPrice: string;
-  liquidationPrice: string;
+  /** Collateral / margin backing the position (human units) */
+  margin: string;
   leverage: number;
-  isLong: boolean;
-  collateral: string;
   unrealizedPnl: string;
-  status: string;
+  realizedPnl: string;
+  liquidationPrice: string;
+  breakEvenPrice: string;
+  /** ISO-8601 open timestamp */
+  openTs: string;
 }
 
-/** Aggregate protocol stats returned from /stats */
+/**
+ * Aggregate protocol stats returned from GET /api/v1/stats.
+ * Mirrors the backend stats payload.
+ */
 export interface ProtocolStats {
-  volume24h?: string;
+  totalMarkets: number;
+  volume24h: string;
   cumulativeVolumeUsd?: string;
-  totalOpenInterest?: string;
-  totalMarkets?: number;
-  [key: string]: unknown;
+  totalOpenInterest: string;
+  /** Lifetime liquidation event count (not a wei amount) */
+  totalLiquidations?: string;
+  /** Distinct wallets active in the last 24h */
+  activeTraders24h?: number;
+  /** Server-side TVL from VaultCore.totalAssets() */
+  tvl?: string;
 }
 
-/** A single trade history record. */
+/**
+ * A single trade history record returned from
+ * GET /api/v1/user/:address/trades. Mirrors the backend `TradeHistoryItem`.
+ */
 export interface Trade {
-  id?: number | string;
+  id: number;
+  /** Transaction hash of the trade */
+  signature: string;
+  /** Resolved market symbol (e.g. "BTC-USD") */
   market: string;
-  side?: "LONG" | "SHORT";
+  side: "LONG" | "SHORT";
   size: string;
   price: string;
-  fee?: string;
-  pnl?: string | null;
-  type?: string;
-  timestamp?: string | number;
-  [key: string]: unknown;
+  leverage: number;
+  fee: string;
+  /** Realized PnL, or null for opens */
+  pnl: string | null;
+  type: "OPEN" | "CLOSE" | "LIQUIDATED";
+  /** ISO-8601 timestamp */
+  timestamp: string;
 }
 
-/** A leaderboard entry. */
+/**
+ * A leaderboard entry returned from GET /api/v1/leaderboard.
+ * Mirrors the backend `LeaderboardEntry` shape.
+ */
 export interface LeaderboardEntry {
-  address: string;
-  totalVolumeUsd?: string;
-  totalRealizedPnl?: string;
-  totalTrades?: number;
-  [key: string]: unknown;
+  rank: number;
+  /** Trader wallet address */
+  wallet: string;
+  /** Realized PnL (human units) */
+  pnl: string;
+  /** Cumulative volume in USD */
+  volume: string;
+  trades: number;
 }
 
-/** WebSocket message types */
+/**
+ * Broadcast channels supported by the backend WebSocket server.
+ * A connection receives only the channels present in its latest
+ * `{ type: "subscribe", channels: [...] }` message.
+ */
+export type WsChannel = "prices" | "stats" | "funding";
+
+/**
+ * WebSocket message types emitted by the backend `wsServer`.
+ *
+ * The server tags every payload with a `type` and (for market-scoped events)
+ * a top-level `marketAddress` mirrored inside `data`.
+ */
 export type WsMessage =
-  | { type: "price"; data: { symbol: string; price: string; timestamp: number } }
-  | { type: "trade"; data: { symbol: string; price: string; size: string; side: "buy" | "sell"; timestamp: number } }
-  | { type: "orderbook"; data: { symbol: string; bids: [string, string][]; asks: [string, string][] } }
-  | { type: "position"; data: Position }
-  | { type: "error"; data: { message: string } }
-  | { type: "subscribed" | "unsubscribed"; data: { channel: string } };
+  | {
+      type: "price_update";
+      marketAddress?: string;
+      data: { price: number; marketAddress: string; change24h?: number };
+    }
+  | {
+      type: "funding_update";
+      marketAddress?: string;
+      data: { rate: number; marketAddress: string };
+    }
+  | {
+      type: "stats_update";
+      data: {
+        volume24h: string;
+        cumulativeVolumeUsd: string;
+        totalOpenInterest: string;
+        totalMarkets: number;
+      };
+    }
+  | {
+      // User-targeted notification (requires `subscribeUser(address)`).
+      type: "KEEPER_FAILURE";
+      traderAddress?: string;
+      data: { orderId: string; failureReason: string; timestamp: number };
+    }
+  | { type: "pong"; ts: number }
+  // Forward-compatible catch-all for any other user-scoped broadcast.
+  | { type: string; data?: unknown; marketAddress?: string; traderAddress?: string };

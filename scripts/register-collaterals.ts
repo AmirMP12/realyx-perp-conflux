@@ -26,40 +26,44 @@ async function main() {
         throw new Error("Please set COLLATERAL_REGISTRY in your environment variables");
     }
 
-    const usdt0Address = process.env.USDT0_ADDRESS;
+    const usdcAddress = process.env.USDC_ADDRESS;
     const axcnhAddress = process.env.AXCNH_ADDRESS;
-    if (!usdt0Address || !axcnhAddress) {
-        throw new Error("Please set USDT0_ADDRESS and AXCNH_ADDRESS in your environment variables");
+    if (!usdcAddress || !axcnhAddress) {
+        throw new Error("Please set USDC_ADDRESS and AXCNH_ADDRESS in your environment variables");
     }
 
-    const usdt0OracleFeed = process.env.USDT0_PRICE_FEED;
+    const usdcOracleFeed = process.env.USDC_PRICE_FEED;
     const axcnhOracleFeed = process.env.AXCNH_PRICE_FEED;
-    if (!usdt0OracleFeed || !axcnhOracleFeed) {
+    if (!usdcOracleFeed || !axcnhOracleFeed) {
         throw new Error(
-            "Please set USDT0_PRICE_FEED and AXCNH_PRICE_FEED (OracleAggregator market addresses) in your environment variables",
+            "Please set USDC_PRICE_FEED and AXCNH_PRICE_FEED (OracleAggregator market addresses) in your environment variables",
         );
     }
 
     const [deployer] = await ethers.getSigners();
     console.log(`Registering collaterals with deployer ${deployer.address}...`);
 
-    const registry = (await ethers.getContractAt("CollateralRegistry", registryAddress)) as unknown as CollateralRegistry;
+    const registry = (await ethers.getContractAt(
+        "CollateralRegistry",
+        registryAddress,
+    )) as unknown as CollateralRegistry;
 
-    // Register USDT0 (6 decimals, low risk)
-    console.log(`Registering USDT0 (${usdt0Address})...`);
+    // Register USDC as an alternative collateral (6 decimals, low risk).
+    // USDT0 is the protocol's main settlement asset and is NOT registered here.
+    console.log(`Registering USDC (${usdcAddress})...`);
     let tx = await registry.registerToken(
-        usdt0Address,
+        usdcAddress,
         200, // baseHaircutBps        = 2%
         500, // liquidationHaircutBps = 5%
         1000, // maxHaircutBps         = 10%
         50, // utilizationSlopeBps    = +0.5% per 100% utilization
         100, // volatilityAdderBps     = +1% when oracle confidence is wide
         0, // maxProtocolExposure      = uncapped
-        usdt0OracleFeed,
+        usdcOracleFeed,
         6, // decimals
     );
     await tx.wait();
-    console.log("USDT0 registered successfully.");
+    console.log("USDC registered successfully.");
 
     // Register AxCNH (18 decimals, slightly higher risk)
     console.log(`Registering AxCNH (${axcnhAddress})...`);

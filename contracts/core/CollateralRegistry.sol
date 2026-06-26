@@ -21,14 +21,14 @@ contract CollateralRegistry is AccessControl {
 
     struct CollateralConfig {
         bool enabled;
-        uint16 baseHaircutBps;          // standard discount (e.g. 200 = 2%)
-        uint16 liquidationHaircutBps;   // liquidation discount (e.g. 500 = 5%), 0 means use dynamic
-        uint16 maxHaircutBps;           // cap for dynamic haircut (e.g. 3000 = 30%)
-        uint16 utilizationSlopeBps;     // extra BPS per 10% utilization
-        uint16 volatilityAdderBps;      // extra BPS when oracle confidence > 1%
-        uint256 maxProtocolExposure;    // cap on total USDC-equivalent value deposited (6 decimals)
-        address oracleFeed;             // Oracle Aggregator market address for price
-        uint8 decimals;                 // token decimals
+        uint16 baseHaircutBps; // standard discount (e.g. 200 = 2%)
+        uint16 liquidationHaircutBps; // liquidation discount (e.g. 500 = 5%), 0 means use dynamic
+        uint16 maxHaircutBps; // cap for dynamic haircut (e.g. 3000 = 30%)
+        uint16 utilizationSlopeBps; // extra BPS per 10% utilization
+        uint16 volatilityAdderBps; // extra BPS when oracle confidence > 1%
+        uint256 maxProtocolExposure; // cap on total USDC-equivalent value deposited (6 decimals)
+        address oracleFeed; // Oracle Aggregator market address for price
+        uint8 decimals; // token decimals
     }
 
     IOracleAggregator public oracleAggregator;
@@ -36,7 +36,13 @@ contract CollateralRegistry is AccessControl {
     address[] public registeredTokens;
     mapping(address => uint256) public totalDeposited; // token → raw deposited amount
 
-    event TokenRegistered(address indexed token, uint16 baseHaircutBps, uint16 liquidationHaircutBps, uint256 maxExposure, address oracleFeed);
+    event TokenRegistered(
+        address indexed token,
+        uint16 baseHaircutBps,
+        uint16 liquidationHaircutBps,
+        uint256 maxExposure,
+        address oracleFeed
+    );
     event TokenUpdated(address indexed token, uint16 baseHaircutBps, uint16 liquidationHaircutBps, uint256 maxExposure);
     event TokenPaused(address indexed token, bool paused);
     event DepositRecorded(address indexed token, uint256 rawAmount);
@@ -91,9 +97,9 @@ contract CollateralRegistry is AccessControl {
     }
 
     function setHaircut(
-        address token, 
-        uint16 baseHaircutBps, 
-        uint16 liquidationHaircutBps, 
+        address token,
+        uint16 baseHaircutBps,
+        uint16 liquidationHaircutBps,
         uint16 maxHaircutBps,
         uint16 utilizationSlopeBps,
         uint16 volatilityAdderBps
@@ -134,7 +140,7 @@ contract CollateralRegistry is AccessControl {
     // ─── Dynamic Haircut Calculation ────────────────────────────
 
     function getEffectiveHaircut(address token, uint256 confidence, uint256 price) public view returns (uint16) {
-        if (token == address(0)) return 0; // USDC
+        if (token == address(0)) return 0; // native settlement asset (USDT0)
         CollateralConfig storage cfg = collaterals[token];
 
         // silently overflow the uint16 intermediate and *reduce* the haircut
@@ -185,8 +191,8 @@ contract CollateralRegistry is AccessControl {
         uint256 grossUsdc = (amount * price) / (10 ** (cfg.decimals + 12));
         if (grossUsdc == 0) revert InvalidParam();
 
-        uint16 haircut = useLiquidationHaircut && cfg.liquidationHaircutBps > 0 
-            ? cfg.liquidationHaircutBps 
+        uint16 haircut = useLiquidationHaircut && cfg.liquidationHaircutBps > 0
+            ? cfg.liquidationHaircutBps
             : getEffectiveHaircut(token, conf, price);
 
         effectiveUsdcValue = (grossUsdc * (BPS_LOCAL - haircut)) / BPS_LOCAL;
@@ -205,8 +211,8 @@ contract CollateralRegistry is AccessControl {
         (uint256 price, uint256 conf, ) = oracleAggregator.getPrice(cfg.oracleFeed);
         if (price == 0) revert InvalidOraclePrice();
 
-        uint16 haircut = useLiquidationHaircut && cfg.liquidationHaircutBps > 0 
-            ? cfg.liquidationHaircutBps 
+        uint16 haircut = useLiquidationHaircut && cfg.liquidationHaircutBps > 0
+            ? cfg.liquidationHaircutBps
             : getEffectiveHaircut(token, conf, price);
 
         uint256 numerator = usdcValue * BPS_LOCAL * (10 ** (cfg.decimals + 12));
@@ -220,7 +226,7 @@ contract CollateralRegistry is AccessControl {
         if (token == address(0)) return;
         CollateralConfig storage cfg = collaterals[token];
         if (!cfg.enabled) revert TokenDisabled();
-        
+
         uint256 newTotal = totalDeposited[token] + rawAmount;
         if (cfg.maxProtocolExposure > 0) {
             uint256 effective = getCollateralValue(token, newTotal, false);

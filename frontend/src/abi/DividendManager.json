@@ -47,6 +47,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "DividendWindowCapExceeded",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -75,6 +80,11 @@
   {
     "inputs": [],
     "name": "InvalidInitialization",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidWindowDuration",
     "type": "error"
   },
   {
@@ -142,6 +152,25 @@
       }
     ],
     "name": "DividendDistributed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "windowDuration",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "maxPerWindow",
+        "type": "uint256"
+      }
+    ],
+    "name": "DividendLimitsUpdated",
     "type": "event"
   },
   {
@@ -425,6 +454,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "dividendWindowDuration",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "string",
@@ -437,6 +479,30 @@
       {
         "internalType": "uint256",
         "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "string",
+        "name": "marketId",
+        "type": "string"
+      }
+    ],
+    "name": "getDividendWindow",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "windowStart",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "cumulative",
         "type": "uint256"
       }
     ],
@@ -553,6 +619,19 @@
   },
   {
     "inputs": [],
+    "name": "maxDividendPerWindow",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "pendingImplementation",
     "outputs": [
       {
@@ -627,6 +706,24 @@
       }
     ],
     "name": "revokeRole",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "windowDuration",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxPerWindow",
+        "type": "uint256"
+      }
+    ],
+    "name": "setDividendLimits",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

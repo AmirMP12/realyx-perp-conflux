@@ -53,6 +53,30 @@
         "internalType": "contract ITradingCore",
         "name": "core",
         "type": "address"
+      }
+    ],
+    "name": "getGlobalUnrealizedPnLDetailed",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "totalPnL",
+        "type": "int256"
+      },
+      {
+        "internalType": "bool",
+        "name": "complete",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract ITradingCore",
+        "name": "core",
+        "type": "address"
       },
       {
         "internalType": "uint256",

@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { app } from '../app.js';
 
-describe('Insurance Routes Coverage', () => {
+describe('insurance routes', () => {
   it('should get insurance claims', async () => {
     const res = await request(app).get('/api/insurance/claims');
     expect(res.status).toBe(200);

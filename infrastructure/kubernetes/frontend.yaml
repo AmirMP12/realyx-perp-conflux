@@ -23,7 +23,7 @@ spec:
       containers:
         - name: frontend
           image: realyx/frontend:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           securityContext:
@@ -91,10 +91,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - realyx.vercel.app
+        - app.realyx.example
       secretName: realyx-tls
   rules:
-    - host: realyx.vercel.app
+    - host: app.realyx.example
       http:
         paths:
           - path: /api

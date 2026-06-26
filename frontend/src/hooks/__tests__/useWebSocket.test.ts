@@ -80,7 +80,7 @@ describe('useWebSocket', () => {
         
         expect(wsInstance.send).toHaveBeenCalledWith(JSON.stringify({
             type: 'subscribe',
-            channels: ['prices', 'stats'],
+            channels: ['prices', 'stats', 'funding'],
         }));
     });
 

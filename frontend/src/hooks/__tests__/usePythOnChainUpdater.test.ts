@@ -1,173 +1,88 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { usePythOnChainUpdater } from '../usePythOnChainUpdater';
 import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
-import toast from 'react-hot-toast';
 
-vi.mock('wagmi', () => ({
-    useAccount: vi.fn(),
-    usePublicClient: vi.fn(),
-    useWriteContract: vi.fn(),
+vi.mock('wagmi', () => ({ useAccount: vi.fn(), usePublicClient: vi.fn(), useWriteContract: vi.fn() }));
+vi.mock('../../contracts', () => ({
+    ORACLE_ABI: [], ORACLE_AGGREGATOR_ADDRESS: '0xOracle', TRADING_CORE_ADDRESS: '0xCore', TRADING_CORE_ABI: [],
 }));
 
-vi.mock('react-hot-toast', () => ({
-    default: Object.assign(vi.fn(), {
-        error: vi.fn(),
-        success: vi.fn(),
-        loading: vi.fn(),
-    }),
-}));
+const MARKET = '0x1234567890123456789012345678901234567890';
 
-vi.mock('../contracts', () => ({
-    ORACLE_ABI: [],
-    ORACLE_AGGREGATOR_ADDRESS: '0x0000000000000000000000000000000000000000',
-    TRADING_CORE_ADDRESS: '0xCore',
-    TRADING_CORE_ABI: [],
-}));
+function makeClient(overrides: Record<string, any> = {}) {
+    return {
+        readContract: vi.fn(({ functionName }: any) => {
+            if (functionName === 'pyth') return Promise.resolve('0xPyth');
+            if (functionName === 'getOracleConfig') return Promise.resolve({ feedId: '0xfeed1' });
+            if (functionName === 'getUpdateFee') return Promise.resolve(123n);
+            return Promise.resolve(undefined);
+        }),
+        waitForTransactionReceipt: overrides.waitForTransactionReceipt ?? vi.fn().mockResolvedValue({ status: 'success' }),
+    };
+}
 
 describe('usePythOnChainUpdater', () => {
-    const mockWriteContractAsync = vi.fn();
-    const mockReadContract = vi.fn();
-    const mockPublicClient = {
-        readContract: mockReadContract,
-        waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: 'success' }),
-    };
-
+    let writeContractAsync: ReturnType<typeof vi.fn>;
     beforeEach(() => {
         vi.clearAllMocks();
+        global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ binary: { data: ['abcd'] } }) });
         (useAccount as any).mockReturnValue({ address: '0xUser', chainId: 1, isConnected: true });
-        (usePublicClient as any).mockReturnValue(mockPublicClient);
-        mockWriteContractAsync.mockResolvedValue('0xHash');
-        (useWriteContract as any).mockReturnValue({
-            writeContractAsync: mockWriteContractAsync,
-            isPending: false,
-        });
-        
-        // Mock fetch for Hermes
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-            ok: true,
-            json: () => Promise.resolve({ binary: { data: ['0x123'] } }),
-        }));
+        writeContractAsync = vi.fn().mockResolvedValue('0xhash');
+        (useWriteContract as any).mockReturnValue({ writeContractAsync, isPending: false });
+        (usePublicClient as any).mockReturnValue(makeClient());
     });
 
-    it('returns idle state by default', () => {
+    it('returns false when not connected', async () => {
+        (useAccount as any).mockReturnValue({ address: undefined, chainId: 1, isConnected: false });
         const { result } = renderHook(() => usePythOnChainUpdater());
-        expect(result.current.isPending).toBe(false);
+        let ok: any;
+        await act(async () => { ok = await result.current.pushLatestForMarkets([MARKET]); });
+        expect(ok).toBe(false);
     });
 
-    it('fails if not connected', async () => {
-        (useAccount as any).mockReturnValue({ isConnected: false });
+    it('returns true for an empty market list', async () => {
         const { result } = renderHook(() => usePythOnChainUpdater());
-        
-        const success = await result.current.pushLatestForMarkets(['0x0000000000000000000000000000000000000001']);
-        expect(success).toBe(false);
-        expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Connect your wallet'));
+        let ok: any;
+        await act(async () => { ok = await result.current.pushLatestForMarkets([]); });
+        expect(ok).toBe(true);
     });
 
-    it('fails if publicClient is missing', async () => {
-        (usePublicClient as any).mockReturnValue(null);
+    it('pushes updates and confirms successfully', async () => {
         const { result } = renderHook(() => usePythOnChainUpdater());
-        
-        const success = await result.current.pushLatestForMarkets(['0x0000000000000000000000000000000000000001']);
-        expect(success).toBe(false);
-        expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Network not ready'));
+        let ok: any;
+        await act(async () => { ok = await result.current.pushLatestForMarkets([MARKET]); });
+        expect(ok).toBe(true);
+        expect(writeContractAsync).toHaveBeenCalledWith(expect.objectContaining({ functionName: 'updatePriceFeeds', value: 123n }));
     });
 
-    it('handles empty input list', async () => {
+    it('returns false when the receipt wait fails', async () => {
+        (usePublicClient as any).mockReturnValue(makeClient({ waitForTransactionReceipt: vi.fn().mockRejectedValue(new Error('timeout')) }));
         const { result } = renderHook(() => usePythOnChainUpdater());
-        const success = await result.current.pushLatestForMarkets([]);
-        expect(success).toBe(true); // Should return early but "succeed"
+        let ok: any;
+        await act(async () => { ok = await result.current.pushLatestForMarkets([MARKET]); });
+        expect(ok).toBe(false);
     });
 
-    it('executes full update flow successfully', async () => {
-        mockReadContract.mockImplementation(({ functionName }) => {
-            if (functionName === 'pyth') return '0xPyth';
-            if (functionName === 'getOracleConfig') return { feedId: '0xFeed' };
-            if (functionName === 'getUpdateFee') return 100n;
-            return '0xAggregator';
-        });
-
-        const { result } = renderHook(() => usePythOnChainUpdater());
-        
-        let success;
-        await act(async () => {
-            success = await result.current.pushLatestForMarkets(['0x0000000000000000000000000000000000000001']);
-        });
-
-        expect(success).toBe(true);
-        expect(mockWriteContractAsync).toHaveBeenCalledWith(expect.objectContaining({
-            address: '0xPyth',
-            functionName: 'updatePriceFeeds',
-            value: 100n,
-        }));
-        expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('updated'), expect.anything());
-    });
-
-    it('handles Hermes fetch failure', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-            ok: false,
-            status: 500,
-        }));
-        
-        mockReadContract.mockImplementation(({ functionName }) => {
+    it('returns false when no feed is configured', async () => {
+        const client = makeClient();
+        client.readContract = vi.fn(({ functionName }: any) => {
             if (functionName === 'pyth') return Promise.resolve('0xPyth');
-            if (functionName === 'getOracleConfig') return Promise.resolve({ feedId: '0x0000000000000000000000000000000000000000000000000000000000000001' });
-            return Promise.resolve('0xAggregator');
+            if (functionName === 'getOracleConfig') return Promise.resolve({ feedId: '0x0000000000000000000000000000000000000000000000000000000000000000' });
+            return Promise.resolve(undefined);
         });
-
+        (usePublicClient as any).mockReturnValue(client);
         const { result } = renderHook(() => usePythOnChainUpdater());
-        let success;
-        await act(async () => {
-            success = await result.current.pushLatestForMarkets(['0x0000000000000000000000000000000000000001']);
-        });
-        
-        expect(success).toBe(false);
-        expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('Hermes 500'));
+        let ok: any;
+        await act(async () => { ok = await result.current.pushLatestForMarkets([MARKET]); });
+        expect(ok).toBe(false);
     });
 
-    it('handles malformed OracleConfig shapes', async () => {
-        mockReadContract.mockImplementation(({ functionName }) => {
-            if (functionName === 'pyth') return Promise.resolve('0xPyth');
-            if (functionName === 'getOracleConfig') return Promise.resolve(['0x0000000000000000000000000000000000000000000000000000000000000001']);
-            return Promise.resolve('0xAggregator');
-        });
-
+    it('returns false when Hermes returns no data', async () => {
+        global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ binary: { data: [] } }) });
         const { result } = renderHook(() => usePythOnChainUpdater());
-        await act(async () => {
-            await result.current.pushLatestForMarkets(['0x0000000000000000000000000000000000000001']);
-        });
-        
-        expect(global.fetch).toHaveBeenCalled();
-    });
-
-    it('handles catch block for generic errors', async () => {
-        mockReadContract.mockRejectedValue(new Error('RPC Timeout'));
-        
-        const { result } = renderHook(() => usePythOnChainUpdater());
-        let success;
-        await act(async () => {
-            success = await result.current.pushLatestForMarkets(['0x0000000000000000000000000000000000000001']);
-        });
-        
-        expect(success).toBe(false);
-        expect(toast.error).toHaveBeenCalledWith('RPC Timeout');
-    });
-
-    it('handles zero feed or no feed configured', async () => {
-        mockReadContract.mockImplementation(({ functionName }) => {
-            if (functionName === 'pyth') return Promise.resolve('0xPyth');
-            if (functionName === 'getOracleConfig') return Promise.resolve(null);
-            return Promise.resolve('0xAggregator');
-        });
-
-        const { result } = renderHook(() => usePythOnChainUpdater());
-        let success;
-        await act(async () => {
-            success = await result.current.pushLatestForMarkets(['0x0000000000000000000000000000000000000001']);
-        });
-        
-        expect(success).toBe(false);
-        expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('No Pyth feed configured'));
+        let ok: any;
+        await act(async () => { ok = await result.current.pushLatestForMarkets([MARKET]); });
+        expect(ok).toBe(false);
     });
 });

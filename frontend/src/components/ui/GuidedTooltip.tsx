@@ -29,7 +29,7 @@ export function GuidedTooltip({ id, title, content, children }: GuidedTooltipPro
     };
 
     return (
-        <span className="relative inline-flex items-center gap-1">
+        <span className="relative inline-flex items-center gap-1 group">
             {children}
             {!dismissed && (
                 <button
@@ -46,7 +46,8 @@ export function GuidedTooltip({ id, title, content, children }: GuidedTooltipPro
                         initial={{ opacity: 0, y: 4 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 4 }}
-                        className="absolute left-0 top-full mt-1 z-[100] w-64 p-3 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] shadow-xl"
+                        className="absolute right-0 top-full mt-1 z-50 w-72 p-3 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] shadow-xl max-w-[calc(100vw-2rem)]"
+                        style={{ maxHeight: '300px', overflowY: 'auto' }}
                     >
                         <div className="flex items-start justify-between gap-2 mb-1">
                             <span className="text-xs font-bold text-text-primary">{title}</span>

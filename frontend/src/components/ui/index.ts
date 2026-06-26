@@ -2,6 +2,8 @@ export * from './Skeleton';
 export * from './Toast';
 export * from './Tooltip';
 export * from './NumberTicker';
+export * from './FlashValue';
 export * from './Button';
 export * from './Card';
 export * from './Modal';
+export * from './HealthRing';

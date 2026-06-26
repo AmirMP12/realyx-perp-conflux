@@ -63,7 +63,7 @@ contract PositionCloseLibHarness {
             openTimestamp: uint40(block.timestamp),
             trailingStopBps: 0,
             flags: flags,
-            collateralType: DataTypes.CollateralType.USDC,
+            collateralType: DataTypes.CollateralType.USDT0,
             state: state,
             collateralToken: address(0)
         });
@@ -89,6 +89,26 @@ contract PositionCloseLibHarness {
         userExposure[user] = amount;
     }
 
+    /// @dev Additive coverage helper: seed market open-interest accumulators so
+    ///      the OI-decrement `> closeSize`/`> cost` true sides in
+    ///      `_updateMarketAndFinalize` are reachable.
+    function setMarketOI(
+        address market,
+        uint256 longSize,
+        uint256 longCost,
+        uint256 shortSize,
+        uint256 shortCost
+    ) external {
+        markets[market].totalLongSize = longSize;
+        markets[market].totalLongCost = longCost;
+        markets[market].totalShortSize = shortSize;
+        markets[market].totalShortCost = shortCost;
+    }
+
+    function setCollateralWithToken(uint256 id, uint256 amount, address token) external {
+        positionCollateral[id] = DataTypes.PositionCollateral({amount: amount, tokenAddress: token, borrowedAmount: 0});
+    }
+
     function close(uint256 id, uint256 closeSize, uint256 minReceive) external returns (int256) {
         PositionCloseLib.ClosePositionContext memory ctx = PositionCloseLib.ClosePositionContext({
             usdc: usdc,
@@ -99,6 +119,39 @@ contract PositionCloseLibHarness {
             insuranceFund: insuranceFund,
             feeConfig: feeConfig,
             collateralRegistry: address(0),
+            referrer: address(0),
+            referralDiscountBps: 0,
+            referralRebateBps: 0
+        });
+        return
+            PositionCloseLib.closePosition(
+                id,
+                closeSize,
+                minReceive,
+                ctx,
+                positions,
+                positionCollateral,
+                markets,
+                userExposure,
+                _harnessProtocolHealth
+            );
+    }
+
+    function closeWithRegistry(
+        uint256 id,
+        uint256 closeSize,
+        uint256 minReceive,
+        address registry
+    ) external returns (int256) {
+        PositionCloseLib.ClosePositionContext memory ctx = PositionCloseLib.ClosePositionContext({
+            usdc: usdc,
+            liquidityVault: vault,
+            oracleAggregator: oracle,
+            positionToken: positionToken,
+            treasury: treasury,
+            insuranceFund: insuranceFund,
+            feeConfig: feeConfig,
+            collateralRegistry: registry,
             referrer: address(0),
             referralDiscountBps: 0,
             referralRebateBps: 0

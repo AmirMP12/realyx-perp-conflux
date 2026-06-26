@@ -25,9 +25,9 @@ describe("TradingCore — liquidation & funding (integration)", () => {
             await seedTwap(d, price(46_500));
             const [can] = await d.tradingCore.canLiquidate(id);
             expect(can).to.equal(true);
-            const before = await d.usdc.balanceOf(d.liquidator.address);
+            const before = await d.usdt0.balanceOf(d.liquidator.address);
             await d.tradingCore.connect(d.liquidator).liquidatePosition(id);
-            expect(await d.usdc.balanceOf(d.liquidator.address)).to.be.greaterThanOrEqual(before);
+            expect(await d.usdt0.balanceOf(d.liquidator.address)).to.be.greaterThanOrEqual(before);
             expect((await d.tradingCore.getPosition(id)).state).to.equal(PosStatus.LIQUIDATED);
         });
 

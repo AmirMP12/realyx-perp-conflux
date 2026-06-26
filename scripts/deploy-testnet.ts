@@ -41,7 +41,7 @@ async function main() {
     console.log(`DEPLOYED_COLLATERAL_REGISTRY=${result.collateralRegistry}`);
     console.log(`DEPLOYED_COPY_REGISTRY=${result.copyRegistry}`);
     console.log(`DEPLOYED_REFERRAL_REGISTRY=${result.referralRegistry}`);
-    if (result.mockUsdc) console.log(`DEPLOYED_MOCK_USDC=${result.mockUsdc}`);
+    if (result.mockUsdt0) console.log(`DEPLOYED_MOCK_USDT0=${result.mockUsdt0}`);
     if (result.mockPyth) console.log(`DEPLOYED_MOCK_PYTH=${result.mockPyth}`);
 }
 

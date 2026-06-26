@@ -18,12 +18,7 @@ import "../interfaces/ICopyRegistry.sol";
  *      via the `addSubaccount` mechanism. The CopyBot is a subaccount that
  *      executes mirrored orders on behalf of the copier. No funds are pooled.
  */
-contract CopyRegistry is
-    Initializable,
-    UUPSUpgradeable,
-    OwnableUpgradeable,
-    ICopyRegistry
-{
+contract CopyRegistry is Initializable, UUPSUpgradeable, OwnableUpgradeable, ICopyRegistry {
     /// @notice Maximum profit fee a lead trader can charge (20% = 2000 bps).
     uint256 public constant MAX_PROFIT_FEE_BPS = 2000;
 
@@ -39,8 +34,7 @@ contract CopyRegistry is
     mapping(address => uint256) public addressToLeadTraderId;
 
     /// @notice copier => leadTrader => CopyRelationship
-    mapping(address => mapping(address => CopyRelationship))
-        public copyRelationships;
+    mapping(address => mapping(address => CopyRelationship)) public copyRelationships;
 
     /// @notice leadTraderId => array of copier addresses (for off-chain enumeration)
     mapping(uint256 => address[]) private _copiersOfLeadTrader;
@@ -71,23 +65,11 @@ contract CopyRegistry is
         string metadataURI
     );
 
-    event LeadTraderUpdated(
-        uint256 indexed leadTraderId,
-        uint16 profitFeeBps,
-        string metadataURI
-    );
+    event LeadTraderUpdated(uint256 indexed leadTraderId, uint16 profitFeeBps, string metadataURI);
 
-    event FollowedTrader(
-        address indexed copier,
-        address indexed leadTrader,
-        uint256 maxAllocation,
-        uint8 maxLeverage
-    );
+    event FollowedTrader(address indexed copier, address indexed leadTrader, uint256 maxAllocation, uint8 maxLeverage);
 
-    event UnfollowedTrader(
-        address indexed copier,
-        address indexed leadTrader
-    );
+    event UnfollowedTrader(address indexed copier, address indexed leadTrader);
 
     event CopierConfigUpdated(
         address indexed copier,
@@ -118,9 +100,7 @@ contract CopyRegistry is
         nextLeadTraderId = 1;
     }
 
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyOwner {
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {
         // 48h staged-implementation timelock to align with the rest of the
         // protocol. Without this, a compromised owner key could swap in a
         // malicious CopyRegistry that re-routes copy-trading flows.
@@ -161,8 +141,7 @@ contract CopyRegistry is
         string calldata metadataURI
     ) external override returns (uint256 leadTraderId) {
         if (addressToLeadTraderId[msg.sender] != 0) revert AlreadyRegistered();
-        if (profitFeeBps > MAX_PROFIT_FEE_BPS)
-            revert ProfitFeeTooHigh(profitFeeBps, MAX_PROFIT_FEE_BPS);
+        if (profitFeeBps > MAX_PROFIT_FEE_BPS) revert ProfitFeeTooHigh(profitFeeBps, MAX_PROFIT_FEE_BPS);
 
         leadTraderId = nextLeadTraderId++;
         _leadTraders[leadTraderId] = LeadTraderInfo({
@@ -174,23 +153,14 @@ contract CopyRegistry is
         });
         addressToLeadTraderId[msg.sender] = leadTraderId;
 
-        emit LeadTraderRegistered(
-            leadTraderId,
-            msg.sender,
-            profitFeeBps,
-            metadataURI
-        );
+        emit LeadTraderRegistered(leadTraderId, msg.sender, profitFeeBps, metadataURI);
     }
 
     /// @inheritdoc ICopyRegistry
-    function updateLeadTrader(
-        uint16 profitFeeBps,
-        string calldata metadataURI
-    ) external override {
+    function updateLeadTrader(uint16 profitFeeBps, string calldata metadataURI) external override {
         uint256 traderId = addressToLeadTraderId[msg.sender];
         if (traderId == 0) revert NotRegistered();
-        if (profitFeeBps > MAX_PROFIT_FEE_BPS)
-            revert ProfitFeeTooHigh(profitFeeBps, MAX_PROFIT_FEE_BPS);
+        if (profitFeeBps > MAX_PROFIT_FEE_BPS) revert ProfitFeeTooHigh(profitFeeBps, MAX_PROFIT_FEE_BPS);
 
         LeadTraderInfo storage info = _leadTraders[traderId];
         info.profitFeeBps = profitFeeBps;
@@ -250,9 +220,7 @@ contract CopyRegistry is
             // counter desyncs across chunked drains and stays at the
             // pre-drain value forever.
             if (_leadTraders[traderId].activeFollowers > 0) {
-                _leadTraders[traderId].activeFollowers = uint32(
-                    _leadTraders[traderId].activeFollowers - 1
-                );
+                _leadTraders[traderId].activeFollowers = uint32(_leadTraders[traderId].activeFollowers - 1);
             }
             emit UnfollowedTrader(copier, leadTrader);
             unchecked {
@@ -264,17 +232,10 @@ contract CopyRegistry is
     // ──────── Copier Following ────────
 
     /// @inheritdoc ICopyRegistry
-    function followTrader(
-        address leadTrader,
-        uint256 maxAllocation,
-        uint8 maxLeverage
-    ) external override {
+    function followTrader(address leadTrader, uint256 maxAllocation, uint8 maxLeverage) external override {
         if (addressToLeadTraderId[leadTrader] == 0) revert NotRegistered();
-        if (
-            copyRelationships[msg.sender][leadTrader].isActive
-        ) revert AlreadyFollowing();
-        if (maxLeverage == 0 || maxLeverage > 100)
-            revert InvalidMaxLeverage();
+        if (copyRelationships[msg.sender][leadTrader].isActive) revert AlreadyFollowing();
+        if (maxLeverage == 0 || maxLeverage > 100) revert InvalidMaxLeverage();
 
         uint256 traderId = addressToLeadTraderId[leadTrader];
         // Refuse to follow a lead trader that is currently being
@@ -289,18 +250,14 @@ contract CopyRegistry is
             startedAt: uint40(block.timestamp)
         });
         _copiersOfLeadTrader[traderId].push(msg.sender);
-        _leadTraders[traderId].activeFollowers = uint32(
-            _leadTraders[traderId].activeFollowers + 1
-        );
+        _leadTraders[traderId].activeFollowers = uint32(_leadTraders[traderId].activeFollowers + 1);
 
         emit FollowedTrader(msg.sender, leadTrader, maxAllocation, maxLeverage);
     }
 
     /// @inheritdoc ICopyRegistry
     function unfollowTrader(address leadTrader) external override {
-        if (
-            !copyRelationships[msg.sender][leadTrader].isActive
-        ) revert NotFollowing();
+        if (!copyRelationships[msg.sender][leadTrader].isActive) revert NotFollowing();
 
         uint256 traderId = addressToLeadTraderId[leadTrader];
         delete copyRelationships[msg.sender][leadTrader];
@@ -317,80 +274,54 @@ contract CopyRegistry is
         }
 
         if (_leadTraders[traderId].activeFollowers > 0) {
-            _leadTraders[traderId].activeFollowers = uint32(
-                _leadTraders[traderId].activeFollowers - 1
-            );
+            _leadTraders[traderId].activeFollowers = uint32(_leadTraders[traderId].activeFollowers - 1);
         }
 
         emit UnfollowedTrader(msg.sender, leadTrader);
     }
 
     /// @inheritdoc ICopyRegistry
-    function updateCopierConfig(
-        address leadTrader,
-        uint256 maxAllocation,
-        uint8 maxLeverage
-    ) external override {
-        if (
-            !copyRelationships[msg.sender][leadTrader].isActive
-        ) revert NotFollowing();
-        if (maxLeverage == 0 || maxLeverage > 100)
-            revert InvalidMaxLeverage();
+    function updateCopierConfig(address leadTrader, uint256 maxAllocation, uint8 maxLeverage) external override {
+        if (!copyRelationships[msg.sender][leadTrader].isActive) revert NotFollowing();
+        if (maxLeverage == 0 || maxLeverage > 100) revert InvalidMaxLeverage();
 
-        copyRelationships[msg.sender][leadTrader]
-            .maxAllocation = maxAllocation;
-        copyRelationships[msg.sender][leadTrader]
-            .maxLeverage = maxLeverage;
+        copyRelationships[msg.sender][leadTrader].maxAllocation = maxAllocation;
+        copyRelationships[msg.sender][leadTrader].maxLeverage = maxLeverage;
 
-        emit CopierConfigUpdated(
-            msg.sender,
-            leadTrader,
-            maxAllocation,
-            maxLeverage
-        );
+        emit CopierConfigUpdated(msg.sender, leadTrader, maxAllocation, maxLeverage);
     }
 
     // ──────── Read-Only Views ────────
 
     /// @inheritdoc ICopyRegistry
-    function getLeadTraderInfo(
-        address trader
-    ) external view override returns (LeadTraderInfo memory) {
+    function getLeadTraderInfo(address trader) external view override returns (LeadTraderInfo memory) {
         uint256 traderId = addressToLeadTraderId[trader];
         if (traderId == 0) revert NotRegistered();
         return _leadTraders[traderId];
     }
 
     /// @inheritdoc ICopyRegistry
-    function getLeadTraderInfoById(
-        uint256 leadTraderId
-    ) external view override returns (LeadTraderInfo memory) {
+    function getLeadTraderInfoById(uint256 leadTraderId) external view override returns (LeadTraderInfo memory) {
         LeadTraderInfo memory info = _leadTraders[leadTraderId];
         if (info.trader == address(0)) revert NotRegistered();
         return info;
     }
 
     /// @inheritdoc ICopyRegistry
-    function getCopiersOfLeadTrader(
-        address leadTrader
-    ) external view override returns (address[] memory) {
+    function getCopiersOfLeadTrader(address leadTrader) external view override returns (address[] memory) {
         uint256 traderId = addressToLeadTraderId[leadTrader];
         if (traderId == 0) revert NotRegistered();
         return _copiersOfLeadTrader[traderId];
     }
 
     /// @inheritdoc ICopyRegistry
-    function getCopiersOfLeadTraderById(
-        uint256 leadTraderId
-    ) external view override returns (address[] memory) {
+    function getCopiersOfLeadTraderById(uint256 leadTraderId) external view override returns (address[] memory) {
         if (leadTraderId >= nextLeadTraderId) revert NotRegistered();
         return _copiersOfLeadTrader[leadTraderId];
     }
 
     /// @inheritdoc ICopyRegistry
-    function getCopierFollowing(
-        address copier
-    ) external view override returns (address[] memory leadTraders) {
+    function getCopierFollowing(address copier) external view override returns (address[] memory leadTraders) {
         // We need to iterate all lead traders to find which ones this copier follows.
         // For on-chain enumeration, use events; this is a convenience view limited by gas.
         uint256 count = nextLeadTraderId;
@@ -398,9 +329,7 @@ contract CopyRegistry is
         uint256 following;
         for (uint256 i = 1; i < count; i++) {
             if (_leadTraders[i].trader == address(0)) continue;
-            if (
-                copyRelationships[copier][_leadTraders[i].trader].isActive
-            ) {
+            if (copyRelationships[copier][_leadTraders[i].trader].isActive) {
                 following++;
             }
         }
@@ -409,9 +338,7 @@ contract CopyRegistry is
         uint256 idx;
         for (uint256 i = 1; i < count; i++) {
             if (_leadTraders[i].trader == address(0)) continue;
-            if (
-                copyRelationships[copier][_leadTraders[i].trader].isActive
-            ) {
+            if (copyRelationships[copier][_leadTraders[i].trader].isActive) {
                 leadTraders[idx] = _leadTraders[i].trader;
                 idx++;
             }

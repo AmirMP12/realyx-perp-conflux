@@ -12,12 +12,16 @@ infrastructure/
 │   ├── configmap.yaml
 │   ├── backend-secrets.yaml.example
 │   ├── backend.yaml
+│   ├── indexer.yaml
 │   └── frontend.yaml
 └── monitoring/
     ├── README.md
-    ├── prometheus.yml
-    └── alerts/
-        └── trading-alerts.yml
+    ├── prometheus.yml           # Kubernetes scrape config
+    ├── prometheus-docker.yml    # Docker Compose scrape config
+    ├── alerts/
+    │   └── trading-alerts.yml
+    └── grafana/
+        └── provisioning/        # datasource + dashboard providers
 ```
 
 ## Prerequisites
@@ -36,6 +40,7 @@ kubectl apply -f infrastructure/kubernetes/configmap.yaml
 # cp backend-secrets.yaml.example backend-secrets.yaml
 kubectl apply -f infrastructure/kubernetes/backend-secrets.yaml
 kubectl apply -f infrastructure/kubernetes/backend.yaml
+kubectl apply -f infrastructure/kubernetes/indexer.yaml
 kubectl apply -f infrastructure/kubernetes/frontend.yaml
 ```
 
@@ -47,9 +52,10 @@ kubectl apply -f infrastructure/kubernetes/
 
 ## Configuration
 
-- **ConfigMap `backend-config`**: `POSTGRES_URL`, `CHAIN_ID`, `PORT`, `WS_PORT`, `NODE_ENV`, `METRICS_PORT`. Update `POSTGRES_URL` to your deployed database indexer endpoint.
-- **Secret `backend-secrets`**: Copy `backend-secrets.yaml.example` to `backend-secrets.yaml`, fill values, then apply. Omit or leave placeholders if not used.
-- **Ingress**: Single host `realyx.vercel.app` routes `/api` and `/ws` to the backend and `/` to the frontend. Change in `frontend.yaml` to match your domains.
+- **ConfigMap `backend-config`**: non-secret settings — `CHAIN_ID`, `PORT`, `WS_PORT`, `NODE_ENV`, `METRICS_PORT`, contract addresses, `CORS_ORIGINS`, and `DISABLE_INBAND_SYNC` (the API runs as a pure reader; the `indexer` Deployment owns ingestion).
+- **Secret `backend-secrets`**: connection strings and bearer secrets — `POSTGRES_URL` (and optional `POSTGRES_READ_URL` replica), `CRON_SECRET`, `KEEPER_WEBHOOK_SECRET`, `DEBUG_SECRET`. Copy `backend-secrets.yaml.example` to `backend-secrets.yaml`, fill values, then apply. DB URLs live here (not the ConfigMap) because they carry credentials.
+- **Indexer**: `indexer.yaml` runs `node dist/worker.js` as the single chain-ingestion writer to the primary Postgres. It shares the ConfigMap and Secret with the backend.
+- **Ingress**: Single host `app.realyx.example` routes `/api` and `/ws` to the backend and `/` to the frontend. This is a placeholder — change it in `frontend.yaml` to a domain whose DNS and TLS you control.
 
 ## Monitoring
 

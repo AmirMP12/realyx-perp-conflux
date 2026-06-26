@@ -780,6 +780,24 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "getGlobalUnrealizedPnLDetailed",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "totalPnL",
+        "type": "int256"
+      },
+      {
+        "internalType": "bool",
+        "name": "complete",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -908,14 +926,9 @@
             "type": "uint128"
           },
           {
-            "internalType": "uint64",
+            "internalType": "uint128",
             "name": "leverage",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
-            "name": "lastFundingTime",
-            "type": "uint64"
+            "type": "uint128"
           },
           {
             "internalType": "address",
@@ -951,6 +964,11 @@
             "internalType": "address",
             "name": "collateralToken",
             "type": "address"
+          },
+          {
+            "internalType": "uint64",
+            "name": "lastFundingTime",
+            "type": "uint64"
           }
         ],
         "internalType": "struct DataTypes.Position",

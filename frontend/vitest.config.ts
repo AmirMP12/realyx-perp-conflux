@@ -6,12 +6,23 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/test/setup.ts',
+    // Coverage instrumentation slows userEvent-driven tests; give them headroom
+    // so they don't flakily time out under the default 5s.
+    testTimeout: 20000,
+    // The v8/istanbul coverage providers race on per-worker temp files under
+    // parallelism on Windows (intermittent ENOENT on coverage/.tmp). Running
+    // test files sequentially makes the coverage merge deterministic.
+    fileParallelism: false,
     env: {
       VITE_WS_URL: 'ws://localhost:3002',
     },
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
     coverage: {
-      provider: 'v8',
+      provider: 'istanbul',
+      // Pre-created coverage/.tmp + clean:false avoids the intermittent Windows
+      // ENOENT where the per-file coverage temp dir is removed mid-run.
+      clean: false,
+      cleanOnRerun: false,
       reporter: ['text', 'json', 'html'],
       all: true,
       include: [

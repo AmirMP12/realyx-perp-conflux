@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { useEffect, Suspense, lazy } from 'react';
 import toast from 'react-hot-toast';
-import { useAccount, useChainId } from 'wagmi';
+import { useAccount, useChainId, useSwitchChain } from 'wagmi';
 import { Layout } from './components/Layout';
 import { useReferralUrl } from './hooks/useReferralUrl';
 import { initializeTheme } from './stores/settingsStore';
@@ -22,12 +22,14 @@ const LeaderboardPage = lazy(() => import('./pages/Leaderboard').then(m => ({ de
 const TraderProfilePage = lazy(() => import('./pages/TraderProfile').then(m => ({ default: m.TraderProfilePage })));
 const CopyTradingPage = lazy(() => import('./pages/CopyTrading').then(m => ({ default: m.CopyTradingPage })));
 const AnalyticsDashboard = lazy(() => import('./pages/Analytics'));
+const StatusPage = lazy(() => import('./pages/Status').then(m => ({ default: m.StatusPage })));
 
 export default function App() {
     useWebSocket(); // Connect WebSocket for live prices/stats
     useReferralUrl(); // Parse ?ref=CODE from URL and store for referral links
     const { isConnected } = useAccount();
     const chainId = useChainId();
+    const { switchChain } = useSwitchChain();
 
     const defaultChainId = realyxChains[0].id;
     const isOnDefaultChain = chainId === defaultChainId;
@@ -44,11 +46,33 @@ export default function App() {
             return;
         }
 
-        toast.error('Realyx default network is eSpace Testnet. Please switch back to eSpace Testnet.', {
-            id: wrongNetworkToastId,
-            duration: 8000,
-        });
-    }, [isConnected, isOnDefaultChain]);
+        // One-click switch instead of a dead-end "please switch" message.
+        // wallet_switchEthereumChain (and add-chain fallback) is handled by wagmi.
+        toast(
+            (t) => (
+                <div className="flex items-center gap-3">
+                    <span className="text-sm">
+                        Wrong network. Realyx runs on eSpace Testnet.
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            switchChain?.({ chainId: defaultChainId });
+                            toast.dismiss(t.id);
+                        }}
+                        className="shrink-0 px-3 py-1.5 rounded-lg bg-[var(--primary)] text-white text-xs font-semibold hover:opacity-90 transition-opacity"
+                    >
+                        Switch network
+                    </button>
+                </div>
+            ),
+            {
+                id: wrongNetworkToastId,
+                icon: '⚠️',
+                duration: Infinity,
+            }
+        );
+    }, [isConnected, isOnDefaultChain, switchChain, defaultChainId]);
 
     const { markets: backendMarkets } = useMarkets();
     const { setMarkets } = useMarketsStore();
@@ -93,6 +117,7 @@ export default function App() {
                 <Route path="/copy-trading" element={<Suspense fallback={<PageLoader />}><CopyTradingPage /></Suspense>} />
                 <Route path="/trader/:address" element={<Suspense fallback={<PageLoader />}><TraderProfilePage /></Suspense>} />
                 <Route path="/analytics" element={<Suspense fallback={<PageLoader />}><AnalyticsDashboard /></Suspense>} />
+                <Route path="/status" element={<Suspense fallback={<PageLoader />}><StatusPage /></Suspense>} />
             </Route>
         </Routes>
     );

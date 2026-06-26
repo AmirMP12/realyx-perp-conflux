@@ -1,11 +1,8 @@
 
 import { describe, it, expect } from 'vitest';
-// We need to import the functions to test. Since they are inside useProgram.ts 
-// and might not be exported, let's check if we should export them or test them 
-// via the hook.
-// Looking at useProgram.ts: closeTxErrorMessage, decodeCreateOrderRevert, mapRevertToMessage are NOT exported.
-// I will temporarily export them in useProgram.ts to provide "deep branch" testing 
-// as requested by the user, which is a common practice for internal logic testing.
+// closeTxErrorMessage, decodeCreateOrderRevert and mapRevertToMessage are internal
+// helpers in useProgram.ts, exported there so their error-mapping logic can be
+// unit-tested directly.
 
 import { 
     // @ts-expect-error - Internal functions not exported in type definition
@@ -77,6 +74,21 @@ describe('useProgram Error Mapping', () => {
             const err = new Error('InsufficientLiquidity');
             expect(closeTxErrorMessage(err)).toContain('Insufficient vault liquidity');
         });
+
+        it('walks a nested cause chain to find the revert data', () => {
+            const err = { cause: { cause: { data: '0x19abf40e' } } };
+            expect(closeTxErrorMessage(err)).toContain('Oracle price is stale');
+        });
+
+        it('returns a generic fallback for an empty/undefined error', () => {
+            expect(closeTxErrorMessage(undefined)).toBe('Transaction failed');
+            expect(closeTxErrorMessage({})).toBe('Transaction failed');
+        });
+
+        it('prefers shortMessage then message in the fallback', () => {
+            expect(closeTxErrorMessage({ shortMessage: 'short' })).toBe('short');
+            expect(closeTxErrorMessage(new Error('boom plain'))).toBe('boom plain');
+        });
     });
 
     describe('decodeCreateOrderRevert', () => {
@@ -114,6 +126,33 @@ describe('useProgram Error Mapping', () => {
             expect(mapRevertToMessage({ message: 'marketnotactive' })).toContain('Market is currently not active');
             expect(mapRevertToMessage({ message: 'transfer amount exceeds balance' })).toContain('Insufficient token balance');
             expect(mapRevertToMessage({ message: 'the contract function "createorder" reverted' })).toContain('Order creation reverted');
+        });
+
+        it('maps the remaining time-in-force / bracket / collateral text errors', () => {
+            expect(mapRevertToMessage({ message: 'AltCollateralDisabled' })).toContain('Alternative collateral is not enabled');
+            expect(mapRevertToMessage({ message: 'PostOnlyCrossesBook' })).toContain('Post-only price would fill immediately');
+            expect(mapRevertToMessage({ message: 'PostOnlyNotAllowedForMarket' })).toContain('Post-only only applies to limit orders');
+            expect(mapRevertToMessage({ message: 'UnsupportedTimeInForce' })).toContain('time-in-force is not supported');
+            expect(mapRevertToMessage({ message: 'InvalidVisibleSize' })).toContain('Iceberg/TWAP slicing');
+            expect(mapRevertToMessage({ message: 'ReduceOnlyRequiresPosition' })).toContain('Reduce-only orders require');
+            expect(mapRevertToMessage({ message: 'InvalidOrder' })).toContain('Invalid bracket prices');
+            expect(mapRevertToMessage({ message: 'erc20 transfer failed' })).toContain('Insufficient token balance');
+        });
+
+        it('falls back to shortMessage then message then a default', () => {
+            expect(mapRevertToMessage({ shortMessage: 'short reason' })).toBe('short reason');
+            expect(mapRevertToMessage({ message: 'plain message' })).toBe('plain message');
+            expect(mapRevertToMessage({})).toBe('Failed to submit order');
+        });
+    });
+
+    describe('decodeCreateOrderRevert extra', () => {
+        it('decodes the alt-collateral selector', () => {
+            expect(decodeCreateOrderRevert({ data: '0xcf6d6d6d' })).toContain('Alternative collateral is not enabled');
+        });
+
+        it('returns null when there is no hex selector in the error', () => {
+            expect(decodeCreateOrderRevert({ message: 'no hex here' })).toBeNull();
         });
     });
 });

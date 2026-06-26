@@ -1,0 +1,23 @@
+# Build context trimming for the root-context keeper image (Dockerfile.keeper).
+# The backend/ and frontend/ services build from their own roots and have their
+# own .dockerignore files, so this only affects the keeper/liquidation image.
+.git
+node_modules
+**/node_modules
+**/dist
+artifacts
+cache
+typechain
+typechain-types
+coverage
+**/coverage
+.openzeppelin
+frontend
+docs-site
+docs
+landing
+sdk
+test
+.vscode
+*.log
+*.tsbuildinfo

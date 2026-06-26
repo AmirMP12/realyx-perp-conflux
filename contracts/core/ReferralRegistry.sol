@@ -120,11 +120,7 @@ contract ReferralRegistry is
         _disableInitializers();
     }
 
-    function initialize(
-        address admin,
-        uint16 _defaultDiscountBps,
-        uint16 _defaultRebateBps
-    ) external initializer {
+    function initialize(address admin, uint16 _defaultDiscountBps, uint16 _defaultRebateBps) external initializer {
         if (admin == address(0)) revert ZeroAddress();
         if (_defaultDiscountBps > BPS || _defaultRebateBps > BPS) revert InvalidParam();
 
@@ -400,9 +396,8 @@ contract ReferralRegistry is
                 c = bytes1(uint8(c) - 32);
             }
             // A-Z, 0-9, '-', '_'
-            if (
-                !((c >= 0x41 && c <= 0x5a) || (c >= 0x30 && c <= 0x39) || c == 0x2d || c == 0x5f)
-            ) revert InvalidCodeCharacters();
+            if (!((c >= 0x41 && c <= 0x5a) || (c >= 0x30 && c <= 0x39) || c == 0x2d || c == 0x5f))
+                revert InvalidCodeCharacters();
             upper[i] = c;
             unchecked {
                 ++i;
@@ -423,9 +418,8 @@ contract ReferralRegistry is
             if (c >= 0x61 && c <= 0x7a) {
                 c = bytes1(uint8(c) - 32);
             }
-            if (
-                !((c >= 0x41 && c <= 0x5a) || (c >= 0x30 && c <= 0x39) || c == 0x2d || c == 0x5f)
-            ) return (bytes32(0), false);
+            if (!((c >= 0x41 && c <= 0x5a) || (c >= 0x30 && c <= 0x39) || c == 0x2d || c == 0x5f))
+                return (bytes32(0), false);
             upper[i] = c;
             unchecked {
                 ++i;

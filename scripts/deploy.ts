@@ -2,7 +2,7 @@ import { ethers, upgrades } from "hardhat";
 import {
     getPythAddressForDeploy,
     getTreasuryAddress,
-    getUsdcOrThrow,
+    getUsdt0OrThrow,
     hasRealPythForDeploy,
     isTestnet,
     type NetworkName,
@@ -97,9 +97,9 @@ async function withRetryUnderpriced<T>(
 }
 
 export interface DeployResult {
-    /** On testnet we deploy MockUSDC; real USDC is not used. Use `contracts.usdc` only. */
-    usdcIsMock: boolean;
-    mockUsdc?: string;
+    /** On testnet we deploy MockUSDT0; real USDT0 is not used. Use `contracts.usdt0` only. */
+    usdt0IsMock: boolean;
+    mockUsdt0?: string;
     /** When true, we use MockPyth; real Pyth is not used. Use `contracts.pyth` only. */
     pythIsMock: boolean;
     mockPyth?: string;
@@ -112,7 +112,7 @@ export interface DeployResult {
     tradingCore: string;
     tradingCoreViews: string;
     dividendKeeper: string;
-    usdc: string;
+    usdt0: string;
     pyth: string;
     collateralRegistry: string;
     copyRegistry: string;
@@ -130,25 +130,25 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     const txOverrides = normalOverrides ? { txOverrides: normalOverrides } : {};
     const heavyTxOverrides = heavyOverrides ? { txOverrides: heavyOverrides } : {};
 
-    let usdcAddress: string;
-    let mockUsdcAddress: string | undefined;
+    let usdt0Address: string;
+    let mockUsdt0Address: string | undefined;
     let pythAddress: string;
     let mockPythAddress: string | undefined;
 
-    const envUsdc = process.env.USDC_ADDRESS?.trim();
-    if (envUsdc) {
-        usdcAddress = envUsdc;
-        console.log("Using USDC from env (USDC_ADDRESS):", usdcAddress);
+    const envUsdt0 = process.env.USDT0_ADDRESS?.trim();
+    if (envUsdt0) {
+        usdt0Address = envUsdt0;
+        console.log("Using USDT0 from env (USDT0_ADDRESS):", usdt0Address);
     } else if (isTestnet(network)) {
-        const MockUSDC = await ethers.getContractFactory("MockUSDC");
-        const mockUsdc = await MockUSDC.deploy(...(normalOverrides ? [normalOverrides] : []));
-        await mockUsdc.waitForDeployment();
-        mockUsdcAddress = await mockUsdc.getAddress();
-        usdcAddress = mockUsdcAddress;
-        console.log("MockUSDC deployed (USDC_ADDRESS empty):", mockUsdcAddress);
+        const MockUSDT0 = await ethers.getContractFactory("MockUSDT0");
+        const mockUsdt0 = await MockUSDT0.deploy(...(normalOverrides ? [normalOverrides] : []));
+        await mockUsdt0.waitForDeployment();
+        mockUsdt0Address = await mockUsdt0.getAddress();
+        usdt0Address = mockUsdt0Address;
+        console.log("MockUSDT0 deployed (USDT0_ADDRESS empty):", mockUsdt0Address);
     } else {
-        usdcAddress = getUsdcOrThrow(network);
-        console.log("Using USDC at:", usdcAddress);
+        usdt0Address = getUsdt0OrThrow(network);
+        console.log("Using USDT0 at:", usdt0Address);
     }
 
     if (hasRealPythForDeploy(network)) {
@@ -204,7 +204,7 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     console.log("OracleAggregator (proxy):", oracleAggregator);
 
     const VaultCore = await ethers.getContractFactory("VaultCore");
-    const vaultProxy = await upgrades.deployProxy(VaultCore, [admin, usdcAddress, treasury], {
+    const vaultProxy = await upgrades.deployProxy(VaultCore, [admin, usdt0Address, treasury], {
         kind: "uups",
         initializer: "initialize",
         ...txOverrides,
@@ -327,7 +327,7 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     const TradingCore = await ethers.getContractFactory("TradingCore", {
         libraries: tradingCoreLibraries,
     });
-    const tradingProxy = await upgrades.deployProxy(TradingCore, [admin, usdcAddress, treasury], {
+    const tradingProxy = await upgrades.deployProxy(TradingCore, [admin, usdt0Address, treasury], {
         kind: "uups",
         initializer: "initialize",
         unsafeAllowLinkedLibraries: true,
@@ -382,7 +382,7 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     console.log("TradingCore.setRWAContracts ok");
     await withRetryUnderpriced(normalOverrides, (o) => tc.setTradingViews(tradingCoreViews, o ?? {}));
     console.log("TradingCore.setTradingViews ok");
-    
+
     await withRetryUnderpriced(normalOverrides, (o) => tc.setCollateralRegistry(collateralRegistry, o ?? {}));
     console.log("TradingCore.setCollateralRegistry ok");
 
@@ -437,8 +437,8 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
     console.log("\n--- Deployment complete ---\n");
 
     return {
-        usdcIsMock: !!mockUsdcAddress,
-        mockUsdc: mockUsdcAddress,
+        usdt0IsMock: !!mockUsdt0Address,
+        mockUsdt0: mockUsdt0Address,
         pythIsMock: !!mockPythAddress,
         mockPyth: mockPythAddress,
         marketCalendar,
@@ -450,7 +450,7 @@ export async function deployAll(network: NetworkName): Promise<DeployResult> {
         tradingCore,
         tradingCoreViews,
         dividendKeeper,
-        usdc: usdcAddress,
+        usdt0: usdt0Address,
         pyth: pythAddress,
         collateralRegistry,
         copyRegistry,

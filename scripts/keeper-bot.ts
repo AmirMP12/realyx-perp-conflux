@@ -2,11 +2,36 @@ import "dotenv/config";
 import { ethers } from "ethers";
 import { loadDeployment } from "./write-deployment";
 
+/**
+ * Realyx order-execution keeper.
+ *
+ * Watches `OrderCreated`, refreshes the on-chain Pyth price for the order's
+ * market, and calls `executeOrder`. Hardened for production liveness:
+ *   - Multi-RPC failover (`withRpcRetry`/`rotateRpc`).
+ *   - NonceManager-backed signer so orders can execute concurrently without
+ *     nonce collisions (a bounded pool of `KEEPER_MAX_CONCURRENCY`), instead of
+ *     one slow `tx.wait()` head-of-line-blocking the whole queue.
+ *   - Every order is reported to the backend on terminal error OR after
+ *     `KEEPER_MAX_ORDER_ATTEMPTS` exhausted retries / repeated reverts, so an
+ *     order never sits pending forever with the trader getting no feedback.
+ *
+ * KNOWN RESIDUAL (keeper price-selection / MEV): the keeper still
+ * chooses *which* valid Hermes update to push and *when* to execute, so within
+ * the oracle staleness window it has bounded latitude to pick a favorable price.
+ * This cannot be fully closed off-chain — it requires a contract-side change to
+ * bind the executed price to the order's submission time (e.g. require the Pyth
+ * `publishTime` to be >= the order's createdAt and within a tight max-age, and
+ * require the update to target the order's own feed id). Tracked as a follow-up
+ * to `OracleAggregator.updatePrices` / `TradingLib.applyPythUpdateAndRefund`.
+ */
+
 type PendingOrder = {
     id: bigint;
     createdAtBlock: bigint;
     market: string;
     account: string;
+    /** Execution attempts so far; drives give-up + failure reporting. */
+    attempts: number;
 };
 
 const ORDER_CREATED_EVENT =
@@ -15,7 +40,7 @@ const ORDER_EXECUTED_EVENT = "event OrderExecuted(uint256 indexed orderId, uint2
 const ORDER_CANCELLED_EVENT = "event OrderCancelled(uint256 indexed orderId, string reason)";
 
 const EXECUTE_ORDER_ABI = [
-    "function executeOrder(uint256 orderId, bytes[] calldata updateData) external",
+    "function executeOrder(uint256 orderId, bytes[] calldata updateData) external payable",
     "function hasRole(bytes32 role, address account) external view returns (bool)",
     "function oracleAggregator() external view returns (address)",
 ];
@@ -89,15 +114,21 @@ async function reportKeeperFailure(
     traderAddress: string,
     marketAddress: string,
     failureReason: string,
-    selector: string
+    selector: string,
 ): Promise<void> {
     try {
         const url = `${apiBaseUrl.replace(/\/+$/, "")}/api/v1/keeper/failure`;
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 5_000);
+        // The backend's /api/v1/keeper/failure route is bearer-authenticated and
+        // fails closed in production. Send the shared secret when configured so
+        // failure notifications actually persist + broadcast to the trader.
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        const webhookSecret = (process.env.KEEPER_WEBHOOK_SECRET ?? "").trim();
+        if (webhookSecret) headers.Authorization = `Bearer ${webhookSecret}`;
         const response = await fetch(url, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify({
                 orderId: orderId.toString(),
                 traderAddress,
@@ -144,11 +175,25 @@ async function main() {
     const blockChunkSize = BigInt(Math.max(100, Number(process.env.KEEPER_BLOCK_CHUNK_SIZE ?? "500")));
     const hermesBase = (process.env.KEEPER_HERMES_URL || "https://hermes.pyth.network").replace(/\/+$/, "");
     const rpcRetryBaseDelayMs = Math.max(100, Number(process.env.KEEPER_RPC_RETRY_BASE_DELAY_MS ?? "300"));
+    // How many orders to execute in parallel per tick. Serial `await tx.wait()`
+    // meant one slow confirmation blocked every queued order behind it; a bounded
+    // pool keeps throughput up without unbounded nonce/gas pressure.
+    const maxConcurrency = Math.max(1, Number(process.env.KEEPER_MAX_CONCURRENCY ?? "4"));
+    // After this many failed execution attempts (non-terminal reverts, dropped
+    // tx receipts, stale-price retries that never land) we report the failure to
+    // the backend and stop retrying, so an order never sits pending forever with
+    // the trader getting no notification.
+    const maxOrderAttempts = Math.max(1, Number(process.env.KEEPER_MAX_ORDER_ATTEMPTS ?? "5"));
 
     const rpcUrls = parseRpcUrls(rpcUrl);
     let rpcIndex = 0;
     let provider = new ethers.JsonRpcProvider(rpcUrls[rpcIndex]);
-    let wallet = new ethers.Wallet(privateKey, provider);
+    // NonceManager hands out sequential nonces locally so several in-flight txs
+    // (parallel executeOrder + Pyth refresh) don't collide on the same nonce,
+    // which would otherwise cause "nonce too low"/replacement errors under
+    // concurrency. The raw wallet is kept for signing-only needs.
+    let baseWallet = new ethers.Wallet(privateKey, provider);
+    let wallet: ethers.Signer = new ethers.NonceManager(baseWallet);
     const iface = new ethers.Interface([ORDER_CREATED_EVENT, ORDER_EXECUTED_EVENT, ORDER_CANCELLED_EVENT]);
     let tradingCore = new ethers.Contract(tradingCoreAddress, EXECUTE_ORDER_ABI, wallet);
 
@@ -156,12 +201,20 @@ async function main() {
     const executedTopic = iface.getEvent("OrderExecuted").topicHash;
     const cancelledTopic = iface.getEvent("OrderCancelled").topicHash;
 
+    // Pyth contract handle — rebuilt alongside the wallet on RPC rotation.
+    let pyth: ethers.Contract;
+    let oracleAggregator: ethers.Contract;
+
     async function rotateRpc(reason: string) {
         if (rpcUrls.length <= 1) return;
         rpcIndex = (rpcIndex + 1) % rpcUrls.length;
         provider = new ethers.JsonRpcProvider(rpcUrls[rpcIndex]);
-        wallet = new ethers.Wallet(privateKey, provider);
+        baseWallet = new ethers.Wallet(privateKey, provider);
+        wallet = new ethers.NonceManager(baseWallet);
         tradingCore = new ethers.Contract(tradingCoreAddress, EXECUTE_ORDER_ABI, wallet);
+        // Rebind the oracle/pyth handles to the new signer if they exist yet.
+        if (oracleAggregator) oracleAggregator = oracleAggregator.connect(wallet) as ethers.Contract;
+        if (pyth) pyth = pyth.connect(wallet) as ethers.Contract;
         console.warn(`[keeper] switched rpc -> ${rpcUrls[rpcIndex]} (reason: ${reason})`);
     }
 
@@ -206,21 +259,24 @@ async function main() {
 
     let cursor = BigInt(Math.max(0, latest - Number(lookbackBlocks)));
     const pending = new Map<string, PendingOrder>();
+    // Orders currently being executed this tick, so the bounded pool never
+    // double-submits the same order (which would burn gas and trip nonce races).
+    const inFlight = new Set<string>();
 
     console.log(`[keeper] chainId=${networkInfo.chainId.toString()} rpc=${rpcUrls[rpcIndex]}`);
-    console.log(`[keeper] wallet=${wallet.address}`);
+    console.log(`[keeper] wallet=${baseWallet.address}`);
     console.log(`[keeper] tradingCore=${tradingCoreAddress}`);
     console.log(`[keeper] startBlock=${cursor.toString()} pollMs=${pollMs}`);
 
     console.log("[keeper] checking KEEPER_ROLE...");
 
     const hasKeeperRole = await withRpcRetry(
-        () => tradingCore.hasRole(KEEPER_ROLE, wallet.address),
+        () => tradingCore.hasRole(KEEPER_ROLE, baseWallet.address),
         "tradingCore.hasRole",
     );
     if (!hasKeeperRole) {
         throw new Error(
-            `Wallet ${wallet.address} is missing KEEPER_ROLE (${KEEPER_ROLE}) on TradingCore ${tradingCoreAddress}.`,
+            `Wallet ${baseWallet.address} is missing KEEPER_ROLE (${KEEPER_ROLE}) on TradingCore ${tradingCoreAddress}.`,
         );
     }
     console.log("[keeper] KEEPER_ROLE verified.");
@@ -231,12 +287,12 @@ async function main() {
         "tradingCore.oracleAggregator",
     );
     console.log(`[keeper] oracleAggregator=${oracleAggregatorAddress}`);
-    const oracleAggregator = new ethers.Contract(oracleAggregatorAddress, ORACLE_AGGREGATOR_ABI, wallet);
+    oracleAggregator = new ethers.Contract(oracleAggregatorAddress, ORACLE_AGGREGATOR_ABI, wallet);
 
     console.log("[keeper] fetching Pyth address...");
     const pythAddress = await withRpcRetry(() => oracleAggregator.pyth(), "oracleAggregator.pyth");
     console.log(`[keeper] pythAddress=${pythAddress}`);
-    const pyth = new ethers.Contract(pythAddress, PYTH_ABI, wallet);
+    pyth = new ethers.Contract(pythAddress, PYTH_ABI, wallet);
 
     console.log("[keeper] initialization complete.");
     console.log("[keeper] entering main loop...");
@@ -284,6 +340,108 @@ async function main() {
         return true;
     }
 
+    /**
+     * Execute a single pending order end-to-end. Returns when the order is
+     * resolved (executed, given up after max attempts, or a transient failure
+     * leaves it pending for a later tick). Safe to run concurrently for distinct
+     * orders thanks to the NonceManager-backed signer.
+     */
+    async function processOrder(order: PendingOrder): Promise<void> {
+        const key = order.id.toString();
+        order.attempts += 1;
+        try {
+            // Ensure on-chain Pyth cache is refreshed for this market before execution.
+            await refreshPythForMarket(order.market);
+
+            const tx = await tradingCore.executeOrder(order.id, []);
+            console.log(`[keeper] execute sent order=${key} tx=${tx.hash}`);
+            const receipt = await tx.wait();
+            if (receipt?.status === 1) {
+                pending.delete(key);
+                console.log(`[keeper] executed order=${key} block=${receipt.blockNumber}`);
+                return;
+            }
+            console.warn(
+                `[keeper] tx reverted order=${key} tx=${tx.hash} (attempt ${order.attempts}/${maxOrderAttempts})`,
+            );
+        } catch (err) {
+            const selector = selectorFromError(err) ?? "n/a";
+            const message = err instanceof Error ? err.message : String(err);
+            console.warn(
+                `[keeper] execute failed order=${key} selector=${selector} attempt=${order.attempts}/${maxOrderAttempts} msg=${message}`,
+            );
+
+            // If stale price, force refresh and retry once immediately.
+            if (selector === STALE_PRICE_SELECTOR) {
+                try {
+                    const refreshed = await refreshPythForMarket(order.market, true);
+                    if (refreshed) {
+                        const retryTx = await tradingCore.executeOrder(order.id, []);
+                        console.log(`[keeper] retry execute sent order=${key} tx=${retryTx.hash}`);
+                        const retryReceipt = await retryTx.wait();
+                        if (retryReceipt?.status === 1) {
+                            pending.delete(key);
+                            console.log(`[keeper] executed on retry order=${key} block=${retryReceipt.blockNumber}`);
+                            return;
+                        }
+                    }
+                } catch (retryErr) {
+                    const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+                    console.warn(`[keeper] stale-price retry failed order=${key} msg=${retryMsg}`);
+                }
+            }
+
+            // Terminal on-chain error: stop immediately and notify the trader.
+            if (isTerminalExecuteError(err)) {
+                pending.delete(key);
+                await reportKeeperFailure(keeperApiBaseUrl, order.id, order.account, order.market, message, selector);
+                return;
+            }
+
+            // Non-terminal but out of attempts: give up and notify so the order
+            // doesn't sit pending forever with the trader getting no feedback.
+            if (order.attempts >= maxOrderAttempts) {
+                pending.delete(key);
+                await reportKeeperFailure(
+                    keeperApiBaseUrl,
+                    order.id,
+                    order.account,
+                    order.market,
+                    `Max execution attempts (${maxOrderAttempts}) exhausted: ${message}`,
+                    selector,
+                );
+            }
+            return;
+        }
+
+        // Receipt came back unsuccessful (status !== 1) and wasn't an exception:
+        // give up after max attempts and notify, otherwise leave for next tick.
+        if (order.attempts >= maxOrderAttempts) {
+            pending.delete(key);
+            await reportKeeperFailure(
+                keeperApiBaseUrl,
+                order.id,
+                order.account,
+                order.market,
+                `Max execution attempts (${maxOrderAttempts}) exhausted: tx reverted on-chain`,
+                "n/a",
+            );
+        }
+    }
+
+    /** Run `tasks` with a bounded number of concurrent workers. */
+    async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
+        let idx = 0;
+        const runNext = async (): Promise<void> => {
+            while (idx < items.length) {
+                const current = items[idx++];
+                await worker(current);
+            }
+        };
+        const workers = Array.from({ length: Math.min(limit, items.length) }, () => runNext());
+        await Promise.all(workers);
+    }
+
     while (true) {
         try {
             const currentBlock = BigInt(await withRpcRetry(() => provider.getBlockNumber(), "loop:getBlockNumber"));
@@ -329,7 +487,13 @@ async function main() {
                         if (id == null) continue;
                         const market = (parsed?.args?.market as string | undefined) || ethers.ZeroAddress;
                         const account = (parsed?.args?.account as string | undefined) || ethers.ZeroAddress;
-                        pending.set(id.toString(), { id, market, account, createdAtBlock: BigInt(log.blockNumber) });
+                        pending.set(id.toString(), {
+                            id,
+                            market,
+                            account,
+                            createdAtBlock: BigInt(log.blockNumber),
+                            attempts: 0,
+                        });
                     }
 
                     for (const log of [...executedLogs, ...cancelledLogs]) {
@@ -345,69 +509,23 @@ async function main() {
             }
 
             if (pending.size > 0) {
-                const orders = [...pending.values()].sort((a, b) => (a.id < b.id ? -1 : 1));
-                console.log(`[keeper] pending=${orders.length} newestBlock=${cursor.toString()}`);
-
-                for (const order of orders) {
-                    try {
-                        // Ensure on-chain Pyth cache is refreshed for this market before execution.
-                        await refreshPythForMarket(order.market);
-
-                        const tx = await tradingCore.executeOrder(order.id, []);
-                        console.log(`[keeper] execute sent order=${order.id.toString()} tx=${tx.hash}`);
-                        const receipt = await tx.wait();
-                        if (receipt?.status === 1) {
-                            pending.delete(order.id.toString());
-                            console.log(`[keeper] executed order=${order.id.toString()} block=${receipt.blockNumber}`);
-                        } else {
-                            console.warn(`[keeper] tx reverted order=${order.id.toString()} tx=${tx.hash}`);
+                // Only dispatch orders not already being processed; oldest first.
+                const orders = [...pending.values()]
+                    .filter((o) => !inFlight.has(o.id.toString()))
+                    .sort((a, b) => (a.id < b.id ? -1 : 1));
+                if (orders.length > 0) {
+                    console.log(
+                        `[keeper] pending=${pending.size} dispatching=${orders.length} concurrency=${maxConcurrency} newestBlock=${cursor.toString()}`,
+                    );
+                    await runPool(orders, maxConcurrency, async (order) => {
+                        const key = order.id.toString();
+                        inFlight.add(key);
+                        try {
+                            await processOrder(order);
+                        } finally {
+                            inFlight.delete(key);
                         }
-                    } catch (err) {
-                        const selector = selectorFromError(err) ?? "n/a";
-                        const message = err instanceof Error ? err.message : String(err);
-                        console.warn(
-                            `[keeper] execute failed order=${order.id.toString()} selector=${selector} msg=${message}`,
-                        );
-
-                        // If stale price, force refresh and retry once immediately.
-                        if (selector === STALE_PRICE_SELECTOR) {
-                            try {
-                                const refreshed = await refreshPythForMarket(order.market, true);
-                                if (refreshed) {
-                                    const retryTx = await tradingCore.executeOrder(order.id, []);
-                                    console.log(
-                                        `[keeper] retry execute sent order=${order.id.toString()} tx=${retryTx.hash}`,
-                                    );
-                                    const retryReceipt = await retryTx.wait();
-                                    if (retryReceipt?.status === 1) {
-                                        pending.delete(order.id.toString());
-                                        console.log(
-                                            `[keeper] executed on retry order=${order.id.toString()} block=${retryReceipt.blockNumber}`,
-                                        );
-                                        continue;
-                                    }
-                                }
-                            } catch (retryErr) {
-                                const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
-                                console.warn(
-                                    `[keeper] stale-price retry failed order=${order.id.toString()} msg=${retryMsg}`,
-                                );
-                            }
-                        }
-
-                        // Report terminal failure to backend so the trader gets a WebSocket notification.
-                        if (isTerminalExecuteError(err)) {
-                            pending.delete(order.id.toString());
-                            await reportKeeperFailure(
-                                keeperApiBaseUrl,
-                                order.id,
-                                order.account,
-                                order.market,
-                                message,
-                                selector,
-                            );
-                        }
-                    }
+                    });
                 }
             }
         } catch (err) {

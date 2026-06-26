@@ -13,7 +13,7 @@ export const USDC_DECIMALS = 6;
 export const DECIMAL_CONVERSION = 10n ** 12n; // 1e18 / 1e6
 
 // ─── Leverage bounds ──────────────────────────────────────────────────────
-export const MAX_LEVERAGE = 30n;
+export const MAX_LEVERAGE = 10n;
 export const MAX_LEVERAGE_LIMIT = 100n;
 export const MIN_LEVERAGE = 1n;
 

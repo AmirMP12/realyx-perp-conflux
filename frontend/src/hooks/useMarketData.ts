@@ -9,28 +9,64 @@ import {
 } from './useProgram';
 import { Address } from 'viem';
 
-function readMarketInfoTuple(
-    raw: unknown,
-): { totalLongSize: bigint; totalShortSize: bigint; maxLeverage: bigint } | undefined {
+interface MarketInfoTuple {
+    totalLongSize: bigint;
+    totalShortSize: bigint;
+    maxLeverage: bigint;
+    /** Max notional (1e18 USD) for a single position in this market. */
+    maxPositionSize: bigint;
+    /** Max total open interest (1e18 USD) allowed across the market. */
+    maxTotalExposure: bigint;
+    /** Maintenance-margin requirement in basis points. */
+    maintenanceMargin: bigint;
+    /** Initial-margin requirement in basis points. */
+    initialMargin: bigint;
+}
+
+/**
+ * Decode the on-chain `DataTypes.Market` struct returned by `getMarketInfo`.
+ *
+ * Struct layout (index → field):
+ *   0 chainlinkFeed · 1 maxStaleness · 2 maxPriceUncertainty · 3 maxPositionSize ·
+ *   4 maxTotalExposure · 5 maintenanceMargin · 6 initialMargin · 7 maxLeverage ·
+ *   8 totalLongSize · 9 totalShortSize · 10 totalLongCost · 11 totalShortCost ·
+ *   12 isActive · 13 isListed
+ */
+function readMarketInfoTuple(raw: unknown): MarketInfoTuple | undefined {
     if (raw == null) return undefined;
+    const toBig = (v: unknown): bigint => {
+        if (v == null) return 0n;
+        try {
+            return BigInt(v as never);
+        } catch {
+            return 0n;
+        }
+    };
 
     // Case 1: Object with named properties
     if (typeof raw === 'object' && !Array.isArray(raw) && 'totalLongSize' in raw) {
-        const o = raw as { totalLongSize: bigint; totalShortSize: bigint; maxLeverage: bigint };
+        const o = raw as Record<string, unknown>;
         return {
-            totalLongSize: BigInt(o.totalLongSize),
-            totalShortSize: BigInt(o.totalShortSize),
-            maxLeverage: BigInt(o.maxLeverage),
+            totalLongSize: toBig(o.totalLongSize),
+            totalShortSize: toBig(o.totalShortSize),
+            maxLeverage: toBig(o.maxLeverage),
+            maxPositionSize: toBig(o.maxPositionSize),
+            maxTotalExposure: toBig(o.maxTotalExposure),
+            maintenanceMargin: toBig(o.maintenanceMargin),
+            initialMargin: toBig(o.initialMargin),
         };
     }
 
     // Case 2: Array (tuple) - Common on Conflux / older RPCs
-    // Market struct: longOI is index 8, shortOI is index 9, maxLeverage is index 7
     if (Array.isArray(raw) && raw.length >= 10) {
         return {
-            totalLongSize: BigInt(raw[8]),
-            totalShortSize: BigInt(raw[9]),
-            maxLeverage: BigInt(raw[7]),
+            totalLongSize: toBig(raw[8]),
+            totalShortSize: toBig(raw[9]),
+            maxLeverage: toBig(raw[7]),
+            maxPositionSize: toBig(raw[3]),
+            maxTotalExposure: toBig(raw[4]),
+            maintenanceMargin: toBig(raw[5]),
+            initialMargin: toBig(raw[6]),
         };
     }
 
@@ -152,7 +188,12 @@ export function useSingleMarketData(marketAddress?: Address) {
             maxLeverage: marketInfo ? Number(marketInfo.maxLeverage) : 0,
             fundingRate: liveFundingRate,
             price: priceData ? Number(priceData[0]) / 1e18 : 0,
-            confidence: priceData ? Number(priceData[1]) / 1e18 : 0
+            confidence: priceData ? Number(priceData[1]) / 1e18 : 0,
+            // Risk/capacity caps straight from the on-chain Market struct (1e18 USD notional).
+            maxPositionSize: marketInfo ? Number(marketInfo.maxPositionSize) / 1e18 : 0,
+            maxTotalExposure: marketInfo ? Number(marketInfo.maxTotalExposure) / 1e18 : 0,
+            maintenanceMarginBps: marketInfo ? Number(marketInfo.maintenanceMargin) : 0,
+            initialMarginBps: marketInfo ? Number(marketInfo.initialMargin) : 0,
         },
         refetch: () => {
             refetchCore();

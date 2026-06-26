@@ -11,7 +11,7 @@ contract MockTradingCoreUpdater {
     }
 
     function updatePositionOwner(uint256, address, address) external view {
-        if (mode == 1) require(false, "mock update failed");
+        if (mode == 1) revert("mock update failed");
         if (mode == 2) revert UpdateFailed();
     }
 }

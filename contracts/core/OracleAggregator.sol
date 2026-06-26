@@ -16,11 +16,45 @@ import "../libraries/EmergencyPauseLib.sol";
 import "../libraries/EmergencyPriceLib.sol";
 import "../interfaces/IMarketCalendar.sol";
 import "../interfaces/IOracleAggregator.sol";
+import "../interfaces/IPriceSource.sol";
 
 /**
  * @title OracleAggregator
  * @notice Pyth-backed prices per market address, TWAP ring buffer, circuit breakers, emergency pause/price governance, and trading gating hooks.
  * @dev Implements `IOracleAggregator`; parameter names use `collection` internally as the keyed market address.
+ *
+ * @dev OPTIONAL SECOND SOURCE (CROSS-CHECK):
+ *      The aggregator still derives every market price from Pyth as the PRIMARY
+ *      source. It can now ALSO be wired to one independent secondary source via
+ *      `setSecondarySource` (e.g. a `RedStoneAdapter` covering crypto + RWA on
+ *      Conflux eSpace). When a market opts in (`setCrossCheckEnabled`) and a
+ *      non-zero `crossSourceMaxDeviationBps` is configured, `_getPriceView`
+ *      refuses to serve a Pyth price that diverges from the secondary beyond the
+ *      threshold (reverts `DeviationTooHigh`), and `getValidSourceCount` returns
+ *      up to `2`. The secondary is consulted through the `IPriceSource` view and
+ *      is wrapped in try/catch, so a faulty/stale secondary degrades cleanly to
+ *      single source rather than bricking primary reads. The emergency manual
+ *      price override still short-circuits ALL of this by design.
+ *
+ *      When NO secondary is wired (the default), behaviour is unchanged:
+ *      `getValidSourceCount` returns at most `1` and `DataTypes.MIN_ORACLE_SOURCES`
+ *      is `1`. The compensating controls below remain the primary defenses:
+ *        • A Pyth fault or mispublication for a market is a single point of
+ *          failure for entry price, liquidation, PnL and vault NAV.
+ *        • Residual risk is bounded by: per-feed `maxConfidence` and staleness
+ *          gates (`_getPriceView`), the TWAP-vs-spot deviation guards on
+ *          open/close/liquidate, the price-drop / TWAP-deviation circuit
+ *          breakers, and the guardian manual-price override (quorum + 24h
+ *          delay) plus global pause.
+ *        • Liquidations additionally refuse to run against an active manual
+ *          price override (see `TradingCore._liquidate`).
+ *
+ *      OPERATIONAL GUIDANCE: before raising per-market exposure caps or
+ *      enabling high leverage, operators should consider adding a second
+ *      independent feed and a cross-source deviation check. The interface and
+ *      `getValidSourceCount` are already shaped to report a source count, so a
+ *      future multi-source upgrade can raise `MIN_ORACLE_SOURCES` without an
+ *      external API change.
  */
 contract OracleAggregator is
     Initializable,
@@ -71,6 +105,9 @@ contract OracleAggregator is
     error MaxConfidenceRequired();
     /// @dev Cap on the registered pausable list.
     error TooManyPausables();
+    /// @dev Feed-rotation timelock surface.
+    error PendingFeedMismatch();
+    error FeedTimelockActive();
 
     modifier onlyOracleOrKeeper() {
         if (!hasRole(ORACLE_ROLE, msg.sender) && !hasRole(KEEPER_ROLE, msg.sender)) revert NotOracleOrKeeper();
@@ -85,6 +122,10 @@ contract OracleAggregator is
     uint256 private constant PAUSE_GAS_LIMIT = 100000;
     uint256 private constant MIN_TWAP_UPDATE_INTERVAL = 30;
     uint256 public constant PRICE_OVERRIDE_DELAY = 24 hours;
+    /// @dev Timelock for rotating an already-configured market's Pyth feed to a
+    ///      different feed id. Mitigates a single operator key repointing a live
+    ///      market's price source to an attacker-favorable feed.
+    uint256 public constant FEED_ROTATION_TIMELOCK = 24 hours;
     uint256 private constant MIN_TWAP_DATA_POINTS = 6;
     uint256 private constant EMERGENCY_PRICE_QUORUM = 2;
     uint256 private constant DEFAULT_TWAP_WINDOW = 15 minutes;
@@ -103,6 +144,18 @@ contract OracleAggregator is
     /// @dev Tightened default confidence band kept for backward compat
     ///      but `setPythFeed` now requires `maxConfidence > 0`.
     uint256 private constant DEFAULT_CONFIDENCE_DENOMINATOR = 200; // = 0.5% of price
+    /// @dev CLOSED-MARKET STALENESS: when the market calendar
+    ///      reports a session closed (weekends/holidays for RWA markets), the
+    ///      staleness gate in `_getPriceView` widens to this value so the last
+    ///      in-session price remains readable for view/accounting reads across
+    ///      the break. This does NOT loosen any value-moving path: opens and
+    ///      closes require an OPEN session (`_checkMarketOpen`), and liquidation
+    ///      during a closed session is gated separately
+    ///      (`TradingCore.closedSessionLiquidationEnabled`, which additionally
+    ///      blocks on an active manual-price override and enforces the
+    ///      TWAP-deviation guard). Named here (rather than inlined) so the
+    ///      assumption is explicit and auditable.
+    uint256 private constant CLOSED_MARKET_MAX_STALENESS = 4 days;
 
     struct OracleConfig {
         bytes32 feedId;
@@ -185,7 +238,38 @@ contract OracleAggregator is
     ///      auto-expiry after `GLOBAL_PAUSE_AUTO_EXPIRY` to avoid indefinite halts.
     uint256 public globalPauseActivatedAt;
 
-    uint256[18] private __gap;
+    /// @dev Staged feed-rotation proposals. Repointing an already-configured
+    ///      market to a DIFFERENT Pyth feed is the single highest-impact
+    ///      operator action (it can swap the price source under live
+    ///      positions), so it is gated behind a 24h timelock. First-time feed
+    ///      configuration and same-feed parameter tweaks remain immediate.
+    struct PendingFeed {
+        bytes32 feedId;
+        uint256 maxStaleness;
+        uint64 maxConfidence;
+        uint256 effective;
+    }
+    mapping(address => PendingFeed) private _pendingFeeds;
+
+    /// @dev Optional INDEPENDENT second price source (e.g. `RedStoneAdapter`)
+    ///      used purely for a cross-source deviation guard. Pyth stays primary;
+    ///      this is consulted only when set AND per-market `crossCheckEnabled` is
+    ///      true. A faulty secondary can never brick a primary read — reads of it
+    ///      are wrapped in try/catch and a failure degrades to single source.
+    IPriceSource public secondarySource;
+    /// @dev Max allowed deviation (bps) between the primary (Pyth) price and the
+    ///      secondary price before a price read reverts with `DeviationTooHigh`.
+    ///      0 disables the deviation guard even when a secondary is configured.
+    uint256 public crossSourceMaxDeviationBps;
+    /// @dev Per-market opt-in for the cross-source deviation guard. Defaults to
+    ///      false so existing markets behave exactly as before until enabled.
+    mapping(address => bool) public crossCheckEnabled;
+
+    // gap reduced by 1 slot for `_pendingFeeds` (a mapping occupies one slot;
+    // the PendingFeed struct lives in the mapping's value slots, not inline)
+    // and by a further 3 slots for `secondarySource`, `crossSourceMaxDeviationBps`
+    // and the `crossCheckEnabled` mapping (17 -> 14).
+    uint256[14] private __gap;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -220,6 +304,17 @@ contract OracleAggregator is
     function _getPriceView(
         address collection
     ) internal view returns (uint256 price, uint256 confidence, uint256 timestamp) {
+        // MANUAL EMERGENCY-PRICE OVERRIDE: a live override
+        // short-circuits the Pyth read and returns a guardian-set price with a
+        // synthetic full-confidence band. This is a high-trust lever, so it is
+        // fenced by: a multi-guardian quorum + `PRICE_OVERRIDE_DELAY` (24h)
+        // before activation, a `MAX_EMERGENCY_PRICE_DEVIATION_BPS` cap vs the
+        // reference price at proposal time, a per-guardian proposal rate-limit,
+        // an expiry (`_manualPriceExpiry`), exclusion from the TWAP buffer
+        // (`recordPricePoint` skips while active), and a hard lockout of
+        // liquidations while active (`TradingCore._liquidate`). It is intended
+        // only for feed-outage / de-peg situations and never to drive routine
+        // liquidation outcomes.
         if (_manualPrices[collection] > 0 && block.timestamp <= _manualPriceExpiry[collection]) {
             OracleConfig memory manualConfig = _configs[collection];
             uint256 manualPrice = _manualPrices[collection];
@@ -231,13 +326,20 @@ contract OracleAggregator is
         OracleConfig memory config = _configs[collection];
         if (config.feedId == bytes32(0)) revert InvalidSource();
 
+        // We read via `getPriceUnsafe` and enforce staleness manually below
+        // rather than using Pyth's `getPriceNoOlderThan`. This is
+        // intentional: staleness is per-market (`config.maxStaleness`) and is
+        // deliberately widened to `CLOSED_MARKET_MAX_STALENESS` during closed
+        // RWA sessions — semantics `getPriceNoOlderThan` cannot express. The
+        // explicit `block.timestamp > publishTime + maxStale` check below is the
+        // single staleness gate for every read.
         try pyth.getPriceUnsafe(config.feedId) returns (PythStructs.Price memory pythPrice) {
             uint256 maxStale = config.maxStaleness > 0 ? config.maxStaleness : defaultMaxStaleness;
 
             if (address(marketCalendar) != address(0)) {
                 string memory mId = marketIds[collection];
                 if (bytes(mId).length > 0 && !marketCalendar.isMarketOpen(mId)) {
-                    maxStale = 4 days;
+                    maxStale = CLOSED_MARKET_MAX_STALENESS;
                 }
             }
 
@@ -267,9 +369,42 @@ contract OracleAggregator is
             if (config.minPrice > 0 && normalizedPrice < config.minPrice) revert PriceOutOfBounds();
             if (config.maxPrice > 0 && normalizedPrice > config.maxPrice) revert PriceOutOfBounds();
 
+            // CROSS-SOURCE GUARD: when an independent secondary source is wired
+            // and enabled for this market, refuse to serve a primary price that
+            // diverges from the secondary beyond `crossSourceMaxDeviationBps`.
+            _crossCheckDeviation(collection, normalizedPrice);
+
             return (normalizedPrice, normalizedConf, pythPrice.publishTime);
         } catch {
             revert DataNotFound();
+        }
+    }
+
+    /// @dev Reverts with `DeviationTooHigh` when the secondary source disagrees
+    ///      with the primary (Pyth) price by more than `crossSourceMaxDeviationBps`.
+    ///      No-ops (degrading to single source) when: no secondary is set, the
+    ///      market has not opted in, the guard is disabled (bps == 0), the
+    ///      secondary read reverts, or the secondary has no valid/fresh price.
+    ///      Deviation is measured against the SMALLER of the two prices, the
+    ///      conservative choice that maximizes the computed divergence.
+    function _crossCheckDeviation(address collection, uint256 primaryPrice) internal view {
+        IPriceSource src = secondarySource;
+        if (address(src) == address(0) || !crossCheckEnabled[collection]) return;
+        uint256 maxDev = crossSourceMaxDeviationBps;
+        if (maxDev == 0 || primaryPrice == 0) return;
+        // A codeless secondary (EOA / self-destructed) would make the high-level
+        // call revert via the compiler's extcodesize guard BEFORE try/catch can
+        // catch it. Skip it so a misconfigured source degrades to single source.
+        if (address(src).code.length == 0) return;
+
+        try src.getPrice(collection) returns (uint256 secPrice, uint256, uint256, bool valid) {
+            if (!valid || secPrice == 0) return;
+            uint256 diff = primaryPrice > secPrice ? primaryPrice - secPrice : secPrice - primaryPrice;
+            uint256 ref = primaryPrice < secPrice ? primaryPrice : secPrice;
+            if (diff * BPS > ref * maxDev) revert DeviationTooHigh();
+        } catch {
+            // A misbehaving secondary must never brick the primary read.
+            return;
         }
     }
 
@@ -282,7 +417,14 @@ contract OracleAggregator is
     function getPriceWithConfidence(address collection, uint256 maxUncertainty) external view returns (uint256 price) {
         uint256 confidence;
         (price, confidence, ) = _getPriceView(collection);
-        if (confidence > maxUncertainty) revert InsufficientConfidence();
+        // `maxUncertainty` is a FRACTION of price scaled to 1e18 (e.g. 8e17 = 80%),
+        // while `confidence` is an ABSOLUTE band normalized to 1e18 price units.
+        // Comparing them directly would (for any asset priced above ~$1) make the
+        // absolute band dwarf the fractional cap and revert every read. Convert
+        // the confidence to the same fractional domain before comparing.
+        if (price == 0) revert InsufficientConfidence();
+        uint256 confidenceFraction = (confidence * PRECISION) / price;
+        if (confidenceFraction > maxUncertainty) revert InsufficientConfidence();
     }
 
     /// @inheritdoc IOracleAggregator
@@ -297,6 +439,19 @@ contract OracleAggregator is
     }
 
     /// @inheritdoc IOracleAggregator
+    /// @dev WEIGHTING SEMANTICS: this getter intentionally uses a DIFFERENT
+    ///      averaging scheme from `getTWAP`. `getTWAP` is TIME-weighted (recent
+    ///      samples weigh more; see `OracleAggregatorLib.calculateTWAP`). This
+    ///      validated variant is CONFIDENCE-weighted (inverse-variance: lower
+    ///      Pyth uncertainty weighs more; see
+    ///      `OracleAggregatorLib.calculateTWAPWithCount`) and additionally
+    ///      reports whether at least `minDataPoints` samples fell inside the
+    ///      window. This is the reference consumed by the open / close /
+    ///      liquidate deviation guards: confidence weighting de-emphasises
+    ///      high-uncertainty ticks (which are exactly the ones an attacker would
+    ///      try to inject), while the `isValid` flag lets callers refuse to act
+    ///      against a cold/thin buffer. The two getters are deliberately not
+    ///      interchangeable; callers must pick the one matching their intent.
     function getTWAPWithValidation(
         address collection,
         uint256 windowSeconds,
@@ -356,10 +511,55 @@ contract OracleAggregator is
     }
 
     /// @inheritdoc IOracleAggregator
-    function getValidSourceCount(address collection) external view returns (uint256) {
+    /// @dev Multi-source aware: counts the primary Pyth feed (when healthy) plus,
+    ///      when a secondary source is wired and enabled for the market, the
+    ///      secondary when it reports a valid/fresh price. Returns 0, 1 or 2.
+    function getValidSourceCount(address collection) external view returns (uint256 count) {
         if (_configs[collection].feedId == bytes32(0)) return 0;
         (bool healthy, ) = isOracleHealthy(collection);
-        return healthy ? 1 : 0;
+        if (healthy) count = 1;
+
+        IPriceSource src = secondarySource;
+        if (address(src) != address(0) && crossCheckEnabled[collection] && address(src).code.length > 0) {
+            try src.getPrice(collection) returns (uint256 secPrice, uint256, uint256, bool valid) {
+                if (valid && secPrice > 0) {
+                    unchecked {
+                        ++count;
+                    }
+                }
+            } catch {
+                // ignore a faulty secondary in the health count
+            }
+        }
+    }
+
+    /* ===================== SECONDARY SOURCE (CROSS-CHECK) ===================== */
+
+    event SecondarySourceUpdated(address indexed source);
+    event CrossSourceMaxDeviationUpdated(uint256 bps);
+    event CrossCheckConfigured(address indexed market, bool enabled);
+
+    /// @notice Wire (or clear, with `address(0)`) the independent secondary price
+    ///         source used for cross-source deviation checks. Pyth stays primary.
+    /// @dev The secondary is only consulted for markets with `crossCheckEnabled`
+    ///      set and while `crossSourceMaxDeviationBps > 0`.
+    function setSecondarySource(address source) external onlyAdmin {
+        secondarySource = IPriceSource(source);
+        emit SecondarySourceUpdated(source);
+    }
+
+    /// @notice Set the max primary-vs-secondary deviation (bps) tolerated before a
+    ///         price read reverts. 0 disables the guard. Capped at 50% (5000 bps).
+    function setCrossSourceMaxDeviationBps(uint256 bps) external onlyAdmin {
+        if (bps > 5000) revert DeviationTooHigh();
+        crossSourceMaxDeviationBps = bps;
+        emit CrossSourceMaxDeviationUpdated(bps);
+    }
+
+    /// @notice Opt a market in/out of the cross-source deviation guard.
+    function setCrossCheckEnabled(address collection, bool enabled) external onlyOperator {
+        crossCheckEnabled[collection] = enabled;
+        emit CrossCheckConfigured(collection, enabled);
     }
 
     /// @notice Push fresh Pyth price updates and pay the network fee. Required prior to executing keeper-driven orders so prices are up-to-date in the same transaction.
@@ -389,7 +589,28 @@ contract OracleAggregator is
     /// @inheritdoc IOracleAggregator
     function recordPricePoint(address collection, uint256 reportedPrice) external onlyOracleOrKeeper {
         if (reportedPrice != 0) revert ReportedPriceMustBeZero();
+        _seedTwapFromOracle(collection);
+    }
 
+    /// @notice Permissionless TWAP-buffer seeding (liveness backstop).
+    /// @dev Same effect as `recordPricePoint` but callable by anyone, so the
+    ///      open / close / liquidate TWAP-deviation gates and the open-side
+    ///      TWAP-validity requirement cannot stall purely because the
+    ///      keeper / oracle role-set is offline or censoring. This is NOT
+    ///      trust-sensitive: the caller supplies no price; the observation is
+    ///      taken from the trusted Pyth snapshot via `_getPriceView` (which
+    ///      enforces staleness / confidence / bounds), the 30s
+    ///      `MIN_TWAP_UPDATE_INTERVAL` spacing guard still applies, and an
+    ///      active manual override still pauses sampling. The worst a caller
+    ///      can do is pay gas to record the real current price.
+    function pokeTWAP(address collection) external {
+        _seedTwapFromOracle(collection);
+    }
+
+    /// @dev Shared TWAP ring-buffer seeding from the current trusted oracle
+    ///      snapshot. No-ops while a manual override is active or within the
+    ///      minimum sampling interval.
+    function _seedTwapFromOracle(address collection) internal {
         // Refuse to seed the TWAP buffer while a manual price override is
         // live. Otherwise the override price would propagate into TWAP and
         // erode every TWAP-vs-spot deviation defense (open / close /
@@ -591,7 +812,9 @@ contract OracleAggregator is
                 _failedPauseList.pop();
                 break;
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
         failedPauseCount = _failedPauseList.length;
     }
@@ -622,14 +845,73 @@ contract OracleAggregator is
         // event; operators must consciously choose a per-feed cap matching the
         // expected confidence band (e.g. ~1-2% for equities, ~0.5-1% for crypto).
         if (maxConfidence == 0) revert MaxConfidenceRequired();
+
+        bytes32 existing = _configs[collection].feedId;
+        // Repointing an ALREADY-configured market to a DIFFERENT feed id is the
+        // highest-impact operator action (swaps the price source under live
+        // positions). Require a 24h staged proposal via `proposePythFeed`.
+        // First-time configuration (existing == 0) and same-feed parameter
+        // tweaks (staleness / confidence) remain immediate.
+        if (existing != bytes32(0) && existing != feedId) {
+            PendingFeed memory p = _pendingFeeds[collection];
+            if (
+                p.effective == 0 ||
+                p.feedId != feedId ||
+                p.maxStaleness != maxStaleness ||
+                p.maxConfidence != maxConfidence
+            ) {
+                revert PendingFeedMismatch();
+            }
+            if (block.timestamp < p.effective) revert FeedTimelockActive();
+            delete _pendingFeeds[collection];
+        }
+
         _configs[collection].feedId = feedId;
         _configs[collection].maxStaleness = maxStaleness;
         _configs[collection].maxConfidence = maxConfidence;
         emit PythFeedSet(collection, feedId);
     }
 
+    /// @notice Stage a feed rotation for an already-configured market. Effective
+    ///         `FEED_ROTATION_TIMELOCK` (24h) later via `setPythFeed` with the
+    ///         exact same arguments.
+    function proposePythFeed(
+        address collection,
+        bytes32 feedId,
+        uint256 maxStaleness,
+        uint64 maxConfidence
+    ) external onlyOperator {
+        if (maxConfidence == 0) revert MaxConfidenceRequired();
+        _pendingFeeds[collection] = PendingFeed({
+            feedId: feedId,
+            maxStaleness: maxStaleness,
+            maxConfidence: maxConfidence,
+            effective: block.timestamp + FEED_ROTATION_TIMELOCK
+        });
+        emit PythFeedProposed(collection, feedId, block.timestamp + FEED_ROTATION_TIMELOCK);
+    }
+
+    /// @notice Cancel a staged feed rotation.
+    function cancelPendingPythFeed(address collection) external onlyOperator {
+        delete _pendingFeeds[collection];
+        emit PythFeedProposalCancelled(collection);
+    }
+
+    /// @notice Read a staged feed rotation, if any.
+    function pendingPythFeed(
+        address collection
+    ) external view returns (bytes32 feedId, uint256 maxStaleness, uint64 maxConfidence, uint256 effective) {
+        PendingFeed memory p = _pendingFeeds[collection];
+        return (p.feedId, p.maxStaleness, p.maxConfidence, p.effective);
+    }
+
     /// @notice Attach `IMarketCalendar` for session-aware staleness widening when markets are closed.
     event MarketCalendarUpdated(address indexed calendar);
+    /// @notice Emitted when a feed rotation is staged via `proposePythFeed`.
+    event PythFeedProposed(address indexed collection, bytes32 indexed feedId, uint256 effective);
+    /// @notice Emitted when a staged feed rotation is cancelled.
+    event PythFeedProposalCancelled(address indexed collection);
+
     function setMarketCalendar(address _calendar) external onlyAdmin {
         if (_calendar == address(0)) revert ZeroAddress();
         marketCalendar = IMarketCalendar(_calendar);
@@ -767,6 +1049,34 @@ contract OracleAggregator is
         EmergencyPriceLib.cancelPendingEmergencyPrice(collection, _pendingManualPrices);
     }
 
+    /// @notice Emitted when an admin force-clears an active manual price override.
+    event ManualPriceCleared(address indexed collection, address indexed clearedBy);
+
+    /// @notice Kill-switch: immediately revoke an ACTIVE manual price
+    ///         override (and any staged one) for `collection`, restoring the
+    ///         live Pyth read on the next price query.
+    /// @dev Admin-only. The emergency-price override is a high-trust lever: it
+    ///      can move close-out value and vault NAV by up to the deviation cap
+    ///      while active, and is set by a guardian quorum. This gives a SEPARATE
+    ///      role (ADMIN) an immediate revocation path so a colluding/erroneous
+    ///      guardian quorum cannot pin a price for the full validity window —
+    ///      admin can drop it in one transaction without waiting for expiry.
+    ///      TWAP sampling (`recordPricePoint`) resumes automatically once the
+    ///      override is cleared.
+    function clearManualPrice(address collection) external onlyAdmin {
+        delete _manualPrices[collection];
+        delete _manualPriceExpiry[collection];
+        delete _pendingManualPrices[collection];
+        emit ManualPriceCleared(collection, msg.sender);
+    }
+
+    /// @notice Read the active manual override price and expiry, if any.
+    /// @return price Active override price (0 if none).
+    /// @return expiry Timestamp at which the active override lapses.
+    function getManualPrice(address collection) external view returns (uint256 price, uint256 expiry) {
+        return (_manualPrices[collection], _manualPriceExpiry[collection]);
+    }
+
     /// @notice Read-only view of a pending (staged) emergency price override.
     function getPendingEmergencyPrice(
         address collection
@@ -882,7 +1192,12 @@ contract OracleAggregator is
         if (decimalDiff >= 0) {
             return conf * (10 ** uint256(decimalDiff));
         } else {
-            return conf / (10 ** uint256(-decimalDiff));
+            uint256 normalized = conf / (10 ** uint256(-decimalDiff));
+            // A non-zero raw confidence that floors to zero must not be
+            // reported as "no data" (zero), which would silently pass the
+            // `normalizedConf > maxConfidence` gate. Floor to 1 so a genuine —
+            // if tiny — uncertainty band is always represented.
+            return normalized == 0 ? 1 : normalized;
         }
     }
 

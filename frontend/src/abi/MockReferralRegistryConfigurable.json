@@ -1,0 +1,97 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "getTraderReferralData",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "referrer",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "discountBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "rebateBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint32",
+            "name": "tierIndex",
+            "type": "uint32"
+          }
+        ],
+        "internalType": "struct IReferralRegistry.ReferralData",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "referrer",
+        "type": "address"
+      },
+      {
+        "internalType": "uint16",
+        "name": "discountBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint16",
+        "name": "rebateBps",
+        "type": "uint16"
+      },
+      {
+        "internalType": "uint32",
+        "name": "tierIndex",
+        "type": "uint32"
+      }
+    ],
+    "name": "setData",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "flag",
+        "type": "bool"
+      }
+    ],
+    "name": "setShouldRevert",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "shouldRevert",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]

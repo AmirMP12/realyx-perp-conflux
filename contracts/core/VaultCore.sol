@@ -51,7 +51,19 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     /// @dev 48h timelock surface for `setTradingCore`.
     error PendingTradingCoreMismatch();
     error TradingCoreTimelockActive();
+    /// @dev Raised when an LP exit is attempted while trader PnL cannot be
+    ///      fully priced (an OI-bearing market's oracle is unreadable). Exiting
+    ///      then could let LPs withdraw against unpriced, possibly-profitable
+    ///      trader positions (understated vault liability).
+    error TraderPnLNotFullyPriced();
 
+    /// @dev Raised when an internal LP-cash debit would underflow. By
+    ///      construction `_lpAssets` equals the on-hand LP balance slice, and
+    ///      every debit is bounded by available liquidity, so this can only
+    ///      fire on a genuine accounting desync. Failing loudly here is
+    ///      strictly safer than a silent clamp-to-zero, which would let
+    ///      `recordDonation` misclassify real LP cash as a sweepable donation.
+    error LpAccountingUnderflow();
     uint256 private constant PRECISION = 1e18;
     uint256 private constant BPS = 10000;
     uint256 private constant SHARE_DECIMALS = 18;
@@ -260,15 +272,22 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         if (_pendingTradingCoreEffective == 0 || block.timestamp < _pendingTradingCoreEffective) {
             revert TradingCoreTimelockActive();
         }
-        _revokeRole(TRADING_CORE_ROLE, tradingCore);
+        address oldCore = tradingCore;
+        _revokeRole(TRADING_CORE_ROLE, oldCore);
         tradingCore = _tradingCore;
         _grantRole(TRADING_CORE_ROLE, _tradingCore);
         delete _pendingTradingCore;
         delete _pendingTradingCoreEffective;
-        emit TradingCoreProposed(address(0), 0); // signal "applied" via zeroed pending
+        // Emit a dedicated "applied" event rather than overloading
+        // `TradingCoreProposed(0,0)`: the prior signalling reused
+        // the proposal event with zeroed args, which forced indexers to
+        // special-case it. A distinct event makes the rotation unambiguous.
+        emit TradingCoreRotated(oldCore, _tradingCore);
     }
 
     event TradingCoreProposed(address indexed pending, uint256 effective);
+    /// @notice Emitted when a staged TradingCore rotation is applied.
+    event TradingCoreRotated(address indexed oldCore, address indexed newCore);
 
     /// @notice Stage a TradingCore rotation. Effective 48h later via `setTradingCore`.
     function proposeTradingCore(address _tradingCore) external onlyAdmin {
@@ -290,6 +309,13 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     ) external nonReentrant whenNotPaused notEmergencyMode returns (uint256 shares) {
         if (assets == 0) revert ZeroAssets();
         if (receiver == address(0)) revert ZeroAddress();
+        // Fail closed on deposit pricing too: `_convertToLPShares` prices
+        // on the conservative total, which OVERSTATES NAV when a profitable
+        // OI-bearing market is unpriced (its liability is silently skipped),
+        // causing new depositors to be under-credited shares. Refuse deposits
+        // while trader PnL cannot be fully priced. Degrades gracefully (returns
+        // true) when no views probe is wired.
+        if (!_traderPnLFullyPriced()) revert TraderPnLNotFullyPriced();
         if (_lpTotalShares == DEAD_SHARES) {
             // Any pre-existing USDC sent to the contract before init is donated to the dead-share slot.
             // This prevents a 1-wei front-run from bricking the protocol on first deposit while still
@@ -319,6 +345,9 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         if (_lpShares[owner] < shares) revert InsufficientShares();
         if (_emergencyMode) revert EmergencyModeActive();
         if (owner != msg.sender) revert NotOwner();
+        // Refuse instant exits while trader PnL cannot be fully priced — the
+        // conservative total would understate trader profit (LP liability).
+        if (!_traderPnLFullyPriced()) revert TraderPnLNotFullyPriced();
 
         // Conservative valuation prevents extracting unrealized trader PnL.
         uint256 assetsInternal = _convertToLPAssetsConservative(shares);
@@ -407,14 +436,18 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
             // Cheap pre-check before the external try/catch boundary.
             if (!req.processed && req.shares != 0) {
                 try this._processWithdrawalExt(reqId) {
-                    unchecked { ++processed; }
+                    unchecked {
+                        ++processed;
+                    }
                 } catch {
                     // not yet mature, slippage cancellation handled inside,
                     // or any other revert: skip and continue.
                 }
             }
             gasLimit = gasleft();
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 
@@ -429,6 +462,11 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         DataTypes.WithdrawalRequest storage req = _withdrawalRequests[requestId];
         if (req.processed || req.shares == 0) revert InvalidRequest();
         if (block.timestamp < req.requestTime + withdrawalCooldown) revert WithdrawalNotReady();
+        // Refuse to finalize while trader PnL cannot be fully priced (an
+        // OI-bearing market's oracle is unreadable). The batch caller's
+        // try/catch treats this revert as "skip and retry later", so a transient
+        // outage simply defers the payout rather than pricing it unsafely.
+        if (!_traderPnLFullyPriced()) revert TraderPnLNotFullyPriced();
 
         uint256 assets = DataTypes.toUsdcPrecision(_convertToLPAssetsConservative(req.shares));
         address user = req.user;
@@ -514,6 +552,15 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         address market,
         bool isLong
     ) external nonReentrant onlyTradingCore notEmergencyMode returns (bool) {
+        // Fail closed: if trader unrealized PnL cannot be fully priced
+        // (an OI-bearing market's oracle is unreadable), the conservative total
+        // used for the per-market exposure cap below would OVERSTATE available
+        // backing (it silently skips unpriced, possibly-profitable trader
+        // liability). Refuse to expand borrow/exposure until pricing recovers.
+        // Degrades gracefully: when no views probe is wired (deploy ordering)
+        // or `tradingCore` is unset, `_traderPnLFullyPriced()` returns true.
+        if (!_traderPnLFullyPriced()) return false;
+
         uint256 unreserved = getAvailableLiquidity();
         unreserved = unreserved > reservedLiquidity ? unreserved - reservedLiquidity : 0;
         if (amount > unreserved) return false;
@@ -548,7 +595,14 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         // profitable round-trip equals LP fee income + realized trader losses)
         // would later be misclassified as an external "donation" by
         // `recordDonation` and could be swept away from LPs.
-        _lpAssets = _lpAssets > amount ? _lpAssets - amount : 0;
+        //
+        // Use checked arithmetic instead of a silent clamp. The invariant
+        // `_lpAssets == lpSlice` holds at all times and `amount <=
+        // getAvailableLiquidity() <= lpSlice`, so this never underflows in
+        // correct operation; a revert here surfaces a real desync loudly rather
+        // than corrupting the donation ledger.
+        if (_lpAssets < amount) revert LpAccountingUnderflow();
+        _lpAssets -= amount;
 
         usdc.safeTransfer(tradingCore, amount);
         if (newUtil > (restrictionThresholdBps * PRECISION) / BPS) {
@@ -766,16 +820,32 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
     /// @notice Insurance payout to cover trading bad debt (`IVaultCore.coverBadDebt`).
     function coverBadDebt(uint256 amount, uint256 positionId) external onlyTradingCore returns (uint256 covered) {
+        // Roll the rolling 24h window FIRST. An elapsed window resets the
+        // cumulative counter AND auto-clears a previously-latched breaker.
+        // This converts the former *permanent* latch — which hard-blocked ALL
+        // coverage during a cascade until a manual admin reset, exactly when
+        // coverage is most needed — into a self-healing, time-bounded pause:
+        // coverage halts for the acute 24h window, then resumes automatically
+        // once the cumulative counter rolls over. `resetInsuranceCircuitBreaker`
+        // remains available for earlier manual recovery. Crucially this does
+        // NOT weaken the in-window protection: within the same 24h window the
+        // breaker still trips on an over-threshold draw and blocks subsequent
+        // coverage.
+        if (block.timestamp > lastBadDebtResetTime + 24 hours) {
+            cumulativeBadDebt24h = 0;
+            lastBadDebtResetTime = block.timestamp;
+            if (insuranceCircuitBreakerActive) {
+                insuranceCircuitBreakerActive = false;
+                emit InsuranceCircuitBreakerReset(address(this));
+            }
+        }
+
         if (insuranceCircuitBreakerActive) revert InsuranceFundCircuitBreakerActive();
 
         // ----- Pre-flight the breaker check BEFORE allocating a claim id. ----
         uint256 available = _insAssets;
         covered = amount > available ? available : amount;
 
-        if (block.timestamp > lastBadDebtResetTime + 24 hours) {
-            cumulativeBadDebt24h = 0;
-            lastBadDebtResetTime = block.timestamp;
-        }
         uint256 newCumulative = cumulativeBadDebt24h + covered;
         uint256 circuitBreakerThreshold = (_insAssets * BAD_DEBT_CIRCUIT_BREAKER_BPS) / BPS;
         if (newCumulative > circuitBreakerThreshold) {
@@ -1076,6 +1146,12 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
 
     /// @notice Update utilization thresholds that drive alerts and emergency policy.
     function setThresholds(uint256 _restrictionBps, uint256 _emergencyBps) external onlyAdmin {
+        // Enforce sane bounds and ordering so an admin cannot disable
+        // utilization protection (e.g. set emergency above 100% or below the
+        // restriction alert). `restriction < emergency <= BPS`.
+        if (_restrictionBps == 0 || _restrictionBps >= _emergencyBps || _emergencyBps > BPS) {
+            revert InvalidRequest();
+        }
         restrictionThresholdBps = _restrictionBps;
         emergencyThresholdBps = _emergencyBps;
         emit ThresholdsUpdated(_restrictionBps, _emergencyBps);
@@ -1171,6 +1247,31 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
         return _donatedAssets;
     }
 
+    /// @notice True when trader unrealized PnL is fully priced, OR when no
+    ///         global-PnL probe is wired (degrades gracefully during deploy /
+    ///         for the legacy mock that has no detailed variant).
+    /// @dev When `false`, an OI-bearing market's oracle is unreadable and the
+    ///      conservative total would understate trader profit (LP liability),
+    ///      so LP exits are blocked until the oracle recovers. Read-only and
+    ///      best-effort: any probe revert is treated as "not priced" so the
+    ///      vault fails safe (blocks the exit) rather than open.
+    function _traderPnLFullyPriced() internal view returns (bool) {
+        if (tradingCore == address(0)) return true;
+        try ITradingCore(tradingCore).getGlobalUnrealizedPnLDetailed() returns (int256, bool complete) {
+            return complete;
+        } catch {
+            // Detailed probe unavailable (views not wired yet) — do not block
+            // exits during deployment ordering. The conservative valuation
+            // path already degrades to "no adjustment" in that window.
+            return true;
+        }
+    }
+
+    /// @notice Public view of whether trader PnL is fully priced (LP exits open).
+    function traderPnLFullyPriced() external view returns (bool) {
+        return _traderPnLFullyPriced();
+    }
+
     /// @notice LP-side assets including borrows and global PnL adjustment from `TradingCore` when available (`IVaultCore.totalAssets`).
     /// @dev Previously reverted when `tradingViews` was unset on
     ///      `TradingCore` (initial deploy ordering). Now degrades gracefully —
@@ -1207,6 +1308,13 @@ contract VaultCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable
     /// @notice Accounting balance for LP pool excluding insurance/fees slice.
     function lpAssets() public view returns (uint256) {
         return _lpAssets;
+    }
+
+    /// @notice On-hand USDC attributable to LPs (balance minus insurance, fees,
+    ///         donations, and rebates). Invariant: this equals `lpAssets()`
+    ///         in correct operation; any drift is an accounting bug.
+    function lpBalanceSliceUSDC() external view returns (uint256) {
+        return _lpBalanceSliceUSDC();
     }
 
     /// @notice Total LP shares outstanding (`IVaultCore.lpTotalShares`).

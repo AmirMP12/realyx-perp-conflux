@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: indexer
+  namespace: realyx
+  labels:
+    app: indexer
+spec:
+  # Single writer. Ingestion is serialized cluster-wide by a Postgres advisory
+  # lock in runSync, so >1 replica is safe for HA, but one is the norm.
+  replicas: 1
+  strategy:
+    # Avoid two writers briefly overlapping during rollouts (advisory lock still
+    # protects correctness; this just avoids redundant pulses).
+    type: Recreate
+  selector:
+    matchLabels:
+      app: indexer
+  template:
+    metadata:
+      labels:
+        app: indexer
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: indexer
+          image: realyx/backend:latest
+          imagePullPolicy: Always
+          # Run the dedicated worker entrypoint (chain poll -> primary Postgres),
+          # not the API server.
+          command: ["node", "dist/worker.js"]
+          ports:
+            - containerPort: 9090
+              name: metrics
+          envFrom:
+            - configMapRef:
+                name: backend-config
+            # Required: the indexer is the sole DB writer and needs POSTGRES_URL.
+            # Fail fast at scheduling rather than crash-looping at runtime.
+            - secretRef:
+                name: backend-secrets
+                optional: false
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: tmp
+          emptyDir: {}

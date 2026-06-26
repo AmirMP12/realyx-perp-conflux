@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 
 // Simple beep sounds using Web Audio API to avoid external assets
-const createBeep = (freq: number, type: 'sine' | 'square' | 'triangle' = 'sine', duration: number = 0.1) => {
+const createBeep = (freq: number, type: 'sine' | 'square' | 'triangle', duration: number) => {
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioContext) return;
 

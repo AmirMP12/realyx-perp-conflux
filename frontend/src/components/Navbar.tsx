@@ -16,6 +16,7 @@ import {
     BookOpen,
     Droplets,
     ArrowUpRight,
+    Activity,
     type LucideIcon,
 } from 'lucide-react';
 import { WalletConnectButton } from './WalletConnect';
@@ -60,13 +61,14 @@ const MENU_SECTIONS: MenuSection[] = [
         label: 'More',
         items: [
             { name: 'Analytics', path: '/analytics', icon: PieChart, desc: 'Protocol-wide metrics' },
+            { name: 'Status', path: '/status', icon: Activity, desc: 'Uptime, oracle & solvency' },
             { name: 'Settings', path: '/settings', icon: Settings, desc: 'Preferences and account' },
         ],
     },
 ];
 
 const EXTERNAL_LINKS = [
-    { name: 'Docs', href: 'https://docs-realyx.vercel.app', icon: BookOpen },
+    { name: 'Docs', href: 'https://docs.realyx.example', icon: BookOpen },
     { name: 'Faucet', href: 'https://efaucet.confluxnetwork.org/', icon: Droplets },
 ];
 

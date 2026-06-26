@@ -60,6 +60,40 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "closeSize",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "minReceive",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "registry",
+        "type": "address"
+      }
+    ],
+    "name": "closeWithRegistry",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "",
+        "type": "int256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "feeConfig",
     "outputs": [
@@ -285,14 +319,9 @@
         "type": "uint128"
       },
       {
-        "internalType": "uint64",
+        "internalType": "uint128",
         "name": "leverage",
-        "type": "uint64"
-      },
-      {
-        "internalType": "uint64",
-        "name": "lastFundingTime",
-        "type": "uint64"
+        "type": "uint128"
       },
       {
         "internalType": "address",
@@ -328,6 +357,11 @@
         "internalType": "address",
         "name": "collateralToken",
         "type": "address"
+      },
+      {
+        "internalType": "uint64",
+        "name": "lastFundingTime",
+        "type": "uint64"
       }
     ],
     "stateMutability": "view",
@@ -377,6 +411,29 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "amount",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "token",
+        "type": "address"
+      }
+    ],
+    "name": "setCollateralWithToken",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address",
         "name": "m",
         "type": "address"
@@ -388,6 +445,39 @@
       }
     ],
     "name": "setMarket",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "market",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "longSize",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "longCost",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "shortSize",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "shortCost",
+        "type": "uint256"
+      }
+    ],
+    "name": "setMarketOI",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

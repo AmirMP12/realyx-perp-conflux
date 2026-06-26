@@ -30,20 +30,15 @@ export const TradingViewChart: React.FC<ChartProps> = (props) => {
     const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
 
     useEffect(() => {
-        if (!chartContainerRef.current) return;
+        const container = chartContainerRef.current;
+        if (!container) return;
 
-        const handleResize = () => {
-            if (chartRef.current && chartContainerRef.current) {
-                chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
-            }
-        };
-
-        const chart = createChart(chartContainerRef.current, {
+        const chart = createChart(container, {
             layout: {
                 background: { type: ColorType.Solid, color: backgroundColor },
                 textColor,
             },
-            width: chartContainerRef.current.clientWidth,
+            width: container.clientWidth,
             height: 400,
             grid: {
                 vertLines: { color: 'rgba(197, 203, 206, 0.1)' },
@@ -73,6 +68,11 @@ export const TradingViewChart: React.FC<ChartProps> = (props) => {
 
         // Add volume series if we had volume data (future enhancement)
 
+        // `container` is captured from the post-guard ref, so the handler needs no
+        // further null checks.
+        const handleResize = () => {
+            chart.applyOptions({ width: container.clientWidth });
+        };
         window.addEventListener('resize', handleResize);
 
         return () => {

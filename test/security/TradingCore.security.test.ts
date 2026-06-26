@@ -18,8 +18,8 @@ describe("Security — TradingCore", () => {
             const d = await loadFixture(deployConfigured);
             // d.signers[11+] are not whitelisted; pick a fresh one
             const outsider = d.signers[12];
-            await d.usdc.mintTo(outsider.address, usdc(100_000));
-            await d.usdc.connect(outsider).approve(await d.tradingCore.getAddress(), ethers.MaxUint256);
+            await d.usdt0.mintTo(outsider.address, usdc(100_000));
+            await d.usdt0.connect(outsider).approve(await d.tradingCore.getAddress(), ethers.MaxUint256);
             await expect(
                 d.tradingCore.connect(outsider).createOrder(
                     orderParams(d, {
@@ -37,8 +37,8 @@ describe("Security — TradingCore", () => {
             const d = await loadFixture(deployConfigured);
             const outsider = d.signers[13];
             await d.compliance.setWhitelist(outsider.address, true);
-            await d.usdc.mintTo(outsider.address, usdc(100_000));
-            await d.usdc.connect(outsider).approve(await d.tradingCore.getAddress(), ethers.MaxUint256);
+            await d.usdt0.mintTo(outsider.address, usdc(100_000));
+            await d.usdt0.connect(outsider).approve(await d.tradingCore.getAddress(), ethers.MaxUint256);
             const id = await openMarket(d, outsider, {
                 isLong: true,
                 sizeUsdc: usdc(10_000),

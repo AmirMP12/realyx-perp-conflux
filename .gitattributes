@@ -1,3 +1,9 @@
 # Enforce LF line endings for consistent Prettier/CI
 *.sol text eol=lf
 *.ts text eol=lf
+*.json text eol=lf
+
+# Generated contract ABIs (exported by scripts/export-abi.mjs) - do not hand-edit.
+# Marking as generated collapses diffs and keeps line endings stable across platforms.
+backend/src/abi/*.json linguist-generated=true text eol=lf
+frontend/src/abi/*.json linguist-generated=true text eol=lf

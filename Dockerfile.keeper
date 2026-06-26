@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1
+#
+# Standalone image for the off-chain bots that live in scripts/ and run from the
+# repo root via tsx (keeper-bot.ts, liquidation-bot.ts, decentralized-keeper-bot.ts).
+#
+# These bots only need ethers + dotenv + tsx at runtime plus the deployment
+# address book and ABI JSON; the `import type { DeployResult } from "./deploy"`
+# in write-deployment.ts is erased at compile time, so hardhat is never loaded.
+#
+# Build context = repo root. Select which bot to run with the service's
+# startCommand (see railway.keeper.json / railway.liquidation.json).
+
+FROM node:20-alpine
+
+# tini provides proper PID 1 signal handling so SIGTERM drains cleanly on deploys.
+RUN apk add --no-cache tini
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Install the root dependency set (ethers, tsx, dotenv, ...). --ignore-scripts
+# skips the hardhat/typechain postinstall work the bots don't need.
+COPY package*.json ./
+RUN npm ci --ignore-scripts && npm cache clean --force
+
+# Only the files the bots actually read at runtime.
+COPY tsconfig.json ./
+COPY scripts ./scripts
+COPY deployment ./deployment
+COPY backend/src/abi ./backend/src/abi
+
+USER node
+
+ENTRYPOINT ["/sbin/tini", "--"]
+# Default to the order-execution keeper; overridden per service on Railway.
+CMD ["npx", "tsx", "scripts/keeper-bot.ts"]

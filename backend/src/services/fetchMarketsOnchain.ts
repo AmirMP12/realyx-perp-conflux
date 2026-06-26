@@ -1,6 +1,8 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { ethers } from "ethers";
+import { withProvider, getRpcUrls as poolRpcUrls } from "./rpcPool.js";
+import { logger } from "../logger.js";
 
 /** Matches `indexer.Market` for `/markets` route mapping. */
 export interface OnchainMarketRow {
@@ -25,24 +27,43 @@ export interface OnchainMarketRow {
 
 
 
-const DEFAULT_TESTNET_RPCS = ["https://evmtestnet.confluxrpc.com", "https://evmtestnet.confluxrpc.org"];
-const DEFAULT_MAINNET_RPCS = ["https://evm.confluxrpc.com"];
-
+/** Re-exported from the shared RPC pool so existing imports keep working. */
 export function getRpcUrls(): string[] {
-  const primary = (process.env.RPC_URL ?? "").trim();
-  const fallbackEnv = (process.env.RPC_FALLBACK_URL ?? "").trim();
-  const urls: string[] = primary ? [primary] : [];
-  if (fallbackEnv && !urls.includes(fallbackEnv)) urls.push(fallbackEnv);
-  const chainId = process.env.CHAIN_ID ?? "71";
-  const defaults = chainId === "1030" ? DEFAULT_MAINNET_RPCS : DEFAULT_TESTNET_RPCS;
-  for (const u of defaults) if (!urls.includes(u)) urls.push(u);
-  return urls;
+  return poolRpcUrls();
 }
 
+let cachedAbi: ethers.InterfaceAbi | null = null;
+
 function loadTradingCoreAbi(): ethers.InterfaceAbi {
-  // Use path relative to process.cwd() for universal compatibility in tests and prod
-  const abiPath = join(process.cwd(), "src/abi/TradingCore.json");
-  return JSON.parse(readFileSync(abiPath, "utf8")) as ethers.InterfaceAbi;
+  if (cachedAbi) return cachedAbi;
+
+  // Resolve the exported ABI across every runtime layout we ship:
+  //  - dev / jest         → cwd = backend/, source tree present (src/abi)
+  //  - compiled standalone → cwd = backend/, tsc copies imported JSON to dist/abi
+  //  - keeper image (root) → cwd = repo root, ABI mirrored under backend/src/abi
+  // First existing file wins; a JSON `import` is avoided because ts-jest (CommonJS)
+  // and Node ESM (NodeNext) disagree on import attributes.
+  const cwd = process.cwd();
+  const candidates = [
+    join(cwd, "src/abi/TradingCore.json"),
+    join(cwd, "dist/abi/TradingCore.json"),
+    join(cwd, "backend/dist/abi/TradingCore.json"),
+    join(cwd, "backend/src/abi/TradingCore.json"),
+  ];
+
+  for (const abiPath of candidates) {
+    try {
+      const abi = JSON.parse(readFileSync(abiPath, "utf8")) as ethers.InterfaceAbi;
+      cachedAbi = abi;
+      return abi;
+    } catch {
+      // Not at this location — try the next candidate.
+    }
+  }
+
+  throw new Error(
+    `TradingCore.json ABI not found. Looked in:\n - ${candidates.join("\n - ")}`,
+  );
 }
 
 export function toStr(n: unknown): string {
@@ -76,7 +97,7 @@ export function calculateInstantFundingRate(longOI: bigint, shortOI: bigint): bi
 
 /**
  * When Postgres markets indexer is empty, load live OI / funding / sizes from TradingCore RPC.
- * Fixes API consumers seeing volume24h / OI / funding all zero on Vercel or without DB.
+ * Fixes API consumers seeing volume24h / OI / funding all zero without a DB / indexer.
  *
  * Performance: All per-market RPC calls are parallelized and results are cached for 10s.
  */
@@ -102,14 +123,12 @@ export async function _fetchMarketsOnChainImpl(): Promise<OnchainMarketRow[]> {
   const tradingCoreAddress = (process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE ?? "").trim();
   if (!tradingCoreAddress) return [];
 
-  const chainId = parseInt(process.env.CHAIN_ID ?? "71", 10);
   const urls = getRpcUrls();
   if (urls.length === 0) return [];
 
-  let lastErr: unknown;
-  for (const rpcUrl of urls) {
-    try {
-      const provider = new ethers.JsonRpcProvider(rpcUrl, chainId);
+  try {
+    // Health-based routing + automatic failover across the RPC pool.
+    return await withProvider(async (provider) => {
       const abi = loadTradingCoreAbi();
       const tc = new ethers.Contract(tradingCoreAddress, abi, provider);
       const countBn = await tc.activeMarketCount();
@@ -170,11 +189,10 @@ export async function _fetchMarketsOnChainImpl(): Promise<OnchainMarketRow[]> {
       cachedMarkets = out;
       cachedAt = Date.now();
       return out;
-    } catch (e) {
-      lastErr = e;
-    }
+    });
+  } catch (lastErr) {
+    logger.warn({ err: lastErr instanceof Error ? lastErr.message : lastErr }, "[fetchMarketsOnChain] all RPCs failed");
+    return [];
   }
-  console.warn("[fetchMarketsOnChain] all RPCs failed:", lastErr instanceof Error ? lastErr.message : lastErr);
-  return [];
 }
 

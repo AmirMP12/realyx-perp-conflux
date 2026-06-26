@@ -10,7 +10,7 @@ jest.mock('../services/indexer.js', () => ({
   fetchUserTradeHistory: jest.fn().mockResolvedValue([]),
 }));
 
-describe('API Routes Coverage', () => {
+describe('API routes', () => {
   it('GET /health should return 200 OK', async () => {
     const res = await request(app).get('/health');
     expect(res.status).toBe(200);

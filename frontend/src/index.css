@@ -183,6 +183,37 @@
   20%, 40%, 60%, 80% { transform: translateX(4px); }
 }
 
+/*
+ * Terminal-style tick flash for live numeric cells (mark price, PnL). Onset is
+ * instant; the tint fades to transparent. Channel-based so it tracks the
+ * theme's long/short colors. Driven by the <FlashValue> primitive, which
+ * restarts the animation on every tick via a remount key.
+ */
+@keyframes cell-flash-up {
+  0% { background-color: rgb(var(--long-rgb) / 0.22); }
+  100% { background-color: transparent; }
+}
+
+@keyframes cell-flash-down {
+  0% { background-color: rgb(var(--short-rgb) / 0.22); }
+  100% { background-color: transparent; }
+}
+
+.flash-up {
+  animation: cell-flash-up 0.7s ease-out;
+}
+
+.flash-down {
+  animation: cell-flash-down 0.7s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flash-up,
+  .flash-down {
+    animation: none;
+  }
+}
+
 @layer base {
   body {
     background-color: var(--bg-primary);
@@ -404,7 +435,7 @@
   .input:focus-visible,
   a:focus-visible,
   button:focus-visible {
-    @apply outline-none ring-2 ring-sky-500 ring-offset-2 ring-offset-[var(--bg-primary)];
+    @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-[var(--bg-primary)];
   }
 
   .light-theme .btn-primary:focus-visible,

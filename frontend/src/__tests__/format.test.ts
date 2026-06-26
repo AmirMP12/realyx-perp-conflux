@@ -12,6 +12,17 @@ describe('formatCompact', () => {
         expect(formatCompact(1_200_000_000_000)).toBe('$1.2t');
     });
 
+    it('formats quadrillions instead of overflowing the trillions unit', () => {
+        expect(formatCompact(2_500_000_000_000_000)).toBe('$2.5q');
+    });
+
+    it('keeps precision for sub-cent values instead of collapsing to $0', () => {
+        expect(formatCompact(0.0042)).toBe('$0.0042');
+        expect(formatCompact(-0.0042)).toBe('-$0.0042');
+        expect(formatCompact(0.00000005)).toBe('$5.00e-8');
+        expect(formatCompact(0)).toBe('$0');
+    });
+
     it('formats 1,000 to 999,000 as full numbers', () => {
         expect(formatCompact(1_000)).toBe('$1,000');
         expect(formatCompact(12_500)).toBe('$12,500');

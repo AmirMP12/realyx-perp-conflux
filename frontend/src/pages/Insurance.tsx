@@ -13,7 +13,7 @@ import {
 import { useBackendStats, useInsuranceClaims } from '../hooks/useBackend';
 import { useUSDCBalance } from '../hooks/useProgram';
 import { Skeleton } from '../components/ui';
-import { formatCompact } from '../utils/format';
+import { formatCompact, formatPrice } from '../utils/format';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 
 const EXPLORER_TX = (txHash: string) => `https://evmtestnet.confluxscan.net/tx/${txHash}`;
@@ -59,13 +59,21 @@ export function InsurancePage() {
         }
     };
 
+    const maxAmount = activeTab === 'stake' ? usdcBalance : insurance.userInsuranceBalance;
+
     const handleMax = () => {
-        if (activeTab === 'stake') {
-            setAmount(usdcBalance.toFixed(2));
-        } else {
-            setAmount(insurance.userInsuranceBalance.toFixed(2));
-        }
+        setAmount(maxAmount.toFixed(2));
     };
+
+    const handlePercent = (pct: number) => {
+        setAmount(((maxAmount * pct) / 100).toFixed(2));
+    };
+
+    const numAmount = parseFloat(amount) || 0;
+    const sharePrice = insurance.insSharePrice > 0 ? insurance.insSharePrice : 1;
+    const estReceive = activeTab === 'stake' ? numAmount / sharePrice : numAmount;
+    const estReceiveLabel = activeTab === 'stake' ? 'INS' : 'USDT0';
+    const exceedsBalance = numAmount > maxAmount + 1e-9;
 
     const formatDate = (iso: string) => {
         try {
@@ -88,6 +96,7 @@ export function InsurancePage() {
         unstakeLoading ||
         !amount ||
         parseFloat(amount) <= 0 ||
+        exceedsBalance ||
         (activeTab === 'unstake' && !unstakeCanExecute);
 
     return (
@@ -102,7 +111,7 @@ export function InsurancePage() {
                         Insurance Fund
                     </h1>
                     <p className="text-text-secondary max-w-2xl text-sm sm:text-base lg:text-lg">
-                        Protects the protocol against insolvency. Stake USDC to earn a share of liquidations.
+                        Protects the protocol against insolvency. Stake USDT0 to earn a share of liquidations.
                     </p>
                 </div>
                 <div className="glass-panel px-4 py-2.5 flex items-center gap-3">
@@ -134,11 +143,11 @@ export function InsurancePage() {
                         <div className="flex items-start sm:items-center justify-between gap-3 mb-5 sm:mb-6">
                             <div>
                                 <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-text-primary">Manage Insurance</h2>
-                                <p className="text-xs sm:text-sm text-text-secondary mt-1 max-w-md">Stake USDC to back the protocol and earn yield from liquidation fees.</p>
+                                <p className="text-xs sm:text-sm text-text-secondary mt-1 max-w-md">Stake USDT0 to back the protocol and earn yield from liquidation fees.</p>
                             </div>
-                            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)]">
-                                <Shield className="w-3.5 h-3.5 text-text-muted" />
-                                <span className="text-xs font-mono text-text-secondary">1 INS = {insurance.insSharePrice.toFixed(4)}</span>
+                            <div className="hidden sm:flex shrink-0 items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)]">
+                                <Shield className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                                <span className="text-xs font-mono text-text-secondary whitespace-nowrap">1 INS = {insurance.insSharePrice.toFixed(4)}</span>
                             </div>
                         </div>
 
@@ -181,7 +190,7 @@ export function InsurancePage() {
                                 {/* Input Area */}
                                 <div className="space-y-2">
                                     <div className="flex justify-between text-xs sm:text-sm font-medium">
-                                        <span className="text-text-secondary">Amount (USDC Value)</span>
+                                        <span className="text-text-secondary">Amount (USDT0 Value)</span>
                                         <span className="text-text-secondary">
                                             Bal:{' '}
                                             <span className="text-text-primary font-mono cursor-pointer hover:text-[var(--primary)] transition-colors" data-testid="max-label" onClick={handleMax}>
@@ -193,7 +202,12 @@ export function InsurancePage() {
                                         </span>
                                     </div>
 
-                                    <div className="relative group">
+                                    <div className={clsx(
+                                        "relative group rounded-xl border bg-[var(--bg-tertiary)] transition-all",
+                                        exceedsBalance
+                                            ? "border-red-500/60 ring-1 ring-red-500/20"
+                                            : "border-[var(--border-color)] focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500/30"
+                                    )}>
                                         <input
                                             type="text"
                                             inputMode="decimal"
@@ -210,7 +224,7 @@ export function InsurancePage() {
                                                 if (pasted.includes('-')) e.preventDefault();
                                             }}
                                             placeholder="0.00"
-                                            className="w-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-text-primary text-xl sm:text-2xl lg:text-3xl font-mono font-medium py-4 sm:py-5 pl-4 sm:pl-5 pr-28 sm:pr-36 rounded-xl focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 transition-all placeholder:text-text-muted/20"
+                                            className="w-full bg-transparent text-text-primary text-xl sm:text-2xl lg:text-3xl font-mono font-medium py-4 sm:py-5 pl-4 sm:pl-5 pr-28 sm:pr-36 rounded-xl focus:outline-none placeholder:text-text-muted/20"
                                         />
                                         <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 sm:gap-3">
                                             <button
@@ -221,8 +235,48 @@ export function InsurancePage() {
                                                 MAX
                                             </button>
                                             <div className="h-6 sm:h-8 w-px bg-[var(--border-color)]" />
-                                            <span className="text-sm sm:text-base font-bold text-text-muted">USDC</span>
+                                            <span className="text-sm sm:text-base font-bold text-text-muted">USDT0</span>
                                         </div>
+                                    </div>
+
+                                    {/* Percentage quick-select */}
+                                    <div className="grid grid-cols-4 gap-2 pt-1">
+                                        {[25, 50, 75, 100].map((pct) => (
+                                            <button
+                                                key={pct}
+                                                type="button"
+                                                onClick={() => handlePercent(pct)}
+                                                disabled={maxAmount <= 0}
+                                                className="py-1.5 text-[11px] sm:text-xs font-bold rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-text-secondary hover:border-emerald-500 hover:text-emerald-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                                {pct}%
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {exceedsBalance && (
+                                        <p className="text-[11px] sm:text-xs text-red-400 font-medium pt-0.5">
+                                            Amount exceeds your available balance.
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Transaction Preview */}
+                                <div className="rounded-xl bg-gradient-to-br from-emerald-500/[0.07] to-transparent border border-emerald-500/20 px-4 py-3.5 flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
+                                            <Shield className="w-4 h-4 text-emerald-400" />
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] uppercase tracking-wider font-bold text-text-muted">You receive</div>
+                                            <div className="text-[11px] text-text-secondary">{activeTab === 'stake' ? 'INS tokens minted' : 'USDT0 redeemed'}</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-lg sm:text-xl font-mono font-bold text-text-primary tabular-nums">
+                                            {numAmount > 0 ? formatPrice(estReceive, estReceive < 1 ? 4 : 2) : '0.00'}
+                                        </div>
+                                        <div className="text-[10px] font-bold text-text-muted">{estReceiveLabel}</div>
                                     </div>
                                 </div>
 
@@ -230,7 +284,7 @@ export function InsurancePage() {
                                 <div className="rounded-xl bg-surface-3/40 border border-line/50 divide-y divide-line/50">
                                     <div className="flex justify-between items-center px-4 py-3">
                                         <span className="text-xs sm:text-sm text-text-muted">Exchange Rate</span>
-                                        <span className="font-mono text-xs sm:text-sm text-text-primary">1 INS = {insurance.insSharePrice.toFixed(4)} USDC</span>
+                                        <span className="font-mono text-xs sm:text-sm text-text-primary">1 INS = {insurance.insSharePrice.toFixed(4)} USDT0</span>
                                     </div>
                                     <div className="flex justify-between items-center px-4 py-3">
                                         <span className="text-xs sm:text-sm text-text-muted">Circuit Breaker</span>
@@ -248,7 +302,7 @@ export function InsurancePage() {
                                         <div className="px-4 py-3 text-amber-400/95 flex gap-2 items-start border-t border-line/50">
                                             <Clock className="w-4 h-4 mt-0.5 shrink-0" />
                                             <span className="text-xs sm:text-sm leading-relaxed">
-                                                Unstaking uses a waiting period on-chain. Start the timer below, then return after the cooldown to redeem USDC.
+                                                Unstaking uses a waiting period on-chain. Start the timer below, then return after the cooldown to redeem USDT0.
                                                 Each completed unstake resets the timer for the next redemption.
                                             </span>
                                         </div>
@@ -363,7 +417,7 @@ export function InsurancePage() {
                                         <div className="text-lg sm:text-xl font-mono font-medium text-text-primary">
                                             {balanceLoading ? <Skeleton className="h-6 w-24" /> : formatCompact(usdcBalance)}
                                         </div>
-                                        <div className="text-[11px] text-text-muted mt-1">Available USDC</div>
+                                        <div className="text-[11px] text-text-muted mt-1">Available USDT0</div>
                                     </div>
                                 </div>
                             ) : (

@@ -37,7 +37,7 @@ describe('useCollateralAssets', () => {
 
         const { result } = renderHook(() => useCollateralAssets());
         expect(result.current.usdc.isUSDC).toBe(true);
-        expect(result.current.usdc.symbol).toBe('USDC');
+        expect(result.current.usdc.symbol).toBe('USDT0');
         expect(result.current.assets[0].isUSDC).toBe(true);
         expect(result.current.hasAltCollateral).toBe(false);
     });

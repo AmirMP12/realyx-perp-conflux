@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { fetchUserPositions, fetchUserTrades } from "../services/indexer.js";
 import type { BackendPosition, TradeHistoryItem, ApiResponse } from "../types/index.js";
-import { toDecimal, toDecimal18 } from "../utils/format.js";
+import { toDecimal18 } from "../utils/format.js";
 
 const router = Router();
 
@@ -50,14 +50,14 @@ router.get("/:address/positions", async (req: Request, res: Response) => {
         collectionImage: "",
       },
       side: p.isLong ? "LONG" : "SHORT",
-      size: toDecimal(p.size),
-      entryPrice: toDecimal(p.entryPrice),
-      margin: toDecimal(p.collateralAmount),
-      leverage: Number(p.leverage) || 1,
+      size: toDecimal18(p.size),
+      entryPrice: toDecimal18(p.entryPrice),
+      margin: toDecimal18(p.collateralAmount),
+      leverage: Number(p.leverage) / 1e18 || 1,
       unrealizedPnl: "0",
       realizedPnl: "0",
-      liquidationPrice: toDecimal(p.liquidationPrice),
-      breakEvenPrice: toDecimal(p.entryPrice),
+      liquidationPrice: toDecimal18(p.liquidationPrice),
+      breakEvenPrice: toDecimal18(p.entryPrice),
       openTs: new Date(Number(p.openTimestamp) * 1000).toISOString(),
     }));
     res.json({ success: true, data } as ApiResponse<BackendPosition[]>);

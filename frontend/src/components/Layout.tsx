@@ -3,6 +3,8 @@ import { Navbar } from './Navbar';
 import { MobileNav } from './layout/MobileNav';
 import { OfflineBanner } from './OfflineBanner';
 import { RiskDisclosureModal } from './trading/RiskDisclosureModal';
+import { OnboardingChecklist } from './OnboardingChecklist';
+import { CommandPalette } from './CommandPalette';
 import ErrorBoundary from './ErrorBoundary';
 
 export function Layout() {
@@ -27,6 +29,8 @@ export function Layout() {
             </div>
             <MobileNav />
             <RiskDisclosureModal />
+            <OnboardingChecklist />
+            <CommandPalette />
         </div>
     );
 }

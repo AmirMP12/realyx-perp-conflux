@@ -1,6 +1,7 @@
 /**
  * Format number for compact display with dynamic precision:
- * 1-999,000 -> exact number, then m/b/t with trimmed decimals (e.g. 1.2m).
+ * 1-999,000 -> exact number, then m/b/t/q with trimmed decimals (e.g. 1.2m).
+ * Sub-cent values keep meaningful precision instead of collapsing to "$0".
  */
 export function formatCompact(num: number | string, options?: { prefix?: string; noDollar?: boolean }): string {
     const prefix = options?.prefix ?? '';
@@ -18,9 +19,16 @@ export function formatCompact(num: number | string, options?: { prefix?: string;
         return `${formatted}${unit}`;
     };
 
+    if (abs >= 1_000_000_000_000_000) return `${sign}${prefix}${d}${compactValue(abs / 1_000_000_000_000_000, 'q')}`;
     if (abs >= 1_000_000_000_000) return `${sign}${prefix}${d}${compactValue(abs / 1_000_000_000_000, 't')}`;
     if (abs >= 1_000_000_000) return `${sign}${prefix}${d}${compactValue(abs / 1_000_000_000, 'b')}`;
     if (abs >= 1_000_000) return `${sign}${prefix}${d}${compactValue(abs / 1_000_000, 'm')}`;
+    // Sub-cent values: keep significant digits rather than rounding to "$0".
+    if (abs > 0 && abs < 0.01) {
+        if (abs < 0.000001) return `${sign}${prefix}${d}${abs.toExponential(2)}`;
+        const small = abs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+        return `${sign}${prefix}${d}${small}`;
+    }
     return `${sign}${prefix}${d}${abs.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 }
 

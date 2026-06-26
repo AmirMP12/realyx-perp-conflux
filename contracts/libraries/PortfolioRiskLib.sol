@@ -37,9 +37,25 @@ library PortfolioRiskLib {
                 snapshot.unrealizedPnL += pnl;
                 snapshot.totalCollateral += col.amount;
                 snapshot.totalNotional += uint256(p.size);
-                snapshot.maintenanceMarginRequirement +=
-                    (uint256(p.size) * _effectiveMmBps(cfg.maintenanceMarginBps)) /
-                    BPS;
+                // Account-level maintenance requirement uses the SAME dynamic,
+                // leverage-aware per-position maintenance model as liquidation
+                // (`PositionMath.calculateDynamicMaintenanceMargin`, capped at
+                // 50% of each position's initial margin). The previous flat
+                // `cfg.maintenanceMarginBps` (5% of notional) silently capped
+                // cross-margin leverage at ~20x regardless of the per-market
+                // `maxLeverage`, contradicting the configurable 1–100x range.
+                // The dynamic model scales the requirement with each position's
+                // leverage so a 100x position is held to its own (tighter)
+                // maintenance, while a 2x position is not over-charged. When a
+                // position has no stored leverage (defensive), fall back to the
+                // flat config bps.
+                uint256 mmReq;
+                if (uint256(p.leverage) > 0) {
+                    mmReq = PositionMath.calculateDynamicMaintenanceMargin(uint256(p.size), uint256(p.leverage));
+                } else {
+                    mmReq = (uint256(p.size) * _effectiveMmBps(cfg.maintenanceMarginBps)) / BPS;
+                }
+                snapshot.maintenanceMarginRequirement += mmReq;
                 unchecked {
                     ++snapshot.crossPositionCount;
                 }

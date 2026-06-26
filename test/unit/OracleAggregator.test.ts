@@ -74,6 +74,32 @@ describe("OracleAggregator", () => {
                 "NotOperator",
             );
         });
+
+        it("first-time config and same-feed tweaks are immediate; feed ROTATION is timelocked", async () => {
+            const { oracle, operator } = await loadFixture(deploy);
+            const FEED2 = ethers.zeroPadValue("0x0def", 32);
+            // First-time config: immediate.
+            await oracle.connect(operator).setPythFeed(MARKET, FEED, 900, 10n ** 15n);
+            // Same-feed parameter tweak (staleness/conf): still immediate.
+            await oracle.connect(operator).setPythFeed(MARKET, FEED, 1200, 10n ** 15n);
+            // Repointing to a DIFFERENT feed without a staged proposal reverts.
+            await expect(
+                oracle.connect(operator).setPythFeed(MARKET, FEED2, 900, 10n ** 15n),
+            ).to.be.revertedWithCustomError(oracle, "PendingFeedMismatch");
+            // Stage the rotation; still blocked before the timelock elapses.
+            await oracle.connect(operator).proposePythFeed(MARKET, FEED2, 900, 10n ** 15n);
+            await expect(
+                oracle.connect(operator).setPythFeed(MARKET, FEED2, 900, 10n ** 15n),
+            ).to.be.revertedWithCustomError(oracle, "FeedTimelockActive");
+            // After 24h, the rotation applies.
+            await time.increase(24 * 60 * 60 + 1);
+            await expect(oracle.connect(operator).setPythFeed(MARKET, FEED2, 900, 10n ** 15n)).to.emit(
+                oracle,
+                "PythFeedSet",
+            );
+            const [feedId] = await oracle.getOracleConfig(MARKET);
+            expect(feedId).to.equal(FEED2);
+        });
     });
 
     describe("getPrice", () => {
@@ -106,6 +132,31 @@ describe("OracleAggregator", () => {
             );
             const p = await oracle.getPriceWithConfidence(MARKET, e18(1));
             expect(p).to.equal(e18(50_000));
+        });
+
+        it("getPriceWithConfidence treats maxUncertainty as a FRACTION of price (regression)", async () => {
+            // Regression for the fraction-vs-absolute confidence bug: a $50k
+            // asset with a ~0.02% absolute band has a large NORMALIZED band
+            // (1e19 in 1e18 price-units) but a tiny fractional band. The prior
+            // code compared the absolute band against a fractional cap and
+            // reverted every read for high-priced assets; the fix scales the
+            // band by price first.
+            const { oracle, operator, pyth } = await loadFixture(deploy);
+            const maxU64 = (1n << 64n) - 1n; // allow a large absolute band through the feed gate
+            await oracle.connect(operator).setPythFeed(MARKET, FEED, 900, maxU64);
+            // price $50k, absolute normalized confidence band = 1e19 (~0.02% of price)
+            await setPythPrice(pyth, FEED, e18(50_000), 10n ** 19n);
+
+            // Fractional band ≈ 1e19 * 1e18 / 50000e18 = 2e14 (0.02%). Against the
+            // protocol's default maxOracleUncertainty (8e17 = 80%) this passes;
+            // under the old absolute comparison (1e19 > 8e17) it wrongly reverted.
+            const p = await oracle.getPriceWithConfidence(MARKET, 8n * 10n ** 17n);
+            expect(p).to.equal(e18(50_000));
+
+            // And a fractional cap tighter than the actual band still reverts.
+            await expect(
+                oracle.getPriceWithConfidence(MARKET, 10n ** 14n), // 0.01% < 0.02% band
+            ).to.be.revertedWithCustomError(oracle, "InsufficientConfidence");
         });
     });
 

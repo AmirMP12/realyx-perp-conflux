@@ -238,6 +238,15 @@ interface ITradingCore {
     function getGlobalUnrealizedPnL() external view returns (int256);
 
     /**
+     * @notice Aggregate unrealized PnL plus a completeness flag.
+     * @return totalPnL Signed aggregate unrealized PnL in internal precision.
+     * @return complete False when any active market with open interest could not
+     *         be priced (and was therefore skipped). Consumers that price LP
+     *         exits must treat `false` as "trader profit may be understated".
+     */
+    function getGlobalUnrealizedPnLDetailed() external view returns (int256 totalPnL, bool complete);
+
+    /**
      * @notice Account-level cross-margin risk snapshot.
      * @param account Trader account.
      */

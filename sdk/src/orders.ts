@@ -17,7 +17,7 @@ import { OrderTypeEnum, TimeInForceEnum } from "./types";
  */
 const TRADING_CORE_ABI = [
   "function createOrder(tuple(uint8 orderType, address market, uint256 sizeDelta, uint256 collateralDelta, uint256 triggerPrice, bool isLong, uint256 maxSlippage, uint256 positionId, uint8 collateralType, address collateralToken, uint8 tif, uint256 stopLossPrice, uint256 takeProfitPrice, uint256 visibleSize, uint256 twapInterval, bool isReduceOnly, address owner) params) external payable returns (uint256)",
-  "event OrderCreated(uint256 indexed orderId, address indexed owner, address indexed market)",
+  "event OrderCreated(uint256 indexed orderId, address indexed account, uint8 orderType, address market)",
 ];
 
 /** CollateralType enum (mirrors DataTypes.sol) */

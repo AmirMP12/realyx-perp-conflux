@@ -16,6 +16,7 @@ import { CollateralEditModal } from './CollateralEditModal';
 import { ClosePositionModal } from './ClosePositionModal';
 import { TransferPositionModal } from './TransferPositionModal';
 import { Skeleton } from '../ui/Skeleton';
+import { FlashValue } from '../ui/FlashValue';
 import { formatPriceWithPrecision } from '../../utils/format';
 
 function fmtUsdPrice(n: number): string {
@@ -181,7 +182,12 @@ export function PositionTable({
                                             <th className="px-4 py-3 font-semibold text-right tabular-nums">Entry Price</th>
                                             <th className="px-4 py-3 font-semibold text-right tabular-nums">Mark Price</th>
                                             <th className="px-4 py-3 font-semibold text-right tabular-nums">Liq. Price</th>
-                                            <th className="px-4 py-3 font-semibold text-right tabular-nums">PnL</th>
+                                            <th
+                                                className="px-4 py-3 font-semibold text-right tabular-nums cursor-help"
+                                                title="Live mark-to-market PnL from price only. Excludes accrued funding, which is settled on-chain at close."
+                                            >
+                                                PnL<span className="text-text-muted font-normal ml-0.5">*</span>
+                                            </th>
                                             <th className="px-4 py-3 font-semibold text-right pr-6">Action</th>
                                         </tr>
                                     </thead>
@@ -646,12 +652,15 @@ function PositionRow({
                 {fmtUsdPrice(Number(pos.entryPrice))}
             </td>
             <td className={clsx(cellPad, "text-right font-mono text-sm tabular-nums text-text-primary")}>
-                {fmtUsdPrice(Number(pos.markPrice ?? pos.entryPrice))}
+                <FlashValue value={Number(pos.markPrice ?? pos.entryPrice)}>
+                    {fmtUsdPrice(Number(pos.markPrice ?? pos.entryPrice))}
+                </FlashValue>
             </td>
             <td className={clsx(cellPad, "text-right font-mono text-sm tabular-nums text-orange-400")}>
                 {fmtUsdPrice(Number(pos.liquidationPrice))}
             </td>
             <td className={clsx(cellPad, "text-right font-mono text-sm tabular-nums", isProfit ? "text-[var(--long)]" : "text-[var(--short)]")}>
+                <FlashValue value={pnl}>
                 {settings.showPnlPercent && Number(pos.collateral) > 0 ? (
                     <>
                         {isProfit ? '+' : ''}{((pnl / Number(pos.collateral)) * 100).toFixed(1)}%
@@ -669,6 +678,7 @@ function PositionRow({
                         )}
                     </>
                 )}
+                </FlashValue>
             </td>
             <td className={clsx(cellPad, "text-right pr-6")}>
                 {isOptimistic ? (
@@ -770,9 +780,11 @@ function MobilePositionCard({
                 </div>
                 <div className="text-right shrink-0">
                     <div className={clsx("font-mono font-bold text-sm", isProfit ? "text-[var(--long)]" : "text-[var(--short)]")}>
+                        <FlashValue value={pnl}>
                         {isProfit ? '+' : ''}{settings.showPnlPercent && Number(pos.collateral) > 0 
                             ? ((pnl / Number(pos.collateral)) * 100).toFixed(2) + '%'
                             : '$' + Math.abs(pnl).toFixed(2)}
+                        </FlashValue>
                     </div>
                     {settings.showPnlPercent && Number(pos.collateral) > 0 && (
                         <div className="text-[10px] text-text-muted font-mono">

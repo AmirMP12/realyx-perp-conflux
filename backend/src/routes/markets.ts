@@ -6,11 +6,12 @@ import { fetchPythPrices, fetchPyth24hChange, getPythTvSymbol, fetchPythPriceHis
 import type { BackendMarket, ApiResponse } from "../types/index.js";
 import { toDecimal18, PRECISION_1E18 } from "../utils/format.js";
 import { checkAndSync } from "./sync.js";
+import { cacheGetOrSet, cacheDel } from "../services/cache.js";
 
 const router = Router();
 const ENABLE_PYTH_24H = process.env.ENABLE_PYTH_24H != null
   ? /^(1|true|yes)$/i.test(process.env.ENABLE_PYTH_24H)
-  : !process.env.VERCEL;
+  : true;
 
 import { MARKET_META, type MarketCategory } from "../constants/markets.js";
 
@@ -45,66 +46,51 @@ function buildFallbackMarkets(): BackendMarket[] {
   }));
 }
 
-// ── Response-level cache for /markets ──
-let marketsResponseCache: { data: BackendMarket[]; fallback?: boolean } | null = null;
-let marketsResponseCachedAt = 0;
+// ── Shared response cache for /markets (memory or Redis; user-agnostic) ──
+const MARKETS_CACHE_KEY = "api:markets:v1";
 const MARKETS_RESPONSE_TTL_MS = 5_000;
 
 export function clearMarketsCache() {
-  marketsResponseCache = null;
-  marketsResponseCachedAt = 0;
+  // Fire-and-forget; cache deletion must never block the caller.
+  void cacheDel(MARKETS_CACHE_KEY);
 }
 
+interface MarketsPayload {
+  data: BackendMarket[];
+  fallback?: boolean;
+}
 
-router.get("/", async (_req: Request, res: Response) => {
-  // Ensure sync is fresh in serverless env
-  await checkAndSync();
-
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-
-  // Serve from cache if fresh
-  if (marketsResponseCache && Date.now() - marketsResponseCachedAt < MARKETS_RESPONSE_TTL_MS) {
-    return res.json({
-      success: true,
-      data: marketsResponseCache.data,
-      ...(marketsResponseCache.fallback && { fallback: true }),
-    } as ApiResponse<BackendMarket[]>);
-  }
-
-  try {
-    let markets = await fetchMarkets();
-    if (markets.length === 0) {
-      const fallback = buildFallbackMarkets();
-      try {
-        const [_protocol, cgPrices, pythPrices] = await Promise.all([fetchProtocol(), fetchCoinGeckoPrices(), fetchPythPrices()]);
-        const pythChanges = ENABLE_PYTH_24H
-          ? await Promise.all(
-              fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined))
-            )
-          : fallback.map(() => undefined);
-        const enriched = fallback.map((m, i) => {
-          const addr = m.marketAddress.toLowerCase();
-          const cgId = getCoinGeckoIdForMarket(m.marketAddress);
-          let indexPrice = "0";
-          let change24h: number | undefined = pythChanges[i];
-          if (cgId && cgPrices[cgId]) {
-            indexPrice = String(cgPrices[cgId].price);
-            if (change24h === undefined) change24h = cgPrices[cgId].change24h;
-          }
-          const pythPrice = pythPrices[addr];
-          if (pythPrice != null && pythPrice > 0) indexPrice = String(pythPrice);
-          return { ...m, indexPrice, lastPrice: indexPrice, volume24h: "0", ...(change24h !== undefined && { change24h }) };
-        });
-        marketsResponseCache = { data: enriched, fallback: true };
-        marketsResponseCachedAt = Date.now();
-        return res.json({ success: true, data: enriched, fallback: true } as ApiResponse<BackendMarket[]>);
-      } catch {
-        return res.json({ success: true, data: fallback, fallback: true } as ApiResponse<BackendMarket[]>);
-      }
+async function buildMarketsPayload(): Promise<MarketsPayload> {
+  let markets = await fetchMarkets();
+  if (markets.length === 0) {
+    const fallback = buildFallbackMarkets();
+    try {
+      const [_protocol, cgPrices, pythPrices] = await Promise.all([fetchProtocol(), fetchCoinGeckoPrices(), fetchPythPrices()]);
+      const pythChanges = ENABLE_PYTH_24H
+        ? await Promise.all(
+            fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined))
+          )
+        : fallback.map(() => undefined);
+      const enriched = fallback.map((m, i) => {
+        const addr = m.marketAddress.toLowerCase();
+        const cgId = getCoinGeckoIdForMarket(m.marketAddress);
+        let indexPrice = "0";
+        let change24h: number | undefined = pythChanges[i];
+        if (cgId && cgPrices[cgId]) {
+          indexPrice = String(cgPrices[cgId].price);
+          if (change24h === undefined) change24h = cgPrices[cgId].change24h;
+        }
+        const pythPrice = pythPrices[addr];
+        if (pythPrice != null && pythPrice > 0) indexPrice = String(pythPrice);
+        return { ...m, indexPrice, lastPrice: indexPrice, volume24h: "0", ...(change24h !== undefined && { change24h }) };
+      });
+      return { data: enriched, fallback: true };
+    } catch {
+      return { data: fallback, fallback: true };
     }
-    const activeSet = await getActiveMarketAddresses();
+  }
+  const activeSet = await getActiveMarketAddresses();
+  {
     if (activeSet && activeSet.size > 0) {
       markets = markets.filter((m) => {
         const addr = typeof m.marketAddress === "string" ? m.marketAddress : String(m.marketAddress);
@@ -130,10 +116,13 @@ router.get("/", async (_req: Request, res: Response) => {
       const addr = (typeof m.marketAddress === "string" ? m.marketAddress : String(m.marketAddress)).toLowerCase();
       const longSize = Number(m.totalLongSize);
       const shortSize = Number(m.totalShortSize);
+      // cost = size × price / 1e18 (both 1e18-scaled), so cost / size is already
+      // the human price — no further division. (Almost always overridden by the
+      // Pyth/CoinGecko prices below; this is only the no-oracle fallback.)
       let indexPrice =
-        longSize > 0 ? (Number(m.totalLongCost) / longSize / 1e12).toFixed(6) : "0";
+        longSize > 0 ? (Number(m.totalLongCost) / longSize).toFixed(6) : "0";
       const lastPrice =
-        shortSize > 0 ? (Number(m.totalShortCost) / shortSize / 1e12).toFixed(6) : "0";
+        shortSize > 0 ? (Number(m.totalShortCost) / shortSize).toFixed(6) : "0";
       const meta = getMarketMeta(m.marketAddress);
       const cgId = getCoinGeckoIdForMarket(m.marketAddress);
       let change24h: number | undefined = pythChanges[i];
@@ -166,38 +155,61 @@ router.get("/", async (_req: Request, res: Response) => {
         ...(change24h !== undefined && { change24h }),
       };
     });
-    marketsResponseCache = { data };
-    marketsResponseCachedAt = Date.now();
-    res.json({ success: true, data } as ApiResponse<BackendMarket[]>);
+    return { data };
+  }
+}
+
+/** Fallback enrichment used when the primary build throws entirely. */
+async function buildMarketsFallbackPayload(): Promise<MarketsPayload> {
+  const fallback = buildFallbackMarkets();
+  const [_protocol, cgPrRaw, pythPrRaw] = await Promise.all([
+    fetchProtocol().catch(() => null),
+    fetchCoinGeckoPrices().catch(() => ({})),
+    fetchPythPrices().catch(() => ({}))
+  ]);
+  const pythChanges = ENABLE_PYTH_24H
+    ? await Promise.all(
+        fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined))
+      )
+    : fallback.map(() => undefined);
+  const cg = cgPrRaw as Record<string, any>;
+  const pyth = pythPrRaw as Record<string, any>;
+  const enriched = fallback.map((m, i) => {
+    const addr = m.marketAddress.toLowerCase();
+    const cgId = getCoinGeckoIdForMarket(m.marketAddress);
+    let indexPrice = "0";
+    let change24h: number | undefined = pythChanges[i];
+    if (cgId && cg[cgId]) {
+      indexPrice = String(cg[cgId].price);
+      if (change24h === undefined) change24h = cg[cgId].change24h;
+    }
+    if (pyth[addr] != null && pyth[addr] > 0) indexPrice = String(pyth[addr]);
+    return { ...m, indexPrice, lastPrice: indexPrice, volume24h: "0", ...(change24h !== undefined && { change24h }) };
+  });
+  return { data: enriched, fallback: true };
+}
+
+router.get("/", async (_req: Request, res: Response) => {
+  // Ensure sync is fresh in serverless env
+  await checkAndSync();
+
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+
+  try {
+    // Single shared, single-flight cache across all callers/replicas.
+    const payload = await cacheGetOrSet(MARKETS_CACHE_KEY, MARKETS_RESPONSE_TTL_MS, buildMarketsPayload);
+    return res.json({
+      success: true,
+      data: payload.data,
+      ...(payload.fallback && { fallback: true }),
+    } as ApiResponse<BackendMarket[]>);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to fetch markets";
     try {
-      const fallback = buildFallbackMarkets();
-      const [_protocol, cgPrRaw, pythPrRaw] = await Promise.all([
-        fetchProtocol().catch(() => null),
-        fetchCoinGeckoPrices().catch(() => ({})),
-        fetchPythPrices().catch(() => ({}))
-      ]);
-      const pythChanges = ENABLE_PYTH_24H
-        ? await Promise.all(
-            fallback.map((m) => fetchPyth24hChange(m.marketAddress).catch(() => undefined))
-          )
-        : fallback.map(() => undefined);
-      const cg = cgPrRaw as Record<string, any>;
-      const pyth = pythPrRaw as Record<string, any>;
-      const enriched = fallback.map((m, i) => {
-        const addr = m.marketAddress.toLowerCase();
-        const cgId = getCoinGeckoIdForMarket(m.marketAddress);
-        let indexPrice = "0";
-        let change24h: number | undefined = pythChanges[i];
-        if (cgId && cg[cgId]) {
-          indexPrice = String(cg[cgId].price);
-          if (change24h === undefined) change24h = cg[cgId].change24h;
-        }
-        if (pyth[addr] != null && pyth[addr] > 0) indexPrice = String(pyth[addr]);
-        return { ...m, indexPrice, lastPrice: indexPrice, volume24h: "0", ...(change24h !== undefined && { change24h }) };
-      });
-      return res.json({ success: true, data: enriched, fallback: true } as ApiResponse<BackendMarket[]>);
+      const fallbackPayload = await buildMarketsFallbackPayload();
+      return res.json({ success: true, data: fallbackPayload.data, fallback: true } as ApiResponse<BackendMarket[]>);
     } catch {
       return res.json({ success: false, error: message, data: buildFallbackMarkets() } as ApiResponse<BackendMarket[]>);
     }

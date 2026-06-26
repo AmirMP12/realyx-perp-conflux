@@ -1,7 +1,7 @@
 import { expect, it, describe } from "@jest/globals";
 import { toDecimal, toDecimal18, toDecimalProduct36 } from "../utils/format.js";
 
-describe("Utility Coverage Restoration", () => {
+describe("format utilities", () => {
     it("toDecimal", () => {
         expect(toDecimal("1000000000000")).toBe("1.000000"); // 1e12
         expect(toDecimal(1000000000000)).toBe("1.000000");

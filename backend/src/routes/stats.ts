@@ -10,6 +10,8 @@ import { getActiveMarketAddresses } from "../services/activeMarkets.js";
 import type { ProtocolStats, DailyStat, ApiResponse } from "../types/index.js";
 import { toDecimal18 } from "../utils/format.js";
 import { checkAndSync } from "./sync.js";
+import { withProvider } from "../services/rpcPool.js";
+import { cacheGetOrSet } from "../services/cache.js";
 
 const router = Router();
 
@@ -23,17 +25,17 @@ async function fetchTvlFromChain(): Promise<string> {
     return cachedTvl;
   }
   const vaultAddress = (process.env.VAULT_CORE_ADDRESS ?? process.env.DEPLOYED_VAULT_CORE ?? "").trim();
-  const rpcUrl = (process.env.RPC_URL ?? "https://evmtestnet.confluxrpc.com").trim();
   if (!vaultAddress) return cachedTvl;
   try {
-    const chainId = parseInt(process.env.CHAIN_ID ?? "71", 10);
-    const provider = new ethers.JsonRpcProvider(rpcUrl, chainId);
-    const contract = new ethers.Contract(vaultAddress, [
-      "function totalAssets() view returns (uint256)",
-    ], provider);
-    const totalAssets = await contract.totalAssets();
-    // totalAssets returns USDC * 1e12, i.e. 18 decimals
-    const tvl = (Number(totalAssets) / 1e18).toFixed(6);
+    // Health-routed RPC with automatic failover across the pool.
+    const tvl = await withProvider(async (provider) => {
+      const contract = new ethers.Contract(vaultAddress, [
+        "function totalAssets() view returns (uint256)",
+      ], provider);
+      const totalAssets = await contract.totalAssets();
+      // totalAssets returns USDC * 1e12, i.e. 18 decimals
+      return (Number(totalAssets) / 1e18).toFixed(6);
+    });
     cachedTvl = tvl;
     tvlCachedAt = Date.now();
     return tvl;
@@ -43,11 +45,13 @@ async function fetchTvlFromChain(): Promise<string> {
   }
 }
 
-router.get("/", async (_req: Request, res: Response) => {
-  // Trigger background sync if data is stale (lazy sync)
-  await checkAndSync();
+type StatsData = ProtocolStats & { totalLiquidations: string; tvl: string };
 
-  try {
+const STATS_CACHE_KEY = "api:stats:v1";
+const STATS_CACHE_TTL_MS = 5_000;
+
+async function buildStatsPayload(): Promise<StatsData> {
+  {
     const [protocol, marketsResult, activeTraders24h, tvl] = await Promise.all([
       fetchProtocol(),
       fetchMarkets(),
@@ -86,18 +90,27 @@ router.get("/", async (_req: Request, res: Response) => {
     }
     /** Event count from indexer — not a wei amount; do not pass through `toDecimal`. */
     const totalLiquidations = protocol?.totalLiquidations ?? "0";
-    res.json({
-      success: true,
-      data: {
-        totalMarkets,
-        volume24h,
-        cumulativeVolumeUsd,
-        totalOpenInterest,
-        totalLiquidations,
-        activeTraders24h,
-        tvl,
-      } as ProtocolStats & { totalLiquidations: string; tvl: string },
-    } as ApiResponse<ProtocolStats & { totalLiquidations: string; tvl: string }>);
+    return {
+      totalMarkets,
+      volume24h,
+      cumulativeVolumeUsd,
+      totalOpenInterest,
+      totalLiquidations,
+      activeTraders24h,
+      tvl,
+    } as StatsData;
+  }
+}
+
+router.get("/", async (_req: Request, res: Response) => {
+  // Trigger background sync if data is stale (lazy sync)
+  await checkAndSync();
+
+  try {
+    // Shared, single-flight cache: identical for all users, recomputed at most
+    // once per TTL no matter how many concurrent requests arrive.
+    const data = await cacheGetOrSet(STATS_CACHE_KEY, STATS_CACHE_TTL_MS, buildStatsPayload);
+    res.json({ success: true, data } as ApiResponse<StatsData>);
   } catch (e) {
     const message = e instanceof Error ? e.message : "Failed to fetch stats";
     res.json({
@@ -111,7 +124,7 @@ router.get("/", async (_req: Request, res: Response) => {
         activeTraders24h: 0,
         tvl: "0",
       },
-    } as ApiResponse<ProtocolStats & { totalLiquidations: string; tvl: string }>);
+    } as ApiResponse<StatsData>);
   }
 });
 

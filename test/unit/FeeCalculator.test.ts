@@ -11,7 +11,7 @@ async function deployHarness() {
 
 const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 
-describe("FeeCalculator (unit + branches)", () => {
+describe("FeeCalculator", () => {
     describe("calculateTradingFee", () => {
         it("returns 0 when size is 0", async () => {
             const h = await loadFixture(deployHarness);

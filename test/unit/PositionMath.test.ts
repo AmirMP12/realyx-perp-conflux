@@ -4,9 +4,9 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { PRECISION, BPS } from "../helpers/constants";
 
 /**
- * Exhaustive unit + branch coverage for PositionMath via the
- * FeeCalculatorPositionMathHarness wrapper. Every branch in each pure
- * function is exercised, plus property/fuzz-style sweeps.
+ * Exhaustive unit tests for PositionMath via the
+ * FeeCalculatorPositionMathHarness wrapper, covering each pure function plus
+ * property/fuzz-style sweeps.
  */
 async function deployHarness() {
     const H = await ethers.getContractFactory("FeeCalculatorPositionMathHarness");
@@ -17,9 +17,9 @@ async function deployHarness() {
 
 const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 
-describe("PositionMath (unit + branches)", () => {
+describe("PositionMath", () => {
     describe("calculateUnrealizedPnL", () => {
-        it("returns 0 when size is 0 (early branch)", async () => {
+        it("returns 0 when size is 0", async () => {
             const h = await loadFixture(deployHarness);
             expect(await h.calcPnL(0, e18(100), e18(200), true)).to.equal(0n);
         });
@@ -127,18 +127,31 @@ describe("PositionMath (unit + branches)", () => {
     describe("calculateDynamicMaintenanceMargin", () => {
         it("base 5% for leverage <= 5x", async () => {
             const h = await loadFixture(deployHarness);
-            // leverage 3 (in 1e18) -> leverageMultiplier = 3 -> base 500 bps
+            // leverage 3 (in 1e18) -> leverageMultiplier = 3 -> base 500 bps.
+            // initial margin = size/3 = 333.3; 50% cap = 166.6 >> 50, so uncapped.
             expect(await h.calcDynamicMM(e18(1000), e18(3))).to.equal(e18(50));
         });
-        it("adds margin above 5x", async () => {
+        it("adds margin above 5x while below the initial-margin cap", async () => {
             const h = await loadFixture(deployHarness);
-            // leverage 15 -> additional = ((15-5)/5)*50 = 100 bps -> total 600 bps
-            expect(await h.calcDynamicMM(e18(1000), e18(15))).to.equal(e18(60));
+            // leverage 9 -> additional = ((9-5)/5)*50 = 0 bps (integer) -> 500 bps = 50.
+            // initial margin = size/9 = 111.1; 50% cap = 55.5 > 50, so uncapped.
+            expect(await h.calcDynamicMM(e18(1000), e18(9))).to.equal(e18(50));
         });
-        it("caps at 20% (2000 bps) for extreme leverage", async () => {
+        it("caps maintenance at 50% of initial margin for high leverage (keeps positions openable)", async () => {
             const h = await loadFixture(deployHarness);
-            // leverage 1000 -> additional huge -> capped at 2000 bps => 200
-            expect(await h.calcDynamicMM(e18(1000), e18(1000))).to.equal(e18(200));
+            // leverage 15 -> raw curve = 600 bps = 60. But initial margin = size/15
+            // = 66.67, and the maintenance cap is 50% of that = 33.33. The cap
+            // binds so a freshly-opened 15x position has health ~2.0 at entry
+            // (previously the raw 600 bps exceeded the 1/lev budget for higher
+            // leverage and made positions un-openable).
+            const expected = (e18(1000) * 5000n) / 15n / 10000n; // (size/lev) * 50%
+            expect(await h.calcDynamicMM(e18(1000), e18(15))).to.equal(expected);
+        });
+        it("caps at 50% of initial margin for extreme leverage", async () => {
+            const h = await loadFixture(deployHarness);
+            // leverage 100x -> initial margin = size/100; maintenance = 50% of it.
+            const expected = (e18(1000) * 5000n) / 100n / 10000n;
+            expect(await h.calcDynamicMM(e18(1000), e18(100))).to.equal(expected);
         });
     });
 
@@ -168,8 +181,8 @@ describe("PositionMath (unit + branches)", () => {
         it("returns sentinel (uint128 max) for very low long leverage with tiny size", async () => {
             const h = await loadFixture(deployHarness);
             // With size 0, mmFraction = DEFAULT/BPS = 0.05e18; at leverage 1x, inverseL=1e18.
-            // PRECISION(1e18)+0.05e18 > 1e18, so NOT sentinel. To force the sentinel branch
-            // (PRECISION + mmFraction <= inverseL) we need leverage < 1x where inverseL > 1e18.
+            // PRECISION(1e18)+0.05e18 > 1e18, so NOT sentinel. To force the sentinel
+            // result (PRECISION + mmFraction <= inverseL) we need leverage < 1x where inverseL > 1e18.
             // leverage 0.5x (5e17) => inverseL = 2e18 >= 1.05e18 -> sentinel.
             const lp = await h.calcLiqPrice(e18(100), e18(1) / 2n, e18(1000), true);
             expect(lp).to.equal((1n << 128n) - 1n);

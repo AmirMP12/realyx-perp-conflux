@@ -6,15 +6,15 @@ import { usdc, TRADING_CORE_ROLE, GUARDIAN_ROLE } from "../helpers/constants";
 
 /**
  * VaultCore: LP deposits/withdrawals, insurance fund, bad-debt claims,
- * emergency mode, donations, rebates, exposure caps. Branch-focused.
+ * emergency mode, donations, rebates, exposure caps.
  */
 describe("VaultCore", () => {
     async function fundedVault() {
         const d = await deployProtocol();
         // mint USDC to LPs and traders
         for (const s of [d.lp, d.alice, d.bob]) {
-            await d.usdc.mintTo(s.address, usdc(50_000_000));
-            await d.usdc.connect(s).approve(await d.vault.getAddress(), ethers.MaxUint256);
+            await d.usdt0.mintTo(s.address, usdc(50_000_000));
+            await d.usdt0.connect(s).approve(await d.vault.getAddress(), ethers.MaxUint256);
         }
         return d;
     }
@@ -26,7 +26,7 @@ describe("VaultCore", () => {
             expect(await d.vault.insTotalShares()).to.equal(ethers.parseUnits("1", 18));
             expect(await d.vault.minInitialDeposit()).to.equal(usdc(1000));
             expect(await d.vault.treasury()).to.equal(d.treasury.address);
-            expect(await d.vault.asset()).to.equal(await d.usdc.getAddress());
+            expect(await d.vault.asset()).to.equal(await d.usdt0.getAddress());
         });
     });
 
@@ -81,7 +81,7 @@ describe("VaultCore", () => {
             await d.vault.connect(d.lp).deposit(usdc(1_000_000), d.lp.address);
             await d.vault.connect(d.alice).deposit(usdc(1_000_000), d.alice.address);
             // owner=lp has plenty of shares; alice (msg.sender) withdraws a small
-            // amount against lp -> passes InsufficientShares, hits NotOwner branch.
+            // amount against lp -> passes the share check, so it fails with NotOwner.
             await expect(
                 d.vault.connect(d.alice).withdraw(ethers.parseUnits("1", 18), d.alice.address, d.lp.address),
             ).to.be.revertedWithCustomError(d.vault, "NotOwner");
@@ -90,9 +90,9 @@ describe("VaultCore", () => {
             const d = await loadFixture(fundedVault);
             await d.vault.connect(d.lp).deposit(usdc(1_000_000), d.lp.address);
             const sh = await d.vault.lpBalanceOf(d.lp.address);
-            const balBefore = await d.usdc.balanceOf(d.lp.address);
+            const balBefore = await d.usdt0.balanceOf(d.lp.address);
             await d.vault.connect(d.lp).withdraw(sh / 2n, d.lp.address, d.lp.address);
-            expect(await d.usdc.balanceOf(d.lp.address)).to.be.greaterThan(balBefore);
+            expect(await d.usdt0.balanceOf(d.lp.address)).to.be.greaterThan(balBefore);
         });
         it("reverts withdraw during emergency mode", async () => {
             const d = await loadFixture(fundedVault);
@@ -125,9 +125,9 @@ describe("VaultCore", () => {
             // not mature yet -> processed count 0
             expect(await d.vault.processWithdrawals.staticCall([reqId])).to.equal(0n);
             await time.increase(24 * 60 * 60 + 1);
-            const balBefore = await d.usdc.balanceOf(d.lp.address);
+            const balBefore = await d.usdt0.balanceOf(d.lp.address);
             await d.vault.processWithdrawals([reqId]);
-            expect(await d.usdc.balanceOf(d.lp.address)).to.be.greaterThan(balBefore);
+            expect(await d.usdt0.balanceOf(d.lp.address)).to.be.greaterThan(balBefore);
         });
         it("allows cancelling a queued withdrawal", async () => {
             const d = await loadFixture(fundedVault);
@@ -253,9 +253,9 @@ describe("VaultCore", () => {
             const sh = await d.vault.lpBalanceOf(d.lp.address);
             await d.vault.connect(d.guardian).triggerEmergencyMode();
             await time.increase(7 * 24 * 60 * 60 + 1);
-            const balBefore = await d.usdc.balanceOf(d.lp.address);
+            const balBefore = await d.usdt0.balanceOf(d.lp.address);
             await d.vault.connect(d.lp).emergencyEscapeWithdraw(sh);
-            expect(await d.usdc.balanceOf(d.lp.address)).to.be.greaterThan(balBefore);
+            expect(await d.usdt0.balanceOf(d.lp.address)).to.be.greaterThan(balBefore);
         });
     });
 
@@ -285,7 +285,7 @@ describe("VaultCore", () => {
             const d = await loadFixture(fundedVault);
             await d.vault.connect(d.lp).deposit(usdc(1_000_000), d.lp.address);
             // donate by direct transfer
-            await d.usdc.connect(d.alice).transfer(await d.vault.getAddress(), usdc(10_000));
+            await d.usdt0.connect(d.alice).transfer(await d.vault.getAddress(), usdc(10_000));
             const donated = await d.vault.recordDonation.staticCall();
             expect(donated).to.equal(usdc(10_000));
             await d.vault.recordDonation();
@@ -327,7 +327,7 @@ describe("VaultCore", () => {
     describe("disabled functions", () => {
         it("repayWithCollateral reverts (disabled)", async () => {
             const d = await loadFixture(fundedVault);
-            // Grant alice TRADING_CORE_ROLE to reach the revert branch
+            // Grant alice TRADING_CORE_ROLE so the call reaches the disabled revert
             await d.vault.connect(d.admin).grantRole(TRADING_CORE_ROLE, d.alice.address);
             await expect(
                 d.vault.connect(d.alice).repayWithCollateral(0, d.alice.address, true, 0, d.alice.address, 0),

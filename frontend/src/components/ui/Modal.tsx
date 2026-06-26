@@ -73,7 +73,7 @@ export function Modal({
                                     type="button"
                                     onClick={onClose}
                                     aria-label="Close dialog"
-                                    className="shrink-0 -mr-1 -mt-1 p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-[var(--bg-tertiary)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
+                                    className="shrink-0 -mr-1 -mt-1 p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-[var(--bg-tertiary)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                                 >
                                     <X className="w-5 h-5" />
                                 </button>

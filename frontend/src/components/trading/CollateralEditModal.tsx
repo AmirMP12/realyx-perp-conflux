@@ -124,7 +124,7 @@ export function CollateralEditModal({ isOpen, onClose, position }: CollateralEdi
                                     className="w-full min-w-0 bg-transparent border-0 rounded-xl py-3 pl-4 pr-16 font-mono text-sm text-text-primary placeholder:text-text-muted/50 outline-none ring-0"
                                 />
                                 <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-text-muted">
-                                    USDC
+                                    USDT0
                                 </span>
                             </div>
                             {withdrawInvalid && (

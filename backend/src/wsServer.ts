@@ -4,12 +4,11 @@
  */
 
 import { WebSocketServer, WebSocket } from "ws";
-import { IncomingMessage } from "http";
+import { IncomingMessage, Server } from "http";
 import { config } from "./config.js";
-import { fetchPythPrices } from "./services/pyth.js";
+import { fetchPythPrices, fetchPyth24hChange } from "./services/pyth.js";
 import { fetchMarkets, fetchProtocol } from "./services/indexer.js";
 import { getActiveMarketAddresses } from "./services/activeMarkets.js";
-import { toDecimal } from "./utils/format.js";
 import { setWsConnections } from "./middleware/metrics.js";
 
 const POLL_MS = process.env.NODE_ENV === "test" ? 500 : 15_000; // fast polling for tests
@@ -54,27 +53,18 @@ export function broadcastKeeperFailure(data: { orderId: string; traderAddress: s
   });
 }
 
-const MARKET_META: Record<string, { name: string; symbol: string }> = {
-  "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c": { name: "Conflux", symbol: "CFX-USD" },
-  "0x986a383f6de4a24dd3f524f0f93546229b58265f": { name: "Bitcoin", symbol: "BTC-USD" },
-  "0x886a383f6de4a24dd3f524f0f93546229b58265f": { name: "Ethereum", symbol: "ETH-USD" },
-  "0x286a383f6de4a24dd3f524f0f93546229b58265f": { name: "Tether Gold", symbol: "XAUT-USD" },
-  "0x786a383f6de4a24dd3f524f0f93546229b58265f": { name: "NVIDIA", symbol: "NVDAX-USD" },
-  "0x686a383f6de4a24dd3f524f0f93546229b58265f": { name: "Tesla", symbol: "TSLAX-USD" },
-  "0x586a383f6de4a24dd3f524f0f93546229b58265f": { name: "Meta", symbol: "METAX-USD" },
-  "0x486a383f6de4a24dd3f524f0f93546229b58265f": { name: "Circle", symbol: "CRCLX-USD" },
-  "0x386a383f6de4a24dd3f524f0f93546229b58265f": { name: "Alphabet", symbol: "GOOGLX-USD" },
-  "0x116a383f6de4a24dd3f524f0f93546229b58265f": { name: "MicroStrategy", symbol: "MSTRX-USD" },
-};
-
-
-function _getMeta(addr: string) {
-  const key = addr.toLowerCase();
-  return MARKET_META[key] ?? { name: addr.slice(0, 10), symbol: addr.slice(0, 10) };
-}
-
-export function startWsServer() {
-  const wss = new WebSocketServer({ port: config.wsPort });
+/**
+ * Start the realtime WebSocket broadcaster.
+ *
+ * On a single-port host (Railway, Heroku, …) only `$PORT` is routable, so pass
+ * an existing HTTP `server` to attach the WS upgrade handler to that same port
+ * (see `wsWorker.ts`). When no server is supplied the broadcaster binds its own
+ * `config.wsPort`, which suits local dev and multi-port hosts.
+ */
+export function startWsServer(opts: { server?: Server } = {}) {
+  const wss = opts.server
+    ? new WebSocketServer({ server: opts.server })
+    : new WebSocketServer({ port: config.wsPort });
   const clients = new Set<WebSocket>();
 
   wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
@@ -88,6 +78,18 @@ export function startWsServer() {
     ws.on("message", (raw: any) => {
       try {
         const msg = JSON.parse(raw.toString());
+        // Application-level liveness: browsers can't reply to protocol-level
+        // pings, so the client sends { type: "ping" } and expects a pong back.
+        if (msg.type === "ping") {
+          if (ws.readyState === 1) {
+            try {
+              ws.send(JSON.stringify({ type: "pong", ts: msg.ts ?? Date.now() }));
+            } catch {
+              /* ignore send failure; client heartbeat will reconnect */
+            }
+          }
+          return;
+        }
         if (msg.type === "subscribe" && Array.isArray(msg.channels)) {
           (ws as any).channels = msg.channels;
         }
@@ -178,11 +180,32 @@ export function startWsServer() {
       const addr = String(m.marketAddress).toLowerCase();
       const price = pythPrices[addr];
       if (price != null && price > 0) {
+        // Real 24h change (Pyth Benchmarks, internally cached ~5min) instead of
+        // the previous hard-coded 0 which made every ticker show a flat 0.00%.
+        // Best-effort: never let an enrichment hiccup drop the price tick.
+        let change24h = 0;
+        try {
+          const c = await fetchPyth24hChange(addr);
+          if (typeof c === "number" && Number.isFinite(c)) change24h = c;
+        } catch {
+          /* keep change24h = 0; price still broadcasts */
+        }
         broadcast("price_update", {
           price,
           marketAddress: addr,
-          change24h: 0,
+          change24h,
         }, addr);
+      }
+
+      // Funding channel: previously defined in CHANNEL_MAP but never emitted, so
+      // the live funding countdown only ever moved on REST polling. Push the
+      // indexed instantaneous funding rate so subscribers update in real time.
+      // `fetchMarkets` carries the raw 1e18-scaled rate; normalize to the same
+      // human scale the REST `/api/markets` route emits so the two agree.
+      const rawFunding = Number(m.fundingRate);
+      if (Number.isFinite(rawFunding)) {
+        const rate = Number((rawFunding / 1e18).toFixed(6));
+        broadcast("funding_update", { rate, marketAddress: addr }, addr);
       }
     }
 
@@ -190,10 +213,14 @@ export function startWsServer() {
     for (const m of filtered) {
       totalOI += Number(m.totalLongSize) + Number(m.totalShortSize);
     }
+    // `volume24hUsd` / `totalVolumeUsd` from the indexer are already human USD
+    // (the SQL divides by 1e18), so emit them as-is — matching the REST `/stats`
+    // route. Open interest sums raw 1e18-scaled sizes, so normalize by 1e18
+    // (not 1e12) so WS and REST report the same numbers.
     broadcast("stats_update", {
-      volume24h: protocol?.volume24hUsd ? toDecimal(protocol.volume24hUsd) : "0",
-      cumulativeVolumeUsd: protocol?.totalVolumeUsd ? toDecimal(protocol.totalVolumeUsd) : "0",
-      totalOpenInterest: (totalOI / 1e12).toFixed(6),
+      volume24h: protocol?.volume24hUsd ? Number(protocol.volume24hUsd).toFixed(6) : "0",
+      cumulativeVolumeUsd: protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0",
+      totalOpenInterest: (totalOI / 1e18).toFixed(6),
       totalMarkets: filtered.length,
     });
   }
@@ -209,7 +236,10 @@ export function startWsServer() {
   const interval = setInterval(poll, POLL_MS);
   poll();
 
-  if (!isTestEnv) console.info(`[ws] Server listening on port ${config.wsPort}`);
+  if (!isTestEnv) {
+    const where = opts.server ? "attached to HTTP server ($PORT)" : `port ${config.wsPort}`;
+    console.info(`[ws] Server listening (${where})`);
+  }
   return () => {
     clearInterval(interval);
     clearInterval(heartbeatInterval);

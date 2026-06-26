@@ -159,7 +159,7 @@ export function usePythOnChainUpdater() {
                 try {
                     await publicClient.waitForTransactionReceipt({ hash });
                     toast.success('On-chain Pyth prices updated.', { id: toastId });
-                } catch (err) {
+                } catch {
                     toast.error('Price update failed or timed out.', { id: toastId });
                     return false;
                 }

@@ -2,7 +2,7 @@ export type NetworkName = "hardhat" | "localhost" | "conflux" | "confluxTestnet"
 
 export interface NetworkAddresses {
     pyth: string;
-    usdc: string;
+    usdt0: string;
 }
 
 /** Real Pyth contract per network. */
@@ -13,7 +13,7 @@ const PYTH_ADDRESSES: Partial<Record<NetworkName, string>> = {
     localhost: "0xDd24F84d36BF92C65F92307595335bdFab5Bbd21",
 };
 
-const USDC_CONFLUX: Partial<Record<NetworkName, string>> = {
+const USDT0_CONFLUX: Partial<Record<NetworkName, string>> = {
     conflux: "0x6963EfED0aB40F6C3d478148E8B899E763f24625",
 };
 
@@ -37,9 +37,9 @@ export function hasRealPythForDeploy(network: NetworkName): boolean {
     return getPythAddressForDeploy(network) !== null;
 }
 
-export function getUsdcAddress(network: NetworkName, mockUsdcAddress?: string): string | null {
-    if (mockUsdcAddress) return mockUsdcAddress;
-    const addr = USDC_CONFLUX[network];
+export function getUsdt0Address(network: NetworkName, mockUsdt0Address?: string): string | null {
+    if (mockUsdt0Address) return mockUsdt0Address;
+    const addr = USDT0_CONFLUX[network];
     return addr ?? null;
 }
 
@@ -49,12 +49,12 @@ export function getTreasuryAddress(): string {
     return addr;
 }
 
-export function getUsdcOrThrow(network: NetworkName, mockUsdcAddress?: string): string {
-    const addr = getUsdcAddress(network, mockUsdcAddress);
+export function getUsdt0OrThrow(network: NetworkName, mockUsdt0Address?: string): string {
+    const addr = getUsdt0Address(network, mockUsdt0Address);
     if (addr) return addr;
-    const envUsdc = process.env.USDC_ADDRESS;
-    if (envUsdc) return envUsdc;
-    throw new Error(`USDC not configured for ${network}. Deploy MockUSDC (testnet) or set USDC_ADDRESS in .env`);
+    const envUsdt0 = process.env.USDT0_ADDRESS;
+    if (envUsdt0) return envUsdt0;
+    throw new Error(`USDT0 not configured for ${network}. Deploy MockUSDT0 (testnet) or set USDT0_ADDRESS in .env`);
 }
 
 export function requireEnv(name: string): string {

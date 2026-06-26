@@ -5,7 +5,7 @@ import { deployProtocol } from "../helpers/fixture";
 import { usdc, TRADING_CORE_ROLE, GUARDIAN_ROLE } from "../helpers/constants";
 
 /**
- * Advanced VaultCore coverage: borrow/repay/exposure, bad-debt cover + claims,
+ * Exercises VaultCore borrow/repay/exposure, bad-debt cover and claims,
  * referral rebates, surplus distribution, donation sweeps, and rate limits.
  * We impersonate the TradingCore role on a fresh signer so the vault's
  * TradingCore-gated entrypoints can be driven directly.
@@ -18,8 +18,8 @@ async function fundedVault() {
     await d.vault.connect(d.admin).grantRole(TRADING_CORE_ROLE, coreEoa.address);
 
     for (const s of [d.lp, d.alice, d.bob, coreEoa]) {
-        await d.usdc.mintTo(s.address, usdc(50_000_000));
-        await d.usdc.connect(s).approve(await d.vault.getAddress(), ethers.MaxUint256);
+        await d.usdt0.mintTo(s.address, usdc(50_000_000));
+        await d.usdt0.connect(s).approve(await d.vault.getAddress(), ethers.MaxUint256);
     }
     // seed LP + insurance
     await d.vault.connect(d.lp).deposit(usdc(5_000_000), d.lp.address);
@@ -94,21 +94,21 @@ describe("VaultCore — advanced (TradingCore-gated paths)", () => {
             const { d, coreEoa } = await loadFixture(fundedVault);
             // accrue large fees so surplus > target
             await d.vault.connect(coreEoa).receiveFees(usdc(500_000));
-            const treasuryBefore = await d.usdc.balanceOf(d.treasury.address);
+            const treasuryBefore = await d.usdt0.balanceOf(d.treasury.address);
             await d.vault.distributeSurplus();
             // treasury may receive a share if surplus above target
-            expect(await d.usdc.balanceOf(d.treasury.address)).to.be.greaterThanOrEqual(treasuryBefore);
+            expect(await d.usdt0.balanceOf(d.treasury.address)).to.be.greaterThanOrEqual(treasuryBefore);
         });
     });
 
     describe("bad debt cover + claims", () => {
         it("coverBadDebt pays out up to insurance assets", async () => {
             const { d, coreEoa } = await loadFixture(fundedVault);
-            const coreBalBefore = await d.usdc.balanceOf(coreEoa.address);
+            const coreBalBefore = await d.usdt0.balanceOf(coreEoa.address);
             const covered = await d.vault.connect(coreEoa).coverBadDebt.staticCall(usdc(5_000), 1);
             expect(covered).to.be.greaterThan(0n);
             await d.vault.connect(coreEoa).coverBadDebt(usdc(5_000), 1);
-            expect(await d.usdc.balanceOf(coreEoa.address)).to.be.greaterThanOrEqual(coreBalBefore);
+            expect(await d.usdt0.balanceOf(coreEoa.address)).to.be.greaterThanOrEqual(coreBalBefore);
         });
 
         it("large bad debt goes through governance claim + payout", async () => {
@@ -155,9 +155,9 @@ describe("VaultCore — advanced (TradingCore-gated paths)", () => {
         it("claimRebates pays the referrer and zeroes balance", async () => {
             const { d, coreEoa } = await loadFixture(fundedVault);
             await d.vault.connect(coreEoa).accrueRebate(d.bob.address, usdc(100));
-            const before = await d.usdc.balanceOf(d.bob.address);
+            const before = await d.usdt0.balanceOf(d.bob.address);
             await d.vault.connect(d.bob).claimRebates(d.bob.address);
-            expect(await d.usdc.balanceOf(d.bob.address)).to.equal(before + usdc(100));
+            expect(await d.usdt0.balanceOf(d.bob.address)).to.equal(before + usdc(100));
             expect(await d.vault.claimableRebates(d.bob.address)).to.equal(0n);
         });
         it("claimRebates reverts when nothing to claim", async () => {

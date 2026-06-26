@@ -15,17 +15,20 @@ Operator-focused procedures: **versioned addresses**, **roles**, **upgrades**, *
 
 | Key | Address (Conflux eSpace **testnet**, chain id **71**) |
 |-----|--------------------------------------------------------|
-| `tradingCore` | `0x64f277f73bfc81Ad80286a4266c0E0613d867Df3` |
-| `vaultCore` | `0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714` |
-| `oracleAggregator` | `0x89cC8eAbF2e967d81FD04D1023298A3bDcE67450` |
-| `positionToken` | `0x4368b5741A105c1ACE50ad98581fDa050685fa8B` |
-| `tradingCoreViews` | `0x944d4030CEc4Bf552d8E46dC684B70B100Eb0b86` |
-| `marketCalendar` | `0xD3c20cca25Dd8189ed6115A1b65192d831ca732F` |
-| `dividendManager` | `0xa5bd07176Ef68D1ec51BfCCD911d3B586a45c54F` |
-| `complianceManager` | `0xa79185D94013FaC946Ce80fDbB8E781200A28F7e` |
-| `dividendKeeper` | `0x28B46F65c26BDC6b9c77603B092EDdcd7EADEC82` |
-| `usdc` / `mockUsdc` | `0xa56Ba38f3c820D6cf31a68CBBD0d25c0F5644d35` |
+| `tradingCore` | `0xc8A6585dFBe2833ed093E557D36DC8Fe136a8c76` |
+| `vaultCore` | `0x98E011A8782aF36C5Ad6051bC54B86a7c0705F67` |
+| `oracleAggregator` | `0x9d027ab66F396176C188946cE49BA9061679e6a9` |
+| `positionToken` | `0xF520CC4B305553A9b6D391571c303E45AacC178c` |
+| `tradingCoreViews` | `0xb5c01fb09F2B9f62A4907dDB41c216419e79AbC5` |
+| `marketCalendar` | `0xDE6a4fa0e8DE4D3f0792010Fd49AbdeF8915529e` |
+| `dividendManager` | `0xA84104C6E2Ed7455a606A3439aF80863112e9B0b` |
+| `complianceManager` | `0xD694F0BC86e1f24439037A221f7c4e3beDB781D7` |
+| `dividendKeeper` | `0x5CCdb637C1Fa5D06D7F666BDBb62F3Ad12A58010` |
+| `usdt0` / `mockUsdt0` | `0x85B9BA60D6Aef728c0Ea9C9f6709D31707dfC73A` |
 | `pyth` | `0xDd24F84d36BF92C65F92307595335bdFab5Bbd21` |
+| `collateralRegistry` | `0x0f5cAC8a3BC4E61ABA1d547D9A2C1DFA5A087054` |
+| `copyRegistry` | `0xf09b2fa210Fe2dbE17287B331E7A93c58Bb5A001` |
+| `referralRegistry` | `0x5FbD3aBfBdB667e543B23B80f34Fa7167C1514a8` |
 
 **Mainnet:** add `deployment/conflux.json` (or equivalent) after first mainnet deploy and paste addresses there; keep README in sync or link only to JSON.
 
@@ -203,7 +206,7 @@ npm run export-abi && npm run sync:frontend-abi
 **Steps**
 
 1. Guardian or admin: `pause()` on **TradingCore** (and optionally **VaultCore** if LP flows must stop).
-2. Communicate status (status page / Discord).
+2. Communicate status (status page / Telegram).
 3. Root-cause: oracle, vault TVL, exploit suspicion.
 4. Admin: `unpause()` after fix.
 
@@ -278,7 +281,7 @@ Document each change (tx hash, old/new threshold) in your ops log.
 - **Linked libraries** — `TradingCore` uses `unsafeAllowLinkedLibraries`; rotating a library is equivalent to a logic upgrade — document the change set and run full regression before mainnet.
 - **UUPS upgrades** — `_authorizeUpgrade` is `onlyAdmin` with no on-chain timelock; use a multisig + off-chain 48–72h hold before executing upgrades.
 - **TWAP warm-up** — Opens/closes/SL-TP need ≥ `MIN_TWAP_DATA_POINTS` (2) keeper `recordPricePoint` samples (~10 minutes at a 5-minute cadence). Pass `priceUpdateData` on `executeOrder` and `executeStopLossTakeProfit`.
-- **Insurance pool** — First stake must meet `minInitialInsuranceDeposit`; shares are 18-decimal scaled (see audit C-01).
+- **Insurance pool** — First stake must meet `minInitialInsuranceDeposit`; shares are 18-decimal scaled.
 - **Test artifacts** — Do not deploy `contracts/test/*.sol` to production networks.
 
 ---

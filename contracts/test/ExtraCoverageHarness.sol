@@ -30,8 +30,13 @@ contract ExtraCoverageHarness {
         uint256 requiredUsdcValue,
         bool useLiquidationHaircut
     ) external view returns (address token, uint256 tokenAmount, uint256 usdcValue) {
-        CollateralRouterLib.SelectionResult memory r =
-            CollateralRouterLib.selectBestCollateral(user, tokens, registry, requiredUsdcValue, useLiquidationHaircut);
+        CollateralRouterLib.SelectionResult memory r = CollateralRouterLib.selectBestCollateral(
+            user,
+            tokens,
+            registry,
+            requiredUsdcValue,
+            useLiquidationHaircut
+        );
         return (r.token, r.tokenAmount, r.usdcValue);
     }
 
@@ -42,8 +47,13 @@ contract ExtraCoverageHarness {
         uint256 requiredUsdcValue,
         bool useLiquidationHaircut
     ) external view returns (uint256 totalUsdcValue, uint256 count) {
-        DataTypes.BasketAllocation memory a =
-            CollateralRouterLib.selectBestCollateralBasket(user, tokens, registry, requiredUsdcValue, useLiquidationHaircut);
+        DataTypes.BasketAllocation memory a = CollateralRouterLib.selectBestCollateralBasket(
+            user,
+            tokens,
+            registry,
+            requiredUsdcValue,
+            useLiquidationHaircut
+        );
         return (a.totalUsdcValue, a.tokens.length);
     }
 
@@ -78,7 +88,7 @@ contract ExtraCoverageHarness {
             openTimestamp: uint40(block.timestamp),
             trailingStopBps: 0,
             flags: flags,
-            collateralType: DataTypes.CollateralType.USDC,
+            collateralType: DataTypes.CollateralType.USDT0,
             state: state,
             collateralToken: address(0)
         });
@@ -87,6 +97,12 @@ contract ExtraCoverageHarness {
 
     function setCollateral(uint256 id, uint256 amount) external {
         _positionCollateral[id].amount = amount;
+    }
+
+    /// @dev Zero a position's stored leverage to exercise PortfolioRiskLib's
+    ///      flat-config maintenance-bps fallback (`_effectiveMmBps`).
+    function setPositionLeverage(uint256 id, uint128 leverage) external {
+        _positions[id].leverage = leverage;
     }
 
     function getAccountRisk(
@@ -122,6 +138,50 @@ contract ExtraCoverageHarness {
         return PortfolioRiskLib.validateOpenPosition(snapshot, cfg);
     }
 
+    // ── PositionTriggersLib (state-guard branches) ──
+    function triggerSetStopLoss(
+        uint256 id,
+        uint256 sl,
+        address positionTokenAddr,
+        address oracleAggregatorAddr,
+        uint256 maxOracleUncertainty
+    ) external {
+        PositionTriggersLib.setStopLoss(
+            id,
+            sl,
+            positionTokenAddr,
+            oracleAggregatorAddr,
+            maxOracleUncertainty,
+            _positions
+        );
+    }
+
+    function triggerSetTakeProfit(
+        uint256 id,
+        uint256 tp,
+        address positionTokenAddr,
+        address oracleAggregatorAddr,
+        uint256 maxOracleUncertainty
+    ) external {
+        PositionTriggersLib.setTakeProfit(
+            id,
+            tp,
+            positionTokenAddr,
+            oracleAggregatorAddr,
+            maxOracleUncertainty,
+            _positions
+        );
+    }
+
+    function triggerSetTrailingStop(
+        uint256 id,
+        uint256 bps,
+        uint256 maxTrailingBps,
+        address positionTokenAddr
+    ) external {
+        PositionTriggersLib.setTrailingStop(id, bps, maxTrailingBps, positionTokenAddr, _positions);
+    }
+
     // ── RateLimitLib ──
     function checkOnly(address actor, uint256 size, uint256 threshold, uint256 interval) external view {
         RateLimitLib.checkOnly(actor, size, threshold, interval, block.timestamp, _lastLargeActionTime);
@@ -136,7 +196,11 @@ contract ExtraCoverageHarness {
     }
 
     // ── PositionMath trailing/anchor ──
-    function updateTrailingAnchor(bool isLong, uint256 currentPrice, uint256 anchorPrice) external pure returns (uint256) {
+    function updateTrailingAnchor(
+        bool isLong,
+        uint256 currentPrice,
+        uint256 anchorPrice
+    ) external pure returns (uint256) {
         return PositionMath.updateTrailingAnchor(isLong, currentPrice, anchorPrice);
     }
 
@@ -152,10 +216,7 @@ contract ExtraCoverageHarness {
         return PositionMath.shouldTriggerTrailingStop(p, currentPrice, anchorPrice);
     }
 
-    function calculateLiquidationFeeTiered(
-        uint256 size,
-        uint256 healthFactor
-    ) external pure returns (uint256) {
+    function calculateLiquidationFeeTiered(uint256 size, uint256 healthFactor) external pure returns (uint256) {
         DataTypes.LiquidationFeeTiers memory tiers = DataTypes.LiquidationFeeTiers({
             nearThresholdBps: 250,
             mediumRiskBps: 500,

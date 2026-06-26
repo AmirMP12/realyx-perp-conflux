@@ -7,7 +7,7 @@ describe("CoinGecko Service Resilience", () => {
         (global as any).fetch = jest.fn();
     });
 
-    it("hits every function in coingecko.ts", async () => {
+    it("resolves market ids, fetches prices and history, and recovers from failed requests", async () => {
         // 1. getCoinGeckoIdForMarket
         coingecko.getCoinGeckoIdForMarket("0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c");
         coingecko.getCoinGeckoIdForMarket("0x000");
@@ -23,7 +23,7 @@ describe("CoinGecko Service Resilience", () => {
             }]
         });
         await coingecko.fetchCoinGeckoPrices();
-        // Hit cache (line 51)
+        // served from cache
         await coingecko.fetchCoinGeckoPrices();
 
         // 3. fetchPriceHistory (and the map function at line 91)
@@ -33,7 +33,7 @@ describe("CoinGecko Service Resilience", () => {
         });
         await coingecko.fetchPriceHistory("conflux-token", 1);
         
-        // Error paths for final branch coverage
+        // failed requests return safe fallbacks
         (global as any).fetch.mockResolvedValueOnce({ ok: false });
         await coingecko.fetchCoinGeckoPrices();
         

@@ -268,7 +268,7 @@ describe('PositionTable', () => {
         });
     });
 
-    describe('PnL Display Branches', () => {
+    describe('PnL Display', () => {
         it('renders pnl percentage and absolute value based on settings', () => {
             const { rerender } = renderComp();
             expect(screen.getByText('+10.0%')).toBeInTheDocument();

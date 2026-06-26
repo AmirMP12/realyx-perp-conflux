@@ -11,12 +11,19 @@ vi.mock('../components/ProtocolStatsBar', () => ({
     ProtocolStatsBar: () => <div data-testid="mock-stats-bar">Stats Bar</div>,
 }));
 
+// Onboarding checklist reads wallet balance via deep wagmi hooks; stub it so the
+// App-level layout/routing assertions don't need a full WagmiProvider.
+vi.mock('../components/OnboardingChecklist', () => ({
+    OnboardingChecklist: () => null,
+}));
+
 vi.mock('wagmi', async (importOriginal) => {
     const actual = await importOriginal<any>();
     return {
         ...actual,
         useAccount: vi.fn(),
         useChainId: vi.fn(),
+        useSwitchChain: vi.fn(() => ({ switchChain: vi.fn() })),
     };
 });
 
@@ -24,12 +31,12 @@ vi.mock('../hooks/useBackend', () => ({
     useMarkets: vi.fn(),
 }));
 
-vi.mock('react-hot-toast', () => ({
-    default: {
-        dismiss: vi.fn(),
-        error: vi.fn(),
-    },
-}));
+vi.mock('react-hot-toast', () => {
+    const fn: any = vi.fn();
+    fn.dismiss = vi.fn();
+    fn.error = vi.fn();
+    return { default: fn };
+});
 
 const routerFuture = { v7_startTransition: true, v7_relativeSplatPath: true };
 
@@ -58,15 +65,17 @@ describe('App', () => {
 
     it('shows network warning when on wrong chain', async () => {
         (useChainId as any).mockReturnValue(1); // Wrong chain (Ethereum Mainnet)
-        
+
         render(
             <MemoryRouter future={routerFuture}>
                 <App />
             </MemoryRouter>
         );
-        
-        expect(toast.error).toHaveBeenCalledWith(
-            expect.stringContaining('network is eSpace Testnet'),
+
+        // The wrong-network notice is now a custom toast with a one-click switch
+        // action (a render function), surfaced under the same id.
+        expect(toast).toHaveBeenCalledWith(
+            expect.any(Function),
             expect.objectContaining({ id: 'network-default-warning' })
         );
     });
@@ -96,7 +105,7 @@ describe('App', () => {
 
         // Effect should trigger setMarkets
         // We can't easily check the store directly here, but we can verify it doesn't crash
-        // and covers the mapping branch.
+        // and exercises the mapping path.
     });
 
     it('shows page loader for lazy routes', async () => {

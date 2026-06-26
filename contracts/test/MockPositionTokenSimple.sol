@@ -14,6 +14,15 @@ contract MockPositionTokenSimple {
         return o;
     }
 
+    function mint(address to, uint256 id) external {
+        owners[id] = to;
+    }
+
+    function mint(address to, uint256 id, address, bool) external returns (uint256) {
+        owners[id] = to;
+        return id;
+    }
+
     function burn(uint256 id) external {
         owners[id] = address(0);
     }

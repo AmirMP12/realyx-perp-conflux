@@ -113,7 +113,7 @@ function VolumeChart({ data }: { data: DailyStats[] }) {
             </h3>
             <div className="flex-1 min-h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={sortedData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <BarChart data={sortedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" opacity={0.3} />
                         <XAxis
                             dataKey="date"
@@ -122,14 +122,15 @@ function VolumeChart({ data }: { data: DailyStats[] }) {
                             axisLine={false}
                             tickFormatter={(str) => {
                                 const date = new Date(str);
-                                return `${date.getMonth() + 1}/${date.getDate()}`;
+                                return `${date.getUTCMonth() + 1}/${date.getUTCDate()}`;
                             }}
                         />
                         <YAxis
                             tick={{ fill: 'var(--text-secondary)', fontSize: 10 }}
                             tickLine={false}
                             axisLine={false}
-                            tickFormatter={(val) => `$${(val / 1000000).toFixed(0)}M`}
+                            tickFormatter={(val) => formatCompact(val)}
+                            width={64}
                         />
                         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--bg-tertiary)', opacity: 0.4 }} />
                         <Bar
@@ -234,7 +235,7 @@ function Leaderboard({ entries, loading, error }: { entries: LeaderboardEntry[];
                         <Loader2 className="w-8 h-8 animate-spin text-text-muted" />
                     </div>
                 ) : entries.length === 0 ? (
-                    <div className="flex justify-center items-center h-full text-text-muted text-sm px-4 text-center">
+                    <div className="flex justify-center items-center h-full min-h-[300px] text-text-muted text-sm px-4 text-center">
                         No leaderboard data available yet. start trading to appear here!
                     </div>
                 ) : (
@@ -268,7 +269,7 @@ function Leaderboard({ entries, loading, error }: { entries: LeaderboardEntry[];
                                         </Link>
                                     </td>
                                     <td className={clsx("p-4 text-right font-mono font-medium", parseFloat(entry.pnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                                        {parseFloat(entry.pnl) >= 0 ? '+' : ''}${parseFloat(entry.pnl).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                        {parseFloat(entry.pnl) >= 0 ? '+' : ''}{formatCompact(parseFloat(entry.pnl))}
                                     </td>
                                     <td className="p-4 text-right font-mono text-text-secondary">
                                         {formatCompact(parseFloat(entry.volume))}
@@ -314,7 +315,7 @@ function Leaderboard({ entries, loading, error }: { entries: LeaderboardEntry[];
                                     </span>
                                 </div>
                                 <div className={clsx("font-mono font-bold text-sm", parseFloat(entry.pnl) >= 0 ? "text-emerald-400" : "text-rose-400")}>
-                                    {parseFloat(entry.pnl) >= 0 ? '+' : ''}${parseFloat(entry.pnl).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    {parseFloat(entry.pnl) >= 0 ? '+' : ''}{formatCompact(parseFloat(entry.pnl))}
                                 </div>
                             </div>
                             <div className="flex justify-between text-xs text-text-secondary">
@@ -404,7 +405,7 @@ export default function AnalyticsDashboard() {
                         return vTvl > 0 ? vTvl : bTvl;
                     })())}
                     icon={<Activity className="w-5 h-5 md:w-6 md:h-6" />}
-                    loading={!vaultStats?.tvl && vaultLoading && statsLoading}
+                    loading={!vaultStats?.tvl && !backendStats?.tvl && (vaultLoading || statsLoading)}
                 />
                 <StatCard
                     title="Open Interest"

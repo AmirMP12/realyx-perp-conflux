@@ -16,16 +16,16 @@ pragma solidity 0.8.24;
  */
 interface IReferralRegistry {
     struct ReferralData {
-        address referrer;       // address(0) when trader is unreferred
-        uint16 discountBps;     // fee discount applied to the referee
-        uint16 rebateBps;       // fee rebate paid to the referrer
-        uint32 tierIndex;       // 0 = base/default, otherwise (qualified tiers + 1)
+        address referrer; // address(0) when trader is unreferred
+        uint16 discountBps; // fee discount applied to the referee
+        uint16 rebateBps; // fee rebate paid to the referrer
+        uint32 tierIndex; // 0 = base/default, otherwise (qualified tiers + 1)
     }
 
     struct Tier {
-        uint128 minVolumeUsdc;  // cumulative referee volume (USDC, 6 dp) to qualify
-        uint16 discountBps;     // fee discount granted to the referee at this tier
-        uint16 rebateBps;       // fee rebate granted to the referrer at this tier
+        uint128 minVolumeUsdc; // cumulative referee volume (USDC, 6 dp) to qualify
+        uint16 discountBps; // fee discount granted to the referee at this tier
+        uint16 rebateBps; // fee rebate granted to the referrer at this tier
     }
 
     // ── Read ──────────────────────────────────────────────────────────────

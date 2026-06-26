@@ -197,6 +197,11 @@
   },
   {
     "inputs": [],
+    "name": "WithdrawPriceDeviation",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "ZeroAddress",
     "type": "error"
   },

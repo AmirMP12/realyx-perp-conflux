@@ -135,7 +135,7 @@ export function CopyModal({
 
   const stepLabels: Record<SetupStep, string> = {
     config: 'Configure Settings',
-    approving: '1/3: Approving USDC Spend...',
+    approving: '1/3: Approving USDT0 Spend...',
     subaccount: '2/3: Authorizing CopyBot...',
     following: '3/3: Confirming Follow...',
     done: 'Setup Complete!',
@@ -174,7 +174,7 @@ export function CopyModal({
             <Info className="w-4 h-4 text-[var(--primary)] mt-0.5 shrink-0" />
             <p className="text-xs text-text-secondary leading-relaxed">
               You will sign <strong>3 transactions</strong>:
-              <br />1. Approve USDC to TradingCore
+              <br />1. Approve USDT0 to TradingCore
               <br />2. Authorize the CopyBot as a subaccount
               <br />3. Register your follow on-chain
             </p>
@@ -183,7 +183,7 @@ export function CopyModal({
           <div className="space-y-3">
             <label className="block">
               <span className="text-sm font-medium text-text-secondary">
-                Max Allocation (USDC)
+                Max Allocation (USDT0)
               </span>
               <input
                 type="number"
@@ -286,7 +286,7 @@ export function CopyModal({
             </p>
             <p className="text-xs text-text-muted mt-2">
               New positions will be mirrored automatically at proportional sizes
-              up to your {maxAllocation} USDC allocation.
+              up to your {maxAllocation} USDT0 allocation.
             </p>
           </div>
           <Button onClick={onClose} fullWidth size="lg">

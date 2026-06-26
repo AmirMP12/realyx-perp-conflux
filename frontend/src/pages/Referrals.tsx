@@ -187,17 +187,17 @@ type StatCardProps = {
 
 function StatCard({ icon: Icon, label, value, sublabel, valueColor, loading }: StatCardProps) {
     return (
-        <div className="glass-panel p-4 sm:p-6 flex items-center justify-between hover:bg-surface-3/20 transition-colors">
-            <div>
-                <div className="text-sm text-text-secondary font-medium mb-1">{label}</div>
+        <div className="glass-panel p-4 sm:p-6 flex items-center justify-between gap-3 hover:bg-surface-3/20 transition-colors">
+            <div className="min-w-0">
+                <div className="text-sm text-text-secondary font-medium mb-1 truncate">{label}</div>
                 {loading ? (
                     <Skeleton className="h-8 w-28 mb-1" />
                 ) : (
-                    <div className={clsx('text-2xl font-bold font-mono', valueColor || 'text-text-primary')}>{value}</div>
+                    <div className={clsx('text-2xl font-bold font-mono truncate', valueColor || 'text-text-primary')} title={typeof value === 'string' ? value : undefined}>{value}</div>
                 )}
-                <div className="text-xs text-text-muted mt-1">{sublabel}</div>
+                <div className="text-xs text-text-muted mt-1 truncate">{sublabel}</div>
             </div>
-            <div className="w-12 h-12 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center">
+            <div className="w-12 h-12 shrink-0 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center">
                 <Icon className="w-6 h-6 text-[var(--primary)]" />
             </div>
         </div>

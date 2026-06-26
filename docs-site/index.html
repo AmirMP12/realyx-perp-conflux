@@ -9,17 +9,22 @@
   <meta name="author" content="Realyx" />
   <meta name="robots" content="index, follow" />
   <meta name="theme-color" content="#10111a" />
-  <link rel="canonical" href="https://docs-realyx.vercel.app/" />
+  <link rel="canonical" href="https://docs.realyx.example/" />
   <link rel="icon" type="image/png" href="assets/favicon.png" />
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+
+  <!-- Premium typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=JetBrains+Mono:wght@400;500;600&display=swap" />
 
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Realyx Docs" />
   <meta property="og:title" content="Realyx Docs — RWA Perpetual Futures DEX on Conflux" />
   <meta property="og:description" content="Official documentation for Realyx — guides, core concepts, smart contracts, and API reference for the RWA perpetual futures DEX on Conflux eSpace." />
-  <meta property="og:url" content="https://docs-realyx.vercel.app/" />
-  <meta property="og:image" content="https://docs-realyx.vercel.app/assets/logo-rounded.png" />
+  <meta property="og:url" content="https://docs.realyx.example/" />
+  <meta property="og:image" content="https://docs.realyx.example/assets/logo-rounded.png" />
   <meta property="og:image:alt" content="Realyx" />
   <meta property="og:locale" content="en_US" />
 
@@ -27,7 +32,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Realyx Docs — RWA Perpetual Futures DEX on Conflux" />
   <meta name="twitter:description" content="Official documentation for Realyx — the RWA perpetual futures DEX on Conflux eSpace." />
-  <meta name="twitter:image" content="https://docs-realyx.vercel.app/assets/logo-rounded.png" />
+  <meta name="twitter:image" content="https://docs.realyx.example/assets/logo-rounded.png" />
   <meta name="twitter:image:alt" content="Realyx" />
 
   <link rel="stylesheet" href="styles.css" />
@@ -80,8 +85,9 @@
       <button class="topbar__icon-btn search-mobile-btn" id="search-mobile-btn" aria-label="Search docs">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       </button>
-      <a href="https://realyx.vercel.app/" class="btn-launch" target="_blank" rel="noopener">Launch App</a>
+      <a href="https://app.realyx.example/" class="btn-launch" target="_blank" rel="noopener">Launch App</a>
     </div>
+    <div class="scroll-progress" id="scroll-progress" aria-hidden="true"></div>
   </header>
 
   <!-- Sidebar backdrop (mobile only) -->

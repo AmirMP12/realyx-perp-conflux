@@ -1,4 +1,6 @@
 import { ethers } from "ethers";
+import { withProvider, getRpcUrls } from "./rpcPool.js";
+import { logger } from "../logger.js";
 
 function getTradingCoreAbi(): any[] {
   return [
@@ -7,48 +9,29 @@ function getTradingCoreAbi(): any[] {
   ];
 }
 
-const DEFAULT_TESTNET_RPCS = [
-  "https://evmtestnet.confluxrpc.com",
-  "https://evmtestnet.confluxrpc.org",
-];
-const DEFAULT_MAINNET_RPCS = ["https://evm.confluxrpc.com"];
-
-function getRpcUrls(): string[] {
-  const primary = (process.env.RPC_URL ?? "").trim();
-  const fallbackEnv = (process.env.RPC_FALLBACK_URL ?? "").trim();
-  const urls: string[] = primary ? [primary] : [];
-  if (fallbackEnv && !urls.includes(fallbackEnv)) urls.push(fallbackEnv);
-  const chainId = process.env.CHAIN_ID ?? "71";
-  const defaults = chainId === "1030" ? DEFAULT_MAINNET_RPCS : DEFAULT_TESTNET_RPCS;
-  if (!primary || chainId === "71" || chainId === "1030") {
-    for (const u of defaults) if (!urls.includes(u)) urls.push(u);
-  }
-  return urls;
-}
-
 function activeFilterEnabled(): boolean {
   if (process.env.ENABLE_ACTIVE_MARKETS_FILTER != null) {
     return /^(1|true|yes)$/i.test(process.env.ENABLE_ACTIVE_MARKETS_FILTER);
   }
-  // In serverless (Vercel), skip on-chain filtering by default to avoid
-  // expensive RPC calls on every request.
-  return !process.env.VERCEL;
+  // Enabled by default; set ENABLE_ACTIVE_MARKETS_FILTER=false to skip the
+  // per-request on-chain filtering and its RPC calls.
+  return true;
 }
 
-async function tryFetchActiveSet(rpcUrl: string, tradingCoreAddress: string): Promise<Set<string> | null> {
-  const chainId = parseInt(process.env.CHAIN_ID ?? "71", 10);
-  const provider = new ethers.JsonRpcProvider(rpcUrl, chainId);
-  const contract = new ethers.Contract(tradingCoreAddress, getTradingCoreAbi(), provider);
-  const count = await contract.activeMarketCount();
-  const n = Number(count);
-  // Fetch all addresses in parallel instead of sequentially
-  const addrPromises = Array.from({ length: n }, (_, i) => contract.activeMarketAt(i));
-  const addrs: string[] = await Promise.all(addrPromises);
-  const set = new Set<string>();
-  for (const addr of addrs) {
-    if (addr && typeof addr === "string") set.add(addr.toLowerCase());
-  }
-  return set;
+async function fetchActiveSet(tradingCoreAddress: string): Promise<Set<string>> {
+  return withProvider(async (provider) => {
+    const contract = new ethers.Contract(tradingCoreAddress, getTradingCoreAbi(), provider);
+    const count = await contract.activeMarketCount();
+    const n = Number(count);
+    // Fetch all addresses in parallel instead of sequentially
+    const addrPromises = Array.from({ length: n }, (_, i) => contract.activeMarketAt(i));
+    const addrs: string[] = await Promise.all(addrPromises);
+    const set = new Set<string>();
+    for (const addr of addrs) {
+      if (addr && typeof addr === "string") set.add(addr.toLowerCase());
+    }
+    return set;
+  });
 }
 
 // ── In-memory cache for active market addresses ──
@@ -69,27 +52,18 @@ export async function getActiveMarketAddresses(): Promise<Set<string> | null> {
   const tradingCoreAddress = (process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE ?? "").trim();
   const urls = getRpcUrls();
   if (!urls.length || !tradingCoreAddress) {
-    console.warn("[activeMarkets] Filter disabled: RPC_URL or TRADING_CORE_ADDRESS not set in env");
+    logger.warn("[activeMarkets] Filter disabled: RPC_URL or TRADING_CORE_ADDRESS not set in env");
     return null;
   }
 
-  for (const rpcUrl of urls) {
-    try {
-      const set = await tryFetchActiveSet(rpcUrl, tradingCoreAddress);
-      if (set && set.size >= 0) {
-        cachedActiveSet = set;
-        cachedActiveAt = Date.now();
-        return set;
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (urls.indexOf(rpcUrl) < urls.length - 1) {
-        console.warn("[activeMarkets] RPC failed, trying next:", rpcUrl.slice(0, 40) + "...", msg);
-      } else {
-        console.warn("[activeMarkets] RPC call failed (all endpoints):", msg);
-      }
-    }
+  try {
+    const set = await fetchActiveSet(tradingCoreAddress);
+    cachedActiveSet = set;
+    cachedActiveAt = Date.now();
+    return set;
+  } catch (e) {
+    logger.warn({ err: e instanceof Error ? e.message : String(e) }, "[activeMarkets] RPC call failed (all endpoints)");
+    return null;
   }
-  return null;
 }
 

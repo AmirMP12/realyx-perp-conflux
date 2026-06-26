@@ -8,6 +8,10 @@ import { CategoryTag } from '../ui/CategoryTag';
 import { PriceTicker } from '../ui/PriceTicker';
 import { MarketLogo } from '../MarketLogo';
 import { FundingCountdown } from './FundingCountdown';
+import { MarketSessionBadge } from '../MarketSessionBadge';
+import { usePyth24hChange, getPythFeedId } from '../../hooks/usePythPrice';
+
+type PriceSourceTag = 'pyth' | 'contract' | 'api' | 'none';
 
 interface MarketHeaderProps {
     market: Market;
@@ -15,6 +19,28 @@ interface MarketHeaderProps {
     currentPrice: number;
     fundingRate: number;
     isLive: boolean;
+    /** Which tier supplied the displayed price (for the provenance indicator). */
+    priceSource?: PriceSourceTag;
+    /** Milliseconds since the displayed price last changed (freshness). */
+    priceAgeMs?: number;
+    /** True once the resolved price is considered stale by the feed. */
+    priceStale?: boolean;
+}
+
+const PRICE_SOURCE_LABEL: Record<PriceSourceTag, string> = {
+    pyth: 'Live via Pyth',
+    contract: 'On-chain oracle',
+    api: 'Delayed (API)',
+    none: 'Awaiting data',
+};
+
+function formatAge(ageMs?: number): string {
+    if (ageMs == null || !Number.isFinite(ageMs)) return '';
+    if (ageMs < 1000) return 'just now';
+    const s = Math.round(ageMs / 1000);
+    if (s < 60) return `${s}s ago`;
+    const m = Math.round(s / 60);
+    return `${m}m ago`;
 }
 
 export function MarketHeader({
@@ -23,13 +49,20 @@ export function MarketHeader({
     currentPrice,
     fundingRate,
     isLive,
+    priceSource,
+    priceAgeMs,
+    priceStale,
 }: MarketHeaderProps) {
     const navigate = useNavigate();
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [query, setQuery] = useState('');
     const dropdownRef = useRef<HTMLDivElement>(null);
 
-    const change24h = market.change24h ?? 0;
+    // Fall back to a Pyth-computed 24h change when the backend value is missing
+    // (0 / undefined). Keeps the ticker from flat-lining at +0.00% when the API
+    // is unreachable but Pyth Hermes is still live.
+    const pythChange = usePyth24hChange(getPythFeedId(market.marketAddress, market.symbol));
+    const change24h = market.change24h && market.change24h !== 0 ? market.change24h : (pythChange ?? 0);
     const isPositive = change24h >= 0;
 
     useEffect(() => {
@@ -87,7 +120,12 @@ export function MarketHeader({
                                     </div>
                                     <ChevronDown className={clsx('w-4 h-4 text-text-muted transition-transform duration-200 shrink-0', dropdownOpen && 'rotate-180')} />
                                 </div>
-                                <span data-testid="market-name" className="hidden xs:block text-[10px] sm:text-xs text-text-muted truncate max-w-full">{market.name}</span>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                    <span data-testid="market-name" className="hidden xs:block text-[10px] sm:text-xs text-text-muted truncate max-w-[120px]">{market.name}</span>
+                                    <span onClick={(e) => e.stopPropagation()} className="hidden sm:inline-flex">
+                                        <MarketSessionBadge category={market.category} compact />
+                                    </span>
+                                </div>
                             </div>
                         </button>
 
@@ -115,35 +153,16 @@ export function MarketHeader({
                                 {sortedMarkets.length === 0 ? (
                                     <div className="px-4 py-6 text-center text-sm text-text-muted">No markets found</div>
                                 ) : sortedMarkets.map((m) => (
-                                    <button
-                                        type="button"
+                                    <MarketDropdownRow
                                         key={`${m.id}-${m.marketAddress}`}
-                                        onClick={() => {
+                                        market={m}
+                                        isActive={m.id === market.id}
+                                        onSelect={() => {
                                             navigate(`/trade/${m.symbol}`);
                                             setDropdownOpen(false);
                                             setQuery('');
                                         }}
-                                        className={clsx(
-                                            'w-full flex items-center justify-between px-3.5 py-2.5 hover:bg-[var(--bg-tertiary)] transition-colors border-b border-line/40 last:border-0 focus:outline-none focus-visible:bg-[var(--bg-tertiary)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/25',
-                                            m.id === market.id && 'bg-brand/10',
-                                        )}
-                                    >
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            <MarketLogo src={m.image} symbol={m.symbol} name={m.name} size="md" className="rounded-full shrink-0" />
-                                            <div className="flex flex-col items-start min-w-0">
-                                                <span className={clsx('text-sm font-bold truncate', m.id === market.id ? 'text-[var(--primary)]' : 'text-text-primary')}>{m.symbol}</span>
-                                                <span className="text-[11px] text-text-muted truncate">{m.name}</span>
-                                            </div>
-                                        </div>
-                                        <div className="flex flex-col items-end gap-0.5 shrink-0 pl-2">
-                                            <div className={clsx('text-sm font-bold tabular-nums', m.change24h >= 0 ? 'text-[var(--long)]' : 'text-[var(--short)]')}>
-                                                {m.change24h >= 0 ? '+' : ''}{m.change24h?.toFixed(2)}%
-                                            </div>
-                                            <span className="text-[10px] text-text-muted tabular-nums">
-                                                Vol {formatCompact(m.volume24h || 0)}
-                                            </span>
-                                        </div>
-                                    </button>
+                                    />
                                 ))}
                             </div>
                         </div>
@@ -153,11 +172,45 @@ export function MarketHeader({
                     <div className="flex flex-col items-start pl-2 sm:pl-4 sm:border-l border-line/60 min-w-0">
                         <div className="flex items-center gap-2">
                             <PriceTicker value={currentPrice} prefix="$" decimals={currentPrice < 1 ? 4 : 2} className="text-xl sm:text-2xl font-bold font-mono text-text-primary tabular-nums leading-none" />
-                            <span
-                                className={clsx('w-1.5 h-1.5 rounded-full shrink-0', isLive ? 'bg-emerald-400 animate-pulse' : 'bg-text-muted')}
-                                title={isLive ? 'Live price' : 'Awaiting data'}
-                                aria-hidden
-                            />
+                            {(() => {
+                                // Price provenance: green = fresh Pyth, amber = on-chain/
+                                // delayed or stale, grey = nothing resolved. Gives traders a
+                                // one-glance answer to "is this price actually live?" with a
+                                // hoverable freshness label.
+                                const src: PriceSourceTag = priceSource ?? (isLive ? 'pyth' : 'none');
+                                const stale = priceStale ?? !isLive;
+                                const dotClass =
+                                    src === 'none'
+                                        ? 'bg-text-muted'
+                                        : stale
+                                            ? 'bg-amber-400'
+                                            : src === 'pyth'
+                                                ? 'bg-emerald-400 animate-pulse'
+                                                : 'bg-amber-400';
+                                const badgeClass =
+                                    src === 'none'
+                                        ? 'text-text-muted bg-surface-3/60 border-line/60'
+                                        : stale || src !== 'pyth'
+                                            ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+                                            : 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
+                                const label = PRICE_SOURCE_LABEL[src];
+                                const age = formatAge(priceAgeMs);
+                                const title = age ? `${label} · updated ${age}` : label;
+                                return (
+                                    <span
+                                        className={clsx(
+                                            'inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md border text-[10px] font-semibold tracking-tight',
+                                            badgeClass,
+                                        )}
+                                        title={title}
+                                        aria-label={title}
+                                    >
+                                        <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', dotClass)} aria-hidden />
+                                        <span className="hidden sm:inline">{label}</span>
+                                        {age && <span className="text-text-muted font-normal hidden md:inline">· {age}</span>}
+                                    </span>
+                                );
+                            })()}
                         </div>
                         <span className={clsx('text-xs sm:text-sm font-semibold tabular-nums leading-tight mt-0.5', isPositive ? 'text-[var(--long)]' : 'text-[var(--short)]')}>
                             {isPositive ? '+' : ''}{change24h.toFixed(2)}%
@@ -171,10 +224,10 @@ export function MarketHeader({
                     <Stat label="24h Volume" value={formatCompact(market.volume24h ?? 0)} />
                     <Stat label="Open Interest" value={formatCompact(market.openInterest ?? 0)} />
                     <Stat
-                        label="Funding / 1h"
+                        label="Funding / 8h"
                         value={
                             <span className={fundingClass}>
-                                {fundingRate > 0 ? '+' : ''}{((fundingRate * 100) / 8).toFixed(4)}%
+                                {fundingRate > 0 ? '+' : ''}{(fundingRate * 100).toFixed(4)}%
                             </span>
                         }
                         sub={<FundingCountdown />}
@@ -192,5 +245,43 @@ function Stat({ label, value, sub }: { label: string; value: React.ReactNode; su
             <div className="text-sm font-mono font-semibold tabular-nums leading-tight text-text-primary">{value}</div>
             {sub ? <div className="mt-0.5">{sub}</div> : null}
         </div>
+    );
+}
+
+/**
+ * A single row in the market selector dropdown. Extracted into its own
+ * component so it can use `usePyth24hChange` (hooks can't run inside a `.map`).
+ * Falls back to a Pyth-computed 24h change when the backend value is missing.
+ */
+function MarketDropdownRow({ market, isActive, onSelect }: { market: Market; isActive: boolean; onSelect: () => void }) {
+    const pythChange = usePyth24hChange(getPythFeedId(market.marketAddress, market.symbol));
+    const change24h = market.change24h && market.change24h !== 0 ? market.change24h : (pythChange ?? 0);
+    const isPositive = change24h >= 0;
+
+    return (
+        <button
+            type="button"
+            onClick={onSelect}
+            className={clsx(
+                'w-full flex items-center justify-between px-3.5 py-2.5 hover:bg-[var(--bg-tertiary)] transition-colors border-b border-line/40 last:border-0 focus:outline-none focus-visible:bg-[var(--bg-tertiary)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand/25',
+                isActive && 'bg-brand/10',
+            )}
+        >
+            <div className="flex items-center gap-3 min-w-0">
+                <MarketLogo src={market.image} symbol={market.symbol} name={market.name} size="md" className="rounded-full shrink-0" />
+                <div className="flex flex-col items-start min-w-0">
+                    <span className={clsx('text-sm font-bold truncate', isActive ? 'text-[var(--primary)]' : 'text-text-primary')}>{market.symbol}</span>
+                    <span className="text-[11px] text-text-muted truncate">{market.name}</span>
+                </div>
+            </div>
+            <div className="flex flex-col items-end gap-0.5 shrink-0 pl-2">
+                <div className={clsx('text-sm font-bold tabular-nums', isPositive ? 'text-[var(--long)]' : 'text-[var(--short)]')}>
+                    {isPositive ? '+' : ''}{change24h.toFixed(2)}%
+                </div>
+                <span className="text-[10px] text-text-muted tabular-nums">
+                    Vol {formatCompact(market.volume24h || 0)}
+                </span>
+            </div>
+        </button>
     );
 }

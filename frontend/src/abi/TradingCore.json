@@ -104,6 +104,11 @@
   },
   {
     "inputs": [],
+    "name": "IncreaseOrderPositionIdNotAllowed",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InsufficientCollateral",
     "type": "error"
   },
@@ -239,6 +244,11 @@
   },
   {
     "inputs": [],
+    "name": "PendingTradingViewsMismatch",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "PortfolioRiskViolation",
     "type": "error"
   },
@@ -294,6 +304,11 @@
   },
   {
     "inputs": [],
+    "name": "TradingViewsTimelockActive",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "UUPSUnauthorizedCallContext",
     "type": "error"
   },
@@ -311,6 +326,11 @@
   {
     "inputs": [],
     "name": "Unauthorized",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnsupportedTimeInForce",
     "type": "error"
   },
   {
@@ -334,6 +354,19 @@
       }
     ],
     "name": "CircuitBreakerHubUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "ClosedSessionLiquidationUpdated",
     "type": "event"
   },
   {
@@ -637,6 +670,19 @@
     "anonymous": false,
     "inputs": [
       {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "maxAge",
+        "type": "uint256"
+      }
+    ],
+    "name": "MaxExecutionPriceAgeUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
         "indexed": true,
         "internalType": "uint256",
         "name": "orderId",
@@ -719,6 +765,19 @@
       }
     ],
     "name": "Paused",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "PermissionlessLiquidationUpdated",
     "type": "event"
   },
   {
@@ -1117,6 +1176,25 @@
       }
     ],
     "name": "SubaccountUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "pending",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "name": "TradingViewsProposed",
     "type": "event"
   },
   {
@@ -1560,6 +1638,19 @@
       }
     ],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "closedSessionLiquidationEnabled",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -2118,6 +2209,24 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "getGlobalUnrealizedPnLDetailed",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "totalPnL",
+        "type": "int256"
+      },
+      {
+        "internalType": "bool",
+        "name": "complete",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
@@ -2246,14 +2355,9 @@
             "type": "uint128"
           },
           {
-            "internalType": "uint64",
+            "internalType": "uint128",
             "name": "leverage",
-            "type": "uint64"
-          },
-          {
-            "internalType": "uint64",
-            "name": "lastFundingTime",
-            "type": "uint64"
+            "type": "uint128"
           },
           {
             "internalType": "address",
@@ -2289,6 +2393,11 @@
             "internalType": "address",
             "name": "collateralToken",
             "type": "address"
+          },
+          {
+            "internalType": "uint64",
+            "name": "lastFundingTime",
+            "type": "uint64"
           }
         ],
         "internalType": "struct DataTypes.Position",
@@ -2575,6 +2684,25 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "name": "liquidatePositionPermissionless",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "reward",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "liquidationDeviationBps",
     "outputs": [
@@ -2650,6 +2778,19 @@
   {
     "inputs": [],
     "name": "maxActionsPerBlock",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "maxExecutionPriceAge",
     "outputs": [
       {
         "internalType": "uint256",
@@ -2923,6 +3064,37 @@
   },
   {
     "inputs": [],
+    "name": "pendingTradingViews",
+    "outputs": [
+      {
+        "internalType": "address",
+        "name": "pending",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "permissionlessLiquidationEnabled",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "portfolioRiskConfig",
     "outputs": [
       {
@@ -3026,6 +3198,19 @@
       }
     ],
     "name": "proposeReferralRegistry",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_v",
+        "type": "address"
+      }
+    ],
+    "name": "proposeTradingViews",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -3183,6 +3368,19 @@
       }
     ],
     "name": "setCircuitBreakerHub",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "setClosedSessionLiquidation",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -3376,6 +3574,19 @@
     "inputs": [
       {
         "internalType": "uint256",
+        "name": "maxAge",
+        "type": "uint256"
+      }
+    ],
+    "name": "setMaxExecutionPriceAge",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
         "name": "cap",
         "type": "uint256"
       }
@@ -3437,6 +3648,19 @@
       }
     ],
     "name": "setParams",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "setPermissionlessLiquidation",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

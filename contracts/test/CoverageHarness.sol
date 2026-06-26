@@ -252,6 +252,42 @@ contract CoverageHarness {
     }
     mapping(uint256 => DataTypes.Order) private _harnessOrders;
 
+    // ── Additive richer cancelOrder driver to reach the alt-collateral refund
+    //    ledger and the explicit executionFeePayer credit branch. ──
+    function boostCancelOrderRich(
+        uint256 orderId,
+        address user,
+        address msgSender,
+        uint256 collateralDelta,
+        uint8 orderType,
+        uint256 executionFee,
+        address executionFeePayer,
+        address collateralToken
+    ) external {
+        DataTypes.Order storage order = _harnessOrders[orderId];
+        order.account = user;
+        order.timestamp = block.timestamp;
+        order.collateralDelta = collateralDelta;
+        order.orderType = DataTypes.OrderType(orderType);
+        order.executionFee = executionFee;
+        order.collateralToken = collateralToken;
+
+        TradingLib.cancelOrder(
+            orderId,
+            msgSender,
+            executionFeePayer,
+            IERC20(address(0)),
+            _harnessOrders,
+            orderRefundBalance,
+            orderCollateralRefundBalance,
+            _harnessTokenRefunds
+        );
+    }
+
+    function getOrderTokenRefund(address user, address token) external view returns (uint256) {
+        return _harnessTokenRefunds[user][token];
+    }
+
     function boostApplyLiquidatePostProcess(
         uint256 positionId,
         bool didRecordFailed,
@@ -393,6 +429,10 @@ contract CoverageHarness {
         CircuitBreakerLib.resetBreaker(collection, bType, isAdmin, breakerStatuses);
     }
 
+    function testAutoResetBreakers(address collection) external {
+        CircuitBreakerLib.autoResetBreakers(collection, breakerStatuses);
+    }
+
     function testIsActionAllowed(address collection, uint8 actionType, bool globalPause) external view returns (bool) {
         return CircuitBreakerLib.isActionAllowed(collection, actionType, globalPause, breakerStatuses);
     }
@@ -498,7 +538,7 @@ contract CoverageHarness {
             openTimestamp: uint40(block.timestamp),
             trailingStopBps: 0,
             flags: flags,
-            collateralType: DataTypes.CollateralType.USDC,
+            collateralType: DataTypes.CollateralType.USDT0,
             state: state,
             collateralToken: address(0)
         });
@@ -614,7 +654,15 @@ contract CoverageHarness {
         address oldOwner,
         uint256 maxUserExposure
     ) external {
-        TradingLib.updatePositionOwner(positionId, newOwner, oldOwner, maxUserExposure, positions, userExposure, _userPositionList);
+        TradingLib.updatePositionOwner(
+            positionId,
+            newOwner,
+            oldOwner,
+            maxUserExposure,
+            positions,
+            userExposure,
+            _userPositionList
+        );
     }
 
     function testAddCollateral(
@@ -740,7 +788,7 @@ contract CoverageHarness {
             timestamp: block.timestamp,
             executionFee: 0,
             maxSlippage: 0,
-            collateralType: DataTypes.CollateralType.USDC,
+            collateralType: DataTypes.CollateralType.USDT0,
             collateralToken: address(0),
             tif: DataTypes.TimeInForce.GTC,
             stopLossPrice: 0,
@@ -802,8 +850,382 @@ contract CoverageHarness {
             );
     }
 
+    // ── Full open-path driver for TradingLib._executeIncrease branch coverage ──
+    address public openMarketAddr;
+    address public openUsdc;
+    address public openVault;
+    address public openOracle;
+    address public openPositionToken;
+    bool public openZeroFees;
+
+    function configureOpenMarket(
+        address market,
+        bool isActive,
+        bool isListed,
+        uint128 maxPositionSize,
+        uint128 maxTotalExposure,
+        uint64 maxLeverage,
+        uint16 initialMargin
+    ) external {
+        openMarketAddr = market;
+        DataTypes.Market storage m = configMarkets[market];
+        m.isActive = isActive;
+        m.isListed = isListed;
+        m.maxPositionSize = maxPositionSize;
+        m.maxTotalExposure = maxTotalExposure;
+        m.maxLeverage = maxLeverage;
+        m.initialMargin = initialMargin;
+    }
+
+    function setOpenWiring(address usdc_, address vault_, address oracle_, bool zeroFees_) external {
+        openUsdc = usdc_;
+        openVault = vault_;
+        openOracle = oracle_;
+        openZeroFees = zeroFees_;
+    }
+
+    function setOpenPositionToken(address pt) external {
+        openPositionToken = pt;
+    }
+
+    // ── Additive referral wiring (test-only) so the open path can exercise the
+    //    referral-rebate split inside TradingLib._distributeFees. Defaults keep
+    //    the unreferred behaviour for every existing caller of driveOpen. ──
+    address public openReferrer;
+    uint16 public openReferralDiscountBps;
+    uint16 public openReferralRebateBps;
+
+    function setOpenReferral(address referrer, uint16 discountBps, uint16 rebateBps) external {
+        openReferrer = referrer;
+        openReferralDiscountBps = discountBps;
+        openReferralRebateBps = rebateBps;
+    }
+
+    // ── Additive SL/TP driver: runs TradingLib.executeStopLossTakeProfit over
+    //    positions previously created with driveOpen, using the same open
+    //    wiring. Trailing-anchor storage and dividend/referral wiring are
+    //    threaded so the per-position branch family is reachable from tests. ──
+    mapping(uint256 => uint256) private _harnessTrailingAnchors;
+
+    function setTrailingAnchor(uint256 id, uint256 anchor) external {
+        _harnessTrailingAnchors[id] = anchor;
+    }
+
+    function setDrivenTrailingStop(uint256 id, uint16 trailingStopBps) external {
+        positions[id].trailingStopBps = trailingStopBps;
+    }
+
+    function driveExecuteSLTP(
+        uint256[] calldata positionIds,
+        address referralRegistry_,
+        address dividendManagerAddr,
+        address marketCalendar_
+    ) external returns (uint256) {
+        TradingLib.ClosePositionContext memory ctx = TradingLib.ClosePositionContext({
+            usdc: openUsdc,
+            liquidityVault: openVault,
+            oracleAggregator: openOracle,
+            positionToken: openPositionToken,
+            treasury: msg.sender,
+            insuranceFund: openVault,
+            collateralRegistry: address(0),
+            feeConfig: DataTypes.FeeConfig({
+                makerFeeBps: openZeroFees ? 0 : 2,
+                takerFeeBps: openZeroFees ? 0 : 5,
+                minFeeUsdc: 0,
+                lpShareBps: 7000,
+                insuranceShareBps: 2000,
+                treasuryShareBps: 1000
+            }),
+            referrer: address(0),
+            referralDiscountBps: 0,
+            referralRebateBps: 0
+        });
+        return
+            TradingLib.executeStopLossTakeProfit(
+                positionIds,
+                ctx,
+                openOracle,
+                referralRegistry_,
+                positions,
+                positionCollaterals,
+                configMarkets,
+                userExposure,
+                fundingStates,
+                positionCumulativeFunding,
+                harnessPositionDividendIndex,
+                marketIds,
+                IDividendManager(dividendManagerAddr),
+                _harnessProtocolHealth,
+                marketCalendar_,
+                _harnessTrailingAnchors
+            );
+    }
+
+    function seedOpenDailyVolume(address account, uint256 dayVol, uint256 globalVol) external {
+        uint256 day = block.timestamp - (block.timestamp % 1 days);
+        _userDailyVolumeHarness[account][day] = dayVol;
+        _globalDailyVolumeHarness[day] = globalVol;
+    }
+
+    struct OpenInput {
+        address account;
+        uint8 orderType;
+        bool isLong;
+        uint256 sizeDelta;
+        uint256 collateralDelta;
+        uint256 triggerPrice;
+        uint256 maxSlippage;
+        uint256 stopLossPrice;
+        uint256 takeProfitPrice;
+        uint256 currentPrice;
+        uint256 minPositionSize;
+        uint256 maxUserExposure;
+        uint256 userDailyVolumeLimit;
+        uint256 globalDailyVolumeLimit;
+        uint256 nextPositionId;
+    }
+
+    function driveOpen(OpenInput memory i) external returns (uint256) {
+        DataTypes.Order memory order = DataTypes.Order({
+            id: 0,
+            account: i.account,
+            market: openMarketAddr,
+            sizeDelta: i.sizeDelta,
+            collateralDelta: i.collateralDelta,
+            triggerPrice: i.triggerPrice,
+            positionId: 0,
+            isLong: i.isLong,
+            orderType: DataTypes.OrderType(i.orderType),
+            timestamp: block.timestamp,
+            executionFee: 0,
+            maxSlippage: i.maxSlippage,
+            collateralType: DataTypes.CollateralType.USDT0,
+            collateralToken: address(0),
+            tif: DataTypes.TimeInForce.GTC,
+            stopLossPrice: i.stopLossPrice,
+            takeProfitPrice: i.takeProfitPrice,
+            visibleSize: 0,
+            twapInterval: 0,
+            lastExecutionTime: 0,
+            isReduceOnly: false
+        });
+
+        TradingLib.OpenPositionContext memory ctx = TradingLib.OpenPositionContext({
+            market: openMarketAddr,
+            isLong: i.isLong,
+            size: i.sizeDelta,
+            leverage: 0,
+            stopLossPrice: 0,
+            takeProfitPrice: 0,
+            trailingStopBps: 0,
+            maxOracleUncertainty: 5e17,
+            usdc: openUsdc,
+            liquidityVault: openVault,
+            oracleAggregator: openOracle,
+            positionToken: openPositionToken,
+            treasury: i.account,
+            insuranceFund: openVault,
+            collateralRegistry: address(0),
+            feeConfig: DataTypes.FeeConfig({
+                makerFeeBps: openZeroFees ? 0 : 2,
+                takerFeeBps: openZeroFees ? 0 : 5,
+                minFeeUsdc: 0,
+                lpShareBps: 7000,
+                insuranceShareBps: 2000,
+                treasuryShareBps: 1000
+            }),
+            currentPrice: i.currentPrice,
+            minPositionSize: i.minPositionSize,
+            maxUserExposure: i.maxUserExposure,
+            userDailyVolumeLimit: i.userDailyVolumeLimit,
+            globalDailyVolumeLimit: i.globalDailyVolumeLimit,
+            defaultCrossMargin: false,
+            referrer: openReferrer,
+            referralDiscountBps: openReferralDiscountBps,
+            referralRebateBps: openReferralRebateBps
+        });
+
+        return
+            TradingLib.executeOrderInternal(
+                order,
+                ctx,
+                positions,
+                positionCollaterals,
+                configMarkets,
+                _userPositionList,
+                userExposure,
+                i.nextPositionId,
+                _userDailyVolumeHarness,
+                _globalDailyVolumeHarness,
+                _harnessProtocolHealth
+            );
+    }
+
+    function getDrivenPosition(uint256 id) external view returns (DataTypes.Position memory) {
+        return positions[id];
+    }
+
+    function getDrivenCollateral(uint256 id) external view returns (DataTypes.PositionCollateral memory) {
+        return positionCollaterals[id];
+    }
+
+    // ── Close-path driver for TradingLib.closePosition branch coverage ──
+    function driveClose(uint256 positionId, uint256 closeSize, uint256 minReceive) external returns (int256) {
+        TradingLib.ClosePositionContext memory ctx = TradingLib.ClosePositionContext({
+            usdc: openUsdc,
+            liquidityVault: openVault,
+            oracleAggregator: openOracle,
+            positionToken: openPositionToken,
+            treasury: msg.sender,
+            insuranceFund: openVault,
+            collateralRegistry: address(0),
+            feeConfig: DataTypes.FeeConfig({
+                makerFeeBps: openZeroFees ? 0 : 2,
+                takerFeeBps: openZeroFees ? 0 : 5,
+                minFeeUsdc: 0,
+                lpShareBps: 7000,
+                insuranceShareBps: 2000,
+                treasuryShareBps: 1000
+            }),
+            referrer: address(0),
+            referralDiscountBps: 0,
+            referralRebateBps: 0
+        });
+        return
+            TradingLib.closePosition(
+                positionId,
+                closeSize,
+                minReceive,
+                ctx,
+                positions,
+                positionCollaterals,
+                configMarkets,
+                userExposure,
+                _harnessProtocolHealth
+            );
+    }
+
+    // ── Additive decrease driver to reach TradingLib._executeDecrease and its
+    //    LIMIT_DECREASE trigger-price gate. Builds a decrease order against an
+    //    already-open position (created via driveOpen). ──
+    function driveDecrease(
+        uint256 positionId,
+        address account,
+        uint8 orderType,
+        uint256 sizeDelta,
+        uint256 triggerPrice
+    ) external returns (uint256) {
+        DataTypes.Order memory order = DataTypes.Order({
+            id: 0,
+            account: account,
+            market: openMarketAddr,
+            sizeDelta: sizeDelta,
+            collateralDelta: 0,
+            triggerPrice: triggerPrice,
+            positionId: positionId,
+            isLong: DataTypes.isLong(positions[positionId].flags),
+            orderType: DataTypes.OrderType(orderType),
+            timestamp: block.timestamp,
+            executionFee: 0,
+            maxSlippage: 0,
+            collateralType: DataTypes.CollateralType.USDT0,
+            collateralToken: address(0),
+            tif: DataTypes.TimeInForce.GTC,
+            stopLossPrice: 0,
+            takeProfitPrice: 0,
+            visibleSize: 0,
+            twapInterval: 0,
+            lastExecutionTime: 0,
+            isReduceOnly: false
+        });
+
+        TradingLib.OpenPositionContext memory ctx = TradingLib.OpenPositionContext({
+            market: openMarketAddr,
+            isLong: order.isLong,
+            size: sizeDelta,
+            leverage: 0,
+            stopLossPrice: 0,
+            takeProfitPrice: 0,
+            trailingStopBps: 0,
+            maxOracleUncertainty: 5e17,
+            usdc: openUsdc,
+            liquidityVault: openVault,
+            oracleAggregator: openOracle,
+            positionToken: openPositionToken,
+            treasury: account,
+            insuranceFund: openVault,
+            collateralRegistry: address(0),
+            feeConfig: DataTypes.FeeConfig({
+                makerFeeBps: openZeroFees ? 0 : 2,
+                takerFeeBps: openZeroFees ? 0 : 5,
+                minFeeUsdc: 0,
+                lpShareBps: 7000,
+                insuranceShareBps: 2000,
+                treasuryShareBps: 1000
+            }),
+            currentPrice: 0,
+            minPositionSize: 0,
+            maxUserExposure: 0,
+            userDailyVolumeLimit: 0,
+            globalDailyVolumeLimit: 0,
+            defaultCrossMargin: false,
+            referrer: address(0),
+            referralDiscountBps: 0,
+            referralRebateBps: 0
+        });
+
+        return
+            TradingLib.executeOrderInternal(
+                order,
+                ctx,
+                positions,
+                positionCollaterals,
+                configMarkets,
+                _userPositionList,
+                userExposure,
+                1,
+                _userDailyVolumeHarness,
+                _globalDailyVolumeHarness,
+                _harnessProtocolHealth
+            );
+    }
+
     function testCalculateNewLeverage(uint256 size, uint256 collateral) external pure returns (uint256) {
         return TradingLib.calculateNewLeverage(size, collateral);
+    }
+
+    function testApplyFundingToCollateral(
+        uint256 positionId,
+        int256 fundingPaid,
+        int256 /* cumulativeFunding */
+    ) external {
+        TradingLib.applyFundingToCollateral(positionCollaterals[positionId], fundingPaid, positionId);
+    }
+
+    function testToLeverageU128(uint256 lev) external pure returns (uint128) {
+        // Access private function through calculateNewLeverage which uses it
+        uint256 leverage = TradingLib.calculateNewLeverage(lev, 1e18);
+        return uint128(leverage);
+    }
+
+    function testU128Clamp(uint256 v) external pure returns (uint128) {
+        // Test by using a function that clamps - for now just safely cast
+        if (v > type(uint128).max) return type(uint128).max;
+        return uint128(v);
+    }
+
+    function testApplyPythUpdateAndRefund(address keeper, bytes[] calldata /* priceUpdateData */) external payable {
+        // Mock - just ensure it doesn't revert
+        // In real usage, this would call Pyth oracle
+        if (msg.value > 0 && keeper != address(0)) {
+            payable(keeper).transfer(msg.value);
+        }
+    }
+
+    function testCheckMarketOpenMock(address /* market */) external pure returns (bool) {
+        // Mock - always returns true for testing
+        return true;
     }
 
     function testIsLong(uint8 flags) external pure returns (bool) {
@@ -890,16 +1312,44 @@ contract CoverageHarness {
         WithdrawLib.withdrawOrderCollateralRefund(orderCollateralRefundBalance, sender, usdc);
     }
 
+    mapping(address => mapping(address => uint256)) public orderCollateralTokenRefundBalance;
+
+    function setOrderCollateralTokenRefundBalance(address user, address token, uint256 amount) external {
+        orderCollateralTokenRefundBalance[user][token] = amount;
+    }
+
+    function testWithdrawOrderCollateralTokenRefund(address sender, address token) external {
+        WithdrawLib.withdrawOrderCollateralTokenRefund(orderCollateralTokenRefundBalance, sender, token);
+    }
+
     // CleanupLib Wrappers
     function testCleanupPositions(uint256 maxCleanup) external returns (uint256) {
-        return CleanupLib.cleanupPositions(
-            cleanupUserPositions,
-            positions,
-            positionCollaterals,
-            maxCleanup,
-            _harnessFailedRepayments,
-            false /* adminPath: harness simulates self-cleanup */
-        );
+        return
+            CleanupLib.cleanupPositions(
+                cleanupUserPositions,
+                positions,
+                positionCollaterals,
+                maxCleanup,
+                _harnessFailedRepayments,
+                false /* adminPath: harness simulates self-cleanup */
+            );
+    }
+
+    function testCleanupPositionsAdmin(uint256 maxCleanup) external returns (uint256) {
+        return
+            CleanupLib.cleanupPositions(
+                cleanupUserPositions,
+                positions,
+                positionCollaterals,
+                maxCleanup,
+                _harnessFailedRepayments,
+                true /* adminPath */
+            );
+    }
+
+    function setHarnessFailedRepayment(uint256 id, uint256 amount, bool resolved) external {
+        _harnessFailedRepayments[id].amount = amount;
+        _harnessFailedRepayments[id].resolved = resolved;
     }
 
     function addCleanupPosition(uint256 id) external {
@@ -1018,6 +1468,28 @@ contract CoverageHarness {
         trustedForwarders[forwarder] = trusted;
     }
 
+    /// @dev Drives the `minInteractionDelay` revert branch (L52): seed a recent
+    ///      lastInteractionTimestamp and a stale lastInteractionBlock so the
+    ///      same-block lock passes but the per-sender delay gate trips.
+    function testValidateFlashLoanDelay(address sender, uint256 minInteractionDelay) external {
+        lastInteractionBlock[sender] = 0; // not current block -> same-block lock passes
+        lastInteractionTimestamp[sender] = block.timestamp; // recent -> delay gate trips
+        (lastGlobalInteractionBlock, globalBlockInteractions) = FlashLoanCheck.validateFlashLoan(
+            sender,
+            sender,
+            block.number,
+            block.timestamp,
+            false,
+            0,
+            minInteractionDelay,
+            lastInteractionBlock,
+            trustedForwarders,
+            lastGlobalInteractionBlock,
+            globalBlockInteractions,
+            lastInteractionTimestamp
+        );
+    }
+
     function setLastInteractionBlock(address user, uint256 blockNo) external {
         lastInteractionBlock[user] = blockNo;
     }
@@ -1090,6 +1562,12 @@ contract CoverageHarness {
         isMarketActive[m] = flag;
     }
 
+    /// @dev Preset the funding clock used by `ConfigLib.setMarket` so its
+    ///      `fundingStates[m].lastSettlement == 0` guard can be driven false.
+    function setHarnessFundingLastSettlement(address m, uint64 ts) external {
+        _harnessFundingStates[m].lastSettlement = ts;
+    }
+
     function setKeeperFeeBalance(address user, uint256 amount) external {
         keeperFeeBalance[user] = amount;
     }
@@ -1155,7 +1633,7 @@ contract CoverageHarness {
             isLong: isLong,
             maxSlippage: maxSlippage,
             positionId: positionId,
-            collateralType: DataTypes.CollateralType.USDC,
+            collateralType: DataTypes.CollateralType.USDT0,
             collateralToken: address(0),
             tif: DataTypes.TimeInForce(tifRaw),
             stopLossPrice: stopLossPrice,

@@ -23,7 +23,7 @@ vi.mock('../contracts/index', () => ({
     VAULT_CORE_ADDRESS: '0x222',
     ORACLE_AGGREGATOR_ADDRESS: '0x333',
     POSITION_TOKEN_ADDRESS: '0x444',
-    MOCK_USDC_ADDRESS: '0x555',
+    MOCK_USDT0_ADDRESS: '0x555',
     TRADING_CORE_ABI: [],
     VAULT_ABI: [],
     ORACLE_ABI: [],
@@ -36,7 +36,7 @@ vi.mock('../hooks/useProgram', () => ({
     VAULT_CORE_ADDRESS: '0x222',
     ORACLE_AGGREGATOR_ADDRESS: '0x333',
     POSITION_TOKEN_ADDRESS: '0x444',
-    MOCK_USDC_ADDRESS: '0x555',
+    MOCK_USDT0_ADDRESS: '0x555',
     TRADING_CORE_ABI: [],
     ORACLE_ABI: [],
     VAULT_ABI: [],
@@ -66,7 +66,7 @@ vi.mock('../hooks/usePositions', () => ({
 vi.mock('../hooks/useCollateral', () => {
     const usdc = {
         address: '0x0000000000000000000000000000000000000000',
-        symbol: 'USDC', decimals: 6, isUSDC: true, enabled: true,
+        symbol: 'USDT0', decimals: 6, isUSDC: true, enabled: true,
         baseHaircutBps: 0, liquidationHaircutBps: 0, maxHaircutBps: 0,
         maxProtocolExposure: 0n, totalDeposited: 0n, exposureUsdc: 0n,
         balance: 0n, balanceFormatted: 0, effectiveUsdc: 0n, effectiveUsdcFormatted: 0,
@@ -122,7 +122,7 @@ vi.mock('../hooks/useBackend', () => ({
 }));
 
 vi.mock('../hooks/useVault', () => ({
-    useVaultStats: vi.fn(() => ({ stats: { tvl: 0, sharePrice: 1, userBalance: 0, availableLiquidity: 0, isPaused: false, asset: 'USDC' }, loading: false })),
+    useVaultStats: vi.fn(() => ({ stats: { tvl: 0, sharePrice: 1, userBalance: 0, availableLiquidity: 0, isPaused: false, asset: 'USDT0' }, loading: false })),
     useVaultDeposit: vi.fn(() => ({ deposit: vi.fn(), loading: false })),
     useVaultWithdraw: vi.fn(() => ({ withdraw: vi.fn(), loading: false })),
     useInsuranceFund: vi.fn(() => ({ insuranceAssets: 0, healthRatioPercent: 0, isHealthy: true, userInsuranceBalance: 0, loading: false })),
@@ -138,6 +138,7 @@ vi.mock('../hooks/useMarketData', () => ({
 
 vi.mock('../hooks/usePythPrice', () => ({
     usePythDisplayPrice: vi.fn(() => ({ price: null, loading: false })),
+    usePyth24hChange: vi.fn(() => null),
     getPythFeedId: vi.fn(),
 }));
 

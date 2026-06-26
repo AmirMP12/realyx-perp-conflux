@@ -49,9 +49,9 @@ describe("Smoke: deployment + full trade lifecycle", () => {
         // advance past min position duration (30s) and move price up 10%
         await time.increase(120);
         await setPythPrice(d.pyth, d.feedId, 55_000n * 10n ** 18n);
-        const balBefore = await d.usdc.balanceOf(d.alice.address);
+        const balBefore = await d.usdt0.balanceOf(d.alice.address);
         await closeFull(d, d.alice, posId);
-        const balAfter = await d.usdc.balanceOf(d.alice.address);
+        const balAfter = await d.usdt0.balanceOf(d.alice.address);
         expect(balAfter).to.be.greaterThan(balBefore);
         const pos = await d.tradingCore.getPosition(posId);
         expect(pos.state).to.equal(PosStatus.CLOSED);

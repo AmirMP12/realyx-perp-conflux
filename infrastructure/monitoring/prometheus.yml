@@ -9,7 +9,7 @@ alerting:
   alertmanagers:
     - static_configs:
         - targets:
-          - alertmanager:9093
+            - alertmanager:9093
 
 rule_files:
   - /etc/prometheus/alerts/*.yml
@@ -17,7 +17,7 @@ rule_files:
 scrape_configs:
   - job_name: prometheus
     static_configs:
-      - targets: ['localhost:9090']
+      - targets: ["localhost:9090"]
 
   - job_name: backend
     kubernetes_sd_configs:
@@ -37,13 +37,38 @@ scrape_configs:
         regex: (.+)
         replacement: ${1}:9090
 
-  - job_name: redis
-    static_configs:
-      - targets: ['redis:9121']
+  # Dedicated indexer worker. Exposes the same metrics endpoint (METRICS_PORT
+  # 9090) and emits the realyx_indexer_* / realyx_reconciliation_* series that
+  # the indexer and data-quality alert groups depend on.
+  - job_name: indexer
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - realyx
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app]
+        regex: indexer
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        regex: "true"
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_port]
+        target_label: __address__
+        regex: (.+)
+        replacement: ${1}:9090
 
-  - job_name: postgres
-    static_configs:
-      - targets: ['postgres-exporter:9187']
+  # NOTE: The redis/postgres exporter jobs below are disabled by default because
+  # no exporter workloads ship with these manifests (the DB/cache are typically
+  # managed/external). Deploy redis_exporter / postgres_exporter and uncomment to
+  # enable — leaving them on would surface permanently-down targets.
+  # - job_name: redis
+  #   static_configs:
+  #     - targets: ['redis-exporter:9121']
+  #
+  # - job_name: postgres
+  #   static_configs:
+  #     - targets: ['postgres-exporter:9187']
 
   - job_name: node
     kubernetes_sd_configs:

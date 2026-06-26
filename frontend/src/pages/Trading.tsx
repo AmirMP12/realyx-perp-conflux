@@ -5,8 +5,9 @@ import { Address } from 'viem';
 
 import { useMarketsStore, usePositionsStore } from '../stores';
 import { useLayoutStore } from '../stores/layoutStore';
+import { useIsDesktop } from '../hooks/useMediaQuery';
 import { useSingleMarketData } from '../hooks/useMarketData';
-import { usePythDisplayPrice, getPythFeedId } from '../hooks/usePythPrice';
+import { usePriceFeed } from '../hooks/usePriceFeed';
 import { usePositions } from '../hooks/usePositions';
 import { useOnChainHistory } from '../hooks/useOnChainHistory';
 import { useLivePnL } from '../hooks/useWebSocket';
@@ -17,6 +18,10 @@ import { TradingForm } from '../components/trading/TradingForm';
 import { PositionTable } from '../components/trading/PositionTable';
 import { MobileControls } from '../components/trading/MobileControls';
 import { ChartPanel } from '../components/trading/ChartPanel';
+import { TradingPageSkeleton } from '../components/trading/TradingPageSkeleton';
+import { MarketLiquidityPanel } from '../components/trading/MarketLiquidityPanel';
+import { CopyTradersStrip } from '../components/trading/CopyTradersStrip';
+import { ResizeHandle } from '../components/trading/ResizeHandle';
 import { applyMarketDisplayFallback } from '../utils/market';
 
 export function TradingPage() {
@@ -26,7 +31,8 @@ export function TradingPage() {
 
     const [activeTab, setActiveTab] = useState<'chart' | 'trade' | 'positions'>('chart');
     const [tradeSide, setTradeSide] = useState<'long' | 'short'>('long');
-    const { positionPanelHeight } = useLayoutStore();
+    const { positionPanelHeight, setPositionPanelHeight } = useLayoutStore();
+    const isDesktop = useIsDesktop();
     const { search } = useLocation();
 
     useEffect(() => {
@@ -84,12 +90,20 @@ export function TradingPage() {
     const shouldFetch = !!market?.marketAddress && market.marketAddress !== "0x0000000000000000000000000000000000000000" && market.marketAddress !== "0x...";
 
     const { formatted, isLoading: isMarketDataLoading } = useSingleMarketData(shouldFetch ? address as Address : undefined);
-    const feedId = getPythFeedId(address, market?.symbol);
-    const { price: pythPrice, refetch: refetchPrice } = usePythDisplayPrice(feedId);
 
-    const fromContractOrApi = (formatted?.price ?? 0) || (market?.indexPrice ?? 0);
-    // Prioritize Pyth price for real-time speed, fallback to contract/API if Pyth is slow or missing
-    const currentPrice = (pythPrice ?? 0) > 0 ? (pythPrice ?? 0) : fromContractOrApi;
+    // Single source of truth for the display price: Pyth → contract/oracle → API,
+    // with freshness tracking. Replaces the old inline fallback chain.
+    const priceFeed = usePriceFeed(
+        {
+            marketAddress: address,
+            symbol: market?.symbol,
+            contractPrice: formatted?.price,
+            apiPrice: market?.indexPrice,
+        },
+        { enabled: shouldFetch },
+    );
+    const currentPrice = priceFeed.price;
+    const refetchPrice = priceFeed.refresh;
     /** Merge on-chain OI / funding when RPC data is ready (API list often has zeros without indexer). */
     const displayMarket = useMemo(() => {
         if (!market || !shouldFetch || isMarketDataLoading || !formatted) return market;
@@ -107,14 +121,7 @@ export function TradingPage() {
 
 
     if (!market) {
-        return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="w-12 h-12 rounded-full border-4 border-brand/30 border-t-[var(--primary)] animate-spin" />
-                    <p className="text-text-muted animate-pulse">Loading Market...</p>
-                </div>
-            </div>
-        );
+        return <TradingPageSkeleton />;
     }
 
     return (
@@ -126,23 +133,37 @@ export function TradingPage() {
                 currentPrice={currentPrice}
                 fundingRate={fundingRate}
                 isLive={isLive}
+                priceSource={priceFeed.source}
+                priceAgeMs={priceFeed.ageMs}
+                priceStale={priceFeed.isStale}
             />
 
             {/* Mobile Controls */}
             <MobileControls activeTab={activeTab} setActiveTab={setActiveTab} />
 
             <div className="flex-1 flex flex-col gap-4 min-h-0 relative">
-                {/* Top Row: Chart & Form */}
-                <div className="flex flex-col lg:flex-row gap-4 w-full lg:h-[720px]">
-                    {/* Left/Center: Chart Area */}
-                    <ChartPanel
-                        market={market}
-                        currentPrice={currentPrice}
-                        className={clsx(
-                            'flex-1 h-[420px] sm:h-[520px] lg:h-full min-h-[420px]',
-                            activeTab !== 'chart' && 'hidden lg:flex',
-                        )}
-                    />
+                {/* Top Row: Chart + Liquidity (left) & Form (right) */}
+                <div className="flex flex-col lg:flex-row gap-4 w-full">
+                    {/* Left/Center: Chart stacked above the Market Liquidity strip */}
+                    <div className="flex-1 flex flex-col gap-4 min-w-0">
+                        <ChartPanel
+                            market={market}
+                            currentPrice={currentPrice}
+                            className={clsx(
+                                'h-[420px] sm:h-[520px] lg:h-auto lg:flex-1 min-h-[420px]',
+                                activeTab !== 'chart' && 'hidden lg:flex',
+                            )}
+                        />
+
+                        {/* Market Liquidity (real on-chain data, replaces the old order book).
+                            A compact horizontal strip under the chart — sized to its content so
+                            there's no empty space. Shares the 'chart' tab on mobile. */}
+                        <MarketLiquidityPanel
+                            market={displayMarket}
+                            currentPrice={currentPrice}
+                            className={clsx(activeTab !== 'chart' && 'hidden lg:flex')}
+                        />
+                    </div>
 
                     {/* Right: Trading Form */}
                     <div
@@ -154,6 +175,7 @@ export function TradingPage() {
                         <TradingForm
                             market={displayMarket}
                             currentPrice={currentPrice}
+                            maxLeverage={formatted?.maxLeverage}
                             side={tradeSide}
                             onSideChange={setTradeSide}
                             onPriceRefresh={refetchPrice}
@@ -165,13 +187,29 @@ export function TradingPage() {
                     </div>
                 </div>
 
+                {/* Desktop-only splitter: drag to resize the positions panel.
+                    The chosen height persists via the layout store. */}
+                <ResizeHandle
+                    value={positionPanelHeight}
+                    onChange={setPositionPanelHeight}
+                    min={240}
+                    max={760}
+                    direction="up"
+                    aria-label="Resize positions panel"
+                    className="hidden lg:flex"
+                />
+
                 {/* Bottom Row: Positions Table (Full Width) */}
                 <div
                     className={clsx(
-                        "w-full glass-panel lg:flex-1 min-h-[300px] flex flex-col rounded-xl overflow-hidden transition-all duration-300 shadow-xl border border-line/60",
+                        "w-full glass-panel min-h-[300px] lg:min-h-0 flex flex-col rounded-xl overflow-hidden shadow-xl border border-line/60",
                         activeTab !== 'positions' && "hidden lg:flex"
                     )}
-                    style={{ minHeight: activeTab === 'positions' ? positionPanelHeight : undefined }}
+                    style={
+                        isDesktop
+                            ? { height: positionPanelHeight }
+                            : { minHeight: activeTab === 'positions' ? positionPanelHeight : undefined }
+                    }
                 >
                     <PositionTable
                         positions={positionsWithLivePnL}
@@ -182,6 +220,10 @@ export function TradingPage() {
                         fetchPositions={fetchPositions}
                     />
                 </div>
+
+                {/* Discoverable copy-trading entry point (hidden on the mobile
+                    trade/positions tabs to keep the focused trading flow clean). */}
+                <CopyTradersStrip className={clsx(activeTab !== 'chart' && 'hidden lg:block')} />
             </div>
         </div>
     );

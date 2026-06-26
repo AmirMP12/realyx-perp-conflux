@@ -12,8 +12,9 @@
  * calculates the lead trader's share and sends it via a transfer.
  */
 
-import { ethers, Contract, EventLog } from "ethers";
+import { ethers, Contract } from "ethers";
 import { getPool } from "./indexer.js";
+import { logger } from "../logger.js";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -147,7 +148,7 @@ export class CopyEngine {
     const copyBotPk = process.env.COPY_BOT_PRIVATE_KEY;
 
     if (!rpcUrl || !copyBotPk) {
-      console.warn(
+      logger.warn(
         "[CopyEngine] Missing RPC_URL or COPY_BOT_PRIVATE_KEY. Copy trading disabled."
       );
       return;
@@ -158,7 +159,7 @@ export class CopyEngine {
       try {
         this.provider = new ethers.WebSocketProvider(wsUrl);
       } catch {
-        console.warn(
+        logger.warn(
           "[CopyEngine] WebSocket connection failed, falling back to HTTP polling."
         );
         this.provider = new ethers.JsonRpcProvider(rpcUrl);
@@ -172,7 +173,7 @@ export class CopyEngine {
     // Minimal ABI for OrderCreated event
     const tradingCoreAbi = [
       "event OrderCreated(uint256 indexed orderId, address indexed account, uint8 orderType, address market)",
-      "function createOrder((uint8 orderType, address market, uint256 sizeDelta, uint256 collateralDelta, uint256 triggerPrice, bool isLong, uint256 leverage, uint256 maxSlippage, uint8 tif, uint256 stopLossPrice, uint256 takeProfitPrice, uint256 positionId, address collateralToken, uint8 collateralType, uint256 visibleSize, uint256 twapInterval, bool isReduceOnly)) external payable returns (uint256)",
+      "function createOrder((uint8 orderType, address market, uint256 sizeDelta, uint256 collateralDelta, uint256 triggerPrice, bool isLong, uint256 maxSlippage, uint256 positionId, uint8 collateralType, address collateralToken, uint8 tif, uint256 stopLossPrice, uint256 takeProfitPrice, uint256 visibleSize, uint256 twapInterval, bool isReduceOnly, address owner)) external payable returns (uint256)",
     ];
 
     this.tradingCore = new Contract(
@@ -186,8 +187,9 @@ export class CopyEngine {
     this.leadTraderSet = new Set(
       leadTraders.map((lt) => lt.address.toLowerCase())
     );
-    console.log(
-      `[CopyEngine] Loaded ${this.leadTraderSet.size} lead traders.`
+    logger.info(
+      { leadTraders: this.leadTraderSet.size },
+      "[CopyEngine] Loaded lead traders."
     );
 
     // Listen for OrderCreated events
@@ -209,7 +211,7 @@ export class CopyEngine {
     );
 
     this.isRunning = true;
-    console.log("[CopyEngine] Started. Listening for OrderCreated events.");
+    logger.info("[CopyEngine] Started. Listening for OrderCreated events.");
   }
 
   async stop(): Promise<void> {
@@ -224,7 +226,7 @@ export class CopyEngine {
     ) {
       (this.provider as ethers.WebSocketProvider).destroy();
     }
-    console.log("[CopyEngine] Stopped.");
+    logger.info("[CopyEngine] Stopped.");
   }
 
   /**
@@ -250,41 +252,35 @@ export class CopyEngine {
     const leadAddr = account.toLowerCase();
     if (!this.leadTraderSet.has(leadAddr)) return;
 
-    console.log(
-      `[CopyEngine] Lead trader ${leadAddr} created order #${orderId} on market ${market}.`
+    logger.info(
+      { lead: leadAddr, orderId: orderId.toString(), market },
+      "[CopyEngine] Lead trader created order."
     );
 
     try {
       // Get active copiers for this lead trader
       const copiers = await getActiveCopiers(leadAddr);
       if (copiers.length === 0) {
-        console.log(`[CopyEngine] No active copiers for ${leadAddr}.`);
+        logger.info({ lead: leadAddr }, "[CopyEngine] No active copiers.");
         return;
       }
 
-      // For simplicity in this implementation, we require the order params to be fetched
-      // from the chain. In production, you'd parse the tx input data or use a subgraph.
-      // Here we read the position data from DB to find the lead's collateral.
-      // This is a simplified implementation; a full implementation would decode the
-      // createOrder calldata to extract sizeDelta, leverage, isLong, etc.
-
-      // In practice, you'd index the createOrder tx in the indexer and have those
-      // fields available in a `recent_orders` table. For this plan, we demonstrate
-      // the structural flow.
-
-      console.log(
-        `[CopyEngine] Would mirror for ${copiers.length} copiers. (Full implementation requires tx calldata indexing.)`
+      // Mirroring requires the original order parameters (sizeDelta, leverage,
+      // isLong). These are not available from the OrderCreated event alone and
+      // must be sourced from the createOrder calldata, which is indexed into a
+      // recent_orders table by the chain indexer.
+      logger.info(
+        { lead: leadAddr, copiers: copiers.length },
+        "[CopyEngine] active copiers for lead; mirroring requires indexed order calldata."
       );
 
-      // Placeholder: mirroring logic would:
-      // 1. Decode the lead's order params from the transaction
-      // 2. For each copier:
-      //    a. Call calculateCopierSize()
-      //    b. Check copier's maxLeverage
-      //    c. Submit createOrder via copyBotWallet
-      // 3. Batch or sequence transactions to avoid nonce conflicts
+      // Mirroring sequence once order params are available:
+      // 1. Decode the lead's order params from the indexed transaction.
+      // 2. For each copier: call calculateCopierSize(), enforce maxLeverage,
+      //    and submit createOrder via copyBotWallet.
+      // 3. Sequence transactions to avoid nonce conflicts.
     } catch (err) {
-      console.error(`[CopyEngine] Error mirroring order #${orderId}:`, err);
+      logger.error({ err, orderId: orderId.toString() }, "[CopyEngine] Error mirroring order");
     }
   }
 

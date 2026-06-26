@@ -42,8 +42,8 @@ describe("E2E — full protocol scenarios", () => {
     it("LP deposits, trader profits, LP withdraws at a fair share price", async () => {
         const d = await loadFixture(deployConfigured);
         // a second LP joins
-        await d.usdc.mintTo(d.carol.address, usdc(1_000_000));
-        await d.usdc.connect(d.carol).approve(await d.vault.getAddress(), ethers.MaxUint256);
+        await d.usdt0.mintTo(d.carol.address, usdc(1_000_000));
+        await d.usdt0.connect(d.carol).approve(await d.vault.getAddress(), ethers.MaxUint256);
         await d.vault.connect(d.carol).deposit(usdc(1_000_000), d.carol.address);
         const carolShares = await d.vault.lpBalanceOf(d.carol.address);
 
@@ -54,9 +54,9 @@ describe("E2E — full protocol scenarios", () => {
         await closeFull(d, d.alice, id);
 
         // carol exits instantly (healthy liquidity)
-        const before = await d.usdc.balanceOf(d.carol.address);
+        const before = await d.usdt0.balanceOf(d.carol.address);
         await d.vault.connect(d.carol).withdraw(carolShares, d.carol.address, d.carol.address);
-        const got = (await d.usdc.balanceOf(d.carol.address)) - before;
+        const got = (await d.usdt0.balanceOf(d.carol.address)) - before;
         // LP got roughly principal back (within fees/PnL), and strictly positive
         expect(got).to.be.greaterThan(usdc(900_000));
     });

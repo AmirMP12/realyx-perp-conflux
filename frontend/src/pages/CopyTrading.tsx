@@ -88,7 +88,7 @@ export function CopyTradingPage() {
             </div>
 
             <div className="px-4 md:px-0">
-                {tab === 'discover' ? <DiscoverTab /> : <MyCopiesTab isConnected={isConnected} />}
+                {tab === 'discover' ? <DiscoverTab /> : <MyCopiesTab isConnected={isConnected} onBrowse={() => setTab('discover')} />}
             </div>
         </div>
     );
@@ -318,7 +318,7 @@ function TraderCard({ trader, rank }: { trader: LeadTrader; rank?: number }) {
 
 // ─── My Copies ──────────────────────────────────────────────────────
 
-function MyCopiesTab({ isConnected }: { isConnected: boolean }) {
+function MyCopiesTab({ isConnected, onBrowse }: { isConnected: boolean; onBrowse: () => void }) {
     const { following, loading, error } = useFollowing();
     const { pnl } = useCopierPnl();
 
@@ -375,17 +375,17 @@ function MyCopiesTab({ isConnected }: { isConnected: boolean }) {
                     title="You're not copying anyone yet"
                     description="Discover top traders and start copying to mirror their strategies automatically."
                     action={
-                        <Link
-                            to="/copy-trading"
-                            onClick={(e) => {
-                                e.preventDefault();
+                        <button
+                            type="button"
+                            onClick={() => {
+                                onBrowse();
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
                             className="btn-primary inline-flex items-center gap-2 text-sm"
                         >
                             <Trophy className="w-4 h-4" />
                             Browse Lead Traders
-                        </Link>
+                        </button>
                     }
                 />
             ) : (
@@ -500,19 +500,20 @@ function SummaryStat({
     className?: string;
 }) {
     return (
-        <div className={clsx('glass-card p-4', className)}>
-            <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] text-text-secondary uppercase tracking-[0.12em] font-semibold">{label}</span>
-                <span className="text-[var(--primary)] p-1.5 bg-brand/10 rounded-lg">{icon}</span>
+        <div className={clsx('glass-card p-4 min-w-0', className)}>
+            <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-[11px] text-text-secondary uppercase tracking-[0.12em] font-semibold truncate">{label}</span>
+                <span className="text-[var(--primary)] p-1.5 bg-brand/10 rounded-lg shrink-0">{icon}</span>
             </div>
             {loading ? (
                 <Skeleton className="h-7 w-20" />
             ) : (
                 <div
                     className={clsx(
-                        'text-xl font-bold font-mono tracking-tight tabular-nums',
+                        'text-xl font-bold font-mono tracking-tight tabular-nums truncate',
                         tone === 'long' ? 'text-[var(--long)]' : tone === 'short' ? 'text-[var(--short)]' : 'text-text-primary',
                     )}
+                    title={value}
                 >
                     {value}
                 </div>
@@ -523,13 +524,14 @@ function SummaryStat({
 
 function MiniStat({ label, value, tone }: { label: string; value: string; tone?: 'long' | 'short' }) {
     return (
-        <div className="rounded-lg bg-surface-3/50 border border-line/60 px-2.5 py-2 text-center">
-            <div className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5">{label}</div>
+        <div className="rounded-lg bg-surface-3/50 border border-line/60 px-2.5 py-2 text-center min-w-0">
+            <div className="text-[10px] text-text-muted uppercase tracking-wider mb-0.5 truncate">{label}</div>
             <div
                 className={clsx(
-                    'font-mono font-bold text-sm tabular-nums',
+                    'font-mono font-bold text-sm tabular-nums truncate',
                     tone === 'long' ? 'text-[var(--long)]' : tone === 'short' ? 'text-[var(--short)]' : 'text-text-primary',
                 )}
+                title={value}
             >
                 {value}
             </div>

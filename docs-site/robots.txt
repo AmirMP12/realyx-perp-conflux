@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://docs-realyx.vercel.app/sitemap.xml
+Sitemap: https://docs.realyx.example/sitemap.xml

@@ -7,7 +7,7 @@ import { MINTER_ROLE } from "../helpers/constants";
  * PositionToken tested in isolation with a mock TradingCore updater so the
  * transfer hook (`updatePositionOwner`) is exercised independently of the
  * full engine. `tradingCore` here is an EOA acting as MINTER for direct
- * mint/burn coverage; transfer tests use the mock contract.
+ * mint/burn tests; transfer tests use the mock contract.
  */
 async function deploy() {
     const [admin, minter, alice, bob] = await ethers.getSigners();

@@ -62,7 +62,7 @@ contract LiquidationLibHarnessDeep {
             openTimestamp: uint40(block.timestamp),
             trailingStopBps: 0,
             flags: flags,
-            collateralType: DataTypes.CollateralType.USDC,
+            collateralType: DataTypes.CollateralType.USDT0,
             state: state,
             collateralToken: address(0)
         });
@@ -86,6 +86,36 @@ contract LiquidationLibHarnessDeep {
 
     function setUserExposure(address user, uint256 amount) external {
         userExposure[user] = amount;
+    }
+
+    /// @dev Additive coverage helper: seed market open-interest accumulators so
+    ///      the OI-decrement `> sz`/`> cost` true sides in `liquidatePosition`
+    ///      are reachable (default zero OI only exercises the floor-to-zero side).
+    function setMarketOI(
+        address market,
+        uint256 longSize,
+        uint256 longCost,
+        uint256 shortSize,
+        uint256 shortCost
+    ) external {
+        markets[market].totalLongSize = longSize;
+        markets[market].totalLongCost = longCost;
+        markets[market].totalShortSize = shortSize;
+        markets[market].totalShortCost = shortCost;
+    }
+
+    /// @dev Stub matching ITradingCore.recordFailedRepayment so the library's
+    ///      residual-debt path (ctx.tradingCore == address(this)) does not revert.
+    event FailedRepaymentRecordedStub(uint256 positionId, uint256 amount);
+
+    function recordFailedRepayment(
+        uint256 positionId,
+        uint256 amount,
+        address /* market */,
+        bool /* isLong */,
+        int256 /* pnl */
+    ) external {
+        emit FailedRepaymentRecordedStub(positionId, amount);
     }
 
     function liquidate(uint256 id) external returns (uint256) {

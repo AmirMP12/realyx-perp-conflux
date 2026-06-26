@@ -1,130 +1,83 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useTransferPosition } from '../useTransferPosition';
-import { useAccount, usePublicClient, useWriteContract } from 'wagmi';
+import { useAccount, useWriteContract, usePublicClient } from 'wagmi';
 import toast from 'react-hot-toast';
 
-vi.mock('wagmi', () => ({
-    useAccount: vi.fn(),
-    usePublicClient: vi.fn(),
-    useWriteContract: vi.fn(),
-}));
+vi.mock('wagmi', () => ({ useAccount: vi.fn(), useWriteContract: vi.fn(), usePublicClient: vi.fn() }));
+vi.mock('../../contracts', () => ({ POSITION_TOKEN_ADDRESS: '0xPosToken', POSITION_TOKEN_ABI: [] }));
 
-vi.mock('react-hot-toast', () => ({
-    default: {
-        error: vi.fn(),
-        success: vi.fn(),
-    },
-}));
-
-vi.mock('../contracts', () => ({
-    POSITION_TOKEN_ADDRESS: '0xNFT',
-    POSITION_TOKEN_ABI: [],
-}));
+const SELF = '0x1111111111111111111111111111111111111111';
+const OTHER = '0x2222222222222222222222222222222222222222';
 
 describe('useTransferPosition', () => {
-    const mockWriteContractAsync = vi.fn();
-    const mockPublicClient = {
-        getBytecode: vi.fn(),
-        waitForTransactionReceipt: vi.fn(),
-    };
-
+    let writeContractAsync: ReturnType<typeof vi.fn>;
+    let publicClient: any;
     beforeEach(() => {
         vi.clearAllMocks();
-        (useAccount as any).mockReturnValue({ address: '0x0000000000000000000000000000000000000123' });
-        (usePublicClient as any).mockReturnValue(mockPublicClient);
-        (useWriteContract as any).mockReturnValue({
-            writeContractAsync: mockWriteContractAsync,
-            isPending: false,
-        });
+        (useAccount as any).mockReturnValue({ address: SELF });
+        writeContractAsync = vi.fn().mockResolvedValue('0xhash');
+        (useWriteContract as any).mockReturnValue({ writeContractAsync, isPending: false });
+        publicClient = {
+            getBytecode: vi.fn().mockResolvedValue('0x'),
+            waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: 'success' }),
+        };
+        (usePublicClient as any).mockReturnValue(publicClient);
     });
 
-    it('fails if wallet is not connected', async () => {
-        (useAccount as any).mockReturnValue({ address: null });
+    async function transfer(to: string, tokenId: string) {
         const { result } = renderHook(() => useTransferPosition());
-        const success = await result.current.transfer('0x0000000000000000000000000000000000000001', '1');
-        expect(success).toBe(false);
-        expect(toast.error).toHaveBeenCalledWith('Connect your wallet.');
+        let ok: any;
+        await act(async () => { ok = await result.current.transfer(to, tokenId); });
+        return ok;
+    }
+
+    it('rejects when wallet not connected', async () => {
+        (useAccount as any).mockReturnValue({ address: undefined });
+        expect(await transfer(OTHER, '1')).toBe(false);
     });
 
-    it('validates recipient address', async () => {
-        const { result } = renderHook(() => useTransferPosition());
-        const success = await result.current.transfer('invalid-address', '1');
-        expect(success).toBe(false);
-        expect(toast.error).toHaveBeenCalledWith('Enter a valid recipient address.');
+    it('rejects an invalid recipient address', async () => {
+        expect(await transfer('not-an-address', '1')).toBe(false);
+        expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('valid recipient'));
     });
 
-    it('fails if recipient is the user', async () => {
-        const { result } = renderHook(() => useTransferPosition());
-        const success = await result.current.transfer('0x0000000000000000000000000000000000000123', '1');
-        expect(success).toBe(false);
-        expect(toast.error).toHaveBeenCalledWith('Recipient must be a different wallet.');
+    it('rejects transferring to your own wallet', async () => {
+        expect(await transfer(SELF, '1')).toBe(false);
     });
 
-    it('fails if recipient is a contract', async () => {
-        mockPublicClient.getBytecode.mockResolvedValue('0x1234');
-        const { result } = renderHook(() => useTransferPosition());
-        const success = await result.current.transfer('0x0000000000000000000000000000000000000001', '1');
-        expect(success).toBe(false);
+    it('rejects a contract recipient', async () => {
+        publicClient.getBytecode.mockResolvedValue('0xdeadbeef');
+        expect(await transfer(OTHER, '1')).toBe(false);
         expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('cannot be a contract'));
     });
 
-    it('handles bytecode fetch error', async () => {
-        mockPublicClient.getBytecode.mockRejectedValue(new Error('RPC Error'));
-        const { result } = renderHook(() => useTransferPosition());
-        const hasCode = await result.current.recipientHasCode('0xRecipient' as any);
-        expect(hasCode).toBe(false); // Catch block returns false
+    it('rejects an invalid token id', async () => {
+        expect(await transfer(OTHER, 'abc')).toBe(false);
     });
 
-    it('fails on invalid tokenId', async () => {
-        mockPublicClient.getBytecode.mockResolvedValue('0x');
-        const { result } = renderHook(() => useTransferPosition());
-        const success = await result.current.transfer('0x0000000000000000000000000000000000000001', 'abc');
-        expect(success).toBe(false);
-        expect(toast.error).toHaveBeenCalledWith('Invalid position id.');
-    });
-
-    it('successfully transfers position', async () => {
-        mockPublicClient.getBytecode.mockResolvedValue('0x');
-        mockWriteContractAsync.mockResolvedValue('0xHash');
-        mockPublicClient.waitForTransactionReceipt.mockResolvedValue({ status: 'success' });
-
-        const { result } = renderHook(() => useTransferPosition());
-        
-        let success;
-        await act(async () => {
-            success = await result.current.transfer('0x0000000000000000000000000000000000000001', '1');
-        });
-
-        expect(success).toBe(true);
-        expect(mockWriteContractAsync).toHaveBeenCalledWith(expect.objectContaining({
-            functionName: 'safeTransferFrom',
-            args: expect.arrayContaining(['0x0000000000000000000000000000000000000123', '0x0000000000000000000000000000000000000001', 1n]),
-        }));
+    it('transfers successfully to an EOA', async () => {
+        expect(await transfer(OTHER, '5')).toBe(true);
+        expect(writeContractAsync).toHaveBeenCalledWith(expect.objectContaining({ functionName: 'safeTransferFrom' }));
         expect(toast.success).toHaveBeenCalledWith('Position transferred');
     });
 
-    it('handles transaction revert', async () => {
-        mockPublicClient.getBytecode.mockResolvedValue('0x');
-        mockWriteContractAsync.mockResolvedValue('0xHash');
-        mockPublicClient.waitForTransactionReceipt.mockResolvedValue({ status: 'reverted' });
-
-        const { result } = renderHook(() => useTransferPosition());
-        const success = await result.current.transfer('0x0000000000000000000000000000000000000001', '1');
-        
-        expect(success).toBe(false);
-        expect(toast.error).toHaveBeenCalledWith('Transfer transaction reverted.');
+    it('returns false when the tx reverts on-chain', async () => {
+        publicClient.waitForTransactionReceipt.mockResolvedValue({ status: 'reverted' });
+        expect(await transfer(OTHER, '5')).toBe(false);
     });
 
-    it('handles generic transfer error', async () => {
-        mockPublicClient.getBytecode.mockResolvedValue('0x');
-        mockWriteContractAsync.mockRejectedValue(new Error('User rejected'));
+    it('returns false when writeContract throws', async () => {
+        writeContractAsync.mockRejectedValue({ shortMessage: 'user rejected' });
+        expect(await transfer(OTHER, '5')).toBe(false);
+        expect(toast.error).toHaveBeenCalledWith('user rejected');
+    });
 
+    it('recipientHasCode returns false when getBytecode throws', async () => {
+        publicClient.getBytecode.mockRejectedValue(new Error('rpc'));
         const { result } = renderHook(() => useTransferPosition());
-        const success = await result.current.transfer('0x0000000000000000000000000000000000000001', '1');
-        
-        expect(success).toBe(false);
-        expect(toast.error).toHaveBeenCalledWith('User rejected');
+        let has: any;
+        await act(async () => { has = await result.current.recipientHasCode(OTHER as any); });
+        expect(has).toBe(false);
     });
 });

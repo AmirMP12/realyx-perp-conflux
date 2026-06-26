@@ -3,7 +3,7 @@ import cors from "cors";
 import helmet from "helmet";
 import pino from "pino";
 import pinoHttp from "pino-http";
-import { config } from "./config.js";
+import { logger } from "./logger.js";
 import marketsRouter from "./routes/markets.js";
 import userRouter from "./routes/user.js";
 import statsRouter from "./routes/stats.js";
@@ -17,24 +17,18 @@ import authRouter from "./routes/auth.js";
 import socialRouter from "./routes/social.js";
 import keeperRouter from "./routes/keeper.js";
 import referralsRouter from "./routes/referrals.js";
+import vaultRouter from "./routes/vault.js";
+import statusRouter from "./routes/status.js";
 import { broadcastKeeperFailure } from "./wsServer.js";
-import { apiRateLimit } from "./middleware/rateLimit.js";
+import { apiRateLimitCluster } from "./middleware/rateLimit.js";
 import { metricsMiddleware } from "./middleware/metrics.js";
 
-const logger = pino({
-  level:
-    config.nodeEnv === "test"
-      ? "silent"
-      : config.nodeEnv === "development"
-        ? "debug"
-        : "info",
-});
 const httpLogger = (pinoHttp as unknown as (opts: { logger: pino.Logger }) => express.RequestHandler)({ logger });
 
 /**
  * Build CORS options. By default (no CORS_ORIGINS set) all origins are allowed,
  * preserving existing behaviour for local/dev. In production, set CORS_ORIGINS
- * to a comma-separated allowlist (e.g. "https://realyx.vercel.app,https://landing-realyx.vercel.app")
+ * to a comma-separated allowlist (e.g. "https://app.realyx.example,https://realyx.example")
  * to restrict which sites may call the API from a browser.
  */
 function buildCorsOptions(): cors.CorsOptions {
@@ -67,7 +61,7 @@ app.use(httpLogger);
 app.use(metricsMiddleware);
 
 app.use("/health", healthRouter);
-app.use(apiRateLimit);
+app.use(apiRateLimitCluster);
 
 // Legacy /api/ routes (backward compatible)
 app.use("/api/markets", marketsRouter);
@@ -79,6 +73,8 @@ app.use("/api/sync", syncRouter);
 app.use("/api/pyth-refresh", pythRefreshRouter);
 app.use("/api/debug", debugRouter);
 app.use("/api/referrals", referralsRouter);
+app.use("/api/vault", vaultRouter);
+app.use("/api/status", statusRouter);
 
 // Versioned /api/v1/ routes
 app.use("/api/v1/auth", authRouter);
@@ -93,6 +89,8 @@ app.use("/api/v1/debug", debugRouter);
 app.use("/api/v1/keeper", keeperRouter);
 app.use("/api/v1/social", socialRouter);
 app.use("/api/v1/referrals", referralsRouter);
+app.use("/api/v1/vault", vaultRouter);
+app.use("/api/v1/status", statusRouter);
 
 // Attach keeper failure broadcast function for use by the keeper router
 app.use((req: any, _res: any, next: any) => {

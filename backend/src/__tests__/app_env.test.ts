@@ -1,6 +1,6 @@
 import { jest } from "@jest/globals";
 
-describe("App Environment Branches", () => {
+describe("app logger environment configuration", () => {
   beforeEach(() => {
     jest.resetModules();
   });

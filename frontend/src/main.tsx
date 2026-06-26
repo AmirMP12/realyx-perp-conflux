@@ -10,11 +10,16 @@ import { config } from './config/wagmi';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
 import { initializeTheme } from './stores/settingsStore';
+import { registerServiceWorker } from './utils/pwa';
 import './index.css';
 
 // Apply the persisted theme synchronously before first paint to avoid a
 // dark→light flash on reload when the user has selected light mode.
 initializeTheme();
+
+// Register the PWA service worker (offline shell + push). Safe no-op in
+// unsupported browsers; registers after load so it never blocks first paint.
+registerServiceWorker();
 
 const queryClient = new QueryClient({
     defaultOptions: {

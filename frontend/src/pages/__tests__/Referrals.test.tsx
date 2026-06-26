@@ -26,7 +26,7 @@ describe('ReferralsPage', () => {
         code: 'REALYX123',
         live: true,
     };
-    const mockLink = 'https://realyx.vercel.app/ref/REALYX123';
+    const mockLink = 'https://app.realyx.example/ref/REALYX123';
 
     beforeEach(() => {
         vi.clearAllMocks();
@@ -89,7 +89,7 @@ describe('ReferralsPage', () => {
     it('shows Coming Soon and hides figures when the program is not live', () => {
         vi.mocked(useReferralStats).mockReturnValue({
             stats: { referees: 0, totalEarned: 0, pendingClaim: 0, code: 'ABCDEF', live: false },
-            link: 'https://realyx.vercel.app/?ref=ABCDEF',
+            link: 'https://app.realyx.example/?ref=ABCDEF',
             loading: false,
             error: null,
         } as any);

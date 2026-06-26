@@ -32,12 +32,17 @@ library ConfigLib {
         if (m == address(0) || feed == address(0)) revert InvalidMarket();
         if (markets[m].isListed) revert MarketAlreadyListed();
         if (maxLev == 0 || maxLev > DataTypes.MAX_LEVERAGE_LIMIT) revert ExceedsMaxLeverage();
-        if (mmBps < 100 || mmBps > 5000 || imBps < 200 || imBps > 10000 || imBps <= mmBps) revert InvalidMarginConfig();
-        // The protocol allows up to MAX_LEVERAGE_LIMIT (100x). Per-position safety
-        // is enforced at execution via the `imBps` initial-margin check (a 100x
-        // position with `imBps>=100` is rejected at order time), so we no longer
-        // require `maxLev * mmBps < BPS_PRECISION` here. Operators are still
-        // expected to pick risk parameters consistent with their target leverage.
+        // Margin-config bounds. `imBps` is the per-position initial-margin floor,
+        // so the maximum leverage actually reachable on this market is
+        // `min(maxLev, BPS_PRECISION / imBps)`. To allow markets to be
+        // configured up to `MAX_LEVERAGE_LIMIT` (100x) the `imBps` floor is 100
+        // (1% margin → 100x). `mmBps` (per-market maintenance bps) must stay
+        // strictly below `imBps` so a freshly-opened position is never
+        // liquidatable at entry. Core liquidation uses the dynamic maintenance
+        // curve (`PositionMath.calculateDynamicMaintenanceMargin`) which is
+        // additionally capped to 50% of the initial margin, so positions open
+        // with a healthy buffer at every leverage in `[1, maxLev]`.
+        if (mmBps < 50 || mmBps > 5000 || imBps < 100 || imBps > 10000 || imBps <= mmBps) revert InvalidMarginConfig();
         markets[m] = DataTypes.Market({
             chainlinkFeed: feed,
             maxStaleness: maxStaleness,
@@ -81,7 +86,10 @@ library ConfigLib {
         if (m == address(0) || feed == address(0)) revert InvalidMarket();
         if (!markets[m].isListed) revert InvalidMarket();
         if (maxLev == 0 || maxLev > DataTypes.MAX_LEVERAGE_LIMIT) revert ExceedsMaxLeverage();
-        if (mmBps < 100 || mmBps > 5000 || imBps < 200 || imBps > 10000 || imBps <= mmBps) revert InvalidMarginConfig();
+        // See `setMarket` for the rationale behind these bounds: `imBps >= 100`
+        // permits configuring up to 100x; `mmBps < imBps` keeps fresh positions
+        // out of liquidation at entry.
+        if (mmBps < 50 || mmBps > 5000 || imBps < 100 || imBps > 10000 || imBps <= mmBps) revert InvalidMarginConfig();
         markets[m].chainlinkFeed = feed;
         markets[m].maxStaleness = maxStaleness;
         markets[m].maxPriceUncertainty = maxOracleUncertainty;

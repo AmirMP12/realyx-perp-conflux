@@ -19,12 +19,15 @@ import { usePositions } from '../hooks/usePositions';
 import { useOnChainHistory } from '../hooks/useOnChainHistory';
 import { useLivePnL } from '../hooks/useWebSocket';
 import { useTradeHistory, type TradeHistoryItem } from '../hooks/useBackend';
+import { useAccountRisk } from '../hooks/useAccountRisk';
 import { useMarketsStore } from '../stores';
 import { formatCompact } from '../utils/format';
 import { mapMarketsWithFallback } from '../utils/market';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { Link } from 'react-router-dom';
 import { PositionTable } from '../components/trading/PositionTable';
-import { Skeleton } from '../components/ui';
+import { CrossAssetExposure } from '../components/CrossAssetExposure';
+import { Skeleton, HealthRing } from '../components/ui';
 
 export function PortfolioPage() {
     const { address } = useAccount();
@@ -32,6 +35,7 @@ export function PortfolioPage() {
 
     const { positions, isLoading: positionsLoading, refetch: fetchPositions } = usePositions();
     const { data: onChainHistory = [] } = useOnChainHistory();
+    const accountRisk = useAccountRisk();
     const rawMarkets = useMarketsStore((s) => s.markets);
     const markets = useMemo(() => mapMarketsWithFallback(rawMarkets), [rawMarkets]);
     const positionsWithLivePnL = useLivePnL(positions, markets);
@@ -50,8 +54,14 @@ export function PortfolioPage() {
         const merged = [...onChainAsTrades, ...tradeHistoryRaw];
         const seen = new Set();
         const deduplicated = merged.filter(t => {
-            if (!t.signature || seen.has(t.signature)) return false;
-            seen.add(t.signature);
+            // On-chain signatures are suffixed (`${txHash}-open|close|liq`) while
+            // backend trades use the bare tx hash. Normalize to a base-hash + type
+            // key so the same event from both sources collapses into one row.
+            const baseHash = (t.signature || '').split('-')[0];
+            if (!baseHash) return false;
+            const key = `${baseHash}-${t.type}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
             return true;
         });
         
@@ -159,6 +169,33 @@ export function PortfolioPage() {
                 )}
             </div>
 
+            {/* Account health — the emotional anchor. A single ring showing
+                distance-to-liquidation across the whole cross-margin account,
+                read straight from TradingCore.getAccountRisk. */}
+            {!positionsLoading && accountRisk.hasPositions && (
+                <div className="glass-panel p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-6">
+                    <HealthRing
+                        healthFactor={accountRisk.healthFactor}
+                        caption={`${accountRisk.crossPositionCount} cross ${accountRisk.crossPositionCount === 1 ? 'position' : 'positions'}`}
+                    />
+                    <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-4 w-full">
+                        <HealthStat label="Equity" value={`$${(accountRisk.totalCollateral + accountRisk.unrealizedPnL).toFixed(2)}`} />
+                        <HealthStat label="Maint. Margin" value={`$${accountRisk.maintenanceMargin.toFixed(2)}`} />
+                        <HealthStat
+                            label="Unrealized PnL"
+                            value={`${accountRisk.unrealizedPnL >= 0 ? '+' : ''}$${accountRisk.unrealizedPnL.toFixed(2)}`}
+                            valueColor={accountRisk.unrealizedPnL >= 0 ? 'text-[var(--long)]' : 'text-[var(--short)]'}
+                        />
+                        <HealthStat label="Open Notional" value={formatCompact(accountRisk.totalNotional)} />
+                    </div>
+                </div>
+            )}
+
+            {/* Unified cross-asset exposure — the multi-asset RWA differentiator. */}
+            {!positionsLoading && positions.length > 0 && (
+                <CrossAssetExposure positions={positions} markets={markets} />
+            )}
+
             {/* Cumulative PnL Chart */}
             {pnlChartData.length > 0 && (
                 <div className="glass-panel p-6" aria-label="Cumulative PnL over time">
@@ -192,14 +229,33 @@ export function PortfolioPage() {
             )}
 
             <div className="glass-panel min-h-[400px] flex flex-col overflow-hidden">
-                <PositionTable
-                    positions={positionsWithLivePnL}
-                    positionsLoading={positionsLoading}
-                    tradeHistory={tradeHistory}
-                    historyLoading={historyLoading}
-                    markets={markets}
-                    fetchPositions={fetchPositions}
-                />
+                {!positionsLoading && positions.length === 0 && tradeHistory.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center text-center flex-1 p-10">
+                        <div className="w-16 h-16 rounded-2xl bg-brand/10 border border-brand/20 flex items-center justify-center mb-5">
+                            <TrendingUp className="w-8 h-8 text-[var(--primary)]" />
+                        </div>
+                        <h3 className="text-xl font-bold text-text-primary mb-2">No positions yet</h3>
+                        <p className="text-text-secondary max-w-sm mb-6">
+                            Open your first leveraged position to start trading crypto, equities and commodities from one margin account.
+                        </p>
+                        <Link
+                            to="/trade"
+                            className="btn-primary inline-flex items-center gap-2 px-6 py-3 text-sm"
+                        >
+                            <TrendingUp className="w-4 h-4" />
+                            Open your first trade
+                        </Link>
+                    </div>
+                ) : (
+                    <PositionTable
+                        positions={positionsWithLivePnL}
+                        positionsLoading={positionsLoading}
+                        tradeHistory={tradeHistory}
+                        historyLoading={historyLoading}
+                        markets={markets}
+                        fetchPositions={fetchPositions}
+                    />
+                )}
             </div>
         </div >
     );
@@ -216,6 +272,15 @@ function StatCard({ icon: Icon, label, value, sublabel, valueColor }: any) {
                 <div className={clsx('text-xl sm:text-2xl font-bold font-mono tracking-tight truncate', valueColor || 'text-text-primary')}>{value}</div>
                 <div className="text-xs text-text-secondary mt-1">{sublabel}</div>
             </div>
+        </div>
+    );
+}
+
+function HealthStat({ label, value, valueColor }: { label: string; value: string; valueColor?: string }) {
+    return (
+        <div className="flex flex-col">
+            <span className="text-[10px] uppercase tracking-[0.12em] text-text-muted font-semibold mb-1">{label}</span>
+            <span className={clsx('text-base sm:text-lg font-bold font-mono tabular-nums truncate', valueColor || 'text-text-primary')}>{value}</span>
         </div>
     );
 }

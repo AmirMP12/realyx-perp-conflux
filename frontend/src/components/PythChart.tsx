@@ -1,24 +1,39 @@
 import { useEffect, useRef, memo } from 'react';
-import { createChart, ColorType, IChartApi, ISeriesApi, UTCTimestamp } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, ISeriesApi, UTCTimestamp, IPriceLine } from 'lightweight-charts';
 import { usePythPriceHistory } from '../hooks/usePythPriceHistory';
 import { Loader2 } from 'lucide-react';
+
+/** A horizontal reference line drawn on the chart (entry, liquidation, TP, SL). */
+export interface ChartPriceLine {
+    price: number;
+    color: string;
+    title: string;
+    /** lightweight-charts LineStyle enum value (0 solid, 2 dashed…). Defaults to dashed. */
+    lineStyle?: number;
+}
 
 interface PythChartProps {
     feedId: string | undefined;
     marketSymbol?: string;
     interval?: number; // minutes between data points
     points?: number; // number of data points
+    /**
+     * Optional horizontal markers — entry, liquidation, take-profit, stop-loss —
+     * rendered directly on the price scale so risk is spatial, not abstract.
+     */
+    priceLines?: ChartPriceLine[];
 }
 
 /**
  * Price chart component that uses Pyth Network price feeds
  * Displays candlestick chart with historical price data
  */
-function PythChartComponent({ feedId, marketSymbol, interval = 60, points = 24 }: PythChartProps) {
+function PythChartComponent({ feedId, marketSymbol, interval = 60, points = 24, priceLines }: PythChartProps) {
     const { data, loading, error } = usePythPriceHistory(feedId, interval, points);
     const chartContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
     const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+    const priceLineRefs = useRef<IPriceLine[]>([]);
 
     useEffect(() => {
         if (!chartContainerRef.current) return;
@@ -104,6 +119,32 @@ function PythChartComponent({ feedId, marketSymbol, interval = 60, points = 24 }
             }
         }
     }, [data]);
+
+    // Sync horizontal price lines (entry / liquidation / TP / SL) onto the
+    // series. Re-runs whenever the markers change so the liquidation line moves
+    // live with leverage/size edits in the ticket.
+    useEffect(() => {
+        const series = candlestickSeriesRef.current;
+        if (!series) return;
+        // Clear previous lines before drawing the new set.
+        for (const line of priceLineRefs.current) {
+            try { series.removePriceLine(line); } catch { /* series may be disposed */ }
+        }
+        priceLineRefs.current = [];
+        if (!priceLines || priceLines.length === 0) return;
+        for (const pl of priceLines) {
+            if (!(pl.price > 0)) continue;
+            const created = series.createPriceLine({
+                price: pl.price,
+                color: pl.color,
+                lineWidth: 1,
+                lineStyle: (pl.lineStyle ?? 2) as any, // default dashed
+                axisLabelVisible: true,
+                title: pl.title,
+            });
+            priceLineRefs.current.push(created);
+        }
+    }, [priceLines, data]);
 
     if (!feedId) {
         return (

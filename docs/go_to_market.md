@@ -7,15 +7,15 @@ Realyx aims to cement its status as the premier Perpetual DEX for Real-World Ass
 ## Phase 1: Community Bootstrapping (Testnet) 🛠️
 *Goal: Stress-test infrastructure and build a passionate baseline of early adopters.*
 
-- **Faucet Incentive Program**: Reward power-users who provide critical UX/UI feedback utilizing testnet CFX and Mock USDC.
-- **Alpha Trading Competition**: Host rolling weekly leaderboard contests. Top PnL traders will secure exclusive 'OG' Discord roles and guaranteed mainnet whitelists.
+- **Faucet Incentive Program**: Reward power-users who provide critical UX/UI feedback utilizing testnet CFX and Mock USDT0.
+- **Alpha Trading Competition**: Host rolling weekly leaderboard contests. Top PnL traders will secure exclusive 'OG' community roles and guaranteed mainnet whitelists.
 - **Conflux Ecosystem Synergy**: Form strategic alliances with native Conflux wallets (e.g., Fluent), DEXs, and bridges to cross-pollinate userbases.
 
 ## Phase 2: Liquidity Genesis (Mainnet Launch) 💰
 *Goal: Bootstrap core liquidity pools to enable slippage-free execution.*
 
-- **Pioneering LP Incentives**: Launch `VaultCore` with aggressive yield multipliers (base yield + protocol token emissions) tailored to the first $1M-$5M of USDC liquidity.
-- **RWA Differentiation**: Aggressively market our unique positioning against generic crypto perps by spotlighting 10x leverage on **Gold**, **Silver**, and marquee **Global Equities** (e.g., AAPL, TSLA).
+- **Pioneering LP Incentives**: Launch `VaultCore` with aggressive yield multipliers (base yield + protocol token emissions) tailored to the first $1M-$5M of USDT0 liquidity.
+- **RWA Differentiation**: Aggressively market our unique positioning against generic crypto perps by spotlighting up to 100x leverage on **Gold**, **Silver**, and marquee **Global Equities** (e.g., AAPL, TSLA).
 
 ## Phase 3: Institutional Onboarding & APIs 🤝
 *Goal: Scale to 9-figure volumes by transitioning from retail-heavy to algorithmic execution.*
@@ -28,8 +28,8 @@ Realyx aims to cement its status as the premier Perpetual DEX for Real-World Ass
 
 ## 📣 Core Marketing Channels
 
-- **X (Twitter)**: High-frequency protocol updates, macro trend analysis, and product teases.
-- **Discord**: The heartbeat of the Realyx community. Home to traders, LPs, developers, and direct governance discussions.
+- **X (Twitter)**: High-frequency protocol updates, macro trend analysis, and product teases. [@Realyx_Perp](https://x.com/Realyx_Perp)
+- **Telegram**: The heartbeat of the Realyx community. Home to traders, LPs, developers, and direct governance discussions — [announcements channel](https://t.me/Real_yx) and [community group](https://t.me/realyx_perp).
 - **Medium / Substack**: Technical long-form content detailing Realyx's architecture, Pyth integration, and the future of tokenized RWAs.
 
 ---

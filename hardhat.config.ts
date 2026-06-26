@@ -31,9 +31,7 @@ const config: HardhatUserConfig = {
                     },
                     viaIR: true,
                     evmVersion: "paris",
-                    debug: {
-                        revertStrings: "strip",
-                    },
+                    debug: { revertStrings: "strip" },
                 },
             },
             {

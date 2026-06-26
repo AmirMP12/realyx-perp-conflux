@@ -2,7 +2,7 @@ import request from "supertest";
 import { app } from "../app.js";
 import { jest } from "@jest/globals";
 
-describe("Routes Failover and Branch Coverage", () => {
+describe("Routes Failover", () => {
     beforeEach(() => {
         const markets = require("../routes/markets.js");
         markets.clearMarketsCache();
@@ -36,7 +36,7 @@ describe("Routes Failover and Branch Coverage", () => {
     });
 
     describe("GET /markets", () => {
-        it("hits getMarketMeta unknown address branch (127-128)", async () => {
+        it("renders a fallback name for an unknown market address", async () => {
             // We need a request that triggers enrichment for an unknown market.
             // If fetchMarkets returns a market not in MARKET_META.
             const indexer = require("../services/indexer.js");
@@ -51,14 +51,14 @@ describe("Routes Failover and Branch Coverage", () => {
             expect(res.body.data[0].name).toContain("0xUnknownAddressThatIsVeryLong".slice(0, 10));
         });
 
-        it("hits fallback branches on fetchMarkets failure (274, 276, 300)", async () => {
+        it("serves fallback markets when fetchMarkets and price sources fail", async () => {
             const indexer = require("../services/indexer.js");
             jest.spyOn(indexer, "fetchMarkets").mockRejectedValueOnce(new Error("Markets Fail"));
             const activeMarkets = require("../services/activeMarkets.js");
             jest.spyOn(activeMarkets, "getActiveMarketAddresses").mockResolvedValueOnce(new Set());
             
-            // Internal catch (271) will trigger buildFallbackMarkets
-            // And inner catches for fetchProtocol (274), pyth (276)
+            // The internal catch builds fallback markets when fetchMarkets fails,
+            // and the inner catches handle fetchProtocol and pyth failures too
             const pyth = require("../services/pyth.js");
             jest.spyOn(pyth, "fetchPythPrices").mockRejectedValueOnce(new Error("Pyth Fail"));
             
@@ -67,12 +67,12 @@ describe("Routes Failover and Branch Coverage", () => {
             expect(res.body.fallback).toBe(true);
         });
 
-        it("hits catch block in fallback enrichment (300)", async () => {
+        it("returns an error payload when fallback enrichment fails", async () => {
              const indexer = require("../services/indexer.js");
              jest.spyOn(indexer, "fetchMarkets").mockRejectedValueOnce(new Error("Markets Fail"));
              
-             // To hit line 301, the try block at 271 must fail.
-             // Promise.all at 273 if it throws.
+             // Force the enrichment path to fail by making the parallel
+             // price fetch throw
              const coingecko = require("../services/coingecko.js");
              jest.spyOn(coingecko, "fetchCoinGeckoPrices").mockImplementationOnce(() => { throw new Error("Hard Fail"); });
              
@@ -84,7 +84,7 @@ describe("Routes Failover and Branch Coverage", () => {
     });
 
     describe("GET /markets/price-history/:marketId", () => {
-        it("hits fetchPriceHistory catch block (334-336)", async () => {
+        it("returns an error payload when price history lookup fails", async () => {
             const coingecko = require("../services/coingecko.js");
             jest.spyOn(coingecko, "fetchPriceHistory").mockRejectedValueOnce(new Error("CG History Fail"));
             

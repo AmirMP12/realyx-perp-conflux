@@ -8,7 +8,7 @@ import {
     VAULT_CORE_ADDRESS,
     ORACLE_AGGREGATOR_ADDRESS,
     POSITION_TOKEN_ADDRESS,
-    MOCK_USDC_ADDRESS,
+    MOCK_USDT0_ADDRESS,
     TRADING_CORE_ABI,
     ORACLE_ABI,
     VAULT_ABI,
@@ -21,7 +21,7 @@ export {
     VAULT_CORE_ADDRESS,
     ORACLE_AGGREGATOR_ADDRESS,
     POSITION_TOKEN_ADDRESS,
-    MOCK_USDC_ADDRESS,
+    MOCK_USDT0_ADDRESS,
     TRADING_CORE_ABI,
     ORACLE_ABI,
     VAULT_ABI,
@@ -114,7 +114,7 @@ export interface OpenPositionParams {
     expectedPrice: string;
     maxSlippageBps: string;
     deadline: string;
-    collateralType: number; // 0=USDC
+    collateralType: number; // 0=USDT0
 }
 
 /** OrderType enum on chain: 0=MARKET_INCREASE, 1=MARKET_DECREASE, 2=LIMIT_INCREASE, 3=LIMIT_DECREASE */
@@ -133,7 +133,7 @@ export function useUSDC() {
         abi: TRADING_CORE_ABI,
         functionName: 'usdc',
     });
-    return { address: (usdcAddress as Address) || MOCK_USDC_ADDRESS };
+    return { address: (usdcAddress as Address) || MOCK_USDT0_ADDRESS };
 }
 
 export function useUSDCDecimals() {
@@ -215,6 +215,12 @@ export function useCreateOrder() {
         triggerPriceWei?: string; // 18 decimals; required for LIMIT_*
         /** Non-USDC collateral token. Omit / address(0) settles in USDC via the legacy path. */
         collateralToken?: Address;
+        /** Time-in-force. Only GTC (0) and POST_ONLY (3) are honored on-chain. */
+        tif?: number;
+        /** Bracket: stop-loss price (18 decimals) applied to the minted position on fill. */
+        stopLossPriceWei?: string;
+        /** Bracket: take-profit price (18 decimals) applied to the minted position on fill. */
+        takeProfitPriceWei?: string;
     }) => {
         if (!address) throw new Error('Wallet not connected');
         let baseFee: bigint;
@@ -241,6 +247,13 @@ export function useCreateOrder() {
         const collateralToken = params.collateralToken ?? ZERO_ADDRESS;
         const useAltCollateral = collateralToken !== ZERO_ADDRESS;
 
+        const tif = params.tif ?? TIF_GTC;
+        const stopLossPrice = BigInt(params.stopLossPriceWei ?? '0');
+        const takeProfitPrice = BigInt(params.takeProfitPriceWei ?? '0');
+        // Advanced fields (bracket SL/TP or a non-default TIF) require the
+        // struct-based createOrder entry point.
+        const hasAdvanced = tif !== TIF_GTC || stopLossPrice > 0n || takeProfitPrice > 0n;
+
         let request: any;
         if (useAltCollateral) {
             // Struct-based createOrder carries `collateralToken` + `collateralType`
@@ -261,9 +274,39 @@ export function useCreateOrder() {
                     positionId: BigInt(params.positionId ?? 0),
                     collateralType: CollateralType.MULTI,
                     collateralToken,
-                    tif: TIF_GTC,
-                    stopLossPrice: 0n,
-                    takeProfitPrice: 0n,
+                    tif,
+                    stopLossPrice,
+                    takeProfitPrice,
+                    visibleSize: 0n,
+                    twapInterval: 0n,
+                    isReduceOnly: false,
+                    owner: ZERO_ADDRESS,
+                }],
+                value: fee,
+            };
+        } else if (hasAdvanced) {
+            // USDC/USDT0 settlement WITH advanced fields → struct path.
+            // collateralType USDT0 + collateralToken address(0) is the canonical
+            // default-collateral form the contract accepts.
+            request = {
+                chainId,
+                address: TRADING_CORE_ADDRESS,
+                abi: TRADING_CORE_ABI,
+                functionName: 'createOrder',
+                args: [{
+                    orderType,
+                    market: params.market,
+                    sizeDelta: BigInt(params.sizeDelta),
+                    collateralDelta: BigInt(params.collateralDelta),
+                    triggerPrice: triggerPriceWei,
+                    isLong: params.isLong,
+                    maxSlippage: BigInt(params.maxSlippage ?? '100'),
+                    positionId: BigInt(params.positionId ?? 0),
+                    collateralType: CollateralType.USDT0,
+                    collateralToken: ZERO_ADDRESS,
+                    tif,
+                    stopLossPrice,
+                    takeProfitPrice,
                     visibleSize: 0n,
                     twapInterval: 0n,
                     isReduceOnly: false,
@@ -321,6 +364,12 @@ export function useOpenPosition() {
             triggerPrice?: string, // decimal string, e.g. "2500.50"
             /** Optional non-USDC collateral token (must be registered in CollateralRegistry). */
             collateralToken?: Address,
+            /** Time-in-force: 0=GTC, 3=POST_ONLY (only these are honored on-chain). */
+            tif?: number,
+            /** Bracket take-profit trigger price (decimal string). Applied to the minted position. */
+            takeProfitTrigger?: string,
+            /** Bracket stop-loss trigger price (decimal string). Applied to the minted position. */
+            stopLossTrigger?: string,
         }
     ) => {
         setIsLoading(true);
@@ -396,6 +445,33 @@ export function useOpenPosition() {
             const collateralDelta6 = parseUnits(marginUSDC.toFixed(6), 6);
             const triggerPriceWei = isLimit && triggerPriceStr ? parseUnits(triggerPriceStr, 18).toString() : undefined;
 
+            // ─── Bracket order (TP/SL applied to the position the keeper mints) ───
+            // The contract validates direction on fill: long → SL < entry < TP,
+            // short → TP < entry < SL. Validate here so users get a clean error
+            // instead of an on-chain `InvalidOrder` revert.
+            const refPrice = params.expectedPrice && params.expectedPrice > 0 ? params.expectedPrice : undefined;
+            const slTrigger = params.stopLossTrigger?.trim();
+            const tpTrigger = params.takeProfitTrigger?.trim();
+            let stopLossPriceWei: string | undefined;
+            let takeProfitPriceWei: string | undefined;
+            if (slTrigger && parseFloat(slTrigger) > 0) {
+                const sl = parseFloat(slTrigger);
+                if (refPrice !== undefined) {
+                    if (params.isLong && sl >= refPrice) throw new Error('Stop-loss must be below the entry price for a long.');
+                    if (!params.isLong && sl <= refPrice) throw new Error('Stop-loss must be above the entry price for a short.');
+                }
+                stopLossPriceWei = parseUnits(slTrigger, 18).toString();
+            }
+            if (tpTrigger && parseFloat(tpTrigger) > 0) {
+                const tp = parseFloat(tpTrigger);
+                if (refPrice !== undefined) {
+                    if (params.isLong && tp <= refPrice) throw new Error('Take-profit must be above the entry price for a long.');
+                    if (!params.isLong && tp >= refPrice) throw new Error('Take-profit must be below the entry price for a short.');
+                }
+                takeProfitPriceWei = parseUnits(tpTrigger, 18).toString();
+            }
+            const tif = params.tif;
+
             // ─── Alt-collateral path ───────────────────────────────────────
             // When a non-USDC collateral token is requested, value the required
             // USDC margin into the token amount via CollateralRegistry, then
@@ -454,13 +530,16 @@ export function useOpenPosition() {
                     orderType,
                     triggerPriceWei,
                     collateralToken: token,
+                    tif,
+                    stopLossPriceWei,
+                    takeProfitPriceWei,
                 });
                 toast.success('Order submitted. A keeper will execute it shortly.');
                 return true;
             }
 
             if (walletUsdcBalance < collateralDelta6) {
-                throw new Error('Insufficient USDC balance for this margin amount.');
+                throw new Error('Insufficient USDT0 balance for this margin amount.');
             }
 
             const currentAllowance = currentAllow;
@@ -476,7 +555,7 @@ export function useOpenPosition() {
                 });
                 toast.loading("Waiting for approval confirmation...");
                 await publicClient.waitForTransactionReceipt({ hash });
-                toast.success("USDC approved successfully");
+                toast.success("USDT0 approved successfully");
                 await refetchAllowance();
             }
 
@@ -490,6 +569,9 @@ export function useOpenPosition() {
                 positionId: 0,
                 orderType,
                 triggerPriceWei,
+                tif,
+                stopLossPriceWei,
+                takeProfitPriceWei,
             });
             toast.success("Order submitted. A keeper will execute it shortly.");
             return true;
@@ -521,7 +603,7 @@ export const decodeCreateOrderRevert = (err: any): string | null => {
             '0xd0ad2225': 'Protocol health guard is active. New increase orders are temporarily disabled.',
             '0x1ab7da6b': 'Transaction deadline expired. Please retry.',
             '0xb28e83a9': 'Oracle sources are currently insufficient for this market.',
-            '0xcf6d6d6d': 'Alternative collateral is not enabled on this deployment yet. Use USDC for now.',
+            '0xcf6d6d6d': 'Alternative collateral is not enabled on this deployment yet. Use USDT0 for now.',
         };
 
         const raw = JSON.stringify(err, (_k, v) => (typeof v === 'bigint' ? v.toString() : v));
@@ -536,14 +618,20 @@ export const mapRevertToMessage = (err: any): string => {
     if (decoded) return decoded;
 
     const text = `${err?.shortMessage ?? ''} ${err?.message ?? ''} ${err?.details ?? ''}`.toLowerCase();
-    if (text.includes('altcollateraldisabled')) return 'Alternative collateral is not enabled on this deployment yet. Use USDC for now.';
+    if (text.includes('altcollateraldisabled')) return 'Alternative collateral is not enabled on this deployment yet. Use USDT0 for now.';
+    if (text.includes('postonlycrossesbook')) return 'Post-only price would fill immediately. Set a limit that rests away from the current price.';
+    if (text.includes('postonlynotallowedformarket')) return 'Post-only only applies to limit orders. Switch the order type to Limit.';
+    if (text.includes('unsupportedtimeinforce')) return 'This time-in-force is not supported on-chain. Use GTC or Post-only.';
+    if (text.includes('invalidvisiblesize')) return 'Iceberg/TWAP slicing is not enabled on this deployment.';
+    if (text.includes('reduceonlyrequiresposition')) return 'Reduce-only orders require an existing position.';
+    if (text.includes('invalidorder')) return 'Invalid bracket prices: stop-loss/take-profit must be on the correct side of entry.';
     if (text.includes('executionfeetoolow')) return 'Execution fee is too low. Please retry in a few seconds.';
     if (text.includes('breakeractive')) return 'Trading is temporarily blocked by risk circuit breaker for this market.';
     if (text.includes('insufficientcollateral')) return 'Insufficient collateral for this position size/leverage.';
     if (text.includes('marketnotactive')) return 'Market is currently not active.';
     if (text.includes('transfer amount exceeds balance') || text.includes('erc20')) return 'Insufficient token balance or allowance for collateral transfer.';
     if (text.includes('the contract function "createorder" reverted')) {
-        return 'Order creation reverted on-chain. Common causes: insufficient USDC/allowance, low execution fee, or market circuit breaker.';
+        return 'Order creation reverted on-chain. Common causes: insufficient USDT0/allowance, low execution fee, or market circuit breaker.';
     }
     return err?.shortMessage || err?.message || 'Failed to submit order';
 };
@@ -648,7 +736,7 @@ export function useModifyMargin() {
                         });
                         toast.loading("Waiting for approval confirmation...");
                         await publicClient.waitForTransactionReceipt({ hash });
-                        toast.success("USDC approved");
+                        toast.success("USDT0 approved");
                         await refetchAllowance();
                     }
                 }

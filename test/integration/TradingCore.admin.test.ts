@@ -50,6 +50,78 @@ describe("TradingCore — admin, config & wiring", () => {
             expect(await d.tradingCore.activeMarketCount()).to.be.greaterThan(0n);
             expect(await d.tradingCore.activeMarketAt(0)).to.equal(ethers.getAddress(d.market));
         });
+
+        it("supports configuring up to 100x and opening a high-leverage position", async () => {
+            const d = await loadFixture(deployConfigured);
+            const m3 = ethers.getAddress("0x00000000000000000000000000000000000000de");
+            const mId = "HILEV-USD";
+            const price = 50_000n * 10n ** 18n;
+            // Wire a fresh 24x7 market with a 100x cap and a 1% initial-margin
+            // floor (imBps=100 → 100x), maintenance 50 bps.
+            await d.oracle.setPythFeed(m3, d.feedId, 900, 10n ** 15n);
+            await d.oracle.addSupportedMarket(m3);
+            await d.oracle.setMarketId(m3, mId);
+            await d.marketCalendar.setMarketConfig(mId, 0, 1439, 0, true);
+            await d.tradingCore.setMarket(
+                m3,
+                m3,
+                100, // maxLev = 100x (previously impossible to use past ~18x)
+                ethers.parseUnits("100000000", 18),
+                ethers.parseUnits("500000000", 18),
+                50, // mmBps
+                100, // imBps -> 100x reachable
+                900,
+            );
+            await d.tradingCore.setMarketId(m3, mId);
+            // Seed TWAP for the new market.
+            const { setPythPrice } = await import("../helpers/pyth");
+            for (let i = 0; i < 4; i++) {
+                await setPythPrice(d.pyth, d.feedId, price);
+                await d.oracle.connect(d.oracleBot).recordPricePoint(m3, 0);
+                await time.increase(35);
+            }
+            await setPythPrice(d.pyth, d.feedId, price);
+
+            // Open ~95x on the new market WITHOUT mutating the shared fixture
+            // object (`loadFixture` returns the same `d` reference across tests,
+            // so mutating `d.market` would leak into later tests). Build the
+            // order with an explicit `market` override instead.
+            const { createOrder, executeOrder } = await import("../helpers/trading");
+            const nextId = await d.tradingCore.nextPositionId();
+            const orderId = await createOrder(d, d.alice, {
+                market: m3,
+                sizeDelta: usdc(100_000),
+                collateralDelta: usdc(1_100),
+                isLong: true,
+            });
+            await executeOrder(d, orderId);
+            const id = nextId;
+            const pos = await d.tradingCore.getPosition(id);
+            // Stored leverage is ~95e18 — proving the uint128 widening removed
+            // the prior ~18.44x truncation ceiling.
+            expect(pos.leverage).to.be.greaterThan(90n * 10n ** 18n);
+            // Freshly opened high-leverage position is NOT liquidatable at entry.
+            const [can] = await d.tradingCore.canLiquidate(id);
+            expect(can).to.equal(false);
+        });
+
+        it("rejects configuring leverage above the 100x hard ceiling", async () => {
+            const d = await loadFixture(deployConfigured);
+            const m4 = ethers.getAddress("0x00000000000000000000000000000000000000ef");
+            await d.oracle.setPythFeed(m4, d.feedId, 900, 10n ** 15n);
+            await expect(
+                d.tradingCore.setMarket(
+                    m4,
+                    m4,
+                    101, // > MAX_LEVERAGE_LIMIT
+                    ethers.parseUnits("100000000", 18),
+                    ethers.parseUnits("500000000", 18),
+                    50,
+                    100,
+                    900,
+                ),
+            ).to.be.reverted;
+        });
     });
 
     describe("setFeeConfig", () => {

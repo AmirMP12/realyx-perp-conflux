@@ -43,53 +43,32 @@ interface ICopyRegistry {
     ) external returns (uint256 leadTraderId);
 
     /// @notice Update profit fee and/or metadata for the calling lead trader.
-    function updateLeadTrader(
-        uint16 profitFeeBps,
-        string calldata metadataURI
-    ) external;
+    function updateLeadTrader(uint16 profitFeeBps, string calldata metadataURI) external;
 
     /// @notice Remove the caller from the lead trader registry and unfollow all copiers.
     function deregisterAsLeadTrader() external;
 
     /// @notice Follow a lead trader with configurable limits.
-    function followTrader(
-        address leadTrader,
-        uint256 maxAllocation,
-        uint8 maxLeverage
-    ) external;
+    function followTrader(address leadTrader, uint256 maxAllocation, uint8 maxLeverage) external;
 
     /// @notice Stop following a lead trader.
     function unfollowTrader(address leadTrader) external;
 
     /// @notice Update maxAllocation and maxLeverage for an existing follow relationship.
-    function updateCopierConfig(
-        address leadTrader,
-        uint256 maxAllocation,
-        uint8 maxLeverage
-    ) external;
+    function updateCopierConfig(address leadTrader, uint256 maxAllocation, uint8 maxLeverage) external;
 
     /// @notice Get lead trader info by address.
-    function getLeadTraderInfo(
-        address trader
-    ) external view returns (LeadTraderInfo memory);
+    function getLeadTraderInfo(address trader) external view returns (LeadTraderInfo memory);
 
     /// @notice Get lead trader info by numeric ID.
-    function getLeadTraderInfoById(
-        uint256 leadTraderId
-    ) external view returns (LeadTraderInfo memory);
+    function getLeadTraderInfoById(uint256 leadTraderId) external view returns (LeadTraderInfo memory);
 
     /// @notice Get the list of copier addresses following a lead trader.
-    function getCopiersOfLeadTrader(
-        address leadTrader
-    ) external view returns (address[] memory);
+    function getCopiersOfLeadTrader(address leadTrader) external view returns (address[] memory);
 
     /// @notice Get the list of copier addresses following a lead trader by numeric ID.
-    function getCopiersOfLeadTraderById(
-        uint256 leadTraderId
-    ) external view returns (address[] memory);
+    function getCopiersOfLeadTraderById(uint256 leadTraderId) external view returns (address[] memory);
 
     /// @notice Get all lead traders a given copier is following (gas-limited convenience view).
-    function getCopierFollowing(
-        address copier
-    ) external view returns (address[] memory leadTraders);
+    function getCopierFollowing(address copier) external view returns (address[] memory leadTraders);
 }

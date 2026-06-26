@@ -118,7 +118,7 @@ export function usePositions() {
 
             const pos = posResult.result as any;
             
-            const stateRaw = pos.state !== undefined ? pos.state : (pos[12] !== undefined ? pos[12] : POS_STATUS_OPEN);
+            const stateRaw = pos.state !== undefined ? pos.state : (pos[11] !== undefined ? pos[11] : POS_STATUS_OPEN);
             const state = Number(stateRaw);
             
             const currentOwner = ownerResult?.status === 'success' ? (ownerResult.result as string) : undefined;
@@ -133,9 +133,9 @@ export function usePositions() {
             const leverageRaw = pos.leverage !== undefined ? pos.leverage : pos[5];
             const stopLossRaw = pos.stopLossPrice !== undefined ? pos.stopLossPrice : pos[3];
             const takeProfitRaw = pos.takeProfitPrice !== undefined ? pos.takeProfitPrice : pos[4];
-            const marketAddressRaw = pos.market !== undefined ? pos.market : pos[7];
-            const openTimestampRaw = pos.openTimestamp !== undefined ? pos.openTimestamp : pos[8];
-            const flagsRaw = pos.flags !== undefined ? pos.flags : pos[10];
+            const marketAddressRaw = pos.market !== undefined ? pos.market : pos[6];
+            const openTimestampRaw = pos.openTimestamp !== undefined ? pos.openTimestamp : pos[7];
+            const flagsRaw = pos.flags !== undefined ? pos.flags : pos[9];
 
             const pnlVal = pnlResult && pnlResult.status === 'success' ? (pnlResult.result as any)[0] : 0n;
 

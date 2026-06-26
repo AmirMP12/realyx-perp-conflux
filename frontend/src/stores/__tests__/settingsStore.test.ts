@@ -15,7 +15,6 @@ describe('settingsStore', () => {
             const state = useSettingsStore.getState();
             expect(state.theme).toBe('dark');
             expect(state.defaultLeverage).toBe(5);
-            expect(state.currency).toBe('USD');
         });
 
         it('should update theme and apply CSS class', () => {
@@ -64,9 +63,6 @@ describe('settingsStore', () => {
             
             state.setShowPnlPercent(false);
             expect(useSettingsStore.getState().showPnlPercent).toBe(false);
-            
-            state.setCurrency('CFX');
-            expect(useSettingsStore.getState().currency).toBe('CFX');
             
             state.setPositionAlerts(false);
             expect(useSettingsStore.getState().positionAlerts).toBe(false);

@@ -4,6 +4,7 @@ module.exports = {
     'test/',
     'base/AccessControlled.sol',
     'modules/AllowListCompliance.sol',
+    'modules/KeeperNetwork.sol',
     'modules/DividendKeeper.sol'
   ],
   providerOptions: {

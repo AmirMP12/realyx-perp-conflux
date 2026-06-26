@@ -1,6 +1,6 @@
 # Realyx Docs
 
-Official documentation site for [Realyx](https://realyx.vercel.app/) — a decentralized perpetual futures exchange for Real World Assets, built on Conflux eSpace.
+Official documentation site for [Realyx](https://app.realyx.example/) — a decentralized perpetual futures exchange for Real World Assets, built on Conflux eSpace.
 
 A lightweight, fully static single-page docs app. No build step, no framework, no dependencies. Just HTML, CSS, and vanilla JavaScript.
 
@@ -90,7 +90,7 @@ Use these CSS classes when authoring page content for a consistent look:
 
 The site can be deployed to any static host. Some options:
 
-- **Vercel:** drop the folder in or connect the repo, no config needed
+- **Railway:** connect the repo and deploy as a static service
 - **Netlify:** same, no build command
 - **GitHub Pages:** push to `gh-pages` or enable Pages on `main`
 - **Cloudflare Pages:** point at the repo, leave build command empty
@@ -101,7 +101,7 @@ Modern evergreen browsers (Chrome, Firefox, Safari, Edge). Uses CSS custom prope
 
 ## Links
 
-- App: https://realyx.vercel.app/
+- App: https://app.realyx.example/
 - Source: https://github.com/AmirMP12/realyx-perp-conflux
 - X: https://x.com/Realyx_Perp
 - Telegram: https://t.me/Real_yx

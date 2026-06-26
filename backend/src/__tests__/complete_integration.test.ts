@@ -83,7 +83,7 @@ describe("Complete System Integration", () => {
     });
 
     describe("Indexer Logic", () => {
-        it("exercises success paths", async () => {
+        it("fetches protocol, markets, leaderboard, and metrics from the database", async () => {
             await indexer.fetchProtocol();
             await indexer.fetchActiveTraders24h();
             await indexer.fetchMarkets();
@@ -96,11 +96,11 @@ describe("Complete System Integration", () => {
             await indexer.fetchProtocol();
         });
 
-        it("exercises fallbacks", async () => {
-             // getPool exists branch
+        it("returns safe defaults when the database pool is unavailable", async () => {
+             // reuses the existing pool instance
              indexer.getPool(); indexer.getPool();
 
-             // No DB branches
+             // no database configured
              const oldUrl = process.env.POSTGRES_URL;
              delete process.env.POSTGRES_URL;
              await indexer.fetchProtocol();
@@ -110,13 +110,13 @@ describe("Complete System Integration", () => {
              await indexer.fetchProtocolMetrics(10);
              process.env.POSTGRES_URL = oldUrl;
 
-             // No pool branch
+             // pool resolves to null
              const poolSpy = jest.spyOn(indexer, "getPool").mockReturnValue(null);
              await indexer.fetchProtocol();
              poolSpy.mockRestore();
         });
 
-        it("exercises mapping variety", async () => {
+        it("maps trade and active-trader rows with varied data shapes", async () => {
             mockPoolQuery.mockResolvedValueOnce({ rows: [{ data: '["1","2","3",true]' }] });
             await indexer.fetchUserTrades("0x123", 10);
             
@@ -126,7 +126,7 @@ describe("Complete System Integration", () => {
     });
 
     describe("Onchain Logic", () => {
-        it("exercises all paths", async () => {
+        it("fetches on-chain markets, skipping inactive and invalid addresses", async () => {
             mockActiveMarketCount.mockResolvedValue(3n);
             mockActiveMarketAt.mockResolvedValueOnce("0x0").mockResolvedValueOnce(null).mockResolvedValueOnce("0xM1");
             mockGetMarketInfo.mockResolvedValueOnce({ isActive: false, isListed: true }).mockResolvedValueOnce({ isActive: true, isListed: true });
@@ -143,7 +143,7 @@ describe("Complete System Integration", () => {
             app.use("/debug", debugRouter); app.use("/health", healthRouter); app.use("/stats", statsRouter);
         });
 
-        it("exercises routes", async () => {
+        it("serves debug, health, and stats routes and handles downstream failures", async () => {
             await request(app).get("/debug");
             await request(app).get("/health");
             await request(app).get("/stats");

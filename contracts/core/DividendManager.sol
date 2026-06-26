@@ -24,6 +24,11 @@ contract DividendManager is Initializable, AccessControlUpgradeable, UUPSUpgrade
     ///      Distribute on the canonical 1e18-scaled unit-of-USDC-per-1e18-of-notional
     ///      and reject anything that would silently round down to ~zero.
     error DividendTooSmall();
+    /// @dev Raised when cumulative per-market distribution within the current
+    ///      rolling window would exceed `maxDividendPerWindow`. Bounds the
+    ///      blast radius of a compromised `MANAGER_ROLE`.
+    error DividendWindowCapExceeded();
+    error InvalidWindowDuration();
     /// @dev 48h UUPS upgrade timelock errors.
     error PendingImplementationMismatch();
     error UpgradeTimelockActive();
@@ -46,8 +51,24 @@ contract DividendManager is Initializable, AccessControlUpgradeable, UUPSUpgrade
     address private _pendingImpl;
     uint256 private _pendingImplEffective;
 
+    // ── Rolling-window cap on cumulative per-market distribution ──
+    /// @notice Length of the rolling window over which `maxDividendPerWindow`
+    ///         is enforced (seconds). Default 1 day; admin-tunable.
+    uint256 public dividendWindowDuration;
+    /// @notice Maximum cumulative `amountPerShare` distributable to a single
+    ///         market within one `dividendWindowDuration`. `0` disables the
+    ///         cap (used for legacy upgrades that predate this field). Fresh
+    ///         deploys default to `MAX_DIVIDEND_PER_SHARE`; operators should
+    ///         tighten this to a value matched to expected corporate actions.
+    uint256 public maxDividendPerWindow;
+    /// @notice marketId → start timestamp of the current accounting window.
+    mapping(string => uint256) private _dividendWindowStart;
+    /// @notice marketId → cumulative `amountPerShare` distributed in the window.
+    mapping(string => uint256) private _dividendWindowCumulative;
+
     event ImplementationProposed(address indexed pending, uint256 effective);
     event ImplementationCancelled(address indexed pending);
+    event DividendLimitsUpdated(uint256 windowDuration, uint256 maxPerWindow);
 
     function initialize(address admin) public initializer {
         __AccessControl_init();
@@ -55,6 +76,13 @@ contract DividendManager is Initializable, AccessControlUpgradeable, UUPSUpgrade
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(MANAGER_ROLE, admin);
+
+        // Defaults: cap cumulative per-market distribution at the per-call
+        // maximum over a 1-day rolling window. This bounds a compromised
+        // MANAGER_ROLE to one max distribution per market per day instead of
+        // unlimited repeats; operators should tighten via `setDividendLimits`.
+        dividendWindowDuration = 1 days;
+        maxDividendPerWindow = MAX_DIVIDEND_PER_SHARE;
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -104,8 +132,43 @@ contract DividendManager is Initializable, AccessControlUpgradeable, UUPSUpgrade
         if (amountPerShare > MAX_DIVIDEND_PER_SHARE) revert DividendTooLarge();
         if (amountPerShare < MIN_DIVIDEND_PER_SHARE) revert DividendTooSmall();
 
+        // Bound cumulative per-market distribution within a rolling window
+        // so a compromised MANAGER_ROLE cannot repeatedly distribute the
+        // per-call maximum to drain the vault via long positions. A window cap
+        // of 0 disables the check (legacy-upgrade compatibility).
+        if (maxDividendPerWindow > 0) {
+            uint256 cumulative;
+            if (block.timestamp >= _dividendWindowStart[marketId] + dividendWindowDuration) {
+                _dividendWindowStart[marketId] = block.timestamp;
+                cumulative = amountPerShare;
+            } else {
+                cumulative = _dividendWindowCumulative[marketId] + amountPerShare;
+            }
+            if (cumulative > maxDividendPerWindow) revert DividendWindowCapExceeded();
+            _dividendWindowCumulative[marketId] = cumulative;
+        }
+
         dividendIndices[marketId] += amountPerShare;
         emit DividendDistributed(marketId, amountPerShare, dividendIndices[marketId], block.timestamp);
+    }
+
+    /// @notice Configure the rolling-window distribution cap.
+    /// @param windowDuration Window length in seconds (must be non-zero).
+    /// @param maxPerWindow Max cumulative `amountPerShare` per market per
+    ///        window; `0` disables the cap.
+    function setDividendLimits(uint256 windowDuration, uint256 maxPerWindow) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (windowDuration == 0) revert InvalidWindowDuration();
+        dividendWindowDuration = windowDuration;
+        maxDividendPerWindow = maxPerWindow;
+        emit DividendLimitsUpdated(windowDuration, maxPerWindow);
+    }
+
+    /// @notice Current window accounting for a market: start timestamp and
+    ///         cumulative `amountPerShare` distributed in the active window.
+    function getDividendWindow(
+        string calldata marketId
+    ) external view returns (uint256 windowStart, uint256 cumulative) {
+        return (_dividendWindowStart[marketId], _dividendWindowCumulative[marketId]);
     }
 
     function getDividendIndex(string calldata marketId) external view override returns (uint256) {

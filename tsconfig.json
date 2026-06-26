@@ -9,7 +9,22 @@
     "allowJs": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "strict": false
+    "strict": false,
+    "noEmit": true
   },
-  "exclude": ["node_modules", "frontend", "backend"]
+  "exclude": [
+    "node_modules",
+    "frontend",
+    "backend",
+    "sdk",
+    "api",
+    "dist",
+    "artifacts",
+    "cache",
+    "coverage",
+    "typechain",
+    "docs-site",
+    "landing",
+    "demo"
+  ]
 }

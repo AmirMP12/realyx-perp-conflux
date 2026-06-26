@@ -80,8 +80,11 @@ library PositionCloseLib {
         // TWAP/spot deviation guard on close. When the buffer is still warming up,
         // allow the close if the trader supplied `minReceive` slippage protection.
         {
-            (uint256 twapPrice, bool twapValid) = IOracleAggregator(ctx.oracleAggregator)
-                .getTWAPWithValidation(position.market, TWAP_WINDOW_SECONDS, MIN_TWAP_DATA_POINTS);
+            (uint256 twapPrice, bool twapValid) = IOracleAggregator(ctx.oracleAggregator).getTWAPWithValidation(
+                position.market,
+                TWAP_WINDOW_SECONDS,
+                MIN_TWAP_DATA_POINTS
+            );
             if (!twapValid) {
                 if (minReceive == 0) revert TwapNotReady();
             } else if (twapPrice > 0) {
@@ -158,6 +161,18 @@ library PositionCloseLib {
             ? int256(DataTypes.toUsdcPrecision(uint256(unrealizedPnL)))
             : -int256(DataTypes.toUsdcPrecisionCeil(uint256(-unrealizedPnL)));
 
+        // Never ask the vault to pull more than the approved/available
+        // `receiveAmount`. In the bad-debt branch above `receiveAmount` may have
+        // been scaled down below `repayAmountUsdc + loss`; `VaultCore.repay`
+        // recomputes its pull as `amount + (-pnl)`, so passing the FULL negative
+        // `pnlUsdc` would exceed the (reduced) allowance and revert the close,
+        // locking an underwater position. Clamp the loss component so the pull
+        // equals `receiveAmount`. No-op on clean / fully-covered closes.
+        if (pnlUsdc < 0) {
+            uint256 maxLoss = receiveAmount > repayAmountUsdc ? receiveAmount - repayAmountUsdc : 0;
+            if (uint256(-pnlUsdc) > maxLoss) pnlUsdc = -int256(maxLoss);
+        }
+
         IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
         IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, receiveAmount);
         IVaultCore(ctx.liquidityVault).repay(repayAmountUsdc, position.market, isLong, pnlUsdc);
@@ -174,7 +189,7 @@ library PositionCloseLib {
         if (payout > 0) {
             uint256 userPayoutUsdc = DataTypes.toUsdcPrecision(uint256(payout));
             if (minReceive > 0 && userPayoutUsdc < minReceive) revert SlippageExceeded();
-            
+
             if (positionCollateral[positionId].tokenAddress != address(0)) {
                 uint256 tokenOut = CollateralRegistry(ctx.collateralRegistry).getTokenAmountForUsdc(
                     positionCollateral[positionId].tokenAddress,
@@ -252,8 +267,8 @@ library PositionCloseLib {
                     : 0;
             }
             uint256 newLeverage = _calculateNewLeverage(uint256(position.size), positionCollateral[positionId].amount);
-            if (newLeverage > type(uint64).max) revert LeverageOverflow();
-            position.leverage = uint64(newLeverage);
+            if (newLeverage > type(uint128).max) revert LeverageOverflow();
+            position.leverage = uint128(newLeverage);
             uint256 liqPx = PositionMath.calculateLiquidationPrice(
                 uint256(position.entryPrice),
                 newLeverage,
@@ -270,16 +285,9 @@ library PositionCloseLib {
         return (size * PRECISION) / collateral;
     }
 
-    function _distributeFees(
-        uint256 closingFee,
-        ClosePositionContext memory ctx
-    ) private {
+    function _distributeFees(uint256 closingFee, ClosePositionContext memory ctx) private {
         (uint256 lpShare, uint256 insuranceShare, uint256 treasuryShare, uint256 rebateShare) = FeeCalculator
-            .splitFeesWithRebate(
-                closingFee,
-                ctx.feeConfig,
-                ctx.referrer == address(0) ? 0 : ctx.referralRebateBps
-            );
+            .splitFeesWithRebate(closingFee, ctx.feeConfig, ctx.referrer == address(0) ? 0 : ctx.referralRebateBps);
 
         uint256 lpShareUsdc = DataTypes.toUsdcPrecision(lpShare);
         uint256 insuranceShareUsdc = DataTypes.toUsdcPrecision(insuranceShare);

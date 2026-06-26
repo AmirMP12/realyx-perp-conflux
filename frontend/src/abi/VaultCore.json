@@ -164,6 +164,16 @@
   },
   {
     "inputs": [],
+    "name": "InvalidUsdcDecimals",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "LpAccountingUnderflow",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "MinimumDepositRequired",
     "type": "error"
   },
@@ -256,6 +266,11 @@
   {
     "inputs": [],
     "name": "SlippageExceeded",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "TraderPnLNotFullyPriced",
     "type": "error"
   },
   {
@@ -947,6 +962,25 @@
       }
     ],
     "name": "TradingCoreProposed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "oldCore",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "newCore",
+        "type": "address"
+      }
+    ],
+    "name": "TradingCoreRotated",
     "type": "event"
   },
   {
@@ -2218,6 +2252,19 @@
   },
   {
     "inputs": [],
+    "name": "lpBalanceSliceUSDC",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "lpTotalShares",
     "outputs": [
       {
@@ -3171,6 +3218,19 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "traderPnLFullyPriced",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
       }
     ],
     "stateMutability": "view",

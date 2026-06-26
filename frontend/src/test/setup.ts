@@ -1,13 +1,22 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { vi, beforeEach } from 'vitest';
 import React from 'react';
+
+// Keep the test terminal clean. Many hooks/components intentionally
+// `console.error`/`console.warn` inside catch blocks before surfacing a toast or
+// returning a fallback; those expected logs would otherwise spam the run output.
+// They're kept as spies (not removed) so tests can still assert they were called.
+beforeEach(() => {
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+});
 
 // Minimal setup to isolate the hang
 vi.stubEnv('VITE_TRADING_CORE_ADDRESS', '0x111');
 vi.stubEnv('VITE_VAULT_CORE_ADDRESS', '0x222');
 vi.stubEnv('VITE_ORACLE_AGGREGATOR_ADDRESS', '0x333');
 vi.stubEnv('VITE_POSITION_TOKEN_ADDRESS', '0x444');
-vi.stubEnv('VITE_MOCK_USDC_ADDRESS', '0x555');
+vi.stubEnv('VITE_MOCK_USDT0_ADDRESS', '0x555');
 
 // Mock wagmi
 vi.mock('wagmi', () => ({

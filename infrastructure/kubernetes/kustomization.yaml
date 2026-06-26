@@ -1,0 +1,35 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: realyx
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  # REQUIRED: the backend and indexer now reference backend-secrets with
+  # optional:false. Create it from backend-secrets.yaml.example (or provision it
+  # out-of-band, e.g. via a sealed-secret / external-secrets operator) and
+  # uncomment the line below so the pods can schedule.
+  # - backend-secrets.yaml
+  - backend.yaml
+  - indexer.yaml
+  - frontend.yaml
+
+# Pin to immutable, registry-qualified images instead of the mutable
+# `realyx/<svc>:latest` placeholders baked into the manifests. The CI pipeline
+# (.github/workflows/ci-cd.yml) publishes images to GHCR tagged with the commit
+# SHA (`type=sha`). At deploy time, set the exact tag, e.g.:
+#
+#   kustomize edit set image \
+#     realyx/backend=ghcr.io/<owner>/realyx/backend:sha-<short> \
+#     realyx/frontend=ghcr.io/<owner>/realyx/frontend:sha-<short>
+#
+# Replace <owner> with your GitHub org/user. `realyx/backend` also covers the
+# indexer Deployment, which runs the same image.
+images:
+  - name: realyx/backend
+    newName: ghcr.io/OWNER/realyx/backend
+    newTag: latest
+  - name: realyx/frontend
+    newName: ghcr.io/OWNER/realyx/frontend
+    newTag: latest

@@ -51,7 +51,7 @@ export interface Deployment {
     signers: HardhatEthersSigner[];
 
     // contracts
-    usdc: any;
+    usdt0: any;
     pyth: any;
     marketCalendar: any;
     dividendManager: any;
@@ -81,9 +81,9 @@ export async function deployProtocol(): Promise<Deployment> {
     const [admin, treasury, keeper, liquidator, guardian, operator, oracleBot, lp, alice, bob, carol] = signers;
 
     // ── External mocks ──
-    const MockUSDC = await ethers.getContractFactory("MockUSDC");
-    const usdcToken = await MockUSDC.deploy();
-    await usdcToken.waitForDeployment();
+    const MockUSDT0 = await ethers.getContractFactory("MockUSDT0");
+    const usdt0Token = await MockUSDT0.deploy();
+    await usdt0Token.waitForDeployment();
 
     const MockPyth = await ethers.getContractFactory("MockPythWrapper");
     const pyth = await MockPyth.deploy(3600, 1); // validTimePeriod, fee=1 wei
@@ -121,7 +121,7 @@ export async function deployProtocol(): Promise<Deployment> {
     const VaultCore = await ethers.getContractFactory("VaultCore");
     const vault = await upgrades.deployProxy(
         VaultCore,
-        [admin.address, await usdcToken.getAddress(), treasury.address],
+        [admin.address, await usdt0Token.getAddress(), treasury.address],
         { kind: "uups", initializer: "initialize" },
     );
     await vault.waitForDeployment();
@@ -188,7 +188,7 @@ export async function deployProtocol(): Promise<Deployment> {
     const TradingCore = await ethers.getContractFactory("TradingCore", { libraries: tradingCoreLibraries });
     const tradingCore = await upgrades.deployProxy(
         TradingCore,
-        [admin.address, await usdcToken.getAddress(), treasury.address],
+        [admin.address, await usdt0Token.getAddress(), treasury.address],
         { kind: "uups", initializer: "initialize", unsafeAllowLinkedLibraries: true },
     );
     await tradingCore.waitForDeployment();
@@ -258,7 +258,7 @@ export async function deployProtocol(): Promise<Deployment> {
         bob,
         carol,
         signers,
-        usdc: usdcToken,
+        usdt0: usdt0Token,
         pyth,
         marketCalendar,
         dividendManager,
@@ -349,14 +349,14 @@ export async function deployConfigured(opts?: {
     }
 
     // ── Seed LP liquidity ──
-    await d.usdc.mintTo(d.lp.address, lpAmount);
-    await d.usdc.connect(d.lp).approve(await d.vault.getAddress(), lpAmount);
+    await d.usdt0.mintTo(d.lp.address, lpAmount);
+    await d.usdt0.connect(d.lp).approve(await d.vault.getAddress(), lpAmount);
     await d.vault.connect(d.lp).deposit(lpAmount, d.lp.address);
 
     // ── Fund traders with USDC ──
     for (const s of [d.alice, d.bob, d.carol]) {
-        await d.usdc.mintTo(s.address, usdc(10_000_000));
-        await d.usdc.connect(s).approve(await d.tradingCore.getAddress(), ethers.MaxUint256);
+        await d.usdt0.mintTo(s.address, usdc(10_000_000));
+        await d.usdt0.connect(s).approve(await d.tradingCore.getAddress(), ethers.MaxUint256);
     }
 
     return d;

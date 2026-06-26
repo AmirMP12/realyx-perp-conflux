@@ -11,7 +11,13 @@ library DataTypes {
     uint8 public constant USDC_DECIMALS = 6;
     uint256 public constant DECIMAL_CONVERSION = 10 ** 12;
 
-    uint256 public constant MAX_LEVERAGE = 30;
+    /// @dev Default / recommended per-market maximum leverage. Markets may be
+    ///      configured anywhere in `[MIN_LEVERAGE, MAX_LEVERAGE_LIMIT]`; this is
+    ///      the conservative default operators are expected to start from (10x).
+    uint256 public constant MAX_LEVERAGE = 10;
+    /// @dev Hard ceiling on configurable per-market leverage (100x). The engine
+    ///      stores leverage as a 1e18-scaled `uint128` so the full range is
+    ///      representable without truncation.
     uint256 public constant MAX_LEVERAGE_LIMIT = 100;
     uint256 public constant MIN_LEVERAGE = 1;
 
@@ -77,14 +83,22 @@ library DataTypes {
         COOLDOWN
     }
 
+    /// @dev Packed into exactly 5 storage slots:
+    ///   slot0: size | entryPrice
+    ///   slot1: liquidationPrice | stopLossPrice
+    ///   slot2: takeProfitPrice | leverage
+    ///   slot3: market | openTimestamp | trailingStopBps | flags | collateralType | state
+    ///   slot4: collateralToken | lastFundingTime
+    /// `leverage` is a 1e18-scaled multiplier (`uint128`) so the full
+    /// configurable range up to `MAX_LEVERAGE_LIMIT` (100x = 100e18) is
+    /// representable without the prior `uint64` truncation at ~18.44x.
     struct Position {
         uint128 size;
         uint128 entryPrice;
         uint128 liquidationPrice;
         uint128 stopLossPrice;
         uint128 takeProfitPrice;
-        uint64 leverage;
-        uint64 lastFundingTime;
+        uint128 leverage;
         address market;
         uint40 openTimestamp;
         uint16 trailingStopBps;
@@ -92,6 +106,7 @@ library DataTypes {
         CollateralType collateralType;
         PosStatus state;
         address collateralToken;
+        uint64 lastFundingTime;
     }
 
     struct PositionCollateral {
@@ -113,22 +128,15 @@ library DataTypes {
         uint256 totalUsdcValue;
     }
 
-    struct OpenPositionParams {
-        address market;
-        uint256 size;
-        uint256 leverage;
-        bool isLong;
-        bool isCrossMargin;
-        uint256 stopLossPrice;
-        uint256 takeProfitPrice;
-        uint256 trailingStopBps;
-        uint256 expectedPrice;
-        uint256 maxSlippageBps;
-        uint256 deadline;
-        CollateralType collateralType;
-        address collateralToken;
-    }
-
+    /// @dev MARGIN MODEL: the protocol selects cross- vs
+    ///      isolated-margin GLOBALLY via `TradingCore.crossMarginByDefault`
+    ///      (default cross), not per-position. Every newly opened position is
+    ///      stamped with that flag in `packFlags`, and `PortfolioRiskLib` only
+    ///      aggregates positions whose flag is cross. Per-position selection is
+    ///      intentionally NOT exposed on `CreateOrderParams`. The previously
+    ///      defined `OpenPositionParams` struct (which carried an unused
+    ///      `isCrossMargin` field and was referenced by no contract) has been
+    ///      removed to keep the on-chain surface honest.
     struct ClosePositionParams {
         uint256 positionId;
         uint256 closeSize;

@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type Theme = 'dark' | 'light';
-export type Currency = 'USD' | 'CFX';
 
 interface SettingsState {
     // Theme
@@ -45,8 +44,6 @@ interface SettingsState {
     setCompactMode: (compact: boolean) => void;
     showPnlPercent: boolean;
     setShowPnlPercent: (show: boolean) => void;
-    currency: Currency;
-    setCurrency: (currency: Currency) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -94,8 +91,6 @@ export const useSettingsStore = create<SettingsState>()(
             setCompactMode: (compactMode) => set({ compactMode }),
             showPnlPercent: true,
             setShowPnlPercent: (showPnlPercent) => set({ showPnlPercent }),
-            currency: 'USD',
-            setCurrency: (currency) => set({ currency }),
         }),
         {
             name: 'realyx-settings',

@@ -19,6 +19,23 @@ contract FundingLibHarness {
         return FundingLib.applyFundingToCollateral(_collateral, fundingPaid, positionId);
     }
 
+    DataTypes.FundingState internal _fundingState;
+    DataTypes.Market internal _market;
+
+    function setupMarket(uint64 lastSettlement, uint256 totalLongSize, uint256 totalShortSize) external {
+        _fundingState.lastSettlement = lastSettlement;
+        _market.totalLongSize = uint128(totalLongSize);
+        _market.totalShortSize = uint128(totalShortSize);
+    }
+
+    function settleWithCap(uint256 cap) external returns (int256) {
+        return FundingLib.settleFundingWithCap(_fundingState, _market, address(this), cap);
+    }
+
+    function fundingState() external view returns (int256 rate, int256 cum, uint64 last) {
+        return (_fundingState.fundingRate, _fundingState.cumulativeFunding, _fundingState.lastSettlement);
+    }
+
     function collateralAmount() external view returns (uint256) {
         return _collateral.amount;
     }

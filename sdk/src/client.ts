@@ -12,6 +12,7 @@ import type {
   Market,
   Position,
   WsMessage,
+  WsChannel,
   ProtocolStats,
   Trade,
   LeaderboardEntry,
@@ -119,68 +120,81 @@ export class RealyxClient {
 
   /**
    * Fetch all active markets.
-   * GET /api/v1/markets
+   * GET /api/v1/markets → { success, data: Market[] }
    */
   async getMarkets(): Promise<Market[]> {
-    const data = await this.get<{ success: boolean; markets?: Market[]; data?: Market[] }>("/api/v1/markets");
-    return data.markets ?? data.data ?? [];
+    const res = await this.get<{ success: boolean; data?: Market[] }>("/api/v1/markets");
+    return res.data ?? [];
   }
 
   /**
    * Fetch positions for a user address.
-   * GET /api/v1/user/:address/positions
+   * GET /api/v1/user/:address/positions → { success, data: Position[] }
    */
   async getPositions(address: string): Promise<Position[]> {
     if (!ethers.isAddress(address)) {
       throw new Error(`Invalid address: ${address}`);
     }
-    const data = await this.get<{ success: boolean; positions?: Position[]; data?: Position[] }>(
+    const res = await this.get<{ success: boolean; data?: Position[] }>(
       `/api/v1/user/${address}/positions`
     );
-    return data.positions ?? data.data ?? [];
+    return res.data ?? [];
   }
 
   /**
    * Fetch trade history for a user address.
-   * GET /api/v1/user/:address/trades
+   * GET /api/v1/user/:address/trades → { success, data: Trade[] }
    */
   async getTrades(address: string): Promise<Trade[]> {
     if (!ethers.isAddress(address)) {
       throw new Error(`Invalid address: ${address}`);
     }
-    const data = await this.get<{ success: boolean; trades?: Trade[]; data?: Trade[] }>(
+    const res = await this.get<{ success: boolean; data?: Trade[] }>(
       `/api/v1/user/${address}/trades`
     );
-    return data.trades ?? data.data ?? [];
+    return res.data ?? [];
   }
 
   /**
    * Fetch stats (volume, open interest, etc.).
-   * GET /api/v1/stats
+   * GET /api/v1/stats → { success, data: ProtocolStats }
    */
   async getStats(): Promise<ProtocolStats> {
-    const data = await this.get<{ success?: boolean; data?: ProtocolStats } & ProtocolStats>("/api/v1/stats");
-    return data.data ?? data;
+    const res = await this.get<{ success: boolean; data?: ProtocolStats }>("/api/v1/stats");
+    if (!res.data) {
+      throw new Error("GET /api/v1/stats returned no data");
+    }
+    return res.data;
   }
 
   /**
    * Fetch leaderboard.
-   * GET /api/v1/leaderboard
+   * GET /api/v1/leaderboard → { success, data: LeaderboardEntry[] }
    */
   async getLeaderboard(): Promise<LeaderboardEntry[]> {
-    const data = await this.get<{ success?: boolean; leaderboard?: LeaderboardEntry[]; data?: LeaderboardEntry[] }>(
+    const res = await this.get<{ success: boolean; data?: LeaderboardEntry[] }>(
       "/api/v1/leaderboard"
     );
-    return data.leaderboard ?? data.data ?? [];
+    return res.data ?? [];
   }
 
   // ───── WebSocket Convenience ─────
 
   /**
-   * Connect to WebSocket and subscribe to price + trade feeds for given symbols.
+   * Connect to the WebSocket and subscribe to the given broadcast channels.
    * Replaces any existing managed socket (the previous one is disconnected first).
+   *
+   * @param channels   Broadcast channels: any of "prices", "stats", "funding".
+   * @param onMessage  Receives every parsed message (price_update, stats_update,
+   *                   funding_update, and user-targeted notifications).
+   * @param opts.userAddress  Subscribe to user-targeted notifications (e.g. KEEPER_FAILURE).
+   * @param opts.onError      Error callback.
    */
-  connectAndSubscribe(symbols: string[], onMessage: (msg: WsMessage) => void, onError?: (err: Error) => void) {
+  connectAndSubscribe(
+    channels: WsChannel[],
+    onMessage: (msg: WsMessage) => void,
+    opts?: { userAddress?: string; onError?: (err: Error) => void }
+  ) {
     // Tear down any prior connection to avoid leaking sockets/timers.
     this.ws.disconnect();
 
@@ -188,16 +202,17 @@ export class RealyxClient {
       url: this.wsUrl,
       apiKey: this.apiKey,
       onMessage,
-      onError,
-      onStateChange: (state) => {
-        if (state === "connected") {
-          for (const sym of symbols) {
-            this.ws.subscribe(`price:${sym}`);
-            this.ws.subscribe(`trades:${sym}`);
-          }
-        }
-      },
+      onError: opts?.onError,
     });
+
+    // Queue subscriptions before connecting; RealyxWs flushes them on open
+    // (and re-flushes automatically after any reconnect).
+    for (const channel of channels) {
+      this.ws.subscribe(channel);
+    }
+    if (opts?.userAddress) {
+      this.ws.subscribeUser(opts.userAddress);
+    }
     this.ws.connect();
   }
 

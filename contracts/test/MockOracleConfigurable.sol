@@ -15,7 +15,14 @@ contract MockOracleConfigurable {
     }
 
     function getPrice(address market) external view returns (uint256, uint256, uint256) {
+        if (revertOnGetPrice) revert("oracle-down");
         return (prices[market], confidences[market], timestamps[market]);
+    }
+
+    bool public revertOnGetPrice;
+
+    function setRevertOnGetPrice(bool v) external {
+        revertOnGetPrice = v;
     }
 
     function setTWAP(address market, uint256 twap) external {
@@ -24,6 +31,22 @@ contract MockOracleConfigurable {
 
     function getTWAP(address market, uint256) external view returns (uint256) {
         return twaps[market];
+    }
+
+    // TWAP validity is configurable so PositionCloseLib's close-path deviation
+    // guard can be exercised in both the "twap valid" and "warming up" branches.
+    mapping(address => bool) public twapValidFlag;
+
+    function setTWAPValid(address market, bool valid) external {
+        twapValidFlag[market] = valid;
+    }
+
+    function getTWAPWithValidation(
+        address market,
+        uint256,
+        uint256
+    ) external view returns (uint256 twapPrice, bool isValid) {
+        return (twaps[market], twapValidFlag[market]);
     }
 
     function setActionAllowed(bool allowed) external {

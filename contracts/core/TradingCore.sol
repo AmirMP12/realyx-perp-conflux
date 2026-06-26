@@ -36,6 +36,18 @@ import "../libraries/Events.sol";
  * @title TradingCore
  * @notice Upgradeable perpetual futures engine: positions, keeper-driven orders, funding, collateral, and vault/oracle integration.
  * @dev Heavy logic lives in libraries (`TradingLib`, `FundingLib`, …). Several views delegate to `tradingViews` when set; unset reverts on those reads.
+ *
+ * @dev LINKED-LIBRARY EXECUTION MODEL: the `public`/`external`
+ *      library functions that take this contract's `storage` mappings as
+ *      arguments are deployed as separate library contracts and invoked via
+ *      DELEGATECALL (hence the `external-library-linking` upgrade annotation
+ *      below). They therefore execute in TradingCore's storage context and have
+ *      full authority over its state. Operational consequence: a relinked or
+ *      upgraded library is as security-critical as an implementation upgrade.
+ *      Library address changes (which happen only via a new linked
+ *      implementation deploy) MUST go through the same `proposeImplementation`
+ *      + 48h `UPGRADE_TIMELOCK` discipline as the proxy implementation itself,
+ *      and off-chain monitoring should alert on any implementation rotation.
  */
 /// @custom:oz-upgrades-unsafe-allow external-library-linking
 contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeable, AccessControlled, ITradingCore {
@@ -74,6 +86,11 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     error ReduceOnlyRequiresPosition();
     error InvalidVisibleSize();
     error IocFokNotFilled();
+    /// @dev Increase orders (`MARKET_INCREASE` / `LIMIT_INCREASE`) always mint a
+    ///      NEW position; the engine never reads `positionId` on that path.
+    ///      Reject a non-zero `positionId` so the surface is honest and callers
+    ///      are never misled into believing an increase scales an existing one.
+    error IncreaseOrderPositionIdNotAllowed();
     /// @dev IOC/FOK time-in-force directives are accepted by the struct for
     ///      forward-compatibility but the keeper executor does not yet
     ///      implement immediate-or-cancel / fill-or-kill semantics. Reject at
@@ -175,6 +192,13 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     ///      hard-coded `10e6` USDC absolute minimum so testnet/sandbox
     ///      operations do not falsely trip the protective check.
     uint256 public minLiquidatorRewardUsdc;
+    /// @dev MARGIN MODEL: global cross/isolated selector. When
+    ///      `true` (default) every newly opened position is flagged
+    ///      cross-margin and participates in `PortfolioRiskLib` account-level
+    ///      risk aggregation; when `false` new positions are isolated. This is
+    ///      a protocol-wide admin switch (`setPortfolioRiskConfig`), not a
+    ///      per-order choice — `CreateOrderParams` deliberately exposes no
+    ///      per-position margin-mode field.
     bool public crossMarginByDefault;
     DataTypes.PortfolioRiskConfig public portfolioRiskConfig;
 
@@ -205,7 +229,45 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     ///      must go to the bot, not the owner.
     mapping(uint256 => address) private _orderExecutionFeePayer;
 
-    uint256[9] private __gap;
+    // ─── Additional configuration storage (appended; preserve layout) ───
+    /// @dev Cap on how stale the oracle price may be relative to
+    ///      `block.timestamp` at order-execution time. `0` disables this
+    ///      staleness gate, but execution is independently blocked while the
+    ///      market session is closed (see the `_checkMarketOpen` guard in
+    ///      `executeOrder`), so a resting order can never be filled against
+    ///      the widened closed-session staleness price even when this is `0`.
+    ///      When non-zero, `executeOrder` also refuses to fill against a price
+    ///      older than this many seconds, bounding a keeper's ability to select
+    ///      a favourable in-window Pyth update.
+    uint256 public maxExecutionPriceAge;
+    /// @dev When true, anyone may call `liquidatePositionPermissionless`
+    ///      to liquidate an eligible position (subject to all the same oracle /
+    ///      TWAP / manual-price guards). Default false preserves the
+    ///      `LIQUIDATOR_ROLE`-only policy. This provides a liveness backstop so
+    ///      bad debt cannot accrue solely because the allow-listed liquidator set
+    ///      is offline or censoring.
+    bool public permissionlessLiquidationEnabled;
+    /// @dev When true, `liquidatePosition` may proceed even while the
+    ///      market session is closed, provided no manual price override is active
+    ///      and the TWAP-deviation guard inside `LiquidationLib` passes. Default
+    ///      false preserves the closed-session lockout. Enabling this lets a
+    ///      position that gapped insolvent over a session break be wound down at
+    ///      the first valid in-session-equivalent price instead of accruing
+    ///      uncovered bad debt until the session reopens.
+    bool public closedSessionLiquidationEnabled;
+
+    /// @dev Staged rotation of the delegated views contract. The views
+    ///      contract drives `getGlobalUnrealizedPnL(Detailed)` which feeds vault
+    ///      NAV and LP-exit gating, so a non-zero (re)assignment after the first
+    ///      wire-up is timelocked. Slots carved from the upgrade gap.
+    address private _pendingTradingViews;
+    uint256 private _pendingTradingViewsEffective;
+    /// @dev Monotonic latch: once any non-zero views contract has been wired,
+    ///      every subsequent non-zero (re)assignment must go through the 48h
+    ///      staged proposal. First wire-up stays immediate for deploy scripts.
+    bool private _tradingViewsInitialized;
+
+    uint256[4] private __gap;
 
     modifier noFlashLoan() {
         // Key the per-sender same-block lock and interaction-delay on the
@@ -238,27 +300,6 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             bool isIncrease = (ord.orderType == DataTypes.OrderType.MARKET_INCREASE ||
                 ord.orderType == DataTypes.OrderType.LIMIT_INCREASE);
             if (isIncrease && !oracleAggregator.isActionAllowed(ord.market, 0)) revert BreakerActive();
-        }
-        _;
-    }
-
-    /// @notice For new risk-increasing orders: circuit breaker, protocol health, and large-size rate-limit *check* (no write).
-    /// @dev The rate-limit budget is now CHECKED at order creation
-    ///      and CONSUMED only at execution against `order.account`. Previously,
-    ///      both creation and execution wrote `_lastLargeActionTime[trader]`,
-    ///      collapsing throughput for legitimate users.
-    modifier gateNewIncreaseOrder(DataTypes.OrderType orderType, address market, uint256 sizeDelta) {
-        if (orderType == DataTypes.OrderType.MARKET_INCREASE || orderType == DataTypes.OrderType.LIMIT_INCREASE) {
-            if (!oracleAggregator.isActionAllowed(market, 0)) revert BreakerActive();
-            if (!protocolHealth.isHealthy) revert ProtocolUnhealthy();
-            RateLimitLib.checkOnly(
-                msg.sender,
-                DataTypes.toInternalPrecision(sizeDelta),
-                DataTypes.toInternalPrecision(largeActionThreshold),
-                largeActionInterval,
-                block.timestamp,
-                _lastLargeActionTime
-            );
         }
         _;
     }
@@ -337,7 +378,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         minPositionSize = 100e6;
         maxOracleUncertainty = 8e17;
         minPositionDuration = 120;
-        maxActionsPerBlock = 10;
+        maxActionsPerBlock = 100;
         minExecutionFee = 0.005 ether;
         maxPositionsPerUser = 50;
         minInteractionDelay = 2;
@@ -350,6 +391,12 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         // Default initialization for funding/liquidator floors.
         maxFundingIntervals = DataTypes.MAX_FUNDING_INTERVALS;
         minLiquidatorRewardUsdc = 10e6;
+        // Bound keeper price selection at fill time to the same 15-minute
+        // window as the default oracle staleness, instead of leaving it
+        // disabled (0). This caps a keeper's ability to fill against an older
+        // but still in-staleness Pyth snapshot. Operators may tighten this
+        // further per-deployment via `setMaxExecutionPriceAge`.
+        maxExecutionPriceAge = 15 minutes;
         crossMarginByDefault = true;
         portfolioRiskConfig = DataTypes.PortfolioRiskConfig({
             maintenanceMarginBps: 500,
@@ -567,12 +614,41 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     function _collateralCtx() internal view returns (TradingLib.CollateralContext memory) {
-        return TradingContextLib.buildCollateralCtx(address(usdc), address(oracleAggregator), address(collateralRegistry), address(0), maxOracleUncertainty);
+        return
+            TradingContextLib.buildCollateralCtx(
+                address(usdc),
+                address(oracleAggregator),
+                address(collateralRegistry),
+                address(0),
+                maxOracleUncertainty
+            );
     }
 
     function _requireComplianceAndMarketOpen(address market) internal view {
-        if (address(complianceManager) != address(0) && !complianceManager.isAllowed(msg.sender, market, ""))
-            revert ComplianceCheckFailed();
+        // Refuse value-realizing user closes while a manual emergency-price
+        // override is active for this market. A guardian-set override returns a
+        // synthetic full-confidence price that can be up to the deviation cap
+        // off Pyth; allowing a close against it lets a trader realize PnL at a
+        // non-market price. This mirrors the liquidation lockout in
+        // `_liquidate` (which also refuses while `isManualPriceActive`). Both
+        // sides are frozen for the bounded override window; admin can drop the
+        // override immediately via `OracleAggregator.clearManualPrice`.
+        if (market != address(0) && oracleAggregator.isManualPriceActive(market)) revert BreakerActive();
+        // The close/partial-close paths are risk-reducing and return a
+        // user's own collateral. A compliance-module OUTAGE or misconfiguration
+        // (the call reverts) must not freeze every user's ability to exit, so we
+        // fail OPEN on a module error. An EXPLICIT deny (the module returns
+        // `false`, e.g. a sanctioned/de-listed address) is still honored — those
+        // positions remain exit-blocked and can only be wound down via
+        // liquidation. Opening/increasing risk stays strictly fail-closed via the
+        // `checkCompliance` modifier.
+        if (address(complianceManager) != address(0)) {
+            try complianceManager.isAllowed(msg.sender, market, "") returns (bool ok) {
+                if (!ok) revert ComplianceCheckFailed();
+            } catch {
+                // module unavailable: allow the risk-reducing close to proceed.
+            }
+        }
         _checkMarketOpen(market);
     }
 
@@ -676,7 +752,13 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             if (_lai > 24 hours) revert TradingLib.InvalidOrder();
             largeActionInterval = _lai;
         }
-        if (_mue > 0) maxUserExposure = _mue;
+        if (_mue > 0) {
+            // Bound per-user exposure cap. Upper bound (10B USDC) prevents
+            // an admin from effectively disabling the cap in a single tx;
+            // the cap can still be set arbitrarily low for tightening.
+            if (_mue > 10_000_000_000e6) revert TradingLib.InvalidOrder();
+            maxUserExposure = _mue;
+        }
         if (_mpd >= 30 && _mpd <= 3600) minPositionDuration = _mpd;
     }
 
@@ -689,6 +771,13 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     /// @inheritdoc ITradingCore
+    /// @dev PAUSE SEMANTICS: user closes are intentionally gated by
+    ///      `whenNotPaused`. A pause is an emergency brake that halts trader
+    ///      entries AND exits; only liquidations are exempt (see
+    ///      `liquidatePosition`) so the protocol can keep winding down
+    ///      insolvent positions while paused. Operators should treat extended
+    ///      pauses as exceptional, since they freeze honest traders' ability to
+    ///      realise PnL until unpaused.
     function closePosition(
         DataTypes.ClosePositionParams calldata p
     ) external nonReentrant whenNotPaused noFlashLoan returns (int256) {
@@ -763,17 +852,44 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     /// @inheritdoc ITradingCore
-    function liquidatePosition(uint256 id) external nonReentrant whenNotPaused onlyLiquidator returns (uint256 reward) {
+    /// @dev Intentionally NOT `whenNotPaused`. A guardian pause must not strand
+    ///      the protocol's primary solvency mechanism: liquidations only ever
+    ///      reduce risk (they wind down underwater positions and repay the
+    ///      vault). Blocking them while paused would let bad debt accrue during
+    ///      exactly the kind of stress event that triggers a pause. All other
+    ///      liquidation guards (oracle confidence/staleness, TWAP deviation,
+    ///      manual-price lockout, market-session and breaker checks) still apply.
+    function liquidatePosition(uint256 id) external nonReentrant onlyLiquidator returns (uint256 reward) {
+        return _liquidate(id);
+    }
+
+    /// @notice Permissionless liquidation backstop. Only callable when
+    ///         `permissionlessLiquidationEnabled` is set by governance. Subject
+    ///         to exactly the same oracle / TWAP / manual-price / session guards
+    ///         as the role-gated path; it merely removes the `LIQUIDATOR_ROLE`
+    ///         gate so liquidations cannot stall purely because the allow-listed
+    ///         liquidator set is offline.
+    function liquidatePositionPermissionless(uint256 id) external nonReentrant returns (uint256 reward) {
+        if (!permissionlessLiquidationEnabled) revert Unauthorized();
+        return _liquidate(id);
+    }
+
+    /// @dev Shared liquidation core for the role-gated and permissionless paths.
+    function _liquidate(uint256 id) internal returns (uint256 reward) {
         // liquidations must respect market session hours; OracleAggregator widens
         // staleness to 4 days when the market is closed, so a stale-price liquidation could
         // otherwise be forced over weekends/holidays.
         DataTypes.Position storage liqPos = _positions[id];
-        // Removed the previous guardian-bypass that allowed liquidating
-        // closed-session markets. Combined with manual-price overrides this
-        // enabled mass one-sided liquidations during halts. Closed markets
-        // must wait for re-open or for an explicit `resolveFailedRepayment`
-        // wind-down path. Liquidator must be active session.
-        _checkMarketOpen(liqPos.market);
+        // Closed-session markets are normally not liquidatable to avoid
+        // forced one-sided liquidations during halts. Governance may opt into a
+        // bounded wind-down via `closedSessionLiquidationEnabled`, which still
+        // requires (a) no active manual price override and (b) the
+        // TWAP-deviation guard in `LiquidationLib` to pass — so a gapped-
+        // insolvent position can be wound down at a sane price instead of
+        // accruing uncovered bad debt until the session reopens.
+        if (!closedSessionLiquidationEnabled) {
+            _checkMarketOpen(liqPos.market);
+        }
         // Refuse to liquidate while a manual emergency-price override is
         // active. Manual prices set by guardians (even legitimate ones)
         // can be 5% off Pyth and have zero confidence band, so they
@@ -836,7 +952,15 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             DataTypes.Position storage p = _positions[id];
             if (!complianceManager.isAllowed(newOwner, p.market, "")) revert ComplianceCheckFailed();
         }
-        TradingLib.updatePositionOwner(id, newOwner, oldOwner, maxUserExposure, _positions, _userExposure, _userPositions);
+        TradingLib.updatePositionOwner(
+            id,
+            newOwner,
+            oldOwner,
+            maxUserExposure,
+            _positions,
+            _userExposure,
+            _userPositions
+        );
         // owner. On NFT transfer they must be cleared so the new owner does
         // not inherit a poison trigger from the previous holder.
         DataTypes.Position storage pos = _positions[id];
@@ -896,22 +1020,21 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     /// @inheritdoc ITradingCore
     function withdrawCollateral(uint256 id, uint256 amt) external nonReentrant whenNotPaused checkProtocolHealth {
-        _validateOwner(id);
+        DataTypes.Position storage p = _validateOwner(id);
+        // Collateral withdrawal is risk-INCREASING (it raises effective
+        // leverage), so refuse it while a manual emergency-price override is
+        // active. Otherwise a trader could pull excess collateral against a
+        // synthetic guardian-set price, mirroring the close/liquidation lockout.
+        if (oracleAggregator.isManualPriceActive(p.market)) revert BreakerActive();
         settlePositionFunding(id);
         TradingLib.withdrawCollateral(id, amt, _collateralCtx(), _positions, _positionCollateral, _markets);
         _enforcePortfolioRiskFor(msg.sender);
     }
 
     /// @inheritdoc ITradingCore
-    function createOrder(DataTypes.CreateOrderParams calldata params)
-        external
-        payable
-        nonReentrant
-        whenNotPaused
-        noFlashLoan
-        checkCompliance(params.market)
-        returns (uint256 orderId)
-    {
+    function createOrder(
+        DataTypes.CreateOrderParams calldata params
+    ) external payable nonReentrant whenNotPaused noFlashLoan checkCompliance(params.market) returns (uint256 orderId) {
         return _createOrderCore(params);
     }
 
@@ -922,20 +1045,19 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     function _createOrderCore(DataTypes.CreateOrderParams memory params) internal returns (uint256 orderId) {
         // ─── Alt-collateral path is intentionally disabled. ───
         // Both `collateralType` and `collateralToken` MUST be the canonical
-        // USDC values. Mixing alt collateral with the open/close/liquidate
-        // fee accounting (which always ships USDC) currently traps trader
+        // USDT0 values. Mixing alt collateral with the open/close/liquidate
+        // fee accounting (which always ships USDT0) currently traps trader
         // funds; reject at the entry point until properly redesigned.
         if (params.collateralToken != address(0)) revert AltCollateralDisabled();
-        if (params.collateralType != DataTypes.CollateralType.NONE &&
-            params.collateralType != DataTypes.CollateralType.USDC) {
+        if (
+            params.collateralType != DataTypes.CollateralType.NONE &&
+            params.collateralType != DataTypes.CollateralType.USDT0
+        ) {
             revert AltCollateralDisabled();
         }
 
         // --- Resolve subaccount delegation ---
         address effectiveOwner = _resolveSubaccountOwner(params.owner);
-
-        bool openingIncrease = (params.orderType == DataTypes.OrderType.MARKET_INCREASE ||
-            params.orderType == DataTypes.OrderType.LIMIT_INCREASE);
 
         // `effectiveOwner` (passed below as `msgSender`). The wrapper must NOT
         // pre-pull or the user is debited twice (and may revert / strand funds).
@@ -946,13 +1068,19 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
         // --- Post-Only validation ---
         if (params.tif == DataTypes.TimeInForce.POST_ONLY) {
-            if (params.orderType == DataTypes.OrderType.MARKET_INCREASE ||
-                params.orderType == DataTypes.OrderType.MARKET_DECREASE) {
+            if (
+                params.orderType == DataTypes.OrderType.MARKET_INCREASE ||
+                params.orderType == DataTypes.OrderType.MARKET_DECREASE
+            ) {
                 revert PostOnlyNotAllowedForMarket();
             }
             // Fetch spot price and check if the limit order would cross the spread immediately
             (uint256 spotPrice, uint256 confidence, ) = oracleAggregator.getPrice(params.market);
-            if (spotPrice == 0 || confidence > maxOracleUncertainty / 2) revert InvalidOraclePrice();
+            // `maxOracleUncertainty` is a fraction-of-price (1e18); `confidence`
+            // is an absolute band in 1e18 price units. Compare in the fractional
+            // domain so high-priced markets are not spuriously rejected.
+            if (spotPrice == 0) revert InvalidOraclePrice();
+            if ((confidence * PRECISION) / spotPrice > maxOracleUncertainty / 2) revert InvalidOraclePrice();
 
             if (params.isLong) {
                 // Long order: if limit is above spot it would execute immediately -> post-only must rest below spot
@@ -966,6 +1094,21 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         // --- Reduce-only validation ---
         if (params.isReduceOnly && params.positionId == 0) {
             revert ReduceOnlyRequiresPosition();
+        }
+
+        // --- Increase orders must not target an existing position ---
+        // The increase path always mints a NEW position and ignores
+        // `positionId`; reject a non-zero value rather than silently dropping
+        // it. Reduce-only increase orders are an invalid combination handled
+        // separately below (they revert with `ReduceOnlyRequiresPosition`), so
+        // exclude them here to preserve that more specific error.
+        if (
+            !params.isReduceOnly &&
+            params.positionId != 0 &&
+            (params.orderType == DataTypes.OrderType.MARKET_INCREASE ||
+                params.orderType == DataTypes.OrderType.LIMIT_INCREASE)
+        ) {
+            revert IncreaseOrderPositionIdNotAllowed();
         }
 
         // --- Visible size validation ---
@@ -984,24 +1127,22 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
             revert UnsupportedTimeInForce();
         }
         if (params.isReduceOnly) {
-            if (params.orderType == DataTypes.OrderType.MARKET_INCREASE ||
-                params.orderType == DataTypes.OrderType.LIMIT_INCREASE) {
+            if (
+                params.orderType == DataTypes.OrderType.MARKET_INCREASE ||
+                params.orderType == DataTypes.OrderType.LIMIT_INCREASE
+            ) {
                 revert ReduceOnlyRequiresPosition();
             }
         }
 
-        // --- Rate-limit gate for opening/increase orders ---
-        if (openingIncrease) {
-            // gate: large position rate-limit is enforced at executeOrder fill time
-            // Check the market is currently open for trading
-        }
-
+        // Large-position rate-limit is enforced at executeOrder fill time
+        // (against the order owner), not at creation.
         _checkMarketOpen(params.market);
         orderId = TradingLib.createOrder(
             _nextOrderId++,
             params,
             msg.value,
-            effectiveOwner,   // order is credited to the owner, not the bot
+            effectiveOwner, // order is credited to the owner, not the bot
             minExecutionFee,
             address(oracleAggregator),
             address(usdc),
@@ -1032,15 +1173,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         bool isLong,
         uint256 maxSlippage,
         uint256 positionId
-    )
-        external
-        payable
-        nonReentrant
-        whenNotPaused
-        noFlashLoan
-        checkCompliance(market)
-        returns (uint256)
-    {
+    ) external payable nonReentrant whenNotPaused noFlashLoan checkCompliance(market) returns (uint256) {
         DataTypes.CreateOrderParams memory params = DataTypes.CreateOrderParams({
             orderType: orderType,
             market: market,
@@ -1070,12 +1203,59 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     ) external payable nonReentrant whenNotPaused onlyRole(KEEPER_ROLE) checkBreakersForOrder(orderId) {
         TradingLib.applyPythUpdateAndRefund(address(oracleAggregator), priceUpdateData, msg.value, msg.sender);
         DataTypes.Order storage order = _orders[orderId];
+        // Refuse to fill while the market session is closed. `createOrder`
+        // checks the session at creation, but an RWA market can close between
+        // creation and keeper execution. Without this, a resting order could be
+        // filled against the widened closed-session staleness price (up to
+        // `CLOSED_MARKET_MAX_STALENESS`). Guarded on a real order so a
+        // nonexistent order still surfaces `OrderNotFound` from the executor.
+        if (order.account != address(0)) {
+            _checkMarketOpen(order.market);
+            // Refuse keeper fills while a manual emergency-price override is
+            // active. A live override returns a synthetic full-confidence price
+            // (up to the deviation cap off Pyth), so filling an order against it
+            // — especially a *_DECREASE that realizes PnL, or an increase that
+            // opens exposure at a non-market price — must be blocked. This
+            // mirrors the manual-price lockout already enforced on user closes
+            // (`_requireComplianceAndMarketOpen`) and liquidations (`_liquidate`),
+            // closing the inconsistency where resting orders could be filled
+            // against the override price.
+            if (oracleAggregator.isManualPriceActive(order.market)) revert BreakerActive();
+        }
+        // Bound how stale the execution price may be. When
+        // `maxExecutionPriceAge` is non-zero, refuse to fill against a Pyth
+        // snapshot older than that many seconds. This limits a keeper's ability
+        // to select a favourable older-but-still-valid price within the wide
+        // staleness window. `0` (default) disables the check.
+        if (maxExecutionPriceAge > 0 && order.account != address(0)) {
+            (, , uint256 priceTs) = oracleAggregator.getPrice(order.market);
+            if (priceTs > 0 && block.timestamp > priceTs + maxExecutionPriceAge) {
+                revert InvalidOraclePrice();
+            }
+        }
         if (order.account != address(0)) {
             bool openingIncrease = (order.orderType == DataTypes.OrderType.MARKET_INCREASE ||
                 order.orderType == DataTypes.OrderType.LIMIT_INCREASE);
             if (openingIncrease && !protocolHealth.isHealthy) revert ProtocolUnhealthy();
             if (openingIncrease && _userPositions[order.account].length >= maxPositionsPerUser) {
-                revert TradingLib.MaxPositionsExceeded();
+                // Stale CLOSED/LIQUIDATED ids that the owner never
+                // manually cleaned up must not permanently block new opens.
+                // Opportunistically prune the owner's own fully-resolved
+                // positions (identical semantics to a self-serve
+                // `cleanupPositions`) before enforcing the cap. Bounded by
+                // MAX_CLEANUP and only runs when the cap is actually hit, so
+                // the common path is unaffected.
+                CleanupLib.cleanupPositions(
+                    _userPositions[order.account],
+                    _positions,
+                    _positionCollateral,
+                    MAX_CLEANUP,
+                    _failedRepayments,
+                    false
+                );
+                if (_userPositions[order.account].length >= maxPositionsPerUser) {
+                    revert TradingLib.MaxPositionsExceeded();
+                }
             }
             // Enforce the large-action rate-limit ONCE, here at fill
             //             time, against the *order owner* (not msg.sender, who
@@ -1184,11 +1364,7 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     function withdrawOrderCollateralTokenRefund(address token) external nonReentrant {
         if (token == address(0)) revert ZeroAddress();
-        WithdrawLib.withdrawOrderCollateralTokenRefund(
-            _orderCollateralTokenRefundBalance,
-            msg.sender,
-            token
-        );
+        WithdrawLib.withdrawOrderCollateralTokenRefund(_orderCollateralTokenRefundBalance, msg.sender, token);
     }
 
     /// @notice Withdraw native ETH refunds from cancelled orders (when applicable).
@@ -1203,6 +1379,18 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
 
     /// @inheritdoc ITradingCore
     function settlePositionFunding(uint256 id) public returns (int256 paid) {
+        // Advance the market-level funding accumulator BEFORE settling
+        // the position so per-position settlement always reads a current
+        // cumulative value. Previously the market accumulator only moved when
+        // `settleFunding(market)` was called externally by a keeper, so a
+        // position opened and closed between two market settlements paid/
+        // received zero funding regardless of OI imbalance. Elapsed time of
+        // less than one funding interval is a no-op, so this adds no cost in
+        // the common case and never double-charges.
+        address market = _positions[id].market;
+        if (market != address(0)) {
+            FundingLib.settleFunding(_fundingStates[market], _markets[market], market);
+        }
         return
             TradingLib.settlePositionFundingWithDividends(
                 id,
@@ -1218,9 +1406,55 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     }
 
     /// @notice Set the delegate views contract powering `getPositionPnL`, `canLiquidate`, and `getGlobalUnrealizedPnL`.
+    /// @dev The views contract drives vault NAV (`getGlobalUnrealizedPnL`)
+    ///      and LP-exit gating (`getGlobalUnrealizedPnLDetailed`), so a single-key
+    ///      swap to a manipulating contract is high-impact. Policy:
+    ///        • First-time wire-up (`!_tradingViewsInitialized`): immediate, so the
+    ///          deploy script can finish in one transaction (and latches the gate).
+    ///        • Disabling (`_v == address(0)`): immediate emergency action — it only
+    ///          makes the delegated views revert and the vault fail-safe.
+    ///        • Any subsequent non-zero (re)assignment: requires a 48h staged
+    ///          proposal via `proposeTradingViews` whose address matches exactly.
     function setTradingViews(address _v) external onlyAdmin {
+        if (_v == address(0)) {
+            // Emergency disable: immediate. The vault degrades gracefully when
+            // the views probe reverts (LP exits fail safe).
+            tradingViews = address(0);
+            emit TradingViewsUpdated(address(0));
+            return;
+        }
+        if (!_tradingViewsInitialized) {
+            tradingViews = _v;
+            _tradingViewsInitialized = true;
+            emit TradingViewsUpdated(_v);
+            return;
+        }
+        if (_v != _pendingTradingViews) revert PendingTradingViewsMismatch();
+        if (_pendingTradingViewsEffective == 0 || block.timestamp < _pendingTradingViewsEffective) {
+            revert TradingViewsTimelockActive();
+        }
         tradingViews = _v;
+        delete _pendingTradingViews;
+        delete _pendingTradingViewsEffective;
         emit TradingViewsUpdated(_v);
+    }
+
+    error PendingTradingViewsMismatch();
+    error TradingViewsTimelockActive();
+    event TradingViewsProposed(address indexed pending, uint256 effective);
+    uint256 private constant TRADING_VIEWS_TIMELOCK = 48 hours;
+
+    /// @notice Stage a non-zero views-contract rotation. Effective 48h later via `setTradingViews`.
+    function proposeTradingViews(address _v) external onlyAdmin {
+        if (_v == address(0)) revert ZeroAddress();
+        _pendingTradingViews = _v;
+        _pendingTradingViewsEffective = block.timestamp + TRADING_VIEWS_TIMELOCK;
+        emit TradingViewsProposed(_v, _pendingTradingViewsEffective);
+    }
+
+    /// @notice Read-only view of the staged views rotation, if any.
+    function pendingTradingViews() external view returns (address pending, uint256 effective) {
+        return (_pendingTradingViews, _pendingTradingViewsEffective);
     }
 
     /// @notice Configure account-level portfolio risk controls for cross-margin.
@@ -1301,14 +1535,15 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         if (u != msg.sender && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) revert Unauthorized();
         uint256 cap = hasRole(DEFAULT_ADMIN_ROLE, msg.sender) ? 40 : MAX_CLEANUP;
         uint256 limit = maxClean > cap ? cap : maxClean;
-        return CleanupLib.cleanupPositions(
-            _userPositions[u],
-            _positions,
-            _positionCollateral,
-            limit,
-            _failedRepayments,
-            hasRole(DEFAULT_ADMIN_ROLE, msg.sender)
-        );
+        return
+            CleanupLib.cleanupPositions(
+                _userPositions[u],
+                _positions,
+                _positionCollateral,
+                limit,
+                _failedRepayments,
+                hasRole(DEFAULT_ADMIN_ROLE, msg.sender)
+            );
     }
 
     /// @notice Batch-update execution/oracle/liquidation tuning; `0` skips a field where documented.
@@ -1346,6 +1581,32 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     /// @notice Send sub-threshold dust balances to `treasury` per `DustLib` rules.
     function sweepDust() external onlyAdmin {
         DustLib.sweepDust(usdc, treasury, dustAccumulator);
+    }
+
+    event MaxExecutionPriceAgeUpdated(uint256 maxAge);
+    event PermissionlessLiquidationUpdated(bool enabled);
+    event ClosedSessionLiquidationUpdated(bool enabled);
+
+    /// @notice Set the maximum allowed staleness (seconds) of the oracle
+    ///         price at order-execution time. `0` disables the check. Bounded to
+    ///         1 hour so it can never be set so loose as to be meaningless nor so
+    ///         tight that honest keepers cannot fill.
+    function setMaxExecutionPriceAge(uint256 maxAge) external onlyAdmin {
+        if (maxAge > 1 hours) revert InvalidParam();
+        maxExecutionPriceAge = maxAge;
+        emit MaxExecutionPriceAgeUpdated(maxAge);
+    }
+
+    /// @notice Enable/disable the permissionless liquidation backstop.
+    function setPermissionlessLiquidation(bool enabled) external onlyAdmin {
+        permissionlessLiquidationEnabled = enabled;
+        emit PermissionlessLiquidationUpdated(enabled);
+    }
+
+    /// @notice Enable/disable bounded closed-session liquidation.
+    function setClosedSessionLiquidation(bool enabled) external onlyAdmin {
+        closedSessionLiquidationEnabled = enabled;
+        emit ClosedSessionLiquidationUpdated(enabled);
     }
 
     /// @notice Configurable funding-interval cap, bounded sanely.
@@ -1390,6 +1651,17 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
         address v = tradingViews;
         if (v == address(0)) revert Unauthorized();
         return ITradingCoreViewsQueries(v).getGlobalUnrealizedPnL(this);
+    }
+
+    /// @notice Aggregate unrealized PnL plus a completeness flag.
+    /// @return totalPnL Signed aggregate unrealized PnL (internal precision).
+    /// @return complete False when any active market with open interest could
+    ///         not be priced (and was therefore skipped). The vault uses this
+    ///         to refuse LP withdrawals while trader PnL may be understated.
+    function getGlobalUnrealizedPnLDetailed() external view returns (int256 totalPnL, bool complete) {
+        address v = tradingViews;
+        if (v == address(0)) revert Unauthorized();
+        return ITradingCoreViewsQueries(v).getGlobalUnrealizedPnLDetailed(this);
     }
 
     /// @notice Resolve the effective owner for subaccount delegation.
@@ -1521,4 +1793,8 @@ interface ITradingCoreViewsQueries {
 
     /// @notice Sum of unrealized PnL across all open positions on `core`.
     function getGlobalUnrealizedPnL(ITradingCore core) external view returns (int256);
+
+    /// @notice Aggregate unrealized PnL plus a completeness flag (false when any
+    ///         OI-bearing market was unreadable and skipped).
+    function getGlobalUnrealizedPnLDetailed(ITradingCore core) external view returns (int256 totalPnL, bool complete);
 }

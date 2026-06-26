@@ -176,4 +176,17 @@ jest.mock("pg", () => {
     };
 });
 
+// Reset the shared response cache between tests so cached markets/stats
+// responses from one test never leak into another (each test sets up its own
+// mocks). Within a single test, caching still behaves normally.
+beforeEach(() => {
+    try {
+        // Lazy require to avoid hoisting issues with the ESM/CJS interop.
+        const { __resetCacheForTests } = require("../services/cache.js");
+        __resetCacheForTests?.();
+    } catch {
+        /* cache module not present in this context */
+    }
+});
+
 // DO NOT MOCK specific services here as they have their own unit tests

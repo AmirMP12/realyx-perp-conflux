@@ -158,22 +158,140 @@ groups:
 
   - name: realyx-indexer
     rules:
-      # Indexer Lag
-      - alert: IndexerLag
-        expr: indexer_lag_seconds > 30
+      # Indexer Lag (blocks behind chain head)
+      - alert: IndexerLagBlocks
+        expr: realyx_indexer_lag_blocks > 50
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "Indexer is lagging"
-          description: "Indexer lag exceeds 30 seconds."
+          summary: "Indexer is lagging chain head"
+          description: "Event store is more than 50 blocks behind head for 5m — portfolios may be stale."
 
-      # Indexer Reorg
+      - alert: IndexerLagBlocksCritical
+        expr: realyx_indexer_lag_blocks > 200
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Indexer severely lagging"
+          description: "Event store is more than 200 blocks behind head for 5m."
+
+      # Indexer wedged / not syncing (no successful pulse recently)
+      - alert: IndexerStalled
+        expr: time() - realyx_indexer_last_sync_timestamp_seconds > 600
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Indexer has not synced in 10m"
+          description: "No successful indexer sync pulse for over 10 minutes — likely wedged or crashed."
+
+      # Chain reorgs
       - alert: IndexerReorg
-        expr: increase(indexer_reorg_count[1h]) > 5
+        expr: increase(realyx_indexer_reorg_total[1h]) > 5
         for: 0m
         labels:
           severity: warning
         annotations:
           summary: "Multiple chain reorganizations detected"
-          description: "More than 5 reorgs in the last hour."
+          description: "More than 5 reorgs resolved in the last hour."
+
+  - name: realyx-rpc
+    rules:
+      # RPC error rate per endpoint
+      - alert: RpcHighErrorRate
+        expr: |
+          sum by (endpoint) (rate(realyx_rpc_requests_total{outcome="failure"}[5m]))
+          / clamp_min(sum by (endpoint) (rate(realyx_rpc_requests_total[5m])), 0.0001) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RPC endpoint {{ $labels.endpoint }} error rate high"
+          description: "More than 20% of RPC calls to {{ $labels.endpoint }} are failing over 5m."
+
+      # All endpoints' circuit breakers open at once (pool down)
+      - alert: RpcPoolAllOpen
+        expr: min(realyx_rpc_circuit_state) == 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "All RPC endpoints tripped open"
+          description: "Every RPC circuit breaker is open — the pool has no healthy endpoint."
+
+      # A specific endpoint stuck open for a long time
+      - alert: RpcEndpointStuckOpen
+        expr: realyx_rpc_circuit_state == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "RPC endpoint {{ $labels.endpoint }} stuck open"
+          description: "Circuit breaker for {{ $labels.endpoint }} has been open for 10m."
+
+  - name: realyx-keeper
+    rules:
+      # Slow keeper execution (intent-based DEX core signal)
+      - alert: KeeperExecutionSlow
+        expr: histogram_quantile(0.95, sum by (le) (rate(realyx_keeper_execution_latency_seconds_bucket[5m]))) > 13
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Keeper execution latency high"
+          description: "P95 order-to-execution latency exceeds 13s over 5m."
+
+      # Keeper failures
+      - alert: KeeperFailuresElevated
+        expr: rate(realyx_keeper_failures_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Keeper failures elevated"
+          description: "Keeper is reporting execution failures over the last 5m."
+
+  - name: realyx-data-quality
+    rules:
+      # Reconciliation drift between indexer and on-chain truth
+      - alert: ReconciliationDrift
+        expr: realyx_reconciliation_drift_ratio > 0.05
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Indexed {{ $labels.metric }} drifting from on-chain"
+          description: "Indexed {{ $labels.metric }} differs from the on-chain value by more than 5% — possible indexer bug."
+
+      - alert: ReconciliationDriftCritical
+        expr: realyx_reconciliation_drift_ratio > 0.15
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Severe data drift in {{ $labels.metric }}"
+          description: "Indexed {{ $labels.metric }} differs from on-chain by more than 15%."
+
+      # Reconciliation job stopped running
+      - alert: ReconciliationStalled
+        expr: time() - realyx_reconciliation_last_run_timestamp_seconds > 1800
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Reconciliation job not running"
+          description: "No reconciliation pass completed in the last 30 minutes."
+
+  - name: realyx-websocket
+    rules:
+      # WS connections flatlined to zero while the API is up (broadcaster dead)
+      - alert: WebSocketConnectionsZero
+        expr: ws_active_connections == 0 and on() (up{job="backend"} == 1)
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No active WebSocket connections"
+          description: "WS connection count has been zero for 15m while the backend is up — the broadcaster may be down."

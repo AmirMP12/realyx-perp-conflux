@@ -30,13 +30,13 @@ export function saveDeployment(networkName: string, result: DeployResult, chainI
             collateralRegistry: result.collateralRegistry,
             copyRegistry: result.copyRegistry,
             referralRegistry: result.referralRegistry,
-            usdc: result.usdc,
+            usdt0: result.usdt0,
             pyth: result.pyth,
-            ...(result.mockUsdc ? { mockUsdc: result.mockUsdc } : {}),
+            ...(result.mockUsdt0 ? { mockUsdt0: result.mockUsdt0 } : {}),
             ...(result.mockPyth ? { mockPyth: result.mockPyth } : {}),
         },
         flags: {
-            usdcIsMock: result.usdcIsMock,
+            usdt0IsMock: result.usdt0IsMock,
             pythIsMock: result.pythIsMock,
         },
     };
@@ -54,4 +54,34 @@ export function loadDeployment(networkName: string): ReturnType<typeof JSON.pars
     const filePath = path.join(process.cwd(), "deployment", `${networkName}.json`);
     if (!fs.existsSync(filePath)) return null;
     return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+}
+
+/**
+ * Merge additional contract addresses into deployment/<network>.json without
+ * disturbing the rest of the file. Used by standalone deploy scripts (e.g.
+ * KeeperNetwork, RedStoneAdapter) that run after the main deploy so their
+ * addresses become discoverable through the same deployment file that the
+ * keeper/liquidation bots and setup scripts read via `loadDeployment`.
+ *
+ * Creates the file (and directory) with a minimal shape if it doesn't exist yet.
+ */
+export function updateDeploymentContracts(networkName: string, patch: Record<string, string>): string {
+    const deploymentDir = path.join(process.cwd(), "deployment");
+    if (!fs.existsSync(deploymentDir)) {
+        fs.mkdirSync(deploymentDir, { recursive: true });
+    }
+
+    const filePath = path.join(deploymentDir, `${networkName}.json`);
+    const existing = fs.existsSync(filePath)
+        ? (JSON.parse(fs.readFileSync(filePath, "utf-8")) as Record<string, unknown>)
+        : { network: networkName };
+
+    const contracts = {
+        ...(typeof existing.contracts === "object" && existing.contracts !== null ? existing.contracts : {}),
+        ...patch,
+    };
+    const output = { ...existing, network: networkName, contracts };
+
+    fs.writeFileSync(filePath, JSON.stringify(output, null, 2), "utf8");
+    return filePath;
 }

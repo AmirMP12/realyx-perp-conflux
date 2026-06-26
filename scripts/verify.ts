@@ -34,7 +34,7 @@ function loadAddresses(): { name: string; address: string }[] {
     push("CollateralRegistry", "DEPLOYED_COLLATERAL_REGISTRY");
     push("CopyRegistry", "DEPLOYED_COPY_REGISTRY");
     push("ReferralRegistry", "DEPLOYED_REFERRAL_REGISTRY");
-    push("MockUSDC", "DEPLOYED_MOCK_USDC");
+    push("MockUSDT0", "DEPLOYED_MOCK_USDT0");
     push("MockPythWrapper", "DEPLOYED_MOCK_PYTH");
 
     if (addresses.length > 0) return addresses;
@@ -68,7 +68,7 @@ function loadAddresses(): { name: string; address: string }[] {
         collateralRegistry: "CollateralRegistry",
         copyRegistry: "CopyRegistry",
         referralRegistry: "ReferralRegistry",
-        mockUsdc: "MockUSDC",
+        mockUsdt0: "MockUSDT0",
         mockPyth: "MockPythWrapper",
     };
 
@@ -95,10 +95,10 @@ async function main() {
 
     for (const { name, address } of addresses) {
         try {
-            if (name === "MockUSDC") {
+            if (name === "MockUSDT0") {
                 await run("verify:verify", {
                     address,
-                    contract: "contracts/test/MockUSDC.sol:MockUSDC",
+                    contract: "contracts/test/MockUSDT0.sol:MockUSDT0",
                     constructorArguments: [],
                 });
             } else if (name === "MockPythWrapper") {

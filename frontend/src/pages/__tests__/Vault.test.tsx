@@ -28,7 +28,7 @@ vi.mock('../../hooks/useProgram', () => ({
 vi.mock('../../hooks/useCollateral', () => {
     const usdc = {
         address: '0x0000000000000000000000000000000000000000',
-        symbol: 'USDC', decimals: 6, isUSDC: true, enabled: true,
+        symbol: 'USDT0', decimals: 6, isUSDC: true, enabled: true,
         baseHaircutBps: 0, liquidationHaircutBps: 0, maxHaircutBps: 0,
         maxProtocolExposure: 0n, totalDeposited: 0n, exposureUsdc: 0n,
         balance: 0n, balanceFormatted: 0, effectiveUsdc: 0n, effectiveUsdcFormatted: 0,
@@ -107,7 +107,7 @@ describe('VaultPage', () => {
                 accumulatedFees: 50000,
                 availableLiquidity: 4000000,
                 isPaused: false,
-                asset: 'USDC'
+                asset: 'USDT0'
             },
             loading: false
         });

@@ -5,6 +5,7 @@ const HERMES_BASE = 'https://hermes.pyth.network';
 /** Pyth price feed IDs for known markets (used when contract/oracle price is 0) */
 export const PYTH_FEED_BY_MARKET: Record<string, string> = {
     // Crypto majors
+    '0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c': '0x8879170230c9603342f3837cf9a8e76c61791198fb1271bb2552c9af7b33c933', // CFX-USD
     '0x986a383f6de4a24dd3f524f0f93546229b58265f': '0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43', // BTC-USD
     '0x886a383f6de4a24dd3f524f0f93546229b58265f': '0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace', // ETH-USD
     '0x906a383f6de4a24dd3f524f0f93546229b58265f': '0x8ac0c70fff57e9aefdf5edf44b51d62c2d433653cbb2cf5cc06bb115af04d221', // LINK-USD
@@ -45,7 +46,10 @@ export function usePythDisplayPrice(feedId: string | undefined) {
             return;
         }
         setLoading(true);
-        setPrice(null);
+        // NOTE: intentionally do NOT reset `price` here. Clearing it on every
+        // 2s poll caused the display to flash to $0 (price -> null -> 0 via the
+        // priority chain) until the Hermes response arrived. Keep the last good
+        // value visible and only swap it for a new positive price below.
         try {
             const id = feedId.startsWith('0x') ? feedId.slice(2) : feedId;
             const url = `${HERMES_BASE}/v2/updates/price/latest?ids[]=${id}`;
@@ -65,6 +69,9 @@ export function usePythDisplayPrice(feedId: string | undefined) {
     }, [feedId]);
 
     useEffect(() => {
+        // Reset only when the feed itself changes (market switch), so we never
+        // show a stale price from a different market. Polls keep the last value.
+        setPrice(null);
         fetchPrice();
         const t = feedId ? setInterval(fetchPrice, 2_000) : undefined;
         return () => { if (t) clearInterval(t); };
@@ -73,7 +80,53 @@ export function usePythDisplayPrice(feedId: string | undefined) {
     return { price, loading, refetch: fetchPrice };
 }
 
+/**
+ * Client-side 24h change % computed directly from Pyth Hermes (current price vs
+ * the price ~24h ago). This is a presentation-only fallback for when the backend
+ * `/markets` change24h is unavailable (e.g. API connection issues) — without it
+ * every ticker flat-lines at +0.00%. Polls slowly: 24h change moves gradually
+ * and the timestamped Hermes endpoint is heavier than the latest-price one.
+ */
+export function usePyth24hChange(feedId: string | undefined) {
+    const [change, setChange] = useState<number | null>(null);
+
+    const compute = useCallback(async () => {
+        if (!feedId) {
+            setChange(null);
+            return;
+        }
+        const id = feedId.startsWith('0x') ? feedId.slice(2) : feedId;
+        const tsPast = Math.floor(Date.now() / 1000) - 24 * 60 * 60;
+        try {
+            const [latestRes, pastRes] = await Promise.all([
+                fetch(`${HERMES_BASE}/v2/updates/price/latest?ids[]=${id}`),
+                fetch(`${HERMES_BASE}/v2/updates/price/${tsPast}?ids[]=${id}`),
+            ]);
+            if (!latestRes.ok || !pastRes.ok) return;
+            const [latestData, pastData] = await Promise.all([latestRes.json(), pastRes.json()]);
+            const latest = latestData?.parsed?.[0]?.price;
+            const past = pastData?.parsed?.[0]?.price;
+            if (!latest || !past) return;
+            const current = parsePythPrice(String(latest.price), Number(latest.expo));
+            const prior = parsePythPrice(String(past.price), Number(past.expo));
+            if (current > 0 && prior > 0) setChange(((current - prior) / prior) * 100);
+        } catch {
+            // ignore — keep last computed value
+        }
+    }, [feedId]);
+
+    useEffect(() => {
+        setChange(null);
+        compute();
+        const t = feedId ? setInterval(compute, 5 * 60_000) : undefined;
+        return () => { if (t) clearInterval(t); };
+    }, [feedId, compute]);
+
+    return change;
+}
+
 export const PYTH_FEED_BY_SYMBOL: Record<string, string> = {
+    'CFX-USD': '0x8879170230c9603342f3837cf9a8e76c61791198fb1271bb2552c9af7b33c933',
     'BTC-USD': '0xe62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43',
     'ETH-USD': '0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace',
     'LINK-USD': '0x8ac0c70fff57e9aefdf5edf44b51d62c2d433653cbb2cf5cc06bb115af04d221',

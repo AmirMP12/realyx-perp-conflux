@@ -3,6 +3,8 @@
  * Used to enrich markets with indexPrice and change24h when subgraph has no positions.
  */
 
+import { logger } from "../logger.js";
+
 const COINGECKO_BASE = "https://api.coingecko.com/api/v3";
 const CACHE_MS = 60_000; // 1 min
 
@@ -68,7 +70,7 @@ export async function fetchCoinGeckoPrices(): Promise<
     cachedAt = Date.now();
     return out;
   } catch (e) {
-    console.warn("[coingecko] fetch failed:", e);
+    logger.warn({ err: e }, "[coingecko] fetch failed");
     return cachedData;
   }
 }
@@ -90,7 +92,7 @@ export async function fetchPriceHistory(
     const prices = data.prices ?? [];
     return prices.map(([t, value]) => ({ timestamp: t, value }));
   } catch (e) {
-    console.warn("[coingecko] price history failed:", coingeckoId, e);
+    logger.warn({ err: e, coingeckoId }, "[coingecko] price history failed");
     return [];
   }
 }

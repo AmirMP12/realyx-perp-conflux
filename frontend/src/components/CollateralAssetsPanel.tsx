@@ -12,7 +12,7 @@ interface CollateralAssetsPanelProps {
 }
 
 /**
- * Registry-driven overview of every collateral the protocol accepts: USDC plus
+ * Registry-driven overview of every collateral the protocol accepts: USDT0 plus
  * each token registered in the on-chain CollateralRegistry, with per-asset
  * haircuts and protocol-exposure usage. Renders nothing when no CollateralRegistry
  * is configured for the active deployment.
@@ -39,7 +39,7 @@ export function CollateralAssetsPanel({ className, showBalances = true }: Collat
                             : 'bg-amber-500/10 text-amber-400 border-amber-500/20',
                     )}
                 >
-                    {ordersEnabled ? 'Live' : 'USDC only'}
+                    {ordersEnabled ? 'Live' : 'USDT0 only'}
                 </span>
             </div>
 
@@ -58,8 +58,8 @@ export function CollateralAssetsPanel({ className, showBalances = true }: Collat
                             <div className="flex items-start gap-2 rounded-xl border border-dashed border-line/70 bg-surface-3/40 px-3 py-3">
                                 <Info className="w-4 h-4 text-text-muted shrink-0 mt-px" />
                                 <p className="text-xs text-text-muted leading-relaxed">
-                                    No alternative collateral is registered yet. USDC is the active settlement asset. Governance can
-                                    register tokens (e.g. USDT0, AxCNH) with per-asset haircuts via the CollateralRegistry.
+                                    No alternative collateral is registered yet. USDT0 is the active settlement asset. Governance can
+                                    register tokens (e.g. USDC, AxCNH) with per-asset haircuts via the CollateralRegistry.
                                 </p>
                             </div>
                         )}
@@ -70,7 +70,7 @@ export function CollateralAssetsPanel({ className, showBalances = true }: Collat
                     <div className="mt-3 flex items-start gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
                         <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-px" />
                         <p className="text-[11px] text-amber-200/80 leading-relaxed">
-                            These tokens are registered and valued on-chain, but the active deployment settles orders in USDC.
+                            These tokens are registered and valued on-chain, but the active deployment settles orders in USDT0.
                             Posting margin in alt collateral unlocks once governance enables it.
                         </p>
                     </div>

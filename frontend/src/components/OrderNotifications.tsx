@@ -3,6 +3,7 @@ import { useAccount } from 'wagmi';
 import toast from 'react-hot-toast';
 import { formatPriceWithPrecision } from '../utils/format';
 import { usePositions } from '../hooks/usePositions';
+import { notify } from '../utils/pwa';
 
 const WS_URL = (import.meta.env.VITE_WS_URL ?? "").trim() || (import.meta.env.DEV ? "ws://localhost:3002" : "");
 
@@ -78,13 +79,11 @@ export function useOrderNotifications() {
 
         websocket.onopen = () => {
             setConnected(true);
+            // Register for user-targeted broadcasts (e.g. KEEPER_FAILURE). The
+            // backend wsServer expects `{ type: 'subscribe:user', address }`.
             websocket.send(JSON.stringify({
-                type: 'auth',
-                data: { wallet: address, signature: '' }
-            }));
-            websocket.send(JSON.stringify({
-                type: 'subscribe',
-                channel: `user:${address.toLowerCase()}`
+                type: 'subscribe:user',
+                address: address.toLowerCase(),
             }));
         };
 
@@ -168,8 +167,35 @@ export function useOrderNotifications() {
                 showNotification(notification, settingsRef.current);
                 setNotifications((prev: any) => [notification, ...prev].slice(0, 50));
             }
+            return;
+        }
+
+        // Direct user-targeted broadcasts from the backend (broadcastToUser):
+        // `{ type, data, traderAddress }`. Currently the server emits KEEPER_FAILURE.
+        const direct = parseDirectUserMessage(data);
+        if (direct && shouldShowNotification(direct, settingsRef.current)) {
+            showNotification(direct, settingsRef.current);
+            setNotifications((prev: any) => [direct, ...prev].slice(0, 50));
         }
     }, []);
+
+    const parseDirectUserMessage = (msg: any): OrderNotification | null => {
+        const timestamp = Date.now();
+        const data = msg?.data ?? {};
+        switch (msg?.type) {
+            case 'KEEPER_FAILURE':
+                return {
+                    id: `keeper-fail-${data.orderId}-${timestamp}`,
+                    type: 'KEEPER_FAILURE',
+                    orderId: data.orderId,
+                    failureReason: data.failureReason,
+                    timestamp,
+                    message: `❌ Order #${data.orderId} execution failed: ${data.failureReason || 'Unknown error'}`,
+                };
+            default:
+                return null;
+        }
+    };
 
     const parseNotification = (data: any): OrderNotification | null => {
         const timestamp = Date.now();
@@ -193,7 +219,7 @@ export function useOrderNotifications() {
                     orderId: data.orderId,
                     filledSize: data.filledSize,
                     timestamp,
-                    message: `Order #${data.orderId} partially filled: ${data.filledSize} USDC`
+                    message: `Order #${data.orderId} partially filled: ${data.filledSize} USDT0`
                 };
             case 'OrderCancelled':
                 return {
@@ -332,6 +358,27 @@ export function useOrderNotifications() {
             position: 'bottom-right',
             className: `toast-notification ${notification.type.toLowerCase()}`,
         });
+
+        // Off-app push/system notification for the alerts traders need while the
+        // tab is backgrounded or the PWA is installed (liquidation warnings,
+        // liquidations, keeper failures, and TP/SL fills). No-op unless the user
+        // has granted notification permission.
+        const pushTypes: OrderNotification['type'][] = [
+            'LIQUIDATION_WARNING',
+            'POSITION_LIQUIDATED',
+            'KEEPER_FAILURE',
+            'ORDER_EXECUTED',
+            'POSITION_CLOSED',
+        ];
+        if (pushTypes.includes(notification.type)) {
+            void notify({
+                title: `${getToastIcon()} Realyx`,
+                body: notification.message,
+                url: '/portfolio',
+                urgent: isHighPriority,
+                tag: notification.type.toLowerCase(),
+            });
+        }
 
         if (currentSettings.soundEnabled) {
             playNotificationSound(notification.type);

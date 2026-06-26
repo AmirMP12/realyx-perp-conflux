@@ -36,12 +36,12 @@ const testnetRpcFallback = 'https://evmtestnet.confluxrpc.org';
 const appUrl =
     (import.meta.env.VITE_APP_URL as string | undefined) ||
     (typeof window !== 'undefined' ? window.location.origin : '') ||
-    'https://realyx.vercel.app';
+    'https://app.realyx.example';
 const appIcon = `${appUrl.replace(/\/$/, '')}/favicon.png`;
 const walletConnectParameters: RainbowKitWalletConnectParameters | undefined = {
     metadata: {
         name: 'Realyx',
-        description: 'RWA Perpetuals – Long or short with up to 10x leverage',
+        description: 'RWA Perpetuals – Long or short with up to 100x leverage',
         url: appUrl,
         icons: [appIcon],
     },
@@ -67,7 +67,7 @@ const connectors = connectorsForWallets(
     {
         appName: 'Realyx',
         projectId,
-        appDescription: 'RWA Perpetuals – Long or short with up to 10x leverage',
+        appDescription: 'RWA Perpetuals – Long or short with up to 100x leverage',
         appUrl,
         appIcon,
         walletConnectParameters,

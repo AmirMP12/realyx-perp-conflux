@@ -40,7 +40,7 @@ describe("TradingCore — orders & keeper (integration)", () => {
             ).to.be.revertedWithCustomError(d.tradingCore, "AltCollateralDisabled");
         });
 
-        it("rejects non-USDC collateral type", async () => {
+        it("rejects non-USDT0 collateral type", async () => {
             const d = await loadFixture(deployConfigured);
             await expect(
                 d.tradingCore.connect(d.alice).createOrder(
@@ -48,7 +48,7 @@ describe("TradingCore — orders & keeper (integration)", () => {
                         orderType: OrderType.MARKET_INCREASE,
                         sizeDelta: usdc(10_000),
                         collateralDelta: usdc(2_000),
-                        collateralType: CollateralType.USDT0,
+                        collateralType: CollateralType.USDC,
                     }),
                     { value: EXEC_FEE },
                 ),
@@ -144,9 +144,9 @@ describe("TradingCore — orders & keeper (integration)", () => {
             });
             await d.tradingCore.connect(d.alice).cancelOrder(orderId);
             // collateral refund is credited to a balance; withdraw it
-            const before = await d.usdc.balanceOf(d.alice.address);
+            const before = await d.usdt0.balanceOf(d.alice.address);
             await d.tradingCore.connect(d.alice).withdrawOrderCollateralRefund();
-            expect(await d.usdc.balanceOf(d.alice.address)).to.be.greaterThan(before);
+            expect(await d.usdt0.balanceOf(d.alice.address)).to.be.greaterThan(before);
         });
 
         it("refunds the ETH execution fee on cancel", async () => {

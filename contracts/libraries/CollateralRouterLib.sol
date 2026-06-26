@@ -16,9 +16,9 @@ library CollateralRouterLib {
 
     /// @notice Result of best-collateral selection.
     struct SelectionResult {
-        address token;         // 0x0 if no single token suffices
-        uint256 tokenAmount;   // Native token amount needed
-        uint256 usdcValue;     // USDC-equivalent value (after haircut)
+        address token; // 0x0 if no single token suffices
+        uint256 tokenAmount; // Native token amount needed
+        uint256 usdcValue; // USDC-equivalent value (after haircut)
     }
 
     /// @notice Select the best single collateral token from a user's balances.
@@ -40,22 +40,21 @@ library CollateralRouterLib {
             CollateralRegistry.CollateralConfig memory cfg = registry.getCollateralConfig(token);
 
             if (!cfg.enabled) {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
 
-            uint256 balance;
-            if (token == address(0)) {
-                balance = 0; // Handled as mock for USDC if token address is 0x0 but typically USDC has an address. Wait, in this protocol, address(0) is used as USDC sometimes? 
-                // Ah, CollateralRegistry uses address(0) for USDC. But IERC20(address(0)).balanceOf(user) will revert!
-                // Wait, if token == address(0), it implies Native ETH or a special USDC representation? 
-                // Wait, if USDC is address(0), we can't call balanceOf. Let's assume actual ERC20 addresses are provided, and address(0) is a mock in CollateralRegistry.
-                // Wait, the previous CollateralRouterLib did: `uint256 balance = IERC20(token).balanceOf(user);` directly without checking `token == address(0)`. So `tokens` array does not contain `address(0)`.
-            }
-            balance = IERC20(token).balanceOf(user);
-            
+            // The tokens array only contains registered ERC20 collateral
+            // addresses; address(0) (the registry's USDC sentinel) is never
+            // included, so balanceOf is always safe to call here.
+            uint256 balance = IERC20(token).balanceOf(user);
+
             if (balance == 0) {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
 
@@ -63,12 +62,16 @@ library CollateralRouterLib {
             try registry.getCollateralValue(token, balance, useLiquidationHaircut) returns (uint256 val) {
                 balanceUsdcValue = val;
             } catch {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
 
             if (balanceUsdcValue < requiredUsdcValue) {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
 
@@ -76,12 +79,16 @@ library CollateralRouterLib {
             try registry.getTokenAmountForUsdc(token, requiredUsdcValue, useLiquidationHaircut) returns (uint256 amt) {
                 neededTokenAmount = amt;
             } catch {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
 
             if (neededTokenAmount > balance) {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
 
@@ -89,7 +96,9 @@ library CollateralRouterLib {
             try registry.getCollateralValue(token, neededTokenAmount, useLiquidationHaircut) returns (uint256 val) {
                 neededUsdcValue = val;
             } catch {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
 
@@ -105,7 +114,9 @@ library CollateralRouterLib {
                 bestExcess = excess;
             }
 
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
 
         result.token = bestToken;
@@ -121,7 +132,13 @@ library CollateralRouterLib {
         uint256 requiredUsdcValue,
         bool useLiquidationHaircut
     ) internal view returns (DataTypes.BasketAllocation memory allocation) {
-        SelectionResult memory singleResult = selectBestCollateral(user, tokens, registry, requiredUsdcValue, useLiquidationHaircut);
+        SelectionResult memory singleResult = selectBestCollateral(
+            user,
+            tokens,
+            registry,
+            requiredUsdcValue,
+            useLiquidationHaircut
+        );
         if (singleResult.token != address(0)) {
             address[] memory t = new address[](1);
             t[0] = singleResult.token;
@@ -164,9 +181,9 @@ library CollateralRouterLib {
                 } catch {
                     continue;
                 }
-                
+
                 if (neededAmt > balance) neededAmt = balance;
-                
+
                 uint256 neededUsdc;
                 try registry.getCollateralValue(token, neededAmt, useLiquidationHaircut) returns (uint256 val) {
                     neededUsdc = val;
@@ -193,7 +210,7 @@ library CollateralRouterLib {
         address[] memory finalTokens = new address[](count);
         uint256[] memory finalAmounts = new uint256[](count);
         uint256[] memory finalUsdc = new uint256[](count);
-        for(uint256 i = 0; i < count; i++) {
+        for (uint256 i = 0; i < count; i++) {
             finalTokens[i] = tempTokens[i];
             finalAmounts[i] = tempAmounts[i];
             finalUsdc[i] = tempUsdc[i];
@@ -214,17 +231,20 @@ library CollateralRouterLib {
             address token = tokens[i];
             CollateralRegistry.CollateralConfig memory cfg = registry.getCollateralConfig(token);
             if (!cfg.enabled) {
-                unchecked { ++i; }
+                unchecked {
+                    ++i;
+                }
                 continue;
             }
             uint256 balance = IERC20(token).balanceOf(user);
             if (balance > 0) {
                 try registry.getCollateralValue(token, balance, useLiquidationHaircut) returns (uint256 val) {
                     totalUsdcValue += val;
-                } catch {
-                }
+                } catch {}
             }
-            unchecked { ++i; }
+            unchecked {
+                ++i;
+            }
         }
     }
 }

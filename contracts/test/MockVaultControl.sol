@@ -5,6 +5,15 @@ contract MockVaultControl {
     uint256 public coverAmount;
     bool public revertCover;
     bool public revertRepay;
+    uint256 private _totalAssets;
+
+    function setTotalAssets(uint256 assets) external {
+        _totalAssets = assets;
+    }
+
+    function totalAssets() external view returns (uint256) {
+        return _totalAssets;
+    }
 
     function setCoverAmount(uint256 amount) external {
         coverAmount = amount;

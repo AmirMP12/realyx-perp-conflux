@@ -42,6 +42,29 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "fundingState",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "rate",
+        "type": "int256"
+      },
+      {
+        "internalType": "int256",
+        "name": "cum",
+        "type": "int256"
+      },
+      {
+        "internalType": "uint64",
+        "name": "last",
+        "type": "uint64"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "uint256",
@@ -50,6 +73,48 @@
       }
     ],
     "name": "setCollateral",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "cap",
+        "type": "uint256"
+      }
+    ],
+    "name": "settleWithCap",
+    "outputs": [
+      {
+        "internalType": "int256",
+        "name": "",
+        "type": "int256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint64",
+        "name": "lastSettlement",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalLongSize",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "totalShortSize",
+        "type": "uint256"
+      }
+    ],
+    "name": "setupMarket",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

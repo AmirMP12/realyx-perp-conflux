@@ -4,7 +4,7 @@ The marketing site for **Realyx**, a decentralized perpetual futures DEX for Rea
 
 > **This repo is the landing page only.** The protocol, smart contracts, keeper, and app live in [`realyx-perp-conflux`](https://github.com/AmirMP12/realyx-perp-conflux).
 
-🔗 **Live:** [landing-realyx.vercel.app](https://landing-realyx.vercel.app/)
+🔗 **Live:** [realyx.example](https://realyx.example/)
 
 ---
 
@@ -100,7 +100,7 @@ A `[data-theme="light"]` override block sits right below for light mode. The tog
 
 Addresses are hard-coded in two places in `index.html`:
 
-- The **contracts table** (search for `0x64f277...`)
+- The **contracts table** (search for `0xc8A6585d...`)
 - The **footer "On-Chain" column**
 
 Each row also has a `data-copy` attribute on the copy button — keep that in sync with the displayed address.
@@ -147,9 +147,7 @@ Test the header at `375px` and `360px` widths — that's the tightest constraint
 
 ## Deploy
 
-The site is deployed to **Vercel** as a static project — no build command, no output directory, just point Vercel at the repo root.
-
-For other hosts (Netlify, Cloudflare Pages, GitHub Pages, S3 + CloudFront), upload the three files plus the `assets/` folder. There is nothing to compile.
+The site is a static project — no build command, no output directory. Deploy it to any static host (Railway, Netlify, Cloudflare Pages, GitHub Pages, S3 + CloudFront) by uploading the three files plus the `assets/` folder. There is nothing to compile.
 
 ### SEO / OG
 
@@ -174,7 +172,7 @@ MIT — see the protocol repo for the full text.
 
 ## Links
 
-- App: [realyx.vercel.app](https://realyx.vercel.app/)
+- App: [app.realyx.example](https://app.realyx.example/)
 - Protocol & docs: [github.com/AmirMP12/realyx-perp-conflux](https://github.com/AmirMP12/realyx-perp-conflux)
 - X: [@Realyx_Perp](https://x.com/Realyx_Perp)
 - Telegram channel: [t.me/Real_yx](https://t.me/Real_yx)

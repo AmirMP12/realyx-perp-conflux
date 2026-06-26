@@ -199,6 +199,11 @@
   },
   {
     "inputs": [],
+    "name": "FeedTimelockActive",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "GlobalPauseActive",
     "type": "error"
   },
@@ -330,6 +335,11 @@
   {
     "inputs": [],
     "name": "OracleUnreachableForOverride",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "PendingFeedMismatch",
     "type": "error"
   },
   {
@@ -603,6 +613,38 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "address",
+        "name": "market",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "CrossCheckConfigured",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "bps",
+        "type": "uint256"
+      }
+    ],
+    "name": "CrossSourceMaxDeviationUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
         "internalType": "bytes32",
         "name": "pauseId",
         "type": "bytes32"
@@ -820,6 +862,25 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "clearedBy",
+        "type": "address"
+      }
+    ],
+    "name": "ManualPriceCleared",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "calendar",
         "type": "address"
       }
@@ -857,6 +918,44 @@
       }
     ],
     "name": "PriceOverrideExecuted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      }
+    ],
+    "name": "PythFeedProposalCancelled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "bytes32",
+        "name": "feedId",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "name": "PythFeedProposed",
     "type": "event"
   },
   {
@@ -984,6 +1083,19 @@
       {
         "indexed": true,
         "internalType": "address",
+        "name": "source",
+        "type": "address"
+      }
+    ],
+    "name": "SecondarySourceUpdated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
         "name": "market",
         "type": "address"
       },
@@ -1050,6 +1162,19 @@
         "internalType": "bytes32",
         "name": "",
         "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "FEED_ROTATION_TIMELOCK",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
       }
     ],
     "stateMutability": "view",
@@ -1280,6 +1405,19 @@
         "internalType": "address",
         "name": "collection",
         "type": "address"
+      }
+    ],
+    "name": "cancelPendingPythFeed",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
       },
       {
         "internalType": "uint256",
@@ -1325,6 +1463,19 @@
       }
     ],
     "name": "clearFailedPauseTarget",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      }
+    ],
+    "name": "clearManualPrice",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -1386,6 +1537,38 @@
     "name": "confirmEmergencyPrice",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "crossCheckEnabled",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "crossSourceMaxDeviationBps",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -1654,6 +1837,30 @@
         "type": "address"
       }
     ],
+    "name": "getManualPrice",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "price",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "expiry",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      }
+    ],
     "name": "getOracleConfig",
     "outputs": [
       {
@@ -1877,7 +2084,7 @@
     "outputs": [
       {
         "internalType": "uint256",
-        "name": "",
+        "name": "count",
         "type": "uint256"
       }
     ],
@@ -2179,6 +2386,53 @@
   {
     "inputs": [
       {
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      }
+    ],
+    "name": "pendingPythFeed",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "feedId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxStaleness",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint64",
+        "name": "maxConfidence",
+        "type": "uint64"
+      },
+      {
+        "internalType": "uint256",
+        "name": "effective",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      }
+    ],
+    "name": "pokeTWAP",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "address[]",
         "name": "targets",
         "type": "address[]"
@@ -2238,6 +2492,34 @@
       }
     ],
     "name": "proposeImplementation",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "feedId",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxStaleness",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint64",
+        "name": "maxConfidence",
+        "type": "uint64"
+      }
+    ],
+    "name": "proposePythFeed",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -2355,6 +2637,19 @@
   },
   {
     "inputs": [],
+    "name": "secondarySource",
+    "outputs": [
+      {
+        "internalType": "contract IPriceSource",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "sequencerCheckEnabled",
     "outputs": [
       {
@@ -2424,6 +2719,37 @@
       }
     ],
     "name": "setCircuitBreakerHub",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "collection",
+        "type": "address"
+      },
+      {
+        "internalType": "bool",
+        "name": "enabled",
+        "type": "bool"
+      }
+    ],
+    "name": "setCrossCheckEnabled",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "bps",
+        "type": "uint256"
+      }
+    ],
+    "name": "setCrossSourceMaxDeviationBps",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -2561,6 +2887,19 @@
       }
     ],
     "name": "setPythFeed",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "source",
+        "type": "address"
+      }
+    ],
+    "name": "setSecondarySource",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

@@ -3,6 +3,8 @@ import { config } from "../config.js";
 import { fetchPythPrices } from "../services/pyth.js";
 import { fetchProtocol } from "../services/indexer.js";
 import { getActiveMarketAddresses } from "../services/activeMarkets.js";
+import { getPoolHealth } from "../services/rpcPool.js";
+import { isUsingReadReplica } from "../services/db.js";
 
 const router = Router();
 
@@ -54,7 +56,16 @@ router.get("/detailed", async (_req: Request, res: Response) => {
       tradingCoreSet: Boolean((process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE)?.trim()),
       vaultCoreSet: Boolean((process.env.VAULT_CORE_ADDRESS ?? process.env.DEPLOYED_VAULT_CORE)?.trim()),
       referralRegistrySet: Boolean((process.env.REFERRAL_REGISTRY_ADDRESS ?? process.env.DEPLOYED_REFERRAL_REGISTRY)?.trim()),
+      readReplica: isUsingReadReplica(),
+      cacheBackend: (process.env.REDIS_URL ?? "").trim() ? "redis" : "memory",
     },
+    // RPC pool routing/health so operators can see failover state at a glance.
+    rpcPool: getPoolHealth().map((e) => ({
+      // Avoid leaking full URLs (may contain API keys); expose host only.
+      endpoint: (() => { try { return new URL(e.url).host; } catch { return "invalid"; } })(),
+      failures: e.failures,
+      cooling: e.cooling,
+    })),
   });
 });
 

@@ -7,7 +7,9 @@ import { useMarkets, useBackendStats } from '../hooks/useBackend';
 import { useVaultStats } from '../hooks/useVault';
 import { Sparkline } from '../components/Sparkline';
 import { useMarketPriceHistory } from '../hooks/useMarketPriceHistory';
+import { usePyth24hChange, usePythDisplayPrice, getPythFeedId } from '../hooks/usePythPrice';
 import { formatCompact, formatPriceWithPrecision } from '../utils/format';
+import { formatFundingDisplay } from '../utils/tradePreview';
 import { Skeleton } from '../components/ui/Skeleton';
 import { useAllMarketsOnChainData } from '../hooks/useMarketData';
 import { Address } from 'viem';
@@ -148,7 +150,7 @@ export function MarketsPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-4 md:px-0">
                 <StatCard label="24h Volume" value={formatCompact(volume24h)} loading={statsLoading} />
                 <StatCard label="Open Interest" value={formatCompact(totalOpenInterest)} loading={statsLoading} />
-                <StatCard label="Total Value Locked" value={formatCompact(tvl)} loading={tvl === 0 && vaultLoading && statsLoading} />
+                <StatCard label="Total Value Locked" value={formatCompact(tvl)} loading={tvl === 0 && (vaultLoading || statsLoading)} />
                 <StatCard label="Total Markets" value={String(apiMarkets.length)} loading={isLoading} />
             </div>
 
@@ -244,7 +246,7 @@ export function MarketsPage() {
                                         <th className="px-6 py-3 text-right">24h Change</th>
                                         <th className="px-6 py-3 text-right">24h Volume</th>
                                         <th className="px-6 py-3 text-right">Open Interest</th>
-                                        <th className="px-6 py-3 text-right">Funding / 1h</th>
+                                        <th className="px-6 py-3 text-right">Funding / 8h</th>
                                         <th className="px-6 py-3 text-right">Last 7 Days</th>
                                         <th className="px-6 py-3"></th>
                                     </tr>
@@ -298,12 +300,12 @@ function MarketsTableSkeleton() {
 
 function StatCard({ label, value, loading }: { label: string, value: string, loading: boolean }) {
     return (
-        <div className="bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent)] p-4 rounded-2xl border border-[var(--border-color)] shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:border-[var(--border-color-hover)] transition-all duration-200">
-            <div className="text-[11px] text-text-secondary mb-1 uppercase tracking-[0.12em] font-semibold">{label}</div>
+        <div className="bg-[linear-gradient(180deg,rgba(255,255,255,0.02),transparent)] p-4 rounded-2xl border border-[var(--border-color)] shadow-[0_10px_28px_rgba(0,0,0,0.2)] hover:border-[var(--border-color-hover)] transition-all duration-200 min-w-0">
+            <div className="text-[11px] text-text-secondary mb-1 uppercase tracking-[0.12em] font-semibold truncate">{label}</div>
             {loading ? (
                 <Skeleton className="h-7 w-24" />
             ) : (
-                <div className="text-xl font-bold text-text-primary font-mono tracking-tight tabular-nums">
+                <div className="text-xl font-bold text-text-primary font-mono tracking-tight tabular-nums truncate" title={value}>
                     {value}
                 </div>
             )}
@@ -314,7 +316,12 @@ function StatCard({ label, value, loading }: { label: string, value: string, loa
 function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMarket, isFavorite: boolean, toggleFavorite: (id: string) => void }) {
     const marketKey = market.marketAddress || market.id;
     const { prices } = useMarketPriceHistory(marketKey, 7);
-    const isPositive = market.change24h >= 0;
+    const feedId = getPythFeedId(market.marketAddress, market.symbol);
+    const pythChange = usePyth24hChange(feedId);
+    const { price: pythPrice } = usePythDisplayPrice(feedId);
+    const change24h = market.change24h && market.change24h !== 0 ? market.change24h : (pythChange ?? 0);
+    const indexPrice = market.indexPrice && market.indexPrice > 0 ? market.indexPrice : (pythPrice ?? 0);
+    const isPositive = change24h >= 0;
 
     return (
         <tr className="hover:bg-surface-3/40 transition-all duration-200 group border-b border-line/30 last:border-0">
@@ -347,14 +354,14 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
                     </Link>
                 </div>
             </td>
-            <td className="px-6 py-4 text-right">
+            <td className="px-6 py-3 text-right">
                 <div className="font-mono font-medium text-text-primary">
-                    ${formatPriceWithPrecision(market.indexPrice)}
+                    ${formatPriceWithPrecision(indexPrice)}
                 </div>
             </td>
             <td className="px-6 py-3 text-right">
                 <div className={clsx("font-mono font-medium", isPositive ? "text-[var(--long)]" : "text-[var(--short)]")}>
-                    {isPositive ? '+' : ''}{market.change24h.toFixed(2)}%
+                    {isPositive ? '+' : ''}{change24h.toFixed(2)}%
                 </div>
             </td>
             <td className="px-6 py-3 text-right text-text-secondary/80 font-mono text-[13px]">
@@ -368,16 +375,21 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
                 </div>
             </td>
             <td className="px-6 py-3 text-right">
-                <div className={clsx("font-mono text-[13px]", market.fundingRate > 0 ? "text-[var(--short)]" : (market.fundingRate < 0 ? "text-[var(--long)]" : "text-amber-400"))}>
-                    {market.fundingRate > 0 ? '+' : ''}{((market.fundingRate * 100) / 8).toFixed(4)}%
-                </div>
+                {(() => {
+                    const funding = formatFundingDisplay(market.fundingRate);
+                    return (
+                        <div className={clsx("font-mono text-[13px]", funding.tone === 'long-pays' ? "text-[var(--short)]" : (funding.tone === 'short-pays' ? "text-[var(--long)]" : "text-amber-400"))}>
+                            {funding.label}
+                        </div>
+                    );
+                })()}
             </td>
             <td className="px-6 py-3 text-right">
                 <div className="w-[100px] h-[30px] ml-auto">
                     <Sparkline data={prices} width={100} height={30} />
                 </div>
             </td>
-            <td className="px-6 py-4 text-right">
+            <td className="px-6 py-3 text-right">
                 <Link to={`/trade/${market.symbol}`}>
                     <button className="px-4 py-2 bg-[var(--bg-tertiary)] hover:bg-[var(--primary)] text-text-primary hover:text-white rounded-xl text-sm font-medium transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] border border-line/60 hover:border-transparent">
                         Trade
@@ -391,7 +403,12 @@ function MarketRow({ market, isFavorite, toggleFavorite }: { market: DisplayMark
 function MobileMarketCard({ market, isFavorite, toggleFavorite }: { market: DisplayMarket, isFavorite: boolean, toggleFavorite: (id: string) => void }) {
     const marketKey = market.marketAddress || market.id;
     const { prices } = useMarketPriceHistory(marketKey, 7);
-    const isPositive = market.change24h >= 0;
+    const feedId = getPythFeedId(market.marketAddress, market.symbol);
+    const pythChange = usePyth24hChange(feedId);
+    const { price: pythPrice } = usePythDisplayPrice(feedId);
+    const change24h = market.change24h && market.change24h !== 0 ? market.change24h : (pythChange ?? 0);
+    const indexPrice = market.indexPrice && market.indexPrice > 0 ? market.indexPrice : (pythPrice ?? 0);
+    const isPositive = change24h >= 0;
 
     return (
         <Link to={`/trade/${market.symbol}`} className="block p-4 active:bg-[var(--bg-tertiary)] transition-colors relative">
@@ -408,10 +425,10 @@ function MobileMarketCard({ market, isFavorite, toggleFavorite }: { market: Disp
                 </div>
                 <div className="text-right">
                     <div className="font-mono font-medium text-text-primary text-lg">
-                        ${formatPriceWithPrecision(market.indexPrice)}
+                        ${formatPriceWithPrecision(indexPrice)}
                     </div>
                     <div className={clsx("text-xs font-medium", isPositive ? "text-[var(--long)]" : "text-[var(--short)]")}>
-                        {isPositive ? '+' : ''}{market.change24h.toFixed(2)}%
+                        {isPositive ? '+' : ''}{change24h.toFixed(2)}%
                     </div>
                 </div>
             </div>
@@ -421,11 +438,16 @@ function MobileMarketCard({ market, isFavorite, toggleFavorite }: { market: Disp
                     <span className="whitespace-nowrap">
                         Vol: <span className="text-text-primary font-mono">{formatCompact(market.volume24h)}</span>
                     </span>
-                    <span className="whitespace-nowrap">
-                        Funding: <span className={clsx("font-mono", market.fundingRate > 0 ? "text-[var(--short)]" : (market.fundingRate < 0 ? "text-[var(--long)]" : "text-amber-400"))}>
-                            {market.fundingRate > 0 ? '+' : ''}{((market.fundingRate * 100) / 8).toFixed(4)}%
-                        </span>
-                    </span>
+                    {(() => {
+                        const funding = formatFundingDisplay(market.fundingRate);
+                        return (
+                            <span className="whitespace-nowrap">
+                                Funding: <span className={clsx("font-mono", funding.tone === 'long-pays' ? "text-[var(--short)]" : (funding.tone === 'short-pays' ? "text-[var(--long)]" : "text-amber-400"))}>
+                                    {funding.label}
+                                </span>
+                            </span>
+                        );
+                    })()}
                     <div className="w-[60px] h-[20px] shrink-0 hidden min-[400px]:block">
                         <Sparkline data={prices} width={60} height={20} />
                     </div>

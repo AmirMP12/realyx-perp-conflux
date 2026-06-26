@@ -59,6 +59,10 @@ library TradingLib {
     error PositionNotFound();
     error PositionNotLiquidatable();
     error OpenPriceDeviation();
+    /// @dev Raised when collateral withdrawal (a risk-increasing action) is
+    ///      attempted at a spot price that deviates from the validated TWAP
+    ///      beyond `MAX_OPEN_PRICE_DEVIATION_BPS`.
+    error WithdrawPriceDeviation();
     error InsufficientLiquidatorReward();
     error RepaymentFailedCritical();
     error TransferToContractNotAllowed();
@@ -200,10 +204,13 @@ library TradingLib {
         return (size * PRECISION) / collateral;
     }
 
-    /// @dev Stored leverage uses uint64 in `Position` (1e18-precision); guard against silent truncation above ~18.4x.
-    function _toLeverageU64(uint256 lev) private pure returns (uint64) {
-        if (lev > type(uint64).max) revert LeverageOverflow();
-        return uint64(lev);
+    /// @dev Stored leverage uses uint128 in `Position` (1e18-precision); the
+    ///      configurable ceiling is `MAX_LEVERAGE_LIMIT` (100x = 100e18) which
+    ///      is comfortably inside uint128, so this guards only against absurd
+    ///      overflow rather than truncating legitimate high leverage.
+    function _toLeverageU128(uint256 lev) private pure returns (uint128) {
+        if (lev > type(uint128).max) revert LeverageOverflow();
+        return uint128(lev);
     }
 
     /// @dev Clamp to `uint128.max` instead of reverting via Solidity 0.8
@@ -213,6 +220,19 @@ library TradingLib {
     ///      consistently.
     function _u128Clamp(uint256 v) private pure returns (uint128) {
         return v > type(uint128).max ? type(uint128).max : uint128(v);
+    }
+
+    /// @dev Best-effort manual-price probe used by the keeper-driven SL/TP batch.
+    ///      Returns `true` only when the oracle reports an active manual override
+    ///      for `market`. Wrapped in try/catch so an oracle implementation that
+    ///      does not expose `isManualPriceActive` (e.g. lightweight test mocks)
+    ///      degrades to `false` rather than reverting the whole batch.
+    function _manualPriceActive(address oracle, address market) private view returns (bool) {
+        try IOracleAggregator(oracle).isManualPriceActive(market) returns (bool active) {
+            return active;
+        } catch {
+            return false;
+        }
     }
 
     function settleFunding(
@@ -331,7 +351,13 @@ library TradingLib {
         }
         {
             (uint256 pr, uint256 cf, ) = IOracleAggregator(ctx.oracleAggregator).getPrice(p.market);
-            if (pr == 0 || cf > ctx.maxOracleUncertainty / 2) revert InvalidOraclePrice();
+            // `ctx.maxOracleUncertainty` is a fraction-of-price (1e18 scale);
+            // `cf` is an absolute band normalized to 1e18 price units. Convert
+            // the band to the fractional domain before comparing, otherwise the
+            // check spuriously reverts for any asset priced above ~$1.
+            if (pr == 0) revert InvalidOraclePrice();
+            uint256 cfFraction = (cf * PRECISION) / pr;
+            if (cfFraction > ctx.maxOracleUncertainty / 2) revert InvalidOraclePrice();
         }
 
         uint256 internalValue;
@@ -350,7 +376,7 @@ library TradingLib {
         uint256 lev = calculateNewLeverage(uint256(p.size), positionCollateral[positionId].amount);
         if (maxLeverage > 0 && lev > maxLeverage * PRECISION) revert ExceedsMaxLeverage();
 
-        p.leverage = _toLeverageU64(lev);
+        p.leverage = _toLeverageU128(lev);
         p.liquidationPrice = _u128Clamp(
             PositionMath.calculateLiquidationPrice(
                 uint256(p.entryPrice),
@@ -387,6 +413,27 @@ library TradingLib {
         if (col.amount < intValue + minCol) revert InsufficientCollateral();
 
         (uint256 price, , ) = IOracleAggregator(ctx.oracleAggregator).getPrice(p.market);
+        // Collateral withdrawal is risk-INCREASING (it raises effective
+        // leverage), so apply the same validated-TWAP-vs-spot deviation guard
+        // the open path uses. This prevents extracting excess collateral against
+        // a transient in-confidence price spike that the position's spot-only
+        // liquidatable check would otherwise accept. The guard is enforced
+        // whenever a TWAP reference exists; a cold / self-referential buffer
+        // returns spot (deviation 0) and falls through, preserving liveness for
+        // fresh markets.
+        {
+            (uint256 twapPrice, ) = IOracleAggregator(ctx.oracleAggregator).getTWAPWithValidation(
+                p.market,
+                TWAP_WINDOW_SECONDS,
+                DataTypes.MIN_TWAP_DATA_POINTS
+            );
+            if (twapPrice > 0) {
+                uint256 dev = price > twapPrice
+                    ? ((price - twapPrice) * BPS) / twapPrice
+                    : ((twapPrice - price) * BPS) / twapPrice;
+                if (dev > MAX_OPEN_PRICE_DEVIATION_BPS) revert WithdrawPriceDeviation();
+            }
+        }
         (bool liq, ) = p.isLiquidatable(price, col.amount - intValue);
         if (liq) revert InsufficientCollateral();
 
@@ -395,7 +442,7 @@ library TradingLib {
 
         if (lev > uint256(m.maxLeverage) * PRECISION) revert ExceedsMaxLeverage();
 
-        p.leverage = _toLeverageU64(lev);
+        p.leverage = _toLeverageU128(lev);
         p.liquidationPrice = _u128Clamp(
             PositionMath.calculateLiquidationPrice(
                 uint256(p.entryPrice),
@@ -705,7 +752,9 @@ library TradingLib {
             // is decoupled from the protocol's daily-volume rate-limit. Skipped
             // when the registry is not configured.
             if (riskParams.referralRegistry != address(0) && order.sizeDelta > 0) {
-                try IReferralRegistry(riskParams.referralRegistry).recordReferralVolume(order.account, order.sizeDelta) {
+                try
+                    IReferralRegistry(riskParams.referralRegistry).recordReferralVolume(order.account, order.sizeDelta)
+                {
                     // ok
                 } catch {
                     // never let a registry hiccup brick a trade
@@ -751,16 +800,7 @@ library TradingLib {
             order.orderType == DataTypes.OrderType.MARKET_DECREASE ||
             order.orderType == DataTypes.OrderType.LIMIT_DECREASE
         ) {
-            return
-                _executeDecrease(
-                    order,
-                    ctx,
-                    positions,
-                    positionCollateral,
-                    markets,
-                    userExposure,
-                    protocolHealth
-                );
+            return _executeDecrease(order, ctx, positions, positionCollateral, markets, userExposure, protocolHealth);
         }
         revert InvalidOrder();
     }
@@ -846,10 +886,8 @@ library TradingLib {
                 revert ExceedsMaxTotalExposure();
             }
         }
-        if (
-            ctx.maxUserExposure > 0 &&
-            userExposure[order.account] + order.sizeDelta > ctx.maxUserExposure
-        ) revert ExceedsMaxTotalExposure();
+        if (ctx.maxUserExposure > 0 && userExposure[order.account] + order.sizeDelta > ctx.maxUserExposure)
+            revert ExceedsMaxTotalExposure();
         if (
             ctx.userDailyVolumeLimit > 0 &&
             ctx.globalDailyVolumeLimit > 0 &&
@@ -893,7 +931,11 @@ library TradingLib {
         uint256 totalCollateralInternal;
         if (order.collateralToken != address(0)) {
             totalCollateralInternal = DataTypes.toInternalPrecision(
-                CollateralRegistry(ctx.collateralRegistry).getCollateralValue(order.collateralToken, order.collateralDelta, false)
+                CollateralRegistry(ctx.collateralRegistry).getCollateralValue(
+                    order.collateralToken,
+                    order.collateralDelta,
+                    false
+                )
             );
         } else {
             totalCollateralInternal = DataTypes.toInternalPrecision(order.collateralDelta);
@@ -946,7 +988,7 @@ library TradingLib {
             takeProfitPrice: 0,
             lastFundingTime: uint64(block.timestamp),
             openTimestamp: uint40(block.timestamp),
-            leverage: _toLeverageU64(leverage),
+            leverage: _toLeverageU128(leverage),
             flags: DataTypes.packFlags(order.isLong, ctx.defaultCrossMargin),
             collateralType: order.collateralType,
             state: DataTypes.PosStatus.OPEN,
@@ -1379,7 +1421,23 @@ library TradingLib {
                     }
                 }
                 if (!sessionOpen) {
-                    unchecked { ++i; }
+                    unchecked {
+                        ++i;
+                    }
+                    continue;
+                }
+
+                // Skip positions whose market has an active manual emergency-price
+                // override. Triggering SL/TP against a synthetic guardian-set price
+                // would realize the trader's PnL at a non-market price — the same
+                // reason direct closes and liquidations are locked out while an
+                // override is live. Wrapped in try/catch (`_manualPriceActive`) so an
+                // oracle that does not implement the probe degrades to "not active"
+                // and existing behaviour is preserved.
+                if (_manualPriceActive(oracleAggregator, pos.market)) {
+                    unchecked {
+                        ++i;
+                    }
                     continue;
                 }
 

@@ -1,0 +1,413 @@
+[
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "usdc_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "vc",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "oa",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "pt",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "treasury",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "insurance",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "collateralRegistry",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "makerFeeBps",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "takerFeeBps",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "minFeeUsdc",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "lpShareBps",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "insuranceShareBps",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "treasuryShareBps",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct DataTypes.FeeConfig",
+        "name": "fc",
+        "type": "tuple"
+      },
+      {
+        "internalType": "address",
+        "name": "referralRegistry",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "trader",
+        "type": "address"
+      }
+    ],
+    "name": "buildCloseCtx",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "usdc",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "liquidityVault",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "oracleAggregator",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "positionToken",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "treasury",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "insuranceFund",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralRegistry",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint256",
+                "name": "makerFeeBps",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "takerFeeBps",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "minFeeUsdc",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "lpShareBps",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "insuranceShareBps",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "treasuryShareBps",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct DataTypes.FeeConfig",
+            "name": "feeConfig",
+            "type": "tuple"
+          },
+          {
+            "internalType": "address",
+            "name": "referrer",
+            "type": "address"
+          },
+          {
+            "internalType": "uint16",
+            "name": "referralDiscountBps",
+            "type": "uint16"
+          },
+          {
+            "internalType": "uint16",
+            "name": "referralRebateBps",
+            "type": "uint16"
+          }
+        ],
+        "internalType": "struct TradingLib.ClosePositionContext",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "usdc_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "oa",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "collateralRegistry_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "collateralToken_",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxOracleUncertainty",
+        "type": "uint256"
+      }
+    ],
+    "name": "buildCollateralCtx",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "usdc",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "oracleAggregator",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralRegistry",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralToken",
+            "type": "address"
+          },
+          {
+            "internalType": "uint256",
+            "name": "maxOracleUncertainty",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct TradingLib.CollateralContext",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "usdc_",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "vc",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "oa",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "pt",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "treasury",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "insurance",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "tradingCore",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "collateralRegistry",
+        "type": "address"
+      },
+      {
+        "components": [
+          {
+            "internalType": "uint256",
+            "name": "nearThresholdBps",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "mediumRiskBps",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "deeplyUnderwaterBps",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "liquidatorShareBps",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct DataTypes.LiquidationFeeTiers",
+        "name": "tiers",
+        "type": "tuple"
+      },
+      {
+        "internalType": "uint256",
+        "name": "deviationBps",
+        "type": "uint256"
+      }
+    ],
+    "name": "buildLiqCtx",
+    "outputs": [
+      {
+        "components": [
+          {
+            "internalType": "address",
+            "name": "usdc",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "liquidityVault",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "oracleAggregator",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "positionToken",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "treasury",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "insuranceFund",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "tradingCore",
+            "type": "address"
+          },
+          {
+            "internalType": "address",
+            "name": "collateralRegistry",
+            "type": "address"
+          },
+          {
+            "components": [
+              {
+                "internalType": "uint256",
+                "name": "nearThresholdBps",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "mediumRiskBps",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "deeplyUnderwaterBps",
+                "type": "uint256"
+              },
+              {
+                "internalType": "uint256",
+                "name": "liquidatorShareBps",
+                "type": "uint256"
+              }
+            ],
+            "internalType": "struct DataTypes.LiquidationFeeTiers",
+            "name": "liquidationTiers",
+            "type": "tuple"
+          },
+          {
+            "internalType": "uint256",
+            "name": "liquidationDeviationBps",
+            "type": "uint256"
+          }
+        ],
+        "internalType": "struct TradingLib.LiquidatePositionContext",
+        "name": "",
+        "type": "tuple"
+      }
+    ],
+    "stateMutability": "pure",
+    "type": "function"
+  }
+]

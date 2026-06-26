@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ErrorBoundary } from '../ErrorBoundary';
 
@@ -10,6 +10,13 @@ const ThrowError = ({ shouldThrow }: { shouldThrow: boolean }) => {
 };
 
 describe('ErrorBoundary', () => {
+  // The boundary intentionally catches a thrown error; React logs it via
+  // console.error and dispatches it to the jsdom window. Suppress both so the
+  // expected error doesn't pollute the test run output.
+  const swallowError = (e: ErrorEvent) => e.preventDefault();
+  beforeAll(() => window.addEventListener('error', swallowError));
+  afterAll(() => window.removeEventListener('error', swallowError));
+
   beforeEach(() => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });

@@ -68,6 +68,20 @@ vi.mock('../../../stores/settingsStore', () => ({
     useSettingsStore: vi.fn(),
 }));
 
+vi.mock('../../../hooks/useAccountRisk', () => ({
+    useAccountRisk: vi.fn(() => ({
+        totalNotional: 0,
+        totalCollateral: 0,
+        maintenanceMargin: 0,
+        unrealizedPnL: 0,
+        healthFactor: Infinity,
+        crossPositionCount: 0,
+        liquidatable: false,
+        hasPositions: false,
+        loading: false,
+    })),
+}));
+
 vi.mock('../../ui/Toast', () => ({
     showToast: vi.fn(),
 }));
@@ -236,6 +250,6 @@ describe('TradingForm', () => {
         // notionalValue = 99.90 * 2 = 199.80
         
         expect(screen.getByText('$100.00')).toBeInTheDocument(); // Margin summary
-        expect(screen.getByText(/Est. Fee/)).toBeInTheDocument();
+        expect(screen.getByText(/Est\. Open Fee/)).toBeInTheDocument();
     });
 });

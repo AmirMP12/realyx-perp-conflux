@@ -87,25 +87,23 @@ router.get("/", requireDebugAuth, async (req: Request, res: Response) => {
 
     const rawVolumeStats = await pool.query(`
       WITH opened_sizes AS (
-        SELECT DISTINCT ON ((data::jsonb->>0)::text)
-          (data::jsonb->>0)::text AS position_id,
-          (data::jsonb->>4)::numeric AS size_raw,
-          (data::jsonb->>2)::text AS open_market_id
+        SELECT DISTINCT ON (position_id)
+          position_id,
+          size_raw,
+          market_id AS open_market_id
         FROM position_events
-        WHERE event_type = 'PositionOpened'
-        ORDER BY (data::jsonb->>0)::text, id ASC
+        WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
+        ORDER BY position_id, id ASC
       )
       SELECT 
         LOWER(CASE 
           WHEN c.market_id IS NOT NULL AND c.market_id <> '0x' THEN c.market_id
-          WHEN c.event_type = 'PositionOpened' THEN (c.data->>2)::text
           ELSE o.open_market_id
         END) AS market_id,
         COALESCE(SUM(
           CASE
-            WHEN c.size_usd > 0 THEN c.size_usd
-            WHEN c.event_type = 'PositionOpened' AND c.data::jsonb->>4 IS NOT NULL
-              THEN (c.data::jsonb->>4)::numeric / POWER(10::numeric, 18)
+            WHEN c.event_type = 'PositionOpened' AND c.size_raw IS NOT NULL
+              THEN c.size_raw / POWER(10::numeric, 18)
             WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
               THEN o.size_raw / POWER(10::numeric, 18)
             ELSE 0::numeric
@@ -113,9 +111,9 @@ router.get("/", requireDebugAuth, async (req: Request, res: Response) => {
         ), 0)::text AS volume24h,
         COUNT(*)::int AS trades24h
       FROM position_events c
-      LEFT JOIN opened_sizes o ON o.position_id = (c.data::jsonb->>0)::text
+      LEFT JOIN opened_sizes o ON o.position_id = c.position_id
       WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
-        AND c.data IS NOT NULL
+        AND c.position_id IS NOT NULL
         AND (
           (c.block_time IS NOT NULL AND c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '25 hours'))::bigint)
           OR 

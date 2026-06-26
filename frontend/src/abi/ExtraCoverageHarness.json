@@ -442,6 +442,24 @@
   {
     "inputs": [
       {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint128",
+        "name": "leverage",
+        "type": "uint128"
+      }
+    ],
+    "name": "setPositionLeverage",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "bool",
         "name": "isLong",
         "type": "bool"
@@ -471,6 +489,100 @@
       }
     ],
     "stateMutability": "pure",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "sl",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "positionTokenAddr",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "oracleAggregatorAddr",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxOracleUncertainty",
+        "type": "uint256"
+      }
+    ],
+    "name": "triggerSetStopLoss",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "tp",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "positionTokenAddr",
+        "type": "address"
+      },
+      {
+        "internalType": "address",
+        "name": "oracleAggregatorAddr",
+        "type": "address"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxOracleUncertainty",
+        "type": "uint256"
+      }
+    ],
+    "name": "triggerSetTakeProfit",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "bps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "maxTrailingBps",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "positionTokenAddr",
+        "type": "address"
+      }
+    ],
+    "name": "triggerSetTrailingStop",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {

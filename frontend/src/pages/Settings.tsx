@@ -11,9 +11,10 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { useSettingsStore, SettingsState, Currency } from '../stores/settingsStore';
-import { MOCK_USDC_ADDRESS } from '../hooks/useProgram';
+import { useSettingsStore, SettingsState } from '../stores/settingsStore';
+import { MOCK_USDT0_ADDRESS } from '../hooks/useProgram';
 import { realyxChains } from '../config/wagmi';
+import { NotificationSetup } from '../components/NotificationSetup';
 
 const TESTNET_FAUCET_URL = 'https://efaucet.confluxnetwork.org/';
 
@@ -30,7 +31,7 @@ interface SettingsSection {
 
 const SECTIONS: SettingsSection[] = [
     { id: 'trading', title: 'Trading', icon: Sliders, description: 'Manage leverage, slippage, and order defaults' },
-    { id: 'display', title: 'Display', icon: Monitor, description: 'Customize theme, currency, and layout' },
+    { id: 'display', title: 'Display', icon: Monitor, description: 'Customize theme and layout' },
     { id: 'notifications', title: 'Notifications', icon: Bell, description: 'Configure alerts for price and positions' },
     { id: 'security', title: 'Security', icon: Shield, description: 'Manage wallet permissions and safety' },
 ];
@@ -171,16 +172,16 @@ export function SettingsPage() {
     );
 }
 
-const MOCK_USDC_ABI = [
+const MOCK_USDT0_ABI = [
     { inputs: [], name: 'faucet', outputs: [], stateMutability: 'nonpayable', type: 'function' },
     { inputs: [{ internalType: 'uint256', name: 'amount', type: 'uint256' }], name: 'mint', outputs: [], stateMutability: 'nonpayable', type: 'function' },
     { inputs: [], name: 'MAX_MINT_PER_WALLET', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], stateMutability: 'view', type: 'function' },
     { inputs: [{ internalType: 'address', name: '', type: 'address' }], name: 'mintedAmount', outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }], stateMutability: 'view', type: 'function' },
 ] as const;
 
-function getMockUsdcAddress(chainId: number, usdcFromCore: Address | undefined): Address | undefined {
-    if (usdcFromCore) return usdcFromCore;
-    if (chainId === realyxChains[0].id) return MOCK_USDC_ADDRESS;
+function getMockUsdt0Address(chainId: number, usdt0FromCore: Address | undefined): Address | undefined {
+    if (usdt0FromCore) return usdt0FromCore;
+    if (chainId === realyxChains[0].id) return MOCK_USDT0_ADDRESS;
     return undefined;
 }
 
@@ -190,38 +191,38 @@ const TestnetSettings = () => {
     const { writeContractAsync } = useWriteContract();
     const [loading, setLoading] = useState(false);
 
-    const mintUsdcAddress = getMockUsdcAddress(chainId, undefined);
+    const mintUsdt0Address = getMockUsdt0Address(chainId, undefined);
 
     const { data: balance } = useReadContract({
-        address: mintUsdcAddress,
+        address: mintUsdt0Address,
         abi: [{ inputs: [{ name: 'account', type: 'address' }], name: 'balanceOf', outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view', type: 'function' }] as const,
         functionName: 'balanceOf',
         args: [address!],
         query: {
-            enabled: !!address && !!mintUsdcAddress,
+            enabled: !!address && !!mintUsdt0Address,
         }
     });
 
     const hasBalance = balance !== undefined && balance > 0n;
 
     const { data: maxMint } = useReadContract({
-        address: mintUsdcAddress,
-        abi: MOCK_USDC_ABI,
+        address: mintUsdt0Address,
+        abi: MOCK_USDT0_ABI,
         functionName: 'MAX_MINT_PER_WALLET',
-        query: { enabled: !!mintUsdcAddress }
+        query: { enabled: !!mintUsdt0Address }
     });
 
     const { data: mintedAmount } = useReadContract({
-        address: mintUsdcAddress,
-        abi: MOCK_USDC_ABI,
+        address: mintUsdt0Address,
+        abi: MOCK_USDT0_ABI,
         functionName: 'mintedAmount',
         args: [address!],
-        query: { enabled: !!mintUsdcAddress && !!address }
+        query: { enabled: !!mintUsdt0Address && !!address }
     });
 
     const mintLimitReached = maxMint && mintedAmount && mintedAmount >= maxMint;
 
-    let buttonLabel = 'Mint 1,000 Mock USDC';
+    let buttonLabel = 'Mint 1,000 Mock USDT0';
     let buttonDisabled = false;
 
     if (!isConnected) {
@@ -240,23 +241,23 @@ const TestnetSettings = () => {
         toast.success('Opened Conflux faucet');
     };
 
-    const handleMintMockUSDC = async () => {
-        if (!address || !mintUsdcAddress) {
+    const handleMintMockUSDT0 = async () => {
+        if (!address || !mintUsdt0Address) {
             toast.error('Connect wallet first');
             return;
         }
         setLoading(true);
-        const toastId = toast.loading('Minting Mock USDC...');
+        const toastId = toast.loading('Minting Mock USDT0...');
         try {
             await writeContractAsync({
-                address: mintUsdcAddress as Address,
-                abi: MOCK_USDC_ABI,
+                address: mintUsdt0Address as Address,
+                abi: MOCK_USDT0_ABI,
                 functionName: 'faucet',
                 args: [],
             });
             toast.success('Minted! Check your wallet.', { id: toastId });
         } catch (e: unknown) {
-            console.error('Mint USDC error:', e);
+            console.error('Mint USDT0 error:', e);
             const msg = String((e as { message?: string })?.message ?? '').toLowerCase();
             if (msg.includes('user rejected') || msg.includes('user denied')) {
                 toast.error('Transaction rejected', { id: toastId });
@@ -279,11 +280,11 @@ const TestnetSettings = () => {
             </h2>
             <div className="mb-6 max-w-2xl">
                 <p className="text-text-secondary text-sm">
-                    You are on Conflux Testnet. Use these tools to get test assets (CFX for gas, Mock USDC for trading).
+                    You are on Conflux Testnet. Use these tools to get test assets (CFX for gas, Mock USDT0 for trading).
                 </p>
                 {hasBalance && (
                     <div className="mt-2 text-xs font-mono text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded w-fit">
-                        Balance: {formatUnits(balance as bigint, 6)} USDC
+                        Balance: {formatUnits(balance as bigint, 6)} USDT0
                     </div>
                 )}
             </div>
@@ -294,7 +295,7 @@ const TestnetSettings = () => {
                     <span>Get Testnet CFX</span>
                 </button>
                 <button
-                    onClick={handleMintMockUSDC}
+                    onClick={handleMintMockUSDT0}
                     disabled={buttonDisabled}
                     className={clsx(
                         "btn-primary py-2 px-4 flex items-center gap-2 text-sm",
@@ -305,12 +306,12 @@ const TestnetSettings = () => {
                     <span>{buttonLabel}</span>
                 </button>
                 <a
-                    href={chainId === realyxChains[0].id && mintUsdcAddress ? `https://evmtestnet.confluxscan.net/address/${mintUsdcAddress}#writeContract` : '#'}
+                    href={chainId === realyxChains[0].id && mintUsdt0Address ? `https://evmtestnet.confluxscan.net/address/${mintUsdt0Address}#writeContract` : '#'}
                     target="_blank"
                     rel="noopener noreferrer"
                     className={clsx(
                         "btn-secondary py-2 px-4 flex items-center gap-2 text-sm",
-                        (!mintUsdcAddress || chainId !== realyxChains[0].id) && "pointer-events-none opacity-50"
+                        (!mintUsdt0Address || chainId !== realyxChains[0].id) && "pointer-events-none opacity-50"
                     )}
                 >
                     <ExternalLink className="w-4 h-4" />
@@ -352,7 +353,7 @@ function TradingSettings({ settings }: { settings: SettingsState }) {
                 <input
                     type="range"
                     min="1"
-                    max="10"
+                    max="100"
                     step="1"
                     value={settings.defaultLeverage}
                     onChange={(e) => onSelect('leverage', parseInt(e.target.value, 10))}
@@ -360,8 +361,8 @@ function TradingSettings({ settings }: { settings: SettingsState }) {
                 />
                 <div className="flex justify-between text-xs text-text-muted font-mono">
                     <span>1x</span>
-                    <span>5x</span>
-                    <span>10x</span>
+                    <span>50x</span>
+                    <span>100x</span>
                 </div>
             </div>
 
@@ -428,21 +429,33 @@ function TradingSettings({ settings }: { settings: SettingsState }) {
     );
 }
 
-function NotificationSettings({ settings: _ }: { settings: SettingsState }) {
+function NotificationSettings({ settings }: { settings: SettingsState }) {
     return (
         <div className="space-y-8">
-            <SectionHeader title="Notifications" description="Manage which alerts you want to receive." />
+            <SectionHeader title="Notifications" description="Enable off-app alerts and install Realyx as an app." />
 
-            <div className="p-4 bg-brand/10 border border-brand/30 rounded-xl mb-6">
-                <h3 className="font-bold text-[var(--primary)] text-sm mb-1">Coming Soon</h3>
-                <p className="text-xs text-text-secondary">
-                    We are working on a comprehensive notification system for price alerts and position updates.
+            <NotificationSetup />
+
+            <div className="space-y-1">
+                <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Alert types</h3>
+                <p className="text-[11px] text-text-muted mb-4">
+                    Control which events trigger an alert. Liquidation warnings are active now and drive the in-app risk banner on the trade form. Remaining alert types are coming soon.
                 </p>
             </div>
 
+            {/* Liquidation warnings is a live setting consumed by the trade form's risk banner */}
+            <ToggleSetting
+                label="Liquidation warnings"
+                description="Show critical risk warnings when a position approaches liquidation."
+                value={settings.liquidationWarnings}
+                onChange={(val) => settings.setLiquidationWarnings(val)}
+                important
+                icon={AlertTriangle}
+            />
+
             <div className="space-y-4 opacity-60 pointer-events-none">
                 <ToggleSetting
-                    label="Position alerts"
+                    label="Position alerts (Coming Soon)"
                     description="Get notified when orders are filled or closed."
                     value={false}
                     onChange={() => { }}
@@ -450,7 +463,7 @@ function NotificationSettings({ settings: _ }: { settings: SettingsState }) {
                     disabled
                 />
                 <ToggleSetting
-                    label="Price alerts"
+                    label="Price alerts (Coming Soon)"
                     description="Receive alerts for significant price movements."
                     value={false}
                     onChange={() => { }}
@@ -458,16 +471,7 @@ function NotificationSettings({ settings: _ }: { settings: SettingsState }) {
                     disabled
                 />
                 <ToggleSetting
-                    label="Liquidation warnings"
-                    description="Critical alerts when positions are at risk."
-                    value={false}
-                    onChange={() => { }}
-                    important
-                    icon={AlertTriangle}
-                    disabled
-                />
-                <ToggleSetting
-                    label="Funding rate reminders"
+                    label="Funding rate reminders (Coming Soon)"
                     description="Get notified before hourly funding payments."
                     value={false}
                     onChange={() => { }}
@@ -536,7 +540,6 @@ function DisplaySettings({ settings }: { settings: SettingsState }) {
     const onSelect = (key: string, value: any) => {
         if (key === 'compactMode') settings.setCompactMode(value);
         if (key === 'showPnlPercent') settings.setShowPnlPercent(value);
-        if (key === 'currency') settings.setCurrency(value);
     };
 
     return (
@@ -592,29 +595,6 @@ function DisplaySettings({ settings }: { settings: SettingsState }) {
                     value={settings.showPnlPercent}
                     onChange={(val) => onSelect('showPnlPercent', val)}
                 />
-            </div>
-
-            <div className="space-y-3 pt-4 border-t border-[var(--border-color)]">
-                <label className="text-sm font-medium text-text-primary block">Display Currency</label>
-                <div className="flex gap-4">
-                    {(['USD', 'CFX'] as Currency[]).map((currency) => (
-                        <button
-                            key={currency}
-                            onClick={() => onSelect('currency', currency)}
-                            disabled={currency === 'CFX'}
-                            className={clsx(
-                                "flex-1 py-3 px-4 rounded-lg text-sm font-medium border transition-all flex items-center justify-center gap-2",
-                                currency === 'CFX' && "opacity-50 cursor-not-allowed",
-                                settings.currency === currency
-                                    ? "bg-brand/10 border-[var(--primary)] text-[var(--primary)]"
-                                    : "bg-[var(--bg-tertiary)] border-transparent text-text-secondary hover:text-text-primary"
-                            )}
-                        >
-                            {currency === 'USD' ? <DollarSign className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
-                            {currency}
-                        </button>
-                    ))}
-                </div>
             </div>
         </div>
     );

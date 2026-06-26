@@ -14,7 +14,7 @@ import {
     usePartialClose,
     useCancelOrder,
     calculatePnL,
-    MOCK_USDC_ADDRESS,
+    MOCK_USDT0_ADDRESS,
 } from '../useProgram';
 import { useReadContract, useAccount, useWriteContract, usePublicClient } from 'wagmi';
 
@@ -27,17 +27,17 @@ vi.mock('../useSound', () => ({
     useSound: vi.fn(() => ({ playSuccess: vi.fn(), playError: vi.fn() })),
 }));
 
-describe('useProgram hooks - Full Coverage', () => {
+describe('useProgram hooks', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         (useAccount as any).mockReturnValue({ address: '0xUser', isConnected: true, chainId: 1 });
     });
 
     describe('useUSDC', () => {
-        it('returns MOCK_USDC_ADDRESS when contract read fails', () => {
+        it('returns MOCK_USDT0_ADDRESS when contract read fails', () => {
             (useReadContract as any).mockReturnValue({ data: undefined });
             const { result } = renderHook(() => useUSDC());
-            expect(result.current.address).toBe(MOCK_USDC_ADDRESS);
+            expect(result.current.address).toBe(MOCK_USDT0_ADDRESS);
         });
 
         it('returns contract address when read succeeds', () => {

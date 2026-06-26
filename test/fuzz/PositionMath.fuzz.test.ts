@@ -52,15 +52,22 @@ describe("Fuzz — PositionMath invariants", () => {
         }
     });
 
-    it("dynamic maintenance margin is monotonic non-decreasing in leverage and capped at 20%", async () => {
+    it("dynamic maintenance margin stays below initial margin (positions openable) and capped at 20%", async () => {
         const h = await loadFixture(deployHarness);
         const size = e18(10_000n);
-        let prev = 0n;
-        for (let lev = 1; lev <= 60; lev += 1) {
+        for (let lev = 1; lev <= 100; lev += 1) {
             const mm = await h.calcDynamicMM(size, e18(BigInt(lev)));
-            expect(mm).to.be.greaterThanOrEqual(prev);
+            // Never exceeds the 20% absolute cap.
             expect(mm).to.be.lessThanOrEqual((size * 2000n) / 10_000n);
-            prev = mm;
+            // Crucially, never exceeds 50% of the initial-margin budget
+            // (size / leverage). This guarantees a freshly-opened position at
+            // ANY leverage up to 100x has a positive health buffer at entry and
+            // is therefore openable — the property that was broken before the
+            // initial-margin cap was added.
+            const initialMargin = size / BigInt(lev);
+            expect(mm).to.be.lessThanOrEqual(initialMargin / 2n);
+            // And strictly below the full initial margin (health > 1 at entry).
+            expect(mm).to.be.lessThan(initialMargin);
         }
     });
 
@@ -91,33 +98,39 @@ describe("Fuzz — PositionMath invariants", () => {
         }
     });
 
-    it("liquidation price: low-leverage long < entry < short (when not sentinel)", async () => {
+    it("liquidation price: long < entry < short across the full leverage range (when not sentinel)", async () => {
         const h = await loadFixture(deployHarness);
         const SENT = (1n << 128n) - 1n;
         for (let i = 0; i < RUNS; i++) {
             const entry = e18(1n + randBig(100_000n));
             const size = e18(1n + randBig(100_000n));
-            // Restrict to low leverage (2..10x) where 1/lev > maintenanceMarginFraction,
-            // so the long liq price is strictly below entry. See the note test below
-            // for the high-leverage regime where this inverts by design.
-            const lev = 2n + randBig(9n); // 2..10
+            // With maintenance margin now capped below 1/leverage at every
+            // leverage, the long liq price is strictly below entry and the short
+            // liq price strictly above entry across the whole 1..100x range.
+            const lev = 1n + randBig(100n); // 1..100
             const longLp = await h.calcLiqPrice(entry, e18(lev), size, true);
             const shortLp = await h.calcLiqPrice(entry, e18(lev), size, false);
-            if (longLp !== SENT) expect(longLp).to.be.lessThan(entry);
-            if (shortLp !== SENT) expect(shortLp).to.be.greaterThan(entry);
+            if (longLp !== SENT) expect(longLp).to.be.lessThanOrEqual(entry);
+            if (shortLp !== SENT) expect(shortLp).to.be.greaterThanOrEqual(entry);
         }
     });
 
-    it("NOTE: high-leverage longs can have liq price >= entry (maintenance margin > 1/leverage)", async () => {
+    it("high-leverage longs liquidate BELOW entry (maintenance capped below 1/leverage)", async () => {
         const h = await loadFixture(deployHarness);
-        // At >= ~20x, dynamic MM fraction (>=0.065) exceeds 1/lev (<=0.05), so the
-        // contract's long liquidation price computes ABOVE entry. This is a real
-        // characteristic of the model (such positions open already near-liquidation),
-        // not a test bug. Assert the relationship explicitly so regressions are caught.
+        // After the initial-margin cap, maintenance margin is capped at 50% of
+        // the initial-margin budget (1/leverage), so the maintenance fraction is
+        // always strictly below 1/leverage. The long liquidation price therefore
+        // computes BELOW entry at every leverage — including high leverage —
+        // meaning positions are NOT instantly liquidatable at entry. This
+        // replaces the prior model where >=~20x longs computed a liq price ABOVE
+        // entry (i.e. were un-openable).
         const entry = e18(50_000n);
         const size = e18(10_000n);
+        const SENT = (1n << 128n) - 1n;
         const lpHigh = await h.calcLiqPrice(entry, e18(25n), size, true);
-        expect(lpHigh).to.be.greaterThan(entry);
+        expect(lpHigh).to.not.equal(SENT);
+        expect(lpHigh).to.be.lessThan(entry);
+        expect(lpHigh).to.be.greaterThan(0n);
     });
 
     it("validateSlippage is symmetric around expected for tiny slippage", async () => {

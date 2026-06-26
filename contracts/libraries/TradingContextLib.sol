@@ -75,7 +75,18 @@ library TradingContextLib {
         uint256 deviationBps
     ) external pure returns (TradingLib.LiquidatePositionContext memory) {
         return
-            TradingLib.LiquidatePositionContext(usdc_, vc, oa, pt, treasury, insurance, tradingCore, collateralRegistry, tiers, deviationBps);
+            TradingLib.LiquidatePositionContext(
+                usdc_,
+                vc,
+                oa,
+                pt,
+                treasury,
+                insurance,
+                tradingCore,
+                collateralRegistry,
+                tiers,
+                deviationBps
+            );
     }
 
     function buildCollateralCtx(

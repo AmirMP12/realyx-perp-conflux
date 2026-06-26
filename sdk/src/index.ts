@@ -18,9 +18,11 @@ export type {
   SubaccountConfig,
   OrderParams,
   Market,
+  MarketCategory,
   Position,
   ProtocolStats,
   Trade,
   LeaderboardEntry,
+  WsChannel,
   WsMessage,
 } from "./types";

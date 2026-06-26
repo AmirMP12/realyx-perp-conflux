@@ -32,7 +32,7 @@ const navItems = [
 const bottomItems = [
     { path: '/settings', icon: Settings, label: 'Settings' },
     { href: 'https://efaucet.confluxnetwork.org/', icon: ExternalLink, label: 'Faucet', external: true },
-    { href: 'https://docs-realyx.vercel.app', icon: HelpCircle, label: 'Docs', external: true },
+    { href: 'https://docs.realyx.example', icon: HelpCircle, label: 'Docs', external: true },
 ];
 
 interface SidebarProps {
@@ -136,7 +136,7 @@ export function Sidebar({ isMobileOpen, onClose }: SidebarProps) {
                                 ))}
                             </nav>
                             <div className="mt-4 px-4 text-xs text-text-muted">
-                                v1.0.0 • Devnet
+                                v1.0.0 • Testnet
                             </div>
                         </div>
                     </motion.aside>

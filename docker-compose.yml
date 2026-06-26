@@ -37,7 +37,9 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # Backend API Server
+  # Backend API Server (reader). Ingestion is handled by the dedicated
+  # `indexer` worker below, so the API runs with DISABLE_INBAND_SYNC=true and
+  # reads from POSTGRES_READ_URL when a replica is configured.
   backend:
     build:
       context: ./backend
@@ -48,15 +50,50 @@ services:
       WS_PORT: 3002
       NODE_ENV: production
       POSTGRES_URL: ${POSTGRES_URL:-postgres://realyx:realyx_secret@postgres:5432/realyx}
+      # Point at a streaming replica in production; falls back to primary when unset.
+      POSTGRES_READ_URL: ${POSTGRES_READ_URL:-}
+      # The indexer worker owns ingestion; keep the API a pure reader.
+      DISABLE_INBAND_SYNC: "true"
       CHAIN_ID: ${CHAIN_ID:-71}
       RPC_URL: ${RPC_URL:-https://evmtestnet.confluxrpc.com}
       RPC_FALLBACK_URL: ${RPC_FALLBACK_URL:-https://evmtestnet.confluxrpc.org}
-      TRADING_CORE_ADDRESS: ${TRADING_CORE_ADDRESS:-0x64f277f73bfc81Ad80286a4266c0E0613d867Df3}
-      VAULT_CORE_ADDRESS: ${VAULT_CORE_ADDRESS:-0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714}
-      ORACLE_AGGREGATOR_ADDRESS: ${ORACLE_AGGREGATOR_ADDRESS:-0x89cC8eAbF2e967d81FD04D1023298A3bDcE67450}
+      TRADING_CORE_ADDRESS: ${TRADING_CORE_ADDRESS:-0xc8A6585dFBe2833ed093E557D36DC8Fe136a8c76}
+      VAULT_CORE_ADDRESS: ${VAULT_CORE_ADDRESS:-0x98E011A8782aF36C5Ad6051bC54B86a7c0705F67}
+      ORACLE_AGGREGATOR_ADDRESS: ${ORACLE_AGGREGATOR_ADDRESS:-0x9d027ab66F396176C188946cE49BA9061679e6a9}
+      REFERRAL_REGISTRY_ADDRESS: ${REFERRAL_REGISTRY_ADDRESS:-0x5FbD3aBfBdB667e543B23B80f34Fa7167C1514a8}
     ports:
       - "3001:3001"
       - "3002:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Dedicated indexer worker — the ONLY writer to the primary Postgres.
+  # Polls the chain, detects reorgs via block-hash checkpointing, and ingests
+  # events idempotently. Decoupled from the API so a hot re-index never affects
+  # request latency. The advisory lock in runSync makes scaling/restarts safe.
+  indexer:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: realyx-indexer
+    command: ["node", "dist/worker.js"]
+    environment:
+      NODE_ENV: production
+      # Writer always targets the primary (never a replica).
+      POSTGRES_URL: ${POSTGRES_URL:-postgres://realyx:realyx_secret@postgres:5432/realyx}
+      INDEXER_INTERVAL_MS: ${INDEXER_INTERVAL_MS:-5000}
+      CHAIN_ID: ${CHAIN_ID:-71}
+      RPC_URL: ${RPC_URL:-https://evmtestnet.confluxrpc.com}
+      RPC_FALLBACK_URL: ${RPC_FALLBACK_URL:-https://evmtestnet.confluxrpc.org}
+      TRADING_CORE_ADDRESS: ${TRADING_CORE_ADDRESS:-0xc8A6585dFBe2833ed093E557D36DC8Fe136a8c76}
+      VAULT_CORE_ADDRESS: ${VAULT_CORE_ADDRESS:-0x98E011A8782aF36C5Ad6051bC54B86a7c0705F67}
+      ORACLE_AGGREGATOR_ADDRESS: ${ORACLE_AGGREGATOR_ADDRESS:-0x9d027ab66F396176C188946cE49BA9061679e6a9}
+      REFERRAL_REGISTRY_ADDRESS: ${REFERRAL_REGISTRY_ADDRESS:-0x5FbD3aBfBdB667e543B23B80f34Fa7167C1514a8}
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
 
   # Frontend (nginx proxies /api and /ws to backend when served from port 3000)
@@ -72,16 +109,16 @@ services:
         VITE_CONFLUX_TESTNET_RPC_URL: ${VITE_CONFLUX_TESTNET_RPC_URL:-https://evmtestnet.confluxrpc.com}
         VITE_APP_URL: ${VITE_APP_URL:-http://localhost:3000}
         VITE_WALLET_CONNECT_PROJECT_ID: ${VITE_WALLET_CONNECT_PROJECT_ID:-}
-        VITE_POSITION_TOKEN_ADDRESS: ${VITE_POSITION_TOKEN_ADDRESS:-0x4368b5741A105c1ACE50ad98581fDa050685fa8B}
-        VITE_ORACLE_AGGREGATOR_ADDRESS: ${VITE_ORACLE_AGGREGATOR_ADDRESS:-0x89cC8eAbF2e967d81FD04D1023298A3bDcE67450}
-        VITE_VAULT_CORE_ADDRESS: ${VITE_VAULT_CORE_ADDRESS:-0xB5C983d038caA21f4a9520b0EFAb2aD71DE4e714}
-        VITE_TRADING_CORE_ADDRESS: ${VITE_TRADING_CORE_ADDRESS:-0x64f277f73bfc81Ad80286a4266c0E0613d867Df3}
-        VITE_MOCK_USDC_ADDRESS: ${VITE_MOCK_USDC_ADDRESS:-0xa56Ba38f3c820D6cf31a68CBBD0d25c0F5644d35}
-        VITE_COLLATERAL_REGISTRY_ADDRESS: ${VITE_COLLATERAL_REGISTRY_ADDRESS:-}
-        VITE_COPY_REGISTRY_ADDRESS: ${VITE_COPY_REGISTRY_ADDRESS:-}
-        VITE_REFERRAL_REGISTRY_ADDRESS: ${VITE_REFERRAL_REGISTRY_ADDRESS:-}
+        VITE_POSITION_TOKEN_ADDRESS: ${VITE_POSITION_TOKEN_ADDRESS:-0xF520CC4B305553A9b6D391571c303E45AacC178c}
+        VITE_ORACLE_AGGREGATOR_ADDRESS: ${VITE_ORACLE_AGGREGATOR_ADDRESS:-0x9d027ab66F396176C188946cE49BA9061679e6a9}
+        VITE_VAULT_CORE_ADDRESS: ${VITE_VAULT_CORE_ADDRESS:-0x98E011A8782aF36C5Ad6051bC54B86a7c0705F67}
+        VITE_TRADING_CORE_ADDRESS: ${VITE_TRADING_CORE_ADDRESS:-0xc8A6585dFBe2833ed093E557D36DC8Fe136a8c76}
+        VITE_MOCK_USDT0_ADDRESS: ${VITE_MOCK_USDT0_ADDRESS:-0x85B9BA60D6Aef728c0Ea9C9f6709D31707dfC73A}
+        VITE_COLLATERAL_REGISTRY_ADDRESS: ${VITE_COLLATERAL_REGISTRY_ADDRESS:-0x0f5cAC8a3BC4E61ABA1d547D9A2C1DFA5A087054}
+        VITE_COPY_REGISTRY_ADDRESS: ${VITE_COPY_REGISTRY_ADDRESS:-0xf09b2fa210Fe2dbE17287B331E7A93c58Bb5A001}
+        VITE_REFERRAL_REGISTRY_ADDRESS: ${VITE_REFERRAL_REGISTRY_ADDRESS:-0x5FbD3aBfBdB667e543B23B80f34Fa7167C1514a8}
         VITE_COPY_BOT_ADDRESS: ${VITE_COPY_BOT_ADDRESS:-}
-        VITE_USDC_ADDRESS: ${VITE_USDC_ADDRESS:-0xa56Ba38f3c820D6cf31a68CBBD0d25c0F5644d35}
+        VITE_USDT0_ADDRESS: ${VITE_USDT0_ADDRESS:-0x85B9BA60D6Aef728c0Ea9C9f6709D31707dfC73A}
     container_name: realyx-frontend
     ports:
       - "3000:8080"
@@ -91,10 +128,11 @@ services:
 
   # Prometheus
   prometheus:
-    image: prom/prometheus:v2.47.0
+    image: prom/prometheus:v3.5.0
     container_name: realyx-prometheus
     volumes:
       - ./infrastructure/monitoring/prometheus-docker.yml:/etc/prometheus/prometheus.yml
+      - ./infrastructure/monitoring/alerts:/etc/prometheus/alerts
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -106,7 +144,7 @@ services:
 
   # Grafana
   grafana:
-    image: grafana/grafana:10.2.0
+    image: grafana/grafana:13.0.2
     container_name: realyx-grafana
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}

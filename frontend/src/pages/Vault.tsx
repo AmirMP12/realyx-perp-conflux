@@ -12,6 +12,7 @@ import { formatCompact, formatPrice } from '../utils/format';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { Skeleton } from '../components/ui';
 import { CollateralAssetsPanel } from '../components/CollateralAssetsPanel';
+import { VaultYieldPanel } from '../components/VaultYieldPanel';
 
 export function VaultPage() {
     const { isConnected } = useAccount();
@@ -45,15 +46,24 @@ export function VaultPage() {
         if (success) setAmount('');
     };
 
+    const maxAmount = activeTab === 'deposit' ? usdcBalance : userBalance;
+
     const handleMax = () => {
-        if (activeTab === 'deposit') {
-            setAmount(usdcBalance.toFixed(2));
-        } else {
-            setAmount(userBalance.toFixed(2));
-        }
+        setAmount(maxAmount.toFixed(2));
     };
 
-    const isActionDisabled = isDepositing || isWithdrawing || !amount || parseFloat(amount) <= 0;
+    const handlePercent = (pct: number) => {
+        setAmount(((maxAmount * pct) / 100).toFixed(2));
+    };
+
+    const numAmount = parseFloat(amount) || 0;
+    const estReceive = activeTab === 'deposit'
+        ? (sharePrice > 0 ? numAmount / sharePrice : 0)
+        : numAmount;
+    const estReceiveLabel = activeTab === 'deposit' ? 'LP' : 'USDT0';
+    const exceedsBalance = numAmount > maxAmount + 1e-9;
+
+    const isActionDisabled = isDepositing || isWithdrawing || !amount || parseFloat(amount) <= 0 || exceedsBalance;
 
     return (
         <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6 lg:space-y-8">
@@ -83,8 +93,8 @@ export function VaultPage() {
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                <StatCard icon={Lock} label="Total Value Locked" value={formatCompact(tvl)} sublabel="USDC in Vault" loading={statsLoading} />
-                <StatCard icon={TrendingUp} label="Share Price" value={compactSharePrice} sublabel="USDC per LP" loading={statsLoading} />
+                <StatCard icon={Lock} label="Total Value Locked" value={formatCompact(tvl)} sublabel="USDT0 in Vault" loading={statsLoading} />
+                <StatCard icon={TrendingUp} label="Share Price" value={compactSharePrice} sublabel="USDT0 per LP" loading={statsLoading} />
                 <div className="col-span-2 lg:col-span-1">
                     <StatCard icon={DollarSign} label="Fees Earned" value={formatCompact(accumulatedFees)} sublabel="Protocol Revenue" valueColor="text-emerald-400" loading={statsLoading} />
                 </div>
@@ -99,11 +109,11 @@ export function VaultPage() {
                         <div className="flex items-start sm:items-center justify-between gap-3 mb-5 sm:mb-6">
                             <div>
                                 <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-text-primary">Manage Liquidity</h2>
-                                <p className="text-xs sm:text-sm text-text-secondary mt-1 max-w-md">Deposit USDC to mint LP tokens, or burn LP tokens to withdraw.</p>
+                                <p className="text-xs sm:text-sm text-text-secondary mt-1 max-w-md">Deposit USDT0 to mint LP tokens, or burn LP tokens to withdraw.</p>
                             </div>
-                            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)]">
-                                <ArrowDownUp className="w-3.5 h-3.5 text-text-muted" />
-                                <span className="text-xs font-mono text-text-secondary">1 LP = {formatPrice(sharePrice, 4)}</span>
+                            <div className="hidden sm:flex shrink-0 items-center gap-2 px-3 py-1.5 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)]">
+                                <ArrowDownUp className="w-3.5 h-3.5 text-text-muted shrink-0" />
+                                <span className="text-xs font-mono text-text-secondary whitespace-nowrap">1 LP = {formatPrice(sharePrice, 4)}</span>
                             </div>
                         </div>
 
@@ -145,7 +155,7 @@ export function VaultPage() {
                                 {/* Input Area */}
                                 <div className="space-y-2">
                                     <div className="flex justify-between text-xs sm:text-sm font-medium">
-                                        <span className="text-text-secondary">Amount ({activeTab === 'deposit' ? 'USDC' : 'LP Value'})</span>
+                                        <span className="text-text-secondary">Amount ({activeTab === 'deposit' ? 'USDT0' : 'LP Value'})</span>
                                         <span className="text-text-secondary">
                                             Bal:{' '}
                                             <span className="text-text-primary font-mono cursor-pointer hover:text-[var(--primary)] transition-colors" onClick={handleMax}>
@@ -157,7 +167,12 @@ export function VaultPage() {
                                         </span>
                                     </div>
 
-                                    <div className="relative group">
+                                    <div className={clsx(
+                                        "relative group rounded-xl border bg-[var(--bg-tertiary)] transition-all",
+                                        exceedsBalance
+                                            ? "border-red-500/60 ring-1 ring-red-500/20"
+                                            : "border-[var(--border-color)] focus-within:border-[var(--primary)] focus-within:ring-1 focus-within:ring-brand/30"
+                                    )}>
                                         <input
                                             type="text"
                                             inputMode="decimal"
@@ -174,7 +189,7 @@ export function VaultPage() {
                                                 if (pasted.includes('-')) e.preventDefault();
                                             }}
                                             placeholder="0.00"
-                                            className="w-full bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-text-primary text-xl sm:text-2xl lg:text-3xl font-mono font-medium py-4 sm:py-5 pl-4 sm:pl-5 pr-28 sm:pr-36 rounded-xl focus:outline-none focus:border-[var(--primary)] focus:ring-1 focus:ring-brand/30 transition-all placeholder:text-text-muted/20"
+                                            className="w-full bg-transparent text-text-primary text-xl sm:text-2xl lg:text-3xl font-mono font-medium py-4 sm:py-5 pl-4 sm:pl-5 pr-28 sm:pr-36 rounded-xl focus:outline-none placeholder:text-text-muted/20"
                                         />
                                         <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 sm:gap-3">
                                             <button
@@ -185,9 +200,49 @@ export function VaultPage() {
                                             </button>
                                             <div className="h-6 sm:h-8 w-px bg-[var(--border-color)]" />
                                             <span className="text-sm sm:text-base font-bold text-text-muted">
-                                                {activeTab === 'deposit' ? 'USDC' : 'USD'}
+                                                {activeTab === 'deposit' ? 'USDT0' : 'USD'}
                                             </span>
                                         </div>
+                                    </div>
+
+                                    {/* Percentage quick-select */}
+                                    <div className="grid grid-cols-4 gap-2 pt-1">
+                                        {[25, 50, 75, 100].map((pct) => (
+                                            <button
+                                                key={pct}
+                                                type="button"
+                                                onClick={() => handlePercent(pct)}
+                                                disabled={maxAmount <= 0}
+                                                className="py-1.5 text-[11px] sm:text-xs font-bold rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-text-secondary hover:border-[var(--primary)] hover:text-[var(--primary)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                            >
+                                                {pct}%
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {exceedsBalance && (
+                                        <p className="text-[11px] sm:text-xs text-red-400 font-medium pt-0.5">
+                                            Amount exceeds your available balance.
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Transaction Preview */}
+                                <div className="rounded-xl bg-gradient-to-br from-brand/[0.07] to-transparent border border-brand/20 px-4 py-3.5 flex items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center shrink-0">
+                                            <ArrowDownUp className="w-4 h-4 text-[var(--primary)]" />
+                                        </div>
+                                        <div>
+                                            <div className="text-[10px] uppercase tracking-wider font-bold text-text-muted">You receive</div>
+                                            <div className="text-[11px] text-text-secondary">{activeTab === 'deposit' ? 'LP tokens minted' : 'USDT0 withdrawn'}</div>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <div className="text-lg sm:text-xl font-mono font-bold text-text-primary tabular-nums">
+                                            {numAmount > 0 ? formatPrice(estReceive, estReceive < 1 ? 4 : 2) : '0.00'}
+                                        </div>
+                                        <div className="text-[10px] font-bold text-text-muted">{estReceiveLabel}</div>
                                     </div>
                                 </div>
 
@@ -195,7 +250,7 @@ export function VaultPage() {
                                 <div className="rounded-xl bg-surface-3/40 border border-line/50 divide-y divide-line/50">
                                     <div className="flex justify-between items-center px-4 py-3">
                                         <span className="text-xs sm:text-sm text-text-muted">Exchange Rate</span>
-                                        <span className="font-mono text-xs sm:text-sm text-text-primary">1 LP = {formatPrice(sharePrice, 4)} USDC</span>
+                                        <span className="font-mono text-xs sm:text-sm text-text-primary">1 LP = {formatPrice(sharePrice, 4)} USDT0</span>
                                     </div>
                                     <div className="flex justify-between items-center px-4 py-3">
                                         <span className="text-xs sm:text-sm text-text-muted">Min Lockup</span>
@@ -248,6 +303,9 @@ export function VaultPage() {
 
                 {/* ─── Side Panels ─── */}
                 <div className="space-y-4 sm:space-y-6">
+                    {/* Real-yield transparency — APR breakdown by source + history. */}
+                    <VaultYieldPanel />
+
                     {/* Multi-collateral overview (registry-driven; hidden when none configured) */}
                     <CollateralAssetsPanel />
 
@@ -277,7 +335,7 @@ export function VaultPage() {
                                         <div className="text-lg sm:text-xl font-mono font-medium text-text-primary">
                                             {balanceLoading ? <Skeleton className="h-6 w-24" /> : formatCompact(usdcBalance)}
                                         </div>
-                                        <div className="text-[11px] text-text-muted mt-1">Available USDC</div>
+                                        <div className="text-[11px] text-text-muted mt-1">Available USDT0</div>
                                     </div>
                                 </div>
                             ) : (
@@ -307,7 +365,7 @@ export function VaultPage() {
                         </div>
                         <div className="divide-y divide-line/50">
                             {[
-                                { label: 'Asset', value: stats.asset || 'USDC', mono: false },
+                                { label: 'Asset', value: stats.asset || 'USDT0', mono: false },
                                 { label: 'Type', value: 'Diversified Pool', mono: false },
                                 { label: 'Liquidity', value: statsLoading ? '...' : formatCompact(availableLiquidity), mono: true },
                                 { label: 'Lock-up', value: 'None', mono: false, accent: 'text-emerald-400' },

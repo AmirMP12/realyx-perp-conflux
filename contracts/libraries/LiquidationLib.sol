@@ -29,6 +29,12 @@ library LiquidationLib {
     ///      shortfall is recorded via `recordFailedRepayment`.
     uint256 private constant MIN_LIQUIDATOR_REWARD_BPS = 2500;
     uint256 private constant MAX_LIQUIDATION_PRICE_DEVIATION_BPS = 1000;
+    /// @dev Mirror the open/close-side minimum-sample requirement so the
+    ///      liquidation deviation guard draws from the same validated TWAP
+    ///      source (`getTWAPWithValidation`) as `_executeIncrease` /
+    ///      `PositionCloseLib.closePosition`, rather than the spot-fallback
+    ///      `getTWAP` that masked a cold buffer as a zero-deviation pass.
+    uint256 private constant MIN_TWAP_DATA_POINTS = 2;
 
     event InsufficientBalanceForLiquidation(uint256 indexed positionId, uint256 needed, uint256 available);
 
@@ -70,7 +76,19 @@ library LiquidationLib {
         (bool canLiq, uint256 healthFactor) = position.isLiquidatable(currentPrice, collateralValue);
         if (!canLiq) revert PositionNotLiquidatable();
 
-        uint256 twapPrice = IOracleAggregator(ctx.oracleAggregator).getTWAP(position.market, TWAP_WINDOW_SECONDS);
+        // Deviation guard sourced from the validated TWAP getter, matching the
+        // open/close paths. The deviation is enforced whenever a TWAP reference
+        // exists (`twapPrice > 0`). A cold/warming buffer surfaces as
+        // `twapValid == false` and, in production, returns spot itself (a
+        // self-referential deviation of 0), so it falls through without
+        // blocking the liquidation — preserving liveness for insolvent
+        // positions. Spot is still bounded upstream by Pyth confidence /
+        // staleness and the manual-price lockout in `TradingCore._liquidate`.
+        (uint256 twapPrice, ) = IOracleAggregator(ctx.oracleAggregator).getTWAPWithValidation(
+            position.market,
+            TWAP_WINDOW_SECONDS,
+            MIN_TWAP_DATA_POINTS
+        );
         if (twapPrice > 0) {
             uint256 deviation = currentPrice > twapPrice
                 ? ((currentPrice - twapPrice) * BPS) / twapPrice
@@ -81,15 +99,6 @@ library LiquidationLib {
             if (deviation > maxDeviation) revert LiquidationPriceDeviation();
         }
 
-        (uint256 totalFee, uint256 liqFee, uint256 insFee) = FeeCalculator.calculateLiquidationFee(
-            uint256(position.size),
-            healthFactor,
-            ctx.liquidationTiers
-        );
-        uint256 liqFeeUsdc = DataTypes.toUsdcPrecision(liqFee);
-        uint256 insFeeUsdc = DataTypes.toUsdcPrecision(insFee);
-        uint256 totalNeededUsdc = liqFeeUsdc + insFeeUsdc;
-
         bool isLong = DataTypes.isLong(position.flags);
         int256 pnl = PositionMath.calculateUnrealizedPnL(
             uint256(position.size),
@@ -97,6 +106,28 @@ library LiquidationLib {
             currentPrice,
             isLong
         );
+
+        // Cap the liquidation fee on the GENUINE remaining collateral value
+        // (collateral + unrealized PnL, floored at zero) rather than a
+        // health-factor-derived proxy. `collateralValue` and `pnl` are both in
+        // internal precision here.
+        uint256 effectiveCollateral;
+        if (pnl >= 0) {
+            effectiveCollateral = collateralValue + uint256(pnl);
+        } else {
+            uint256 loss = uint256(-pnl);
+            effectiveCollateral = collateralValue > loss ? collateralValue - loss : 0;
+        }
+
+        (uint256 totalFee, uint256 liqFee, uint256 insFee) = FeeCalculator.calculateLiquidationFee(
+            uint256(position.size),
+            healthFactor,
+            ctx.liquidationTiers,
+            effectiveCollateral
+        );
+        uint256 liqFeeUsdc = DataTypes.toUsdcPrecision(liqFee);
+        uint256 insFeeUsdc = DataTypes.toUsdcPrecision(insFee);
+        uint256 totalNeededUsdc = liqFeeUsdc + insFeeUsdc;
 
         uint256 borrowedAmount = positionCollateral[positionId].borrowedAmount;
         uint256 repayAmountUsdc = DataTypes.toUsdcPrecisionCeil(borrowedAmount);
@@ -174,6 +205,21 @@ library LiquidationLib {
         address self = address(this);
         if (IERC20(ctx.usdc).balanceOf(self) < receiveAmount) revert InsufficientLiquidityForRepayment();
 
+        // Never ask the vault to pull more than the approved/available
+        // `receiveAmount`. In the deep-bad-debt branch above `receiveAmount`
+        // was scaled down below `repayAmountUsdc + loss`; `VaultCore.repay`
+        // recomputes its pull as `amount + (-pnl)`, so passing the FULL `pnlUsdc`
+        // would demand more than the (reduced) allowance and revert the whole
+        // liquidation — re-creating the stuck-position deadlock the partial-repay
+        // branch is meant to avoid. Clamp the loss component so the vault's pull
+        // equals `receiveAmount`. This is a no-op on the clean / fully-covered
+        // paths (where `receiveAmount == repayAmountUsdc + loss` already), and
+        // the uncovered residual is still recorded via `recordFailedRepayment`.
+        if (pnlUsdc < 0) {
+            uint256 maxLoss = receiveAmount > repayAmountUsdc ? receiveAmount - repayAmountUsdc : 0;
+            if (uint256(-pnlUsdc) > maxLoss) pnlUsdc = -int256(maxLoss);
+        }
+
         IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, 0);
         IERC20(ctx.usdc).forceApprove(ctx.liquidityVault, receiveAmount);
         try IVaultCore(ctx.liquidityVault).repay(repayAmountUsdc, position.market, isLong, pnlUsdc) {} catch {
@@ -191,13 +237,7 @@ library LiquidationLib {
         //             position still closes and the protocol stays solvent.
         if (liquidatorReward < minExpectedRewardUsdc) {
             uint256 shortfall = minExpectedRewardUsdc - liquidatorReward;
-            emit LiquidatorRewardCapped(
-                positionId,
-                msg.sender,
-                liquidatorReward,
-                minExpectedRewardUsdc,
-                shortfall
-            );
+            emit LiquidatorRewardCapped(positionId, msg.sender, liquidatorReward, minExpectedRewardUsdc, shortfall);
         }
 
         if (liquidatorReward > 0) {
