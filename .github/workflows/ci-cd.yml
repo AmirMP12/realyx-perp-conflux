@@ -188,7 +188,7 @@ jobs:
           provenance: true
 
       - name: Scan image with Trivy
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
           format: 'sarif'
@@ -204,7 +204,7 @@ jobs:
           category: 'trivy-${{ matrix.image }}'
 
       - name: Fail on HIGH/CRITICAL image vulnerabilities
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
           format: 'table'
