@@ -23,7 +23,7 @@
         "bignumber.js": "^9.1.2",
         "buffer": "^6.0.3",
         "clsx": "^2.0.0",
-        "date-fns": "^2.30.0",
+        "date-fns": "^4.4.0",
         "framer-motion": "^10.16.16",
         "goober": "^2.1.18",
         "lightweight-charts": "^4.2.3",
