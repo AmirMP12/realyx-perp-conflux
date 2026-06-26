@@ -62,6 +62,22 @@ function getEnv(name: string, fallback?: string): string {
     return value;
 }
 
+/**
+ * Public RPC defaults per network, mirroring hardhat.config.ts. Used as a last
+ * resort so the keeper stays live even when KEEPER_RPC_URL / CONFLUX_*_RPC_URL
+ * are not provided by the deployment environment (e.g. a fresh Railway service).
+ */
+const DEFAULT_RPC_URLS: Record<string, string> = {
+    confluxTestnet: "https://evmtestnet.confluxrpc.com",
+    confluxESpace: "https://evm.confluxrpc.com",
+    conflux: "https://evm.confluxrpc.com",
+    confluxMainnet: "https://evm.confluxrpc.com",
+};
+
+function defaultRpcUrlForNetwork(network: string): string | undefined {
+    return DEFAULT_RPC_URLS[network];
+}
+
 function toMsFromSeconds(raw: string | undefined, fallbackSeconds: number): number {
     const n = Number(raw ?? fallbackSeconds);
     if (!Number.isFinite(n) || n <= 0) return fallbackSeconds * 1000;
@@ -157,7 +173,10 @@ async function main() {
     const network = process.env.KEEPER_NETWORK || process.env.HARDHAT_NETWORK || "confluxTestnet";
     const deployment = loadDeployment(network);
 
-    const rpcUrl = getEnv("KEEPER_RPC_URL", process.env.CONFLUX_TESTNET_RPC_URL || process.env.CONFLUX_RPC_URL);
+    const rpcUrl = getEnv(
+        "KEEPER_RPC_URL",
+        process.env.CONFLUX_TESTNET_RPC_URL || process.env.CONFLUX_RPC_URL || defaultRpcUrlForNetwork(network),
+    );
     const privateKey = getEnv("KEEPER_PRIVATE_KEY", process.env.PRIVATE_KEY);
     const tradingCoreAddress =
         process.env.KEEPER_TRADING_CORE_ADDRESS ||
