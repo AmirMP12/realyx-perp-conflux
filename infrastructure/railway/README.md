@@ -20,6 +20,8 @@ the off-chain services that index and drive those contracts.
 | `keeper`        | `/` (root) | `railway.keeper.json`             | Order-execution keeper bot                |
 | `liquidation`   | `/` (root) | `railway.liquidation.json`        | Liquidation bot (optional)                |
 | `frontend`      | `frontend` | `railway.json`                    | Static SPA served by nginx                |
+| `landing`       | `landing`  | `railway.json`                    | Static marketing site served by nginx     |
+| `docs`          | `docs-site`| `railway.json`                    | Static docs site served by nginx          |
 
 Minimum viable deployment is **postgres + api + indexer + keeper**. Add the
 liquidation bot and frontend as needed. Redis is optional (the API falls back to
@@ -152,6 +154,21 @@ The frontend calls the API at the absolute `VITE_API_URL`, so nginx's built-in
 `/api` and `/ws` proxy blocks (which target the docker-compose `backend` host)
 are simply unused on Railway. Make sure the API's `CORS_ORIGINS` includes the
 frontend's public domain.
+
+### landing + docs (static sites)
+
+Both are dependency-free static sites (HTML/CSS/JS) served by the same
+`nginx-unprivileged` image as the frontend, listening on **8080**. They have no
+build args and no required env vars — just point each service at its root dir
+and config file:
+
+| Service   | Root Directory | Config-as-code path |
+| --------- | -------------- | ------------------- |
+| `landing` | `landing`      | `railway.json`      |
+| `docs`    | `docs-site`    | `railway.json`      |
+
+The healthcheck hits `/health` (returns `ok`). Add a custom domain in
+Railway → Settings → Networking if you want `realyx.example` / `docs.realyx.example`.
 
 ## WebSockets
 
