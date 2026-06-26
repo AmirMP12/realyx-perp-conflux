@@ -22,7 +22,21 @@ RUN npm ci --omit=dev && npm cache clean --force
 FROM node:20-alpine AS runtime
 
 # tini provides proper PID 1 signal handling for graceful shutdown.
-RUN apk add --no-cache tini
+# Also upgrade base OS packages to pick up security fixes (e.g. OpenSSL), and
+# strip the npm/yarn/corepack CLIs that ship in the base image — they are not
+# used at runtime (the container runs `node dist/index.js`) and carry their own
+# transitive CVEs that would otherwise fail the image vulnerability scan.
+RUN apk upgrade --no-cache \
+    && apk add --no-cache tini \
+    && rm -rf \
+        /usr/local/lib/node_modules/npm \
+        /usr/local/bin/npm \
+        /usr/local/bin/npx \
+        /usr/local/lib/node_modules/corepack \
+        /usr/local/bin/corepack \
+        /opt/yarn-* \
+        /usr/local/bin/yarn \
+        /usr/local/bin/yarnpkg
 
 WORKDIR /app
 

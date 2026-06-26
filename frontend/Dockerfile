@@ -53,11 +53,19 @@ RUN npm run build
 # Production image with nginx (unprivileged — runs as non-root, listens on 8080)
 FROM nginxinc/nginx-unprivileged:1.25-alpine
 
+# Patch base OS packages (e.g. OpenSSL) to pick up security fixes. apk requires
+# root, so temporarily switch to root and drop back to the unprivileged nginx
+# user (UID 101) before running the container.
+USER root
+RUN apk upgrade --no-cache
+
 # Copy built files
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+USER 101
 
 EXPOSE 8080
 
