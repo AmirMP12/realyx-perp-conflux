@@ -169,11 +169,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # OCI image references must be lowercase, but ${{ github.repository }} can
+      # contain uppercase characters (e.g. the owner name). Lowercase it once
+      # here so the build, push, and Trivy scan all use a valid reference.
+      - name: Compute lowercase image name
+        id: img
+        run: echo "name=${REGISTRY,,}/${IMAGE_NAME,,}/${IMAGE}" >> "$GITHUB_OUTPUT"
+        env:
+          REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          IMAGE: ${{ matrix.image }}
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.image }}
+          images: ${{ steps.img.outputs.name }}
           tags: |
             type=sha
             type=ref,event=branch
@@ -193,7 +204,7 @@ jobs:
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          image-ref: ${{ steps.img.outputs.name }}@${{ steps.build.outputs.digest }}
           format: 'sarif'
           output: 'trivy-${{ matrix.image }}.sarif'
           severity: 'HIGH,CRITICAL'
@@ -209,7 +220,7 @@ jobs:
       - name: Fail on HIGH/CRITICAL image vulnerabilities
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}
+          image-ref: ${{ steps.img.outputs.name }}@${{ steps.build.outputs.digest }}
           format: 'table'
           exit-code: '1'
           severity: 'HIGH,CRITICAL'
