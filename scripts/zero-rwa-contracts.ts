@@ -77,7 +77,7 @@ async function main() {
     }
 
     // Initialized: the timelocked rotation path applies.
-    const [pCal, pDiv, pComp, effective] = await tc.getPendingRWAContracts();
+    const [pCal, pDiv, pComp, effective] = await tc.pendingRWAContracts();
     const now = Math.floor(Date.now() / 1000);
     const proposalMatchesZero = pCal === ZERO && pDiv === ZERO && pComp === ZERO;
     const effectiveNum = Number(effective);
@@ -100,7 +100,7 @@ async function main() {
     console.log("Initialized contract — staging a zero proposal under the 48h timelock ...");
     const tx = await tc.proposeRWAContracts(ZERO, ZERO, ZERO);
     await tx.wait();
-    const [, , , newEffective] = await tc.getPendingRWAContracts();
+    const [, , , newEffective] = await tc.pendingRWAContracts();
     const eta = new Date(Number(newEffective) * 1000).toISOString();
     console.log(`Proposed. tx=${tx.hash}`);
     console.log(`Timelock expires at ${eta}. Re-run this script after that to apply.`);
