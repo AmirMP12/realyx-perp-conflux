@@ -220,7 +220,7 @@ describe("Global System Integration Logic", () => {
 
     describe("service logic", () => {
         it("runs onchain and pyth service helpers", async () => {
-             const onchain = await import("../services/fetchMarketsOnChain.js");
+             const onchain = await import("../services/fetchMarketsOnchain.js");
              const pyth = await import("../services/pyth.js");
              
              (global as any).fetch = jest.fn()
