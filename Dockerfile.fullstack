@@ -76,7 +76,11 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # ── Runtime ──────────────────────────────────────────────────
 FROM node:20-alpine AS runtime
-RUN apk upgrade --no-cache && apk add --no-cache tini
+# tini provides proper PID 1 signal handling for graceful shutdown. The OS
+# upgrade is best-effort: a flaky Alpine mirror during build must not fail the
+# whole image, so it is allowed to no-op while tini install is retried.
+RUN apk upgrade --no-cache || true \
+    && (apk add --no-cache tini || apk add --no-cache tini)
 
 WORKDIR /app
 ENV NODE_ENV=production
