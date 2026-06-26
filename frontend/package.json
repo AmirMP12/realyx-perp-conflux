@@ -15,7 +15,7 @@
     },
     "dependencies": {
         "@coinbase/wallet-sdk": "^4.3.7",
-        "@headlessui/react": "^2.2.9",
+        "@headlessui/react": "^2.2.10",
         "@metamask/sdk": "^0.34.0",
         "@rainbow-me/rainbowkit": "^2.2.10",
         "@tanstack/react-query": "^5.90.20",
