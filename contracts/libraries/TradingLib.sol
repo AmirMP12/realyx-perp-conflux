@@ -169,6 +169,8 @@ library TradingLib {
             ? IOracleAggregator(oracleAggregator).updatePrices{value: ethValue}(priceUpdateData)
             : ethValue;
         if (refund > 0) {
+            // `keeper` is the authenticated caller forwarded by the trading core;
+            // `refund` is its own unused price-update fee, not arbitrary funds.
             (bool ok, ) = keeper.call{value: refund}("");
             if (!ok) revert EthRefundFailed();
         }

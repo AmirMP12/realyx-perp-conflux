@@ -56,6 +56,14 @@ contract MarketCalendar is Initializable, AccessControlUpgradeable, UUPSUpgradea
     mapping(string => mapping(uint256 => bool)) public holidays;
     mapping(string => mapping(uint8 => bool)) public tradingDays;
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        // Lock the implementation contract's initializers so an attacker cannot
+        // initialize the logic contract directly and `selfdestruct` it via
+        // `upgradeToAndCall`. State lives in the proxy, not here.
+        _disableInitializers();
+    }
+
     function initialize(address admin) public initializer {
         __AccessControl_init();
         __UUPSUpgradeable_init();

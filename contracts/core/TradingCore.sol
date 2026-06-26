@@ -267,7 +267,10 @@ contract TradingCore is Initializable, UUPSUpgradeable, ReentrancyGuardUpgradeab
     ///      staged proposal. First wire-up stays immediate for deploy scripts.
     bool private _tradingViewsInitialized;
 
-    uint256[4] private __gap;
+    /// @dev Storage gap for future upgrades. Named distinctly from the base
+    ///      `AccessControlled.__gap` to avoid a (harmless) state-variable
+    ///      shadowing warning; storage layout is unaffected by the name.
+    uint256[4] private __gapTradingCore;
 
     modifier noFlashLoan() {
         // Key the per-sender same-block lock and interaction-delay on the

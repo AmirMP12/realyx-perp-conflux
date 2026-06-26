@@ -70,6 +70,14 @@ contract DividendManager is Initializable, AccessControlUpgradeable, UUPSUpgrade
     event ImplementationCancelled(address indexed pending);
     event DividendLimitsUpdated(uint256 windowDuration, uint256 maxPerWindow);
 
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        // Lock the implementation contract's initializers so an attacker cannot
+        // initialize the logic contract directly and `selfdestruct` it via
+        // `upgradeToAndCall`. State lives in the proxy, not here.
+        _disableInitializers();
+    }
+
     function initialize(address admin) public initializer {
         __AccessControl_init();
         __UUPSUpgradeable_init();

@@ -1,0 +1,4 @@
+{
+  "filter_paths": "contracts/test/",
+  "detectors_to_exclude": "incorrect-exp,weak-prng,encode-packed-collision,arbitrary-send-eth,arbitrary-send-erc20,reentrancy-eth"
+}
