@@ -50,7 +50,7 @@
     ],
     "name": "updatePositionOwner",
     "outputs": [],
-    "stateMutability": "nonpayable",
+    "stateMutability": "view",
     "type": "function"
   }
 ]

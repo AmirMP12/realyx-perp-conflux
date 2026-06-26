@@ -3685,7 +3685,7 @@
       },
       {
         "internalType": "int256",
-        "name": "cumulativeFunding",
+        "name": "",
         "type": "int256"
       }
     ],
@@ -3703,7 +3703,7 @@
       },
       {
         "internalType": "bytes[]",
-        "name": "priceUpdateData",
+        "name": "",
         "type": "bytes[]"
       }
     ],
@@ -3944,7 +3944,7 @@
     "inputs": [
       {
         "internalType": "address",
-        "name": "market",
+        "name": "",
         "type": "address"
       }
     ],
