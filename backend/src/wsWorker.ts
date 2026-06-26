@@ -48,7 +48,15 @@ function registerShutdown(server: http.Server, stopWs: () => void) {
     } catch {
       /* ignore */
     }
+    const forceExit = setTimeout(() => {
+      logger.warn("Forced WS shutdown after timeout");
+      process.exit(1);
+    }, 10_000);
+    forceExit.unref();
     server.close((err) => {
+      // Clean (or errored) close beat the failsafe — cancel it so the timer
+      // can't fire later and call process.exit after we've already exited.
+      clearTimeout(forceExit);
       if (err) {
         logger.error({ err }, "Error during WS server close");
         process.exit(1);
@@ -56,10 +64,6 @@ function registerShutdown(server: http.Server, stopWs: () => void) {
       logger.info("WebSocket service shutdown complete");
       process.exit(0);
     });
-    setTimeout(() => {
-      logger.warn("Forced WS shutdown after timeout");
-      process.exit(1);
-    }, 10_000).unref();
   };
   process.on("SIGTERM", () => shutdown("SIGTERM"));
   process.on("SIGINT", () => shutdown("SIGINT"));
