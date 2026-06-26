@@ -3,6 +3,9 @@ import cors from "cors";
 import helmet from "helmet";
 import pino from "pino";
 import pinoHttp from "pino-http";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import { logger } from "./logger.js";
 import marketsRouter from "./routes/markets.js";
 import userRouter from "./routes/user.js";
@@ -24,6 +27,9 @@ import { apiRateLimitCluster } from "./middleware/rateLimit.js";
 import { metricsMiddleware } from "./middleware/metrics.js";
 
 const httpLogger = (pinoHttp as unknown as (opts: { logger: pino.Logger }) => express.RequestHandler)({ logger });
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Build CORS options. By default (no CORS_ORIGINS set) all origins are allowed,
@@ -54,7 +60,11 @@ function buildCorsOptions(): cors.CorsOptions {
 }
 
 const app = express();
-app.use(helmet());
+// CSP/COEP are disabled because this service also serves a web3 SPA (wallet
+// SDKs, external RPC/Hermes endpoints, inline bootstrap) and the prior nginx
+// setup shipped no Content-Security-Policy. The other hardening headers
+// (frameguard, noSniff, referrer-policy, etc.) remain enabled.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(cors(buildCorsOptions()));
 app.use(express.json({ limit: "1mb" }));
 app.use(httpLogger);
@@ -98,9 +108,32 @@ app.use((req: any, _res: any, next: any) => {
   next();
 });
 
-app.use((_req: any, res: any) => {
+// Unmatched API/health routes always return JSON — never the SPA shell.
+app.use(["/api", "/health"], (_req: any, res: any) => {
   res.status(404).json({ success: false, error: "Not found" });
 });
+
+// ─── Static frontend (single-service full-stack deploy) ───
+// When the built frontend is shipped alongside the API (see the root
+// Dockerfile), serve it from the same origin so one service/URL hosts both the
+// app and the API. The SPA's client-side router owns all non-API paths, so
+// unmatched routes fall back to index.html. When no build is present (API-only
+// deploy) the previous JSON-404 behaviour is preserved.
+const frontendDist =
+  (process.env.FRONTEND_DIST ?? "").trim() || path.resolve(__dirname, "../public");
+const hasFrontend = fs.existsSync(path.join(frontendDist, "index.html"));
+
+if (hasFrontend) {
+  app.use(express.static(frontendDist));
+  app.get("*", (_req: express.Request, res: express.Response) => {
+    res.sendFile(path.join(frontendDist, "index.html"));
+  });
+  logger.info({ frontendDist }, "Serving static frontend (single-service mode)");
+} else {
+  app.use((_req: any, res: any) => {
+    res.status(404).json({ success: false, error: "Not found" });
+  });
+}
 
 app.use((err: Error & { status?: number }, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err.status === 429) {

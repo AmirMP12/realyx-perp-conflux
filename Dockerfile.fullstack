@@ -1,0 +1,100 @@
+# syntax=docker/dockerfile:1
+#
+# Full-stack image: builds the React frontend and the API, then runs the API
+# which also serves the built frontend. This lets a SINGLE Railway service (one
+# public URL) host both the app (at "/") and the API (at "/api", "/health").
+#
+# Railway: set this service's Dockerfile path to "Dockerfile.fullstack" and root
+# directory to the repo root. Provide the VITE_* values below as service
+# variables (Railway forwards them as build args). The SPA talks to the API on
+# the same origin, so VITE_API_URL defaults to "/api".
+
+# ── Frontend build ───────────────────────────────────────────
+FROM node:20-alpine AS frontend
+WORKDIR /fe
+
+COPY frontend/package*.json ./
+RUN npm ci --legacy-peer-deps
+
+COPY frontend/ ./
+
+# Same-origin defaults; override via build args / Railway service variables.
+ARG VITE_API_URL=/api
+ARG VITE_WS_URL
+ARG VITE_CHAIN_ID
+ARG VITE_RPC_URL
+ARG VITE_CONFLUX_TESTNET_RPC_URL
+ARG VITE_HERMES_URL
+ARG VITE_APP_URL
+ARG VITE_WALLET_CONNECT_PROJECT_ID
+ARG VITE_POSITION_TOKEN_ADDRESS
+ARG VITE_ORACLE_AGGREGATOR_ADDRESS
+ARG VITE_VAULT_CORE_ADDRESS
+ARG VITE_TRADING_CORE_ADDRESS
+ARG VITE_MOCK_USDT0_ADDRESS
+ARG VITE_COLLATERAL_REGISTRY_ADDRESS
+ARG VITE_COPY_REGISTRY_ADDRESS
+ARG VITE_REFERRAL_REGISTRY_ADDRESS
+ARG VITE_COPY_BOT_ADDRESS
+ARG VITE_USDT0_ADDRESS
+
+ENV VITE_API_URL=$VITE_API_URL \
+    VITE_WS_URL=$VITE_WS_URL \
+    VITE_CHAIN_ID=$VITE_CHAIN_ID \
+    VITE_RPC_URL=$VITE_RPC_URL \
+    VITE_CONFLUX_TESTNET_RPC_URL=$VITE_CONFLUX_TESTNET_RPC_URL \
+    VITE_HERMES_URL=$VITE_HERMES_URL \
+    VITE_APP_URL=$VITE_APP_URL \
+    VITE_WALLET_CONNECT_PROJECT_ID=$VITE_WALLET_CONNECT_PROJECT_ID \
+    VITE_POSITION_TOKEN_ADDRESS=$VITE_POSITION_TOKEN_ADDRESS \
+    VITE_ORACLE_AGGREGATOR_ADDRESS=$VITE_ORACLE_AGGREGATOR_ADDRESS \
+    VITE_VAULT_CORE_ADDRESS=$VITE_VAULT_CORE_ADDRESS \
+    VITE_TRADING_CORE_ADDRESS=$VITE_TRADING_CORE_ADDRESS \
+    VITE_MOCK_USDT0_ADDRESS=$VITE_MOCK_USDT0_ADDRESS \
+    VITE_COLLATERAL_REGISTRY_ADDRESS=$VITE_COLLATERAL_REGISTRY_ADDRESS \
+    VITE_COPY_REGISTRY_ADDRESS=$VITE_COPY_REGISTRY_ADDRESS \
+    VITE_REFERRAL_REGISTRY_ADDRESS=$VITE_REFERRAL_REGISTRY_ADDRESS \
+    VITE_COPY_BOT_ADDRESS=$VITE_COPY_BOT_ADDRESS \
+    VITE_USDT0_ADDRESS=$VITE_USDT0_ADDRESS
+
+RUN npm run build
+
+# ── Backend build ────────────────────────────────────────────
+FROM node:20-alpine AS backend-build
+WORKDIR /app
+COPY backend/package*.json ./
+RUN npm ci
+COPY backend/tsconfig.json ./
+COPY backend/src ./src
+RUN npm run build
+
+# ── Backend production dependencies ──────────────────────────
+FROM node:20-alpine AS backend-deps
+WORKDIR /app
+COPY backend/package*.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
+# ── Runtime ──────────────────────────────────────────────────
+FROM node:20-alpine AS runtime
+RUN apk upgrade --no-cache && apk add --no-cache tini
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY backend/package*.json ./
+COPY --from=backend-deps /app/node_modules ./node_modules
+COPY --from=backend-build /app/dist ./dist
+# Runtime ABI JSON loaded via fs at process.cwd()/src/abi by the indexer.
+COPY --from=backend-build /app/src/abi ./src/abi
+# Built SPA — served by the API at the same origin (see backend/src/app.ts).
+COPY --from=frontend /fe/dist ./public
+
+USER node
+
+EXPOSE 3001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "require('http').get('http://127.0.0.1:'+(process.env.PORT||3001)+'/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+
+ENTRYPOINT ["/sbin/tini", "--"]
+CMD ["node", "dist/index.js"]
