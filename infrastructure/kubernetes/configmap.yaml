@@ -20,4 +20,4 @@ data:
   # even if the flag is ever dropped. DB connection strings live in the Secret.
   DISABLE_INBAND_SYNC: "true"
   # Comma-separated browser CORS allowlist. Leave unset to reflect any origin (dev only).
-  CORS_ORIGINS: "https://app.realyx.example,https://realyx.example,https://docs.realyx.example"
+  CORS_ORIGINS: "https://app.realyx.xyz,https://realyx.xyz,https://docs.realyx.xyz"

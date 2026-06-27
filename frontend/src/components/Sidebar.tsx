@@ -32,7 +32,7 @@ const navItems = [
 const bottomItems = [
     { path: '/settings', icon: Settings, label: 'Settings' },
     { href: 'https://efaucet.confluxnetwork.org/', icon: ExternalLink, label: 'Faucet', external: true },
-    { href: 'https://docs.realyx.example', icon: HelpCircle, label: 'Docs', external: true },
+    { href: 'https://docs.realyx.xyz', icon: HelpCircle, label: 'Docs', external: true },
 ];
 
 interface SidebarProps {

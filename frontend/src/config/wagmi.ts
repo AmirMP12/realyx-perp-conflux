@@ -36,7 +36,7 @@ const testnetRpcFallback = 'https://evmtestnet.confluxrpc.org';
 const appUrl =
     (import.meta.env.VITE_APP_URL as string | undefined) ||
     (typeof window !== 'undefined' ? window.location.origin : '') ||
-    'https://app.realyx.example';
+    'https://app.realyx.xyz';
 const appIcon = `${appUrl.replace(/\/$/, '')}/favicon.png`;
 const walletConnectParameters: RainbowKitWalletConnectParameters | undefined = {
     metadata: {

@@ -296,7 +296,7 @@ Realyx operates totally independent of AMMs relying on standard USDT0 balances.
 
 ## 📺 Demo Showcases
 
-- **🌍 Live Conflux eSpace Hosted Demo:** [Realyx Platform](https://app.realyx.example/)
+- **🌍 Live Conflux eSpace Hosted Demo:** [Realyx Platform](https://app.realyx.xyz/)
 - **🎥 Official Walkthrough Demo:** [Watch the walkthrough](https://youtube.com)
 - **⏱️ Duration:** [3 minutes]
 
@@ -538,7 +538,7 @@ This system actively inherits the massive decentralization frameworks available 
 - **Telegram Channel:** [t.me/Real_yx](https://t.me/Real_yx)
 - **Telegram Community Group:** [t.me/realyx_perp](https://t.me/realyx_perp)
 - **Primary Source Link:** [AmirMP12/realyx-perp-conflux Baseline](https://github.com/AmirMP12/realyx-perp-conflux)
-- **Execution URL Environment:** [Realyx Network Live Configurations](https://app.realyx.example/)
+- **Execution URL Environment:** [Realyx Network Live Configurations](https://app.realyx.xyz/)
 
 ---
 

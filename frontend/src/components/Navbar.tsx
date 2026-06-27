@@ -68,7 +68,7 @@ const MENU_SECTIONS: MenuSection[] = [
 ];
 
 const EXTERNAL_LINKS = [
-    { name: 'Docs', href: 'https://docs.realyx.example', icon: BookOpen },
+    { name: 'Docs', href: 'https://docs.realyx.xyz', icon: BookOpen },
     { name: 'Faucet', href: 'https://efaucet.confluxnetwork.org/', icon: Droplets },
 ];
 

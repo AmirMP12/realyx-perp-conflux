@@ -30,7 +30,7 @@ const httpLogger = (pinoHttp as unknown as (opts: { logger: pino.Logger }) => ex
 /**
  * Build CORS options. By default (no CORS_ORIGINS set) all origins are allowed,
  * preserving existing behaviour for local/dev. In production, set CORS_ORIGINS
- * to a comma-separated allowlist (e.g. "https://app.realyx.example,https://realyx.example")
+ * to a comma-separated allowlist (e.g. "https://app.realyx.xyz,https://realyx.xyz")
  * to restrict which sites may call the API from a browser.
  */
 function buildCorsOptions(): cors.CorsOptions {

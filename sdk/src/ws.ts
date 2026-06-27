@@ -18,7 +18,7 @@ import type { WsChannel, WsMessage } from "./types";
 export type WsState = "connecting" | "connected" | "disconnected" | "reconnecting";
 
 export interface RealyxWsOptions {
-  /** WebSocket server URL (e.g. wss://app.realyx.example/ws) */
+  /** WebSocket server URL (e.g. wss://app.realyx.xyz/ws) */
   url: string;
   /** API key (reserved; the backend WS server does not currently authenticate) */
   apiKey?: string;

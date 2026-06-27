@@ -55,7 +55,7 @@ kubectl apply -f infrastructure/kubernetes/
 - **ConfigMap `backend-config`**: non-secret settings — `CHAIN_ID`, `PORT`, `WS_PORT`, `NODE_ENV`, `METRICS_PORT`, contract addresses, `CORS_ORIGINS`, and `DISABLE_INBAND_SYNC` (the API runs as a pure reader; the `indexer` Deployment owns ingestion).
 - **Secret `backend-secrets`**: connection strings and bearer secrets — `POSTGRES_URL` (and optional `POSTGRES_READ_URL` replica), `CRON_SECRET`, `KEEPER_WEBHOOK_SECRET`, `DEBUG_SECRET`. Copy `backend-secrets.yaml.example` to `backend-secrets.yaml`, fill values, then apply. DB URLs live here (not the ConfigMap) because they carry credentials.
 - **Indexer**: `indexer.yaml` runs `node dist/worker.js` as the single chain-ingestion writer to the primary Postgres. It shares the ConfigMap and Secret with the backend.
-- **Ingress**: Single host `app.realyx.example` routes `/api` and `/ws` to the backend and `/` to the frontend. This is a placeholder — change it in `frontend.yaml` to a domain whose DNS and TLS you control.
+- **Ingress**: Single host `app.realyx.xyz` routes `/api` and `/ws` to the backend and `/` to the frontend. Ensure DNS and TLS for this host are configured; adjust it in `frontend.yaml` if you use a different domain.
 
 ## Monitoring
 

@@ -91,10 +91,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - app.realyx.example
+        - app.realyx.xyz
       secretName: realyx-tls
   rules:
-    - host: app.realyx.example
+    - host: app.realyx.xyz
       http:
         paths:
           - path: /api

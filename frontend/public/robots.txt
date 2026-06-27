@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://app.realyx.example/sitemap.xml
+Sitemap: https://app.realyx.xyz/sitemap.xml

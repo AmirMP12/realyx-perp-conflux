@@ -168,7 +168,7 @@ and config file:
 | `docs`    | `docs-site`    | `railway.json`      |
 
 The healthcheck hits `/health` (returns `ok`). Add a custom domain in
-Railway → Settings → Networking if you want `realyx.example` / `docs.realyx.example`.
+Railway → Settings → Networking if you want `realyx.xyz` / `docs.realyx.xyz`.
 
 ## WebSockets
 
