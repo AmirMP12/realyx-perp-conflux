@@ -6,7 +6,7 @@ import type { DeployResult } from "./deploy";
  * Writes deployment result to deployment/<network>.json with contract addresses,
  * mock flags, and metadata useful for verification and post-deploy scripts.
  */
-export function saveDeployment(networkName: string, result: DeployResult, chainId?: bigint): string {
+export function saveDeployment(networkName: string, result: DeployResult, chainId?: bigint, deploymentBlock?: number): string {
     const deploymentDir = path.join(process.cwd(), "deployment");
     if (!fs.existsSync(deploymentDir)) {
         fs.mkdirSync(deploymentDir, { recursive: true });
@@ -15,6 +15,10 @@ export function saveDeployment(networkName: string, result: DeployResult, chainI
     const output = {
         network: networkName,
         chainId: chainId != null ? Number(chainId) : null,
+        // Block height at deploy time. The keeper backfills from here on startup
+        // so resting orders created before it launched are still discovered
+        // (TradingCore exposes no pending-order enumeration).
+        deploymentBlock: deploymentBlock != null ? Number(deploymentBlock) : null,
         timestamp: new Date().toISOString(),
         deployer: process.env.DEPLOYER_ADDRESS || null,
         contracts: {

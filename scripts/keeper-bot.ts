@@ -322,15 +322,25 @@ async function main() {
     console.log(`[keeper] latest block: ${latest}`);
 
     let cursor = BigInt(Math.max(0, latest - Number(lookbackBlocks)));
-    // Optional absolute start block. Resting limit orders created before the
-    // `lookbackBlocks` window are otherwise invisible after a restart (the
-    // contract exposes no pending-order enumeration), so allow operators to
-    // replay from a known historical block (e.g. contract deployment) to
-    // rediscover them. Falls back to the lookback-derived cursor when unset.
+    // Resolve the backfill start block so resting orders created BEFORE the
+    // keeper started are still discovered (the contract exposes no pending-order
+    // enumeration, so log backfill is the only source of truth). Precedence:
+    //   1. KEEPER_START_BLOCK env (explicit operator override)
+    //   2. `deploymentBlock` recorded in deployment/<network>.json (auto)
+    //   3. latest - lookbackBlocks (last-resort window)
+    // A full replay from the deployment block reconciles Created vs
+    // Executed/Cancelled, leaving `pending` with exactly the still-open orders.
+    let startSource = "lookback";
     const startBlockEnv = process.env.KEEPER_START_BLOCK?.trim();
+    const deploymentBlock = deployment?.deploymentBlock;
     if (startBlockEnv && /^\d+$/.test(startBlockEnv)) {
         cursor = BigInt(startBlockEnv);
+        startSource = "KEEPER_START_BLOCK";
+    } else if (deploymentBlock != null && /^\d+$/.test(String(deploymentBlock))) {
+        cursor = BigInt(String(deploymentBlock));
+        startSource = "deploymentBlock";
     }
+    console.log(`[keeper] backfill start=${cursor.toString()} source=${startSource} (replaying to discover resting orders)`);
     const pending = new Map<string, PendingOrder>();
     // Orders currently being executed this tick, so the bounded pool never
     // double-submits the same order (which would burn gas and trip nonce races).

@@ -22,7 +22,8 @@ async function main() {
 
     const result = await deployAll(networkName);
     const network = await ethers.provider.getNetwork();
-    const filePath = saveDeployment(networkName, result, network.chainId);
+    const deploymentBlock = await ethers.provider.getBlockNumber();
+    const filePath = saveDeployment(networkName, result, network.chainId, deploymentBlock);
 
     console.log("\nDeployment saved to:", filePath);
     console.log("\nDeployed addresses:");
