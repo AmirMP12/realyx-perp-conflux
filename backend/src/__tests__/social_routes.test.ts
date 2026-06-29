@@ -29,6 +29,16 @@ import { app } from "../app.js";
 
 const ADDR = "0xABCDEF0000000000000000000000000000000001";
 
+/** Queue a successful `isCopySchemaReady` response (the first query each
+ *  handler now runs). Follow it with the handler's data-query mocks. */
+const schemaReady = () =>
+  mockQuery.mockResolvedValueOnce({
+    rows: [{ lead: "lead_traders", stats: "lead_trader_stats" }],
+  });
+
+/** Queue an `isCopySchemaReady` response signalling the schema is absent. */
+const schemaMissing = () => mockQuery.mockResolvedValueOnce({ rows: [{ lead: null, stats: null }] });
+
 describe("Social routes", () => {
   beforeEach(() => {
     mockQuery.mockReset();
@@ -46,12 +56,14 @@ describe("Social routes", () => {
     });
 
     it("returns 404 when the lead trader is not found", async () => {
+      schemaReady();
       mockQuery.mockResolvedValueOnce({ rows: [] });
       const res = await request(app).get(`/api/v1/social/trader/${ADDR}`);
       expect(res.status).toBe(404);
     });
 
     it("returns a full trader profile with open positions", async () => {
+      schemaReady();
       mockQuery
         .mockResolvedValueOnce({
           rows: [
@@ -89,12 +101,13 @@ describe("Social routes", () => {
     });
 
     it("returns 501 when the copy-trading schema is missing", async () => {
-      mockQuery.mockRejectedValueOnce({ code: "42P01" });
+      schemaMissing();
       const res = await request(app).get(`/api/v1/social/trader/${ADDR}`);
       expect(res.status).toBe(501);
     });
 
     it("returns 500 on an unexpected error", async () => {
+      schemaReady();
       mockQuery.mockRejectedValueOnce(new Error("boom"));
       const res = await request(app).get(`/api/v1/social/trader/${ADDR}`);
       expect(res.status).toBe(500);
@@ -109,6 +122,7 @@ describe("Social routes", () => {
     });
 
     it("maps copy relationships to a following list", async () => {
+      schemaReady();
       mockQuery.mockResolvedValueOnce({
         rows: [
           {
@@ -127,12 +141,13 @@ describe("Social routes", () => {
     });
 
     it("returns 501 when schema missing", async () => {
-      mockQuery.mockRejectedValueOnce({ code: "42P01" });
+      schemaMissing();
       const res = await request(app).get(`/api/v1/social/copier/${ADDR}/following`);
       expect(res.status).toBe(501);
     });
 
     it("returns 500 on unexpected error", async () => {
+      schemaReady();
       mockQuery.mockRejectedValueOnce(new Error("boom"));
       const res = await request(app).get(`/api/v1/social/copier/${ADDR}/following`);
       expect(res.status).toBe(500);
@@ -147,6 +162,7 @@ describe("Social routes", () => {
     });
 
     it("aggregates PnL across lead traders", async () => {
+      schemaReady();
       mockQuery.mockResolvedValueOnce({
         rows: [
           { lead_trader_address: "0xlead1", total_pnl: "100" },
@@ -160,6 +176,7 @@ describe("Social routes", () => {
     });
 
     it("handles null pnl rows", async () => {
+      schemaReady();
       mockQuery.mockResolvedValueOnce({
         rows: [{ lead_trader_address: "0xlead1", total_pnl: null }],
       });
@@ -169,12 +186,13 @@ describe("Social routes", () => {
     });
 
     it("returns 501 when schema missing", async () => {
-      mockQuery.mockRejectedValueOnce({ code: "42P01" });
+      schemaMissing();
       const res = await request(app).get(`/api/v1/social/copier/${ADDR}/pnl`);
       expect(res.status).toBe(501);
     });
 
     it("returns 500 on unexpected error", async () => {
+      schemaReady();
       mockQuery.mockRejectedValueOnce(new Error("boom"));
       const res = await request(app).get(`/api/v1/social/copier/${ADDR}/pnl`);
       expect(res.status).toBe(500);
@@ -189,6 +207,7 @@ describe("Social routes", () => {
     });
 
     it("returns mapped traders", async () => {
+      schemaReady();
       mockQuery.mockResolvedValueOnce({
         rows: [
           {
@@ -210,13 +229,14 @@ describe("Social routes", () => {
     });
 
     it("returns an empty set when schema missing", async () => {
-      mockQuery.mockRejectedValueOnce({ code: "42P01" });
+      schemaMissing();
       const res = await request(app).get(`/api/v1/social/top-traders`);
       expect(res.status).toBe(200);
       expect(res.body.traders).toEqual([]);
     });
 
     it("returns 500 on unexpected error", async () => {
+      schemaReady();
       mockQuery.mockRejectedValueOnce(new Error("boom"));
       const res = await request(app).get(`/api/v1/social/top-traders`);
       expect(res.status).toBe(500);

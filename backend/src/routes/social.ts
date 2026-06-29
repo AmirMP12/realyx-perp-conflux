@@ -5,16 +5,51 @@ import { getCopyEngine } from "../services/copyEngine.js";
 const router = Router();
 
 /**
- * Postgres "undefined_table" error code. The copy-trading schema
- * (lead_traders, copy_relationships, …) is not created by the indexer's
- * `initDB` and has no migration yet, so on deployments without it these
- * queries would otherwise surface as opaque 500s. We detect that case and
- * respond with a clear "feature not provisioned" signal instead.
+ * Postgres error codes that all mean "the copy-trading schema isn't (fully)
+ * provisioned on this deployment". The schema (lead_traders, lead_trader_stats,
+ * copy_relationships, …) is not created by the indexer's `initDB` and has no
+ * migration yet, so depending on how far a deployment got, a query can fail in
+ * several distinct ways:
+ *   - 42P01 undefined_table     → table doesn't exist at all
+ *   - 42703 undefined_column    → table exists but a referenced column is missing
+ *   - 42883 undefined_function  → a referenced function/operator is missing
+ *   - 3F000 invalid_schema_name → the schema/namespace doesn't exist
+ *   - 42P02 / 42704 undefined_object → other missing object references
+ * Any of these should surface as a clean "feature not provisioned" signal so
+ * the UI shows an honest "Coming Soon / no lead traders" state instead of an
+ * opaque 500 that the frontend renders as "Request failed".
  */
-const PG_UNDEFINED_TABLE = "42P01";
+const PG_SCHEMA_NOT_PROVISIONED = new Set([
+  "42P01", // undefined_table
+  "42703", // undefined_column
+  "42883", // undefined_function
+  "3F000", // invalid_schema_name
+  "42P02", // undefined_parameter
+  "42704", // undefined_object
+]);
 
 function isMissingSchema(err: unknown): boolean {
-  return Boolean(err && typeof err === "object" && (err as { code?: string }).code === PG_UNDEFINED_TABLE);
+  const code = err && typeof err === "object" ? (err as { code?: string }).code : undefined;
+  return typeof code === "string" && PG_SCHEMA_NOT_PROVISIONED.has(code);
+}
+
+/**
+ * Deterministic check that the copy-trading schema exists. `to_regclass`
+ * returns NULL (instead of throwing) when a table is absent, so we can decide
+ * up front whether to serve the graceful "feature not provisioned" response
+ * rather than relying on catching the right error code mid-query. The lead
+ * traders table is the linchpin every social read joins against.
+ */
+async function isCopySchemaReady(pool: import("pg").Pool): Promise<boolean> {
+  try {
+    const { rows } = await pool.query(
+      `SELECT to_regclass('public.lead_traders') AS lead,
+              to_regclass('public.lead_trader_stats') AS stats`
+    );
+    return Boolean(rows[0]?.lead && rows[0]?.stats);
+  } catch {
+    return false;
+  }
 }
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -55,6 +90,10 @@ router.get("/trader/:address", async (req: Request, res: Response) => {
     const pool = getPool();
     if (!pool) {
       return res.status(503).json({ error: "Database unavailable" });
+    }
+
+    if (!(await isCopySchemaReady(pool))) {
+      return res.status(501).json({ error: "Copy trading is not enabled on this deployment" });
     }
 
     const { address } = req.params;
@@ -129,6 +168,10 @@ router.get(
         return res.status(503).json({ error: "Database unavailable" });
       }
 
+      if (!(await isCopySchemaReady(pool))) {
+        return res.status(501).json({ error: "Copy trading is not enabled on this deployment" });
+      }
+
       const { address } = req.params;
       const normalizedAddr = address.toLowerCase();
 
@@ -172,6 +215,10 @@ router.get(
       const pool = getPool();
       if (!pool) {
         return res.status(503).json({ error: "Database unavailable" });
+      }
+
+      if (!(await isCopySchemaReady(pool))) {
+        return res.status(501).json({ error: "Copy trading is not enabled on this deployment" });
       }
 
       const { address } = req.params;
@@ -224,6 +271,12 @@ router.get("/top-traders", async (_req: Request, res: Response) => {
     const pool = getPool();
     if (!pool) {
       return res.status(503).json({ error: "Database unavailable" });
+    }
+
+    // No copy-trading schema → no lead traders yet. Return an empty set so the
+    // UI renders an honest "no lead traders" state instead of an error.
+    if (!(await isCopySchemaReady(pool))) {
+      return res.json({ traders: [] });
     }
 
     const { rows } = await pool.query(
