@@ -17,7 +17,13 @@ import { OrderTypeEnum, TimeInForceEnum } from "./types";
  */
 const TRADING_CORE_ABI = [
   "function createOrder(tuple(uint8 orderType, address market, uint256 sizeDelta, uint256 collateralDelta, uint256 triggerPrice, bool isLong, uint256 maxSlippage, uint256 positionId, uint8 collateralType, address collateralToken, uint8 tif, uint256 stopLossPrice, uint256 takeProfitPrice, uint256 visibleSize, uint256 twapInterval, bool isReduceOnly, address owner) params) external payable returns (uint256)",
+  "function cancelOrder(uint256 orderId) external",
+  "function withdrawOrderCollateralRefund() external",
+  "function withdrawOrderCollateralTokenRefund(address token) external",
+  "function withdrawOrderRefund() external",
+  "function getBalances(address addr) external view returns (uint256 keeperFee, uint256 orderRefund, uint256 orderCollateralRefund)",
   "event OrderCreated(uint256 indexed orderId, address indexed account, uint8 orderType, address market)",
+  "event OrderCancelled(uint256 indexed orderId, string reason)",
 ];
 
 /** CollateralType enum (mirrors DataTypes.sol) */
@@ -189,6 +195,107 @@ export class OrderBuilder {
       }
     }
     return 0n;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  //  Cancellation & refund claims
+  //
+  //  IMPORTANT: cancelling an order does NOT push collateral back to the
+  //  wallet. TradingCore uses a pull-payment pattern: `cancelOrder` credits a
+  //  claimable balance, and the user must then call
+  //  `withdrawOrderCollateralRefund()` (USDT0) / `withdrawOrderRefund()`
+  //  (native execution fee) to actually receive funds. Use
+  //  `cancelOrderAndClaim` to do both in one call so the USDT0 returns to the
+  //  wallet automatically.
+  // ──────────────────────────────────────────────────────────────────────
+
+  /**
+   * Read the caller's claimable balances on TradingCore.
+   * @returns keeperFee + orderRefund (native, 18d) and orderCollateralRefund (USDT0, 6d), all as bigint.
+   */
+  async getBalances(
+    addr: string
+  ): Promise<{ keeperFee: bigint; orderRefund: bigint; orderCollateralRefund: bigint }> {
+    const contract = this.requireContract();
+    const [keeperFee, orderRefund, orderCollateralRefund] = (await contract.getFunction("getBalances")(
+      addr
+    )) as [bigint, bigint, bigint];
+    return { keeperFee, orderRefund, orderCollateralRefund };
+  }
+
+  /** Cancel a pending order. Credits the refund to a claimable balance (does not transfer). */
+  async cancelOrder(orderId: bigint | number): Promise<ethers.ContractTransactionResponse> {
+    const contract = this.requireContract();
+    return (await contract.getFunction("cancelOrder")(orderId)) as ethers.ContractTransactionResponse;
+  }
+
+  /** Claim escrowed USDT0 collateral returned from cancelled increase orders. */
+  async withdrawOrderCollateralRefund(): Promise<ethers.ContractTransactionResponse> {
+    const contract = this.requireContract();
+    return (await contract.getFunction("withdrawOrderCollateralRefund")()) as ethers.ContractTransactionResponse;
+  }
+
+  /** Claim the native execution-fee refund from cancelled orders. */
+  async withdrawOrderRefund(): Promise<ethers.ContractTransactionResponse> {
+    const contract = this.requireContract();
+    return (await contract.getFunction("withdrawOrderRefund")()) as ethers.ContractTransactionResponse;
+  }
+
+  /** Claim an alt-collateral token refund (non-USDT0) from cancelled orders. */
+  async withdrawOrderCollateralTokenRefund(token: string): Promise<ethers.ContractTransactionResponse> {
+    const contract = this.requireContract();
+    if (!ethers.isAddress(token)) throw new Error(`Invalid token address: ${token}`);
+    return (await contract.getFunction("withdrawOrderCollateralTokenRefund")(
+      token
+    )) as ethers.ContractTransactionResponse;
+  }
+
+  /**
+   * Cancel an order AND immediately claim the refunds back to the wallet, so the
+   * USDT0 collateral (and any native execution-fee refund) lands in the user's
+   * wallet without a separate manual step.
+   *
+   * Flow: cancelOrder → wait → read claimable balances → withdraw the non-zero
+   * ones. Skipping zero balances avoids wasting gas on no-op withdrawals.
+   *
+   * NOTE (subaccounts): collateral refunds accrue to the order OWNER and the
+   * execution-fee refund to the fee PAYER (the bot). The withdraw calls use
+   * `msg.sender`, so each party must claim with their own wallet. For the common
+   * case where the connected signer is the order owner, this returns everything.
+   *
+   * @returns the cancel receipt plus references to any withdrawal txs sent.
+   */
+  async cancelOrderAndClaim(orderId: bigint | number): Promise<{
+    cancelReceipt: ethers.ContractTransactionReceipt;
+    collateralClaimTx?: ethers.ContractTransactionResponse;
+    feeClaimTx?: ethers.ContractTransactionResponse;
+  }> {
+    if (!this.signer) {
+      throw new Error("cancelOrderAndClaim requires a signer. Call client.orders.setSigner(signer).");
+    }
+
+    const cancelTx = await this.cancelOrder(orderId);
+    const cancelReceipt = await cancelTx.wait();
+    if (!cancelReceipt) {
+      throw new Error("Cancel transaction receipt is null");
+    }
+
+    const caller = await this.signer.getAddress();
+    const { orderRefund, orderCollateralRefund } = await this.getBalances(caller);
+
+    let collateralClaimTx: ethers.ContractTransactionResponse | undefined;
+    let feeClaimTx: ethers.ContractTransactionResponse | undefined;
+
+    if (orderCollateralRefund > 0n) {
+      collateralClaimTx = await this.withdrawOrderCollateralRefund();
+      await collateralClaimTx.wait();
+    }
+    if (orderRefund > 0n) {
+      feeClaimTx = await this.withdrawOrderRefund();
+      await feeClaimTx.wait();
+    }
+
+    return { cancelReceipt, collateralClaimTx, feeClaimTx };
   }
 
   /**

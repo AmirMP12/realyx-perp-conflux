@@ -949,21 +949,67 @@ export function calculatePnL(position: any, currentPrice: number) {
     return { pnl, pnlPercent };
 }
 
-/** Cancel a pending order on-chain. */
+/** Cancel a pending order on-chain, then auto-claim the refunded collateral. */
 export function useCancelOrder() {
-    const { chainId } = useAccount();
+    const { address, chainId } = useAccount();
     const { writeContractAsync, isPending } = useWriteContract();
+    const publicClient = usePublicClient();
 
     const cancelOrder = async (orderId: number | bigint) => {
         try {
-            await writeContractAsync({
+            const cancelHash = await writeContractAsync({
                 chainId,
                 address: TRADING_CORE_ADDRESS,
                 abi: TRADING_CORE_ABI,
                 functionName: 'cancelOrder',
                 args: [BigInt(orderId)],
             });
-            toast.success('Order cancelled');
+
+            // Cancelling only CREDITS a claimable balance (TradingCore uses a
+            // pull-payment pattern); the escrowed USDT0 collateral and any native
+            // execution-fee refund are not pushed back automatically. Claim them
+            // here so the funds return to the wallet in the same user action.
+            if (publicClient && address) {
+                try {
+                    await publicClient.waitForTransactionReceipt({ hash: cancelHash });
+                    const balances = (await publicClient.readContract({
+                        address: TRADING_CORE_ADDRESS,
+                        abi: TRADING_CORE_ABI,
+                        functionName: 'getBalances',
+                        args: [address],
+                    })) as readonly [bigint, bigint, bigint]; // [keeperFee, orderRefund, orderCollateralRefund]
+                    const orderRefund = balances[1];
+                    const orderCollateralRefund = balances[2];
+
+                    if (orderCollateralRefund > 0n) {
+                        await writeContractAsync({
+                            chainId,
+                            address: TRADING_CORE_ADDRESS,
+                            abi: TRADING_CORE_ABI,
+                            functionName: 'withdrawOrderCollateralRefund',
+                            args: [],
+                        });
+                    }
+                    if (orderRefund > 0n) {
+                        await writeContractAsync({
+                            chainId,
+                            address: TRADING_CORE_ADDRESS,
+                            abi: TRADING_CORE_ABI,
+                            functionName: 'withdrawOrderRefund',
+                            args: [],
+                        });
+                    }
+                } catch (claimErr) {
+                    // The cancel itself succeeded; only the auto-claim failed
+                    // (e.g. user rejected the second prompt). Funds are safe and
+                    // still claimable via the manual "Claim refund" action.
+                    console.error('auto-claim after cancel failed', claimErr);
+                    toast.error('Order cancelled. Use "Claim refund" to retrieve your USDT0.');
+                    return true;
+                }
+            }
+
+            toast.success('Order cancelled and funds returned');
             return true;
         } catch (e: any) {
             console.error(e);
@@ -972,4 +1018,62 @@ export function useCancelOrder() {
         }
     };
     return { cancelOrder, loading: isPending };
+}
+
+/**
+ * Claim any refunds credited by previously cancelled orders (escrowed USDT0
+ * collateral and/or the native execution-fee refund). Use this to back a
+ * "Claim refund" button and as a fallback when auto-claim on cancel was skipped.
+ */
+export function useClaimOrderRefunds() {
+    const { address, chainId } = useAccount();
+    const { writeContractAsync, isPending } = useWriteContract();
+    const publicClient = usePublicClient();
+
+    const claimRefunds = async () => {
+        if (!publicClient || !address) {
+            toast.error('Wallet not connected');
+            return false;
+        }
+        try {
+            const balances = (await publicClient.readContract({
+                address: TRADING_CORE_ADDRESS,
+                abi: TRADING_CORE_ABI,
+                functionName: 'getBalances',
+                args: [address],
+            })) as readonly [bigint, bigint, bigint];
+            const orderRefund = balances[1];
+            const orderCollateralRefund = balances[2];
+
+            if (orderCollateralRefund === 0n && orderRefund === 0n) {
+                toast('No refunds to claim');
+                return false;
+            }
+            if (orderCollateralRefund > 0n) {
+                await writeContractAsync({
+                    chainId,
+                    address: TRADING_CORE_ADDRESS,
+                    abi: TRADING_CORE_ABI,
+                    functionName: 'withdrawOrderCollateralRefund',
+                    args: [],
+                });
+            }
+            if (orderRefund > 0n) {
+                await writeContractAsync({
+                    chainId,
+                    address: TRADING_CORE_ADDRESS,
+                    abi: TRADING_CORE_ABI,
+                    functionName: 'withdrawOrderRefund',
+                    args: [],
+                });
+            }
+            toast.success('Refund claimed');
+            return true;
+        } catch (e: any) {
+            console.error(e);
+            toast.error(e.shortMessage || 'Failed to claim refund');
+            return false;
+        }
+    };
+    return { claimRefunds, loading: isPending };
 }
