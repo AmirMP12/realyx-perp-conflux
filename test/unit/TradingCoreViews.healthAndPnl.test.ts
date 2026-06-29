@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
-import { deployConfigured, deployProtocol } from "../helpers/fixture";
+import { deployConfigured, deployProtocol, seedTwap } from "../helpers/fixture";
 import { openMarket } from "../helpers/trading";
 import { usdc } from "../helpers/constants";
 import { setPythPrice } from "../helpers/pyth";
@@ -56,6 +56,10 @@ describe("TradingCoreViews — non-open position early returns", () => {
 
     it("getPositionPnL(core,id) values an open position", async () => {
         const d = await loadFixture(deployConfigured);
+        // Refresh the TWAP ring buffer at the current block time so the open
+        // path's 15-min TWAP-validity window is always satisfied regardless of
+        // fixture-snapshot/time ordering across the suite.
+        await seedTwap(d, price(50_000));
         const id = await openMarket(d, d.alice, {
             isLong: true,
             sizeUsdc: usdc(10_000),
@@ -71,6 +75,7 @@ describe("TradingCoreViews — non-open position early returns", () => {
 describe("TradingCoreViews — short-position scenarios", () => {
     it("getGlobalUnrealizedPnLDetailed walks a short-only market", async () => {
         const d = await loadFixture(deployConfigured);
+        await seedTwap(d, price(50_000));
         await openMarket(d, d.alice, {
             isLong: false,
             sizeUsdc: usdc(10_000),
@@ -89,6 +94,7 @@ describe("TradingCoreViews — short-position scenarios", () => {
 
     it("flags a stop-loss trigger on a short when price rises above the stop", async () => {
         const d = await loadFixture(deployConfigured);
+        await seedTwap(d, price(50_000));
         const id = await openMarket(d, d.alice, {
             isLong: false,
             sizeUsdc: usdc(10_000),
@@ -105,6 +111,7 @@ describe("TradingCoreViews — short-position scenarios", () => {
 
     it("flags a take-profit trigger on a short when price falls below the target", async () => {
         const d = await loadFixture(deployConfigured);
+        await seedTwap(d, price(50_000));
         const id = await openMarket(d, d.alice, {
             isLong: false,
             sizeUsdc: usdc(10_000),

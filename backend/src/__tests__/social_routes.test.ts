@@ -112,6 +112,20 @@ describe("Social routes", () => {
       const res = await request(app).get(`/api/v1/social/trader/${ADDR}`);
       expect(res.status).toBe(500);
     });
+
+    it("returns 501 when the schema check query itself throws", async () => {
+      // isCopySchemaReady swallows the error and reports the schema as absent.
+      mockQuery.mockRejectedValueOnce(new Error("connection reset"));
+      const res = await request(app).get(`/api/v1/social/trader/${ADDR}`);
+      expect(res.status).toBe(501);
+    });
+
+    it("returns 501 when the data query fails with a missing-schema PG code", async () => {
+      schemaReady();
+      mockQuery.mockRejectedValueOnce({ code: "42P01" });
+      const res = await request(app).get(`/api/v1/social/trader/${ADDR}`);
+      expect(res.status).toBe(501);
+    });
   });
 
   describe("GET /api/v1/social/copier/:address/following", () => {
@@ -151,6 +165,13 @@ describe("Social routes", () => {
       mockQuery.mockRejectedValueOnce(new Error("boom"));
       const res = await request(app).get(`/api/v1/social/copier/${ADDR}/following`);
       expect(res.status).toBe(500);
+    });
+
+    it("returns 501 when the data query fails with a missing-schema PG code", async () => {
+      schemaReady();
+      mockQuery.mockRejectedValueOnce({ code: "42703" });
+      const res = await request(app).get(`/api/v1/social/copier/${ADDR}/following`);
+      expect(res.status).toBe(501);
     });
   });
 
@@ -197,6 +218,13 @@ describe("Social routes", () => {
       const res = await request(app).get(`/api/v1/social/copier/${ADDR}/pnl`);
       expect(res.status).toBe(500);
     });
+
+    it("returns 501 when the data query fails with a missing-schema PG code", async () => {
+      schemaReady();
+      mockQuery.mockRejectedValueOnce({ code: "42883" });
+      const res = await request(app).get(`/api/v1/social/copier/${ADDR}/pnl`);
+      expect(res.status).toBe(501);
+    });
   });
 
   describe("GET /api/v1/social/top-traders", () => {
@@ -240,6 +268,14 @@ describe("Social routes", () => {
       mockQuery.mockRejectedValueOnce(new Error("boom"));
       const res = await request(app).get(`/api/v1/social/top-traders`);
       expect(res.status).toBe(500);
+    });
+
+    it("returns an empty set when the data query fails with a missing-schema PG code", async () => {
+      schemaReady();
+      mockQuery.mockRejectedValueOnce({ code: "3F000" });
+      const res = await request(app).get(`/api/v1/social/top-traders`);
+      expect(res.status).toBe(200);
+      expect(res.body.traders).toEqual([]);
     });
   });
 
