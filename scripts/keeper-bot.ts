@@ -322,10 +322,22 @@ async function main() {
     console.log(`[keeper] latest block: ${latest}`);
 
     let cursor = BigInt(Math.max(0, latest - Number(lookbackBlocks)));
+    // Optional absolute start block. Resting limit orders created before the
+    // `lookbackBlocks` window are otherwise invisible after a restart (the
+    // contract exposes no pending-order enumeration), so allow operators to
+    // replay from a known historical block (e.g. contract deployment) to
+    // rediscover them. Falls back to the lookback-derived cursor when unset.
+    const startBlockEnv = process.env.KEEPER_START_BLOCK?.trim();
+    if (startBlockEnv && /^\d+$/.test(startBlockEnv)) {
+        cursor = BigInt(startBlockEnv);
+    }
     const pending = new Map<string, PendingOrder>();
     // Orders currently being executed this tick, so the bounded pool never
     // double-submits the same order (which would burn gas and trip nonce races).
     const inFlight = new Set<string>();
+    // Heartbeat throttle so an idle keeper still logs liveness periodically.
+    const heartbeatMs = toMsFromSeconds(process.env.KEEPER_HEARTBEAT_SECONDS, 30);
+    let lastHeartbeat = 0;
 
     console.log(`[keeper] chainId=${networkInfo.chainId.toString()} rpc=${rpcUrls[rpcIndex]}`);
     console.log(`[keeper] wallet=${baseWallet.address}`);
@@ -512,6 +524,7 @@ async function main() {
             // Stay `confirmations` blocks behind the head so we never request an
             // epoch range the log-index node hasn't reached yet (-32016 guard).
             const safeHead = head > confirmations ? head - confirmations : 0n;
+            let logsFoundThisTick = 0;
             if (safeHead > cursor) {
                 let from = cursor + 1n;
                 while (from <= safeHead) {
@@ -532,6 +545,7 @@ async function main() {
                             }),
                         "getLogs",
                     );
+                    logsFoundThisTick += logs.length;
 
                     for (const log of logs) {
                         const topic0 = log.topics[0];
@@ -548,6 +562,7 @@ async function main() {
                                 createdAtBlock: BigInt(log.blockNumber),
                                 attempts: 0,
                             });
+                            console.log(`[keeper] discovered order=${id.toString()} market=${market} block=${log.blockNumber}`);
                         } else {
                             // OrderExecuted / OrderCancelled — order is done.
                             pending.delete(id.toString());
@@ -559,6 +574,17 @@ async function main() {
                     cursor = to;
                     from = to + 1n;
                 }
+            }
+
+            // Throttled heartbeat so an idle keeper is visibly alive (and we can
+            // tell "scanning, found nothing" apart from "stuck"). Logs at most
+            // once per `heartbeatMs`, or immediately whenever logs were found.
+            const nowMs = Date.now();
+            if (logsFoundThisTick > 0 || nowMs - lastHeartbeat >= heartbeatMs) {
+                lastHeartbeat = nowMs;
+                console.log(
+                    `[keeper] heartbeat head=${head.toString()} scannedTo=${cursor.toString()} pending=${pending.size} logsThisTick=${logsFoundThisTick}`,
+                );
             }
 
             if (pending.size > 0) {
