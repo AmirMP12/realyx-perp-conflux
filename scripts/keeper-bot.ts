@@ -56,6 +56,26 @@ const KEEPER_ROLE = ethers.keccak256(ethers.toUtf8Bytes("KEEPER_ROLE"));
 const ZERO_BYTES32 = "0x0000000000000000000000000000000000000000000000000000000000000000";
 const STALE_PRICE_SELECTOR = "0x19abf40e";
 
+// Transient on-chain conditions that can clear on their own: oracle confidence
+// narrowing, the TWAP warming up / next-slice interval not yet elapsed, the
+// spot↔TWAP deviation settling, or an RWA market simply being outside its
+// trading session. These are NOT execution failures — a resting/limit order
+// should stay pending and be retried on later ticks rather than being given up
+// and reported to the trader as failed. Verified selectors (keccak of the
+// error signature, first 4 bytes):
+const TRANSIENT_SELECTORS = new Set<string>([
+    "0x40eba60f", // InsufficientConfidence()
+    "0xe0819ac8", // OpenPriceDeviation()
+    "0x7c702f5a", // TwapNotReady()
+    "0x14f3f55f", // TWAPIntervalNotMet()
+    "0x4657f05f", // InsufficientTWAPData()
+    "0xd41b1bb1", // NoValidPrice()
+    "0xc3f4b6e3", // ClosePriceDeviation()
+    "0x4183f5e7", // WithdrawPriceDeviation()
+    "0xdea3b44d", // MarketHoursClosed()
+    "0x0b5f6bf0", // MarketClosed()
+]);
+
 function getEnv(name: string, fallback?: string): string {
     const value = process.env[name] ?? fallback;
     if (!value) throw new Error(`${name} is required`);
@@ -475,6 +495,20 @@ async function main() {
                     const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
                     console.warn(`[keeper] stale-price retry failed order=${key} msg=${retryMsg}`);
                 }
+            }
+
+            // Transient oracle / market-session condition (confidence too wide,
+            // TWAP not warmed up or slice interval not elapsed, spot↔TWAP
+            // deviation, or market closed). The order is not failing — it's
+            // simply not executable yet. Keep it pending and roll back the
+            // attempt increment so these don't accumulate toward the give-up
+            // limit; a later tick retries once the oracle/TWAP/market is ready.
+            if (TRANSIENT_SELECTORS.has(selector)) {
+                order.attempts -= 1;
+                console.log(
+                    `[keeper] order=${key} not yet executable (selector=${selector}); keeping pending for retry`,
+                );
+                return;
             }
 
             // Terminal on-chain error: stop immediately and notify the trader.
