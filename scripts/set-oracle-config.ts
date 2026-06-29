@@ -86,9 +86,7 @@ async function main() {
     const doSet = (process.env.ORACLE_SET ?? "").toLowerCase() === "true";
     const auto = (process.env.ORACLE_AUTO ?? "").toLowerCase() === "true";
     const multiplier = BigInt(Math.max(1, Number(process.env.ORACLE_MAX_CONFIDENCE_MULTIPLIER ?? "3")));
-    const explicitMaxConf = process.env.ORACLE_MAX_CONFIDENCE
-        ? BigInt(process.env.ORACLE_MAX_CONFIDENCE)
-        : null;
+    const explicitMaxConf = process.env.ORACLE_MAX_CONFIDENCE ? BigInt(process.env.ORACLE_MAX_CONFIDENCE) : null;
     const stalenessOverride = process.env.ORACLE_MAX_STALENESS ? BigInt(process.env.ORACLE_MAX_STALENESS) : null;
 
     const [signer] = await ethers.getSigners();
@@ -145,7 +143,9 @@ async function main() {
             const ageSec = nowSec - publishTime;
 
             console.log(`  live pyth: rawPrice=${rawPrice} rawConf=${rawConf} expo=${expo} age=${ageSec}s`);
-            console.log(`  normalized(1e18): price=${normPrice} confidence=${normConf} (${confPct.toFixed(4)}% of price)`);
+            console.log(
+                `  normalized(1e18): price=${normPrice} confidence=${normConf} (${confPct.toFixed(4)}% of price)`,
+            );
 
             suggested = normConf * multiplier;
             if (suggested > UINT64_MAX) {

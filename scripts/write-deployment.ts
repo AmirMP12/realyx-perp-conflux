@@ -6,7 +6,12 @@ import type { DeployResult } from "./deploy";
  * Writes deployment result to deployment/<network>.json with contract addresses,
  * mock flags, and metadata useful for verification and post-deploy scripts.
  */
-export function saveDeployment(networkName: string, result: DeployResult, chainId?: bigint, deploymentBlock?: number): string {
+export function saveDeployment(
+    networkName: string,
+    result: DeployResult,
+    chainId?: bigint,
+    deploymentBlock?: number,
+): string {
     const deploymentDir = path.join(process.cwd(), "deployment");
     if (!fs.existsSync(deploymentDir)) {
         fs.mkdirSync(deploymentDir, { recursive: true });

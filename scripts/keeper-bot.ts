@@ -246,8 +246,10 @@ async function main() {
     // a load-balanced peer can report a `getBlockNumber` that the log-index node
     // hasn't reached yet, which makes `eth_getLogs` reject the range with
     // `-32016` ("wrong epoch numbers" / "expected a number less than largest
-    // epoch"). Staying a few blocks behind the head avoids that entirely.
-    const confirmations = BigInt(Math.max(0, Number(process.env.KEEPER_CONFIRMATIONS ?? "30")));
+    // epoch"). A small lag avoids that in the common case; the remaining races
+    // are caught by the `-32016` retry path. Kept low so freshly created orders
+    // are discovered within a few seconds rather than a full ~30-block delay.
+    const confirmations = BigInt(Math.max(0, Number(process.env.KEEPER_CONFIRMATIONS ?? "5")));
     const hermesBase = (process.env.KEEPER_HERMES_URL || "https://hermes.pyth.network").replace(/\/+$/, "");
     const rpcRetryBaseDelayMs = Math.max(100, Number(process.env.KEEPER_RPC_RETRY_BASE_DELAY_MS ?? "300"));
     // How many orders to execute in parallel per tick. Serial `await tx.wait()`
@@ -360,7 +362,9 @@ async function main() {
         cursor = BigInt(String(deploymentBlock));
         startSource = "deploymentBlock";
     }
-    console.log(`[keeper] backfill start=${cursor.toString()} source=${startSource} (replaying to discover resting orders)`);
+    console.log(
+        `[keeper] backfill start=${cursor.toString()} source=${startSource} (replaying to discover resting orders)`,
+    );
     const pending = new Map<string, PendingOrder>();
     // Orders currently being executed this tick, so the bounded pool never
     // double-submits the same order (which would burn gas and trip nonce races).
@@ -606,7 +610,9 @@ async function main() {
                                 createdAtBlock: BigInt(log.blockNumber),
                                 attempts: 0,
                             });
-                            console.log(`[keeper] discovered order=${id.toString()} market=${market} block=${log.blockNumber}`);
+                            console.log(
+                                `[keeper] discovered order=${id.toString()} market=${market} block=${log.blockNumber}`,
+                            );
                         } else {
                             // OrderExecuted / OrderCancelled — order is done.
                             pending.delete(id.toString());
