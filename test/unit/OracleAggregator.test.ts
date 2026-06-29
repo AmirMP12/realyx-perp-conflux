@@ -119,10 +119,23 @@ describe("OracleAggregator", () => {
             await expect(oracle.getPrice(MARKET)).to.be.revertedWithCustomError(oracle, "StalePrice");
         });
         it("reverts InsufficientConfidence when conf exceeds cap", async () => {
-            const { oracle, pyth } = await loadFixture(deployWithFeed);
-            // publish a large confidence band beyond the 1e15 cap
-            await setPythPrice(pyth, FEED, e18(50_000), e18(1));
+            const { oracle, operator, pyth } = await loadFixture(deployWithFeed);
+            // maxConfidence is a RELATIVE cap in BPS of price. Set 0.5% (50 bps)…
+            await oracle.connect(operator).setPythFeed(MARKET, FEED, 900, 50);
+            // …then publish a ~1% confidence band (500/50_000), exceeding 0.5%.
+            await setPythPrice(pyth, FEED, e18(50_000), e18(500));
             await expect(oracle.getPrice(MARKET)).to.be.revertedWithCustomError(oracle, "InsufficientConfidence");
+        });
+        it("accepts confidence within the relative (bps) cap for a high-priced asset", async () => {
+            // Regression for the uint64 absolute-confidence ceiling: BTC-scale
+            // prices have an absolute normalized confidence that exceeds uint64,
+            // but a tiny fractional band. Under the bps gate it passes.
+            const { oracle, operator, pyth } = await loadFixture(deployWithFeed);
+            await oracle.connect(operator).setPythFeed(MARKET, FEED, 900, 50); // 0.5% cap
+            // price $60k, confidence $25 ≈ 0.042% of price → well within 0.5%.
+            await setPythPrice(pyth, FEED, e18(60_000), e18(25));
+            const [price] = await oracle.getPrice(MARKET);
+            expect(price).to.equal(e18(60_000));
         });
         it("getPriceWithConfidence enforces caller uncertainty bound", async () => {
             const { oracle } = await loadFixture(deployWithFeed);

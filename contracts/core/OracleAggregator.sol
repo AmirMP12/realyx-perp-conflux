@@ -359,7 +359,14 @@ contract OracleAggregator is
             uint256 normalizedConf = _normalizePythConfidence(uint256(pythPrice.conf), pythPrice.expo);
 
             if (config.maxConfidence > 0) {
-                if (normalizedConf > config.maxConfidence) revert InsufficientConfidence();
+                // `maxConfidence` is the maximum acceptable Pyth confidence
+                // expressed as a FRACTION OF PRICE in basis points
+                // (e.g. 50 = 0.50%, 100 = 1%). A relative bound is price-scale
+                // independent, so it works for high-priced assets (e.g. BTC)
+                // whose absolute 1e18-normalized confidence would otherwise
+                // exceed the uint64 `maxConfidence` field and make every read
+                // revert. Equivalent to: normalizedConf / normalizedPrice > bps/1e4.
+                if (normalizedConf * BPS > normalizedPrice * config.maxConfidence) revert InsufficientConfidence();
             } else {
                 // tightened default from 2% to 0.5% confidence band when operators have
                 // not configured a feed-specific cap.
@@ -841,9 +848,13 @@ contract OracleAggregator is
         uint64 maxConfidence
     ) external onlyOperator {
         // Refuse to register a feed without an explicit confidence cap.
-        // The legacy 0.5%-of-price default reverted reads under any normal volatility
-        // event; operators must consciously choose a per-feed cap matching the
-        // expected confidence band (e.g. ~1-2% for equities, ~0.5-1% for crypto).
+        // `maxConfidence` is the max acceptable Pyth confidence as a FRACTION OF
+        // PRICE in basis points (e.g. 50 = 0.50%, 100 = 1%). A relative cap is
+        // price-scale independent — it works for high-priced assets like BTC,
+        // unlike the prior absolute compare which overflowed the uint64 field.
+        // The legacy 0.5%-of-price default reverted reads under any normal
+        // volatility event; operators must consciously choose a per-feed bps cap
+        // matching the expected band (e.g. ~100-200 bps equities, ~50-100 bps crypto).
         if (maxConfidence == 0) revert MaxConfidenceRequired();
 
         bytes32 existing = _configs[collection].feedId;

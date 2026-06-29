@@ -86,20 +86,39 @@ export const config = createConfig({
     connectors,
     chains: realyxChains,
     transports: {
-        [confluxESpaceTestnet.id]: fallback([
-            http(testnetRpcPrimary, {
-                batch: false,
-                timeout: 180_000,
-                retryCount: 8,
-                retryDelay: 1_500,
-            }),
-            http(testnetRpcFallback, {
-                batch: false,
-                timeout: 180_000,
-                retryCount: 4,
-                retryDelay: 1_500,
-            }),
-        ]),
+        // `fallback` with `rank` enabled periodically measures each endpoint's
+        // latency/health and routes to the best one. This is what saves us when
+        // a public Conflux RPC goes dark: instead of hanging on a dead primary,
+        // viem deprioritizes it within seconds and uses a healthy node.
+        //
+        // Timeouts are kept short on purpose. A long per-request timeout (the
+        // old config used 180s with 8 retries) makes a single unresponsive node
+        // freeze every read — that's exactly what left the Portfolio stuck on
+        // loading skeletons, since it reads positions/PnL straight over RPC.
+        [confluxESpaceTestnet.id]: fallback(
+            [
+                http(testnetRpcPrimary, {
+                    batch: false,
+                    timeout: 12_000,
+                    retryCount: 2,
+                    retryDelay: 1_000,
+                }),
+                http(testnetRpcFallback, {
+                    batch: false,
+                    timeout: 12_000,
+                    retryCount: 2,
+                    retryDelay: 1_000,
+                }),
+            ],
+            {
+                rank: {
+                    interval: 10_000,
+                    sampleCount: 3,
+                    timeout: 3_000,
+                },
+                retryCount: 2,
+            }
+        ),
     },
     ssr: false,
 });

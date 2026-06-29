@@ -103,18 +103,20 @@ async function withRetryUnderpriced<T>(
 const UINT64_MAX = (1n << 64n) - 1n;
 // `OracleAggregator.setPythFeed` rejects a zero `maxConfidence`
 // (`MaxConfidenceRequired()`); operators must pick an explicit per-feed
-// confidence cap. The cap is an ABSOLUTE confidence band normalized to 18
-// decimals (same scale as the normalized price) and is stored as uint64, so
-// it must be <= UINT64_MAX. Defaulting to UINT64_MAX is the most permissive
-// valid setting and avoids `InsufficientConfidence` reverts on price reads;
-// tighten per feed via MAX_CONFIDENCE (single value) or a comma-separated list.
-const DEFAULT_MAX_CONFIDENCE = UINT64_MAX;
+// confidence cap. As of the relative-confidence gate, `maxConfidence` is the
+// max acceptable Pyth confidence expressed as a FRACTION OF PRICE in BASIS
+// POINTS (e.g. 50 = 0.50%, 100 = 1%) — price-scale independent, so it works for
+// high-priced assets like BTC. Stored as uint64. Default 500 bps (5%) is a
+// generous-but-real cap that avoids `InsufficientConfidence` on normal feeds
+// while still catching a confidence blow-out; tighten per feed via
+// MAX_CONFIDENCE (single value or a comma-separated list aligned to markets).
+const DEFAULT_MAX_CONFIDENCE = 500n;
 
 function parseMaxConfidence(raw: string | undefined): bigint {
     const v = raw?.trim();
     if (!v) return DEFAULT_MAX_CONFIDENCE;
     const parsed = BigInt(v);
-    if (parsed <= 0n) throw new Error(`MAX_CONFIDENCE must be > 0 (got ${v})`);
+    if (parsed <= 0n) throw new Error(`MAX_CONFIDENCE must be > 0 bps (got ${v})`);
     if (parsed > UINT64_MAX) throw new Error(`MAX_CONFIDENCE must be <= uint64 max (${UINT64_MAX}); got ${v}`);
     return parsed;
 }

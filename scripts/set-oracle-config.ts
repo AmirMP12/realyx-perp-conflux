@@ -11,6 +11,10 @@ import { loadDeployment } from "./write-deployment";
  * still warming up. This script shows the current config + live feed state and
  * suggests a `maxConfidence`, then can apply it.
  *
+ * `maxConfidence` is a RELATIVE cap: the max acceptable Pyth confidence as a
+ * fraction of price in BASIS POINTS (e.g. 50 = 0.50%, 100 = 1%). This is
+ * price-scale independent, so it works for high-priced assets like BTC.
+ *
  * Changing `maxConfidence`/`maxStaleness` while keeping the SAME `feedId` is
  * applied IMMEDIATELY by `setPythFeed` (only a feed-id *rotation* is timelocked),
  * so this is a one-tx operator action.
@@ -20,11 +24,11 @@ import { loadDeployment } from "./write-deployment";
  *   ORACLE_MARKETS=0xMarketA,0xMarketB \
  *     npx hardhat run scripts/set-oracle-config.ts --network confluxTestnet
  *
- *   # apply an explicit maxConfidence (1e18-normalized units) to each market
- *   ORACLE_MARKETS=0xMarketA ORACLE_SET=true ORACLE_MAX_CONFIDENCE=1000000000000000000 \
+ *   # apply an explicit maxConfidence in BPS of price to each market (50 = 0.5%)
+ *   ORACLE_MARKETS=0xMarketA ORACLE_SET=true ORACLE_MAX_CONFIDENCE=50 \
  *     npx hardhat run scripts/set-oracle-config.ts --network confluxTestnet
  *
- *   # apply the auto-suggested value (current live confidence x multiplier)
+ *   # apply the auto-suggested value (live confidence in bps x multiplier)
  *   ORACLE_MARKETS=0xMarketA ORACLE_SET=true ORACLE_AUTO=true ORACLE_MAX_CONFIDENCE_MULTIPLIER=3 \
  *     npx hardhat run scripts/set-oracle-config.ts --network confluxTestnet
  *
@@ -139,23 +143,22 @@ async function main() {
 
             const normPrice = normalize(rawPrice, expo);
             const normConf = normalize(rawConf, expo);
-            const confPct = normPrice > 0n ? (Number(normConf) / Number(normPrice)) * 100 : 0;
+            const confBps = normPrice > 0n ? (normConf * 10000n) / normPrice : 0n;
+            const confPct = Number(confBps) / 100;
             const ageSec = nowSec - publishTime;
 
             console.log(`  live pyth: rawPrice=${rawPrice} rawConf=${rawConf} expo=${expo} age=${ageSec}s`);
             console.log(
-                `  normalized(1e18): price=${normPrice} confidence=${normConf} (${confPct.toFixed(4)}% of price)`,
+                `  normalized(1e18): price=${normPrice} confidence=${normConf} (${confPct.toFixed(4)}% of price = ${confBps} bps)`,
             );
 
-            suggested = normConf * multiplier;
-            if (suggested > UINT64_MAX) {
-                console.log(
-                    `  ⚠ suggested maxConfidence ${suggested} exceeds uint64 max; clamping to ${UINT64_MAX}. ` +
-                        `This feed's price scale is too large for a 1e18-normalized uint64 confidence — review feed expo/decimals.`,
-                );
-                suggested = UINT64_MAX;
-            }
-            console.log(`  suggested maxConfidence (x${multiplier}) = ${suggested}`);
+            // maxConfidence is now a RELATIVE cap in BPS of price. Suggest the
+            // live confidence (in bps) times a safety multiplier, with a floor of
+            // 1 bps so the contract's `maxConfidence > 0` requirement holds.
+            suggested = confBps * multiplier;
+            if (suggested < 1n) suggested = 1n;
+            if (suggested > UINT64_MAX) suggested = UINT64_MAX;
+            console.log(`  suggested maxConfidence (x${multiplier}) = ${suggested} bps`);
         } catch (err) {
             console.log(`  pyth.getPriceUnsafe failed: ${err instanceof Error ? err.message : String(err)}`);
         }
@@ -165,21 +168,23 @@ async function main() {
             continue;
         }
 
-        // Resolve the value to write.
+        // Resolve the value to write (interpreted as BPS of price).
         let newMaxConf: bigint | null = explicitMaxConf;
         if (newMaxConf == null && auto) newMaxConf = suggested;
         if (newMaxConf == null) {
-            console.log("  SET skipped: provide ORACLE_MAX_CONFIDENCE=<uint64> or ORACLE_AUTO=true.\n");
+            console.log("  SET skipped: provide ORACLE_MAX_CONFIDENCE=<bps> or ORACLE_AUTO=true.\n");
             continue;
         }
         if (newMaxConf <= 0n) {
-            console.log("  SET skipped: maxConfidence must be > 0 (contract requires a non-zero cap).\n");
+            console.log("  SET skipped: maxConfidence must be > 0 bps (contract requires a non-zero cap).\n");
             continue;
         }
         if (newMaxConf > UINT64_MAX) newMaxConf = UINT64_MAX;
 
         const staleness = stalenessOverride ?? maxStaleness;
-        console.log(`  SET → setPythFeed(feedId=${feedId}, maxStaleness=${staleness}, maxConfidence=${newMaxConf})`);
+        console.log(
+            `  SET → setPythFeed(feedId=${feedId}, maxStaleness=${staleness}, maxConfidence=${newMaxConf} bps)`,
+        );
         try {
             const tx = await oracle.setPythFeed(market, feedId, staleness, newMaxConf);
             console.log(`  tx sent: ${tx.hash}`);

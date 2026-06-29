@@ -132,10 +132,17 @@ async function main() {
             ? process.env.PYTH_FEED_ID.trim()
             : "0x" + process.env.PYTH_FEED_ID.trim();
         const feedIdBytes32 = ethers.hexlify(ethers.zeroPadValue(ethers.getBytes(hex), 32));
+        // `maxConfidence` is the max acceptable Pyth confidence as a FRACTION OF
+        // PRICE in BASIS POINTS (e.g. 50 = 0.5%). The contract rejects 0
+        // (`MaxConfidenceRequired`) and `getOracleConfig` does not expose the
+        // current value, so set it explicitly here. Default 500 bps (5%) matches
+        // setup-market.ts; override with MAX_CONFIDENCE.
+        const maxConfidenceBps = process.env.MAX_CONFIDENCE?.trim() ? BigInt(process.env.MAX_CONFIDENCE) : 500n;
+        if (maxConfidenceBps <= 0n) throw new Error(`MAX_CONFIDENCE must be > 0 bps (got ${maxConfidenceBps})`);
         await withRetryUnderpriced(overrides, (o) =>
-            oracle.setPythFeed(marketAddress, feedIdBytes32, maxStaleness, 0, o ?? {}),
+            oracle.setPythFeed(marketAddress, feedIdBytes32, maxStaleness, maxConfidenceBps, o ?? {}),
         );
-        console.log("OracleAggregator.setPythFeed ok");
+        console.log("OracleAggregator.setPythFeed ok (maxConfidence", maxConfidenceBps.toString(), "bps)");
     }
 
     await withRetryUnderpriced(
