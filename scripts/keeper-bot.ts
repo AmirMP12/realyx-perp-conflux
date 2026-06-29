@@ -91,9 +91,39 @@ function selectorFromError(err: unknown): string | null {
     return match[0].slice(0, 10).toLowerCase();
 }
 
+function errorText(err: unknown): string {
+    if (err instanceof Error) return `${err.message} ${(err as any).code ?? ""}`;
+    // ethers nests the JSON-RPC body under `error`/`info`; stringify to catch it.
+    return JSON.stringify(err, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
+}
+
 function isRetriableRpcError(err: unknown): boolean {
-    const text = err instanceof Error ? `${err.message} ${(err as any).code ?? ""}` : String(err);
-    return /timeout|rate exceeded|too many requests|429|ETIMEDOUT|SERVER_ERROR/i.test(text);
+    const text = errorText(err);
+    // Generic transient transport errors, provider rate limiting (incl. the
+    // Conflux public RPC's `-32005` "daily request count exceeded"), and Conflux
+    // eSpace epoch-lag filter errors (`-32016`). The latter fire when a
+    // load-balanced peer serves a `getBlockNumber` ahead of the log-index node;
+    // they clear once the node catches up, so a short backoff + retry is correct.
+    return /timeout|rate exceeded|too many requests|429|ETIMEDOUT|SERVER_ERROR|daily request count exceeded|-32005|wrong epoch numbers|largest epoch number|-32016/i.test(
+        text,
+    );
+}
+
+/**
+ * Parse the "try again after 7m53.649s" / "5.528s" / "55ms" hint the Conflux
+ * public RPC returns with `-32005`, so we back off for (close to) the real
+ * cooldown instead of tight-looping and burning the next day's quota. Capped so
+ * a multi-minute cooldown doesn't wedge the process indefinitely.
+ */
+function retryAfterMsFromError(err: unknown, capMs = 60_000): number | null {
+    const m = errorText(err).match(/try again after\s+(?:(\d+)m)?(?:([\d.]+)s)?(?:(\d+)ms)?/i);
+    if (!m) return null;
+    const minutes = m[1] ? Number(m[1]) : 0;
+    const seconds = m[2] ? Number(m[2]) : 0;
+    const millis = m[3] ? Number(m[3]) : 0;
+    const total = minutes * 60_000 + seconds * 1_000 + millis;
+    if (!Number.isFinite(total) || total <= 0) return null;
+    return Math.min(total, capMs);
 }
 
 function parseRpcUrls(primary: string): string[] {
@@ -192,6 +222,12 @@ async function main() {
     const keeperApiBaseUrl = process.env.KEEPER_API_BASE_URL || "http://localhost:3001";
     const lookbackBlocks = BigInt(Math.max(1, Number(process.env.KEEPER_LOOKBACK_BLOCKS ?? "5000")));
     const blockChunkSize = BigInt(Math.max(100, Number(process.env.KEEPER_BLOCK_CHUNK_SIZE ?? "500")));
+    // Confirmation lag: never query logs right up to the head. On Conflux eSpace
+    // a load-balanced peer can report a `getBlockNumber` that the log-index node
+    // hasn't reached yet, which makes `eth_getLogs` reject the range with
+    // `-32016` ("wrong epoch numbers" / "expected a number less than largest
+    // epoch"). Staying a few blocks behind the head avoids that entirely.
+    const confirmations = BigInt(Math.max(0, Number(process.env.KEEPER_CONFIRMATIONS ?? "30")));
     const hermesBase = (process.env.KEEPER_HERMES_URL || "https://hermes.pyth.network").replace(/\/+$/, "");
     const rpcRetryBaseDelayMs = Math.max(100, Number(process.env.KEEPER_RPC_RETRY_BASE_DELAY_MS ?? "300"));
     // How many orders to execute in parallel per tick. Serial `await tx.wait()`
@@ -247,7 +283,16 @@ async function main() {
                 lastErr = err;
                 if (!isRetriableRpcError(err)) throw err;
                 await rotateRpc(`${op} retriable rpc error`);
-                await new Promise((r) => setTimeout(r, rpcRetryBaseDelayMs * i));
+                // Honor the provider's explicit cooldown hint (Conflux `-32005`
+                // "try again after Xs") when present; otherwise exponential-ish
+                // backoff. This stops the tight retry loop that was exhausting
+                // the daily request quota.
+                const retryAfter = retryAfterMsFromError(err);
+                const delay = retryAfter ?? rpcRetryBaseDelayMs * i;
+                if (retryAfter != null) {
+                    console.warn(`[keeper] ${op} rate-limited; backing off ${delay}ms (provider hint)`);
+                }
+                await new Promise((r) => setTimeout(r, delay));
             }
         }
         throw lastErr;
@@ -463,68 +508,57 @@ async function main() {
 
     while (true) {
         try {
-            const currentBlock = BigInt(await withRpcRetry(() => provider.getBlockNumber(), "loop:getBlockNumber"));
-            if (currentBlock > cursor) {
+            const head = BigInt(await withRpcRetry(() => provider.getBlockNumber(), "loop:getBlockNumber"));
+            // Stay `confirmations` blocks behind the head so we never request an
+            // epoch range the log-index node hasn't reached yet (-32016 guard).
+            const safeHead = head > confirmations ? head - confirmations : 0n;
+            if (safeHead > cursor) {
                 let from = cursor + 1n;
-                while (from <= currentBlock) {
-                    const to = from + blockChunkSize > currentBlock ? currentBlock : from + blockChunkSize;
+                while (from <= safeHead) {
+                    const to = from + blockChunkSize > safeHead ? safeHead : from + blockChunkSize;
+                    if (to < from) break;
 
-                    const createdLogs = await withRpcRetry(
+                    // One range scan with OR'd topics instead of three separate
+                    // getLogs calls — cuts log-request volume (and daily-quota
+                    // pressure) by ~3x. ethers accepts a nested array as an OR
+                    // set for the first topic position.
+                    const logs = await withRpcRetry(
                         () =>
                             provider.getLogs({
                                 address: tradingCoreAddress,
                                 fromBlock: from,
                                 toBlock: to,
-                                topics: [createdTopic],
+                                topics: [[createdTopic, executedTopic, cancelledTopic]],
                             }),
-                        "getLogs:created",
-                    );
-                    const executedLogs = await withRpcRetry(
-                        () =>
-                            provider.getLogs({
-                                address: tradingCoreAddress,
-                                fromBlock: from,
-                                toBlock: to,
-                                topics: [executedTopic],
-                            }),
-                        "getLogs:executed",
-                    );
-                    const cancelledLogs = await withRpcRetry(
-                        () =>
-                            provider.getLogs({
-                                address: tradingCoreAddress,
-                                fromBlock: from,
-                                toBlock: to,
-                                topics: [cancelledTopic],
-                            }),
-                        "getLogs:cancelled",
+                        "getLogs",
                     );
 
-                    for (const log of createdLogs) {
+                    for (const log of logs) {
+                        const topic0 = log.topics[0];
                         const parsed = iface.parseLog(log);
                         const id = parsed?.args?.orderId as bigint | undefined;
                         if (id == null) continue;
-                        const market = (parsed?.args?.market as string | undefined) || ethers.ZeroAddress;
-                        const account = (parsed?.args?.account as string | undefined) || ethers.ZeroAddress;
-                        pending.set(id.toString(), {
-                            id,
-                            market,
-                            account,
-                            createdAtBlock: BigInt(log.blockNumber),
-                            attempts: 0,
-                        });
+                        if (topic0 === createdTopic) {
+                            const market = (parsed?.args?.market as string | undefined) || ethers.ZeroAddress;
+                            const account = (parsed?.args?.account as string | undefined) || ethers.ZeroAddress;
+                            pending.set(id.toString(), {
+                                id,
+                                market,
+                                account,
+                                createdAtBlock: BigInt(log.blockNumber),
+                                attempts: 0,
+                            });
+                        } else {
+                            // OrderExecuted / OrderCancelled — order is done.
+                            pending.delete(id.toString());
+                        }
                     }
 
-                    for (const log of [...executedLogs, ...cancelledLogs]) {
-                        const parsed = iface.parseLog(log);
-                        const id = parsed?.args?.orderId as bigint | undefined;
-                        if (id == null) continue;
-                        pending.delete(id.toString());
-                    }
-
+                    // Advance the cursor per successful chunk so a mid-scan error
+                    // doesn't force re-fetching ranges we already processed.
+                    cursor = to;
                     from = to + 1n;
                 }
-                cursor = currentBlock;
             }
 
             if (pending.size > 0) {
