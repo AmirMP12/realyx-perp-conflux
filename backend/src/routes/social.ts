@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { getPool } from "../services/indexer.js";
+import { getPool, fetchUserPositions } from "../services/indexer.js";
 import { getCopyEngine } from "../services/copyEngine.js";
 
 const router = Router();
@@ -118,15 +118,18 @@ router.get("/trader/:address", async (req: Request, res: Response) => {
 
     const trader = traderRows[0];
 
-    // Get open positions for this trader
-    const { rows: positionRows } = await pool.query(
-      `SELECT p.market, p.is_long, p.size, p.leverage, p.entry_price,
-              COALESCE(p.unrealized_pnl, '0') as pnl
-       FROM positions p
-       WHERE p.trader_address = $1 AND p.state = 'open'
-       ORDER BY p.open_timestamp DESC`,
-      [normalizedAddr]
-    );
+    // Open positions come from the indexed position_events store (the same
+    // source the rest of the app uses); there is no separate `positions` table.
+    // Unrealized PnL needs a live oracle mark we don't compute offline, so it's
+    // reported as "0" here rather than fabricated.
+    const openPositions: OpenPosition[] = (await fetchUserPositions(normalizedAddr)).map((p) => ({
+      market: p.market.marketAddress,
+      isLong: p.isLong,
+      size: p.size,
+      leverage: p.leverage,
+      entryPrice: p.entryPrice,
+      pnl: "0",
+    }));
 
     const profile: TraderProfile = {
       address: trader.address,
@@ -137,14 +140,7 @@ router.get("/trader/:address", async (req: Request, res: Response) => {
       roi: Number(trader.roi),
       winRate: Number(trader.win_rate),
       totalTrades: Number(trader.total_trades),
-      openPositions: positionRows.map((p: any) => ({
-        market: p.market,
-        isLong: p.is_long,
-        size: p.size,
-        leverage: p.leverage,
-        entryPrice: p.entry_price,
-        pnl: p.pnl,
-      })),
+      openPositions,
     };
 
     return res.json(profile);

@@ -42,6 +42,21 @@ const VAULT_BAD_DEBT_SYNC_ABI = [
   "event BadDebtCovered(uint256 indexed claimId, uint256 amount, uint256 positionId)",
 ] as const;
 
+/**
+ * CopyRegistry social-trading events. Indexed so /api/v1/social/* can serve
+ * real lead-trader and follow-relationship data instead of an empty/501 stub.
+ * Lead-trader performance (ROI/PnL/win-rate) is derived separately from the
+ * lead's own indexed position_events; these events only carry registration and
+ * follow state.
+ */
+const COPY_REGISTRY_SYNC_ABI = [
+  "event LeadTraderRegistered(uint256 indexed leadTraderId, address indexed trader, uint16 profitFeeBps, string metadataURI)",
+  "event LeadTraderUpdated(uint256 indexed leadTraderId, uint16 profitFeeBps, string metadataURI)",
+  "event FollowedTrader(address indexed copier, address indexed leadTrader, uint256 maxAllocation, uint8 maxLeverage)",
+  "event UnfollowedTrader(address indexed copier, address indexed leadTrader)",
+  "event CopierConfigUpdated(address indexed copier, address indexed leadTrader, uint256 maxAllocation, uint8 maxLeverage)",
+] as const;
+
 const router = express.Router();
 
 let poolInstance: pg.Pool | null = null;
@@ -237,6 +252,71 @@ async function initDB() {
       );
       CREATE INDEX IF NOT EXISTS idx_bad_debt_claims_block ON bad_debt_claims(block_number DESC, log_index DESC);
     `);
+
+    // ── Social / copy-trading schema ──
+    // Populated from CopyRegistry events (lead_traders, copy_relationships) and
+    // derived lead-trader performance (lead_trader_stats). copied_positions /
+    // copier_stats back the copier-PnL endpoints; they stay empty until the
+    // off-chain CopyBot actually mirrors trades, so those reads honestly report
+    // zero rather than 500ing. Kept in a separate statement so a failure here
+    // can never abort the core position-event migration above.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS lead_traders (
+        id BIGINT PRIMARY KEY,
+        address VARCHAR(42) NOT NULL UNIQUE,
+        profit_fee_bps INTEGER NOT NULL DEFAULT 0,
+        metadata_uri TEXT DEFAULT '',
+        active_followers INTEGER NOT NULL DEFAULT 0,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_lead_traders_address ON lead_traders(address);
+
+      CREATE TABLE IF NOT EXISTS lead_trader_stats (
+        lead_trader_id BIGINT PRIMARY KEY REFERENCES lead_traders(id) ON DELETE CASCADE,
+        total_pnl NUMERIC NOT NULL DEFAULT 0,
+        roi NUMERIC NOT NULL DEFAULT 0,
+        win_rate NUMERIC NOT NULL DEFAULT 0,
+        total_trades INTEGER NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS copy_relationships (
+        id SERIAL PRIMARY KEY,
+        copier_address VARCHAR(42) NOT NULL,
+        lead_trader_address VARCHAR(42) NOT NULL,
+        max_allocation NUMERIC NOT NULL DEFAULT 0,
+        max_leverage INTEGER NOT NULL DEFAULT 1,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (copier_address, lead_trader_address)
+      );
+      CREATE INDEX IF NOT EXISTS idx_copy_rel_copier ON copy_relationships(copier_address);
+      CREATE INDEX IF NOT EXISTS idx_copy_rel_lead ON copy_relationships(lead_trader_address);
+
+      -- Copier performance tables. Filled by the CopyBot once trade mirroring
+      -- is live; the JOINs in /copier/:address/* tolerate them being empty.
+      CREATE TABLE IF NOT EXISTS copier_stats (
+        copier_address VARCHAR(42) NOT NULL,
+        lead_trader_address VARCHAR(42) NOT NULL,
+        total_pnl NUMERIC NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (copier_address, lead_trader_address)
+      );
+
+      CREATE TABLE IF NOT EXISTS copied_positions (
+        id SERIAL PRIMARY KEY,
+        copier_address VARCHAR(42) NOT NULL,
+        lead_trader_address VARCHAR(42) NOT NULL,
+        position_id NUMERIC,
+        realized_pnl NUMERIC NOT NULL DEFAULT 0,
+        unrealized_pnl NUMERIC NOT NULL DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_copied_pos_copier_lead
+        ON copied_positions(copier_address, lead_trader_address);
+    `);
   } catch (error) {
     console.error("Failed to initialize database:", error);
   }
@@ -400,9 +480,19 @@ export async function runSync(options?: { fromBlock?: number }) {
     const iface = new ethers.Interface(TRADING_CORE_SYNC_ABI);
     const rebateIface = new ethers.Interface(VAULT_REBATE_SYNC_ABI);
     const badDebtIface = new ethers.Interface(VAULT_BAD_DEBT_SYNC_ABI);
+    const copyIface = new ethers.Interface(COPY_REGISTRY_SYNC_ABI);
     const vaultCoreAddress = (process.env.VAULT_CORE_ADDRESS ?? process.env.DEPLOYED_VAULT_CORE ?? "").trim();
+    const copyRegistryAddress = (process.env.COPY_REGISTRY_ADDRESS ?? process.env.DEPLOYED_COPY_REGISTRY ?? "").trim();
     const rebateTopic = ethers.id("RebateAccrued(address,uint256)");
     const badDebtTopic = ethers.id("BadDebtCovered(uint256,uint256,uint256)");
+    // All five CopyRegistry events, matched in one getLogs call per range.
+    const copyTopics = [
+      "LeadTraderRegistered(uint256,address,uint16,string)",
+      "LeadTraderUpdated(uint256,uint16,string)",
+      "FollowedTrader(address,address,uint256,uint8)",
+      "UnfollowedTrader(address,address)",
+      "CopierConfigUpdated(address,address,uint256,uint8)",
+    ].map((sig) => ethers.id(sig));
 
     let startBlock = 248000000; // 248M (April 14th deployment) — avoids scanning empty history
     let resumedFromCursor = false;
@@ -463,6 +553,7 @@ export async function runSync(options?: { fromBlock?: number }) {
     let totalSynced = 0;
     let rebatesSynced = 0;
     let badDebtSynced = 0;
+    let copyEventsSynced = 0;
     let currentStart = startBlock;
     let finalTo = startBlock - 1;
     // Adaptive window: starts large, halves on RPC failure, grows back on
@@ -481,8 +572,9 @@ export async function runSync(options?: { fromBlock?: number }) {
       let batchLogs: any[];
       let rebateLogs: any[];
       let badDebtLogs: any[];
+      let copyLogs: any[];
       try {
-        [batchLogs, rebateLogs, badDebtLogs] = await Promise.all([
+        [batchLogs, rebateLogs, badDebtLogs, copyLogs] = await Promise.all([
           provider.getLogs({
             address: tradingCoreAddress,
             fromBlock: currentStart,
@@ -513,6 +605,18 @@ export async function runSync(options?: { fromBlock?: number }) {
                 return [] as any[];
               })
             : Promise.resolve([] as any[]),
+          // Social copy-trading events live on CopyRegistry; skip when unset.
+          copyRegistryAddress
+            ? provider.getLogs({
+                address: copyRegistryAddress,
+                fromBlock: currentStart,
+                toBlock: currentTo,
+                topics: [copyTopics]
+              }).catch((e: any) => {
+                console.error("[sync] copy-registry getLogs failed:", e?.message ?? e);
+                return [] as any[];
+              })
+            : Promise.resolve([] as any[]),
         ]);
       } catch (e: any) {
         // Range too large / RPC hiccup: shrink and retry the same start instead
@@ -530,6 +634,7 @@ export async function runSync(options?: { fromBlock?: number }) {
       totalSynced += await processLogs(batchLogs, iface, pool, provider);
       rebatesSynced += await processRebateLogs(rebateLogs, rebateIface, pool, provider);
       badDebtSynced += await processBadDebtLogs(badDebtLogs, badDebtIface, pool, provider);
+      copyEventsSynced += await processCopyRegistryLogs(copyLogs, copyIface, pool, provider);
       finalTo = currentTo;
       // Persist progress incrementally so a later timeout never loses this range.
       await persistCursor(pool, finalTo);
@@ -551,12 +656,24 @@ export async function runSync(options?: { fromBlock?: number }) {
     await persistCursor(pool, finalTo);
     setIndexerLag(Math.max(0, latestBlock - finalTo));
 
+    // Recompute lead-trader performance + follower counts from the freshly
+    // indexed data. Best-effort: a stats failure must never fail the sync pulse
+    // (the raw events are already persisted and can be re-aggregated next pulse).
+    if (copyRegistryAddress) {
+      try {
+        await refreshCopyTradingStats(pool);
+      } catch (e) {
+        console.error("[sync] copy-trading stats refresh failed:", (e as any)?.message ?? e);
+      }
+    }
+
     const duration = Date.now() - startTime;
     return {
       success: true,
       eventsSynced: totalSynced,
       rebatesSynced,
       badDebtSynced,
+      copyEventsSynced,
       scannedFrom: startBlock,
       scannedTo: finalTo,
       reorgDepth,
@@ -807,6 +924,204 @@ async function processBadDebtLogs(
     }
   }
   return inserted;
+}
+
+/**
+ * Apply CopyRegistry social-trading events to the relational copy-trading
+ * tables. Unlike the append-only event stores, these are *state* mutations
+ * (register / follow / unfollow / reconfigure), so we upsert by natural key.
+ * getLogs returns logs in ascending (block, logIndex) order and re-scans replay
+ * that same order, so the final state converges correctly — the latest event
+ * for a (copier, leadTrader) pair wins, matching on-chain truth.
+ */
+async function processCopyRegistryLogs(
+  logs: any[],
+  iface: ethers.Interface,
+  pool: pg.Pool,
+  provider: ethers.Provider,
+) {
+  let applied = 0;
+  let lastBlock = -1;
+  let lastTime = 0;
+
+  for (const log of logs) {
+    try {
+      const parsed = iface.parseLog({ topics: log.topics as string[], data: log.data });
+      if (!parsed) continue;
+
+      let blockTime: number;
+      if (log.blockNumber === lastBlock) {
+        blockTime = lastTime;
+      } else {
+        blockTime = await getBlockTime(log.blockNumber, provider);
+        lastBlock = log.blockNumber;
+        lastTime = blockTime;
+      }
+
+      const a = parsed.args as unknown as any[];
+
+      if (parsed.name === "LeadTraderRegistered") {
+        const id = (a[0] as bigint).toString();
+        const trader = String(a[1]).toLowerCase();
+        const profitFeeBps = Number(a[2]);
+        const metadataURI = String(a[3] ?? "");
+        await pool.query(
+          `INSERT INTO lead_traders (id, address, profit_fee_bps, metadata_uri, is_active, registered_at)
+           VALUES ($1, $2, $3, $4, true, to_timestamp($5))
+           ON CONFLICT (id) DO UPDATE SET
+             address = EXCLUDED.address,
+             profit_fee_bps = EXCLUDED.profit_fee_bps,
+             metadata_uri = EXCLUDED.metadata_uri,
+             is_active = true`,
+          [id, trader, profitFeeBps, metadataURI, blockTime]
+        );
+        applied++;
+      } else if (parsed.name === "LeadTraderUpdated") {
+        const id = (a[0] as bigint).toString();
+        const profitFeeBps = Number(a[1]);
+        const metadataURI = String(a[2] ?? "");
+        await pool.query(
+          `UPDATE lead_traders SET profit_fee_bps = $2, metadata_uri = $3 WHERE id = $1`,
+          [id, profitFeeBps, metadataURI]
+        );
+        applied++;
+      } else if (parsed.name === "FollowedTrader") {
+        const copier = String(a[0]).toLowerCase();
+        const leadTrader = String(a[1]).toLowerCase();
+        const maxAllocation = (a[2] as bigint).toString();
+        const maxLeverage = Number(a[3]);
+        await pool.query(
+          `INSERT INTO copy_relationships
+             (copier_address, lead_trader_address, max_allocation, max_leverage, is_active, started_at, updated_at)
+           VALUES ($1, $2, $3, $4, true, to_timestamp($5), NOW())
+           ON CONFLICT (copier_address, lead_trader_address) DO UPDATE SET
+             max_allocation = EXCLUDED.max_allocation,
+             max_leverage = EXCLUDED.max_leverage,
+             is_active = true,
+             started_at = EXCLUDED.started_at,
+             updated_at = NOW()`,
+          [copier, leadTrader, maxAllocation, maxLeverage, blockTime]
+        );
+        applied++;
+      } else if (parsed.name === "CopierConfigUpdated") {
+        const copier = String(a[0]).toLowerCase();
+        const leadTrader = String(a[1]).toLowerCase();
+        const maxAllocation = (a[2] as bigint).toString();
+        const maxLeverage = Number(a[3]);
+        await pool.query(
+          `UPDATE copy_relationships
+             SET max_allocation = $3, max_leverage = $4, updated_at = NOW()
+           WHERE copier_address = $1 AND lead_trader_address = $2`,
+          [copier, leadTrader, maxAllocation, maxLeverage]
+        );
+        applied++;
+      } else if (parsed.name === "UnfollowedTrader") {
+        const copier = String(a[0]).toLowerCase();
+        const leadTrader = String(a[1]).toLowerCase();
+        await pool.query(
+          `UPDATE copy_relationships
+             SET is_active = false, updated_at = NOW()
+           WHERE copier_address = $1 AND lead_trader_address = $2`,
+          [copier, leadTrader]
+        );
+        applied++;
+      }
+    } catch (err) {
+      console.error("Copy-registry parse error", err);
+    }
+  }
+  return applied;
+}
+
+/**
+ * Derive lead-trader performance (lead_trader_stats) and follower counts from
+ * the indexed data. PnL/ROI/win-rate come from each lead trader's OWN closed
+ * and liquidated positions in position_events — the same source the leaderboard
+ * uses — so the numbers are real on-chain results, not placeholders.
+ *
+ *   total_pnl  — SUM(realized PnL) in USD (realized_pnl is 1e18-scaled)
+ *   roi        — total_pnl / total margin deployed on closed trades × 100
+ *   win_rate   — share of closed/liquidated trades that ended in profit
+ *   total_trades — count of closed + liquidated positions
+ *
+ * Liquidations count as a full loss of the position's margin (size/leverage),
+ * mirroring fetchLeaderboard's treatment.
+ */
+async function refreshCopyTradingStats(pool: pg.Pool): Promise<void> {
+  // Keep the denormalized follower count in step with live relationships.
+  await pool.query(
+    `UPDATE lead_traders lt SET active_followers = (
+       SELECT COUNT(*) FROM copy_relationships cr
+       WHERE lower(cr.lead_trader_address) = lower(lt.address) AND cr.is_active = true
+     )`
+  );
+
+  // Recompute performance for every registered lead trader from their own
+  // realized trading history. LEFT JOIN so a lead trader with no closed trades
+  // still gets a zeroed stats row (the top-traders LEFT JOIN expects one).
+  await pool.query(`
+    WITH opened AS (
+      SELECT DISTINCT ON (position_id)
+        position_id,
+        lower(account) AS addr,
+        COALESCE(size_raw, 0) AS size_raw,
+        COALESCE(leverage_raw, 0) AS leverage_raw
+      FROM position_events
+      WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
+      ORDER BY position_id, id ASC
+    ),
+    realized AS (
+      -- Closes: trader is the event account, PnL is the logged realized_pnl.
+      SELECT lower(c.account) AS addr,
+             c.position_id,
+             COALESCE(c.realized_pnl, 0) AS pnl_raw
+      FROM position_events c
+      WHERE c.event_type = 'PositionClosed' AND c.position_id IS NOT NULL
+
+      UNION ALL
+
+      -- Liquidations: trader resolved via the matching open; PnL = -margin.
+      SELECT o.addr,
+             e.position_id,
+             CASE WHEN o.leverage_raw > 0
+                  THEN -(o.size_raw / (o.leverage_raw / POWER(10::numeric, 18)))
+                  ELSE 0::numeric END AS pnl_raw
+      FROM position_events e
+      JOIN opened o ON o.position_id = e.position_id
+      WHERE e.event_type = 'PositionLiquidated' AND e.position_id IS NOT NULL
+    ),
+    agg AS (
+      SELECT r.addr,
+             COUNT(*) AS total_trades,
+             SUM(r.pnl_raw) / POWER(10::numeric, 18) AS total_pnl_usd,
+             SUM(CASE WHEN r.pnl_raw > 0 THEN 1 ELSE 0 END) AS wins,
+             SUM(CASE WHEN o.leverage_raw > 0
+                      THEN o.size_raw / o.leverage_raw
+                      ELSE 0::numeric END) AS total_margin_usd
+      FROM realized r
+      LEFT JOIN opened o ON o.position_id = r.position_id
+      GROUP BY r.addr
+    )
+    INSERT INTO lead_trader_stats (lead_trader_id, total_pnl, roi, win_rate, total_trades, updated_at)
+    SELECT lt.id,
+           COALESCE(agg.total_pnl_usd, 0),
+           CASE WHEN COALESCE(agg.total_margin_usd, 0) > 0
+                THEN (agg.total_pnl_usd / agg.total_margin_usd) * 100
+                ELSE 0 END,
+           CASE WHEN COALESCE(agg.total_trades, 0) > 0
+                THEN (agg.wins::numeric / agg.total_trades) * 100
+                ELSE 0 END,
+           COALESCE(agg.total_trades, 0),
+           NOW()
+    FROM lead_traders lt
+    LEFT JOIN agg ON agg.addr = lower(lt.address)
+    ON CONFLICT (lead_trader_id) DO UPDATE SET
+      total_pnl = EXCLUDED.total_pnl,
+      roi = EXCLUDED.roi,
+      win_rate = EXCLUDED.win_rate,
+      total_trades = EXCLUDED.total_trades,
+      updated_at = NOW()
+  `);
 }
 
 /** Repair missing block_time for recent events */

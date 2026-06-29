@@ -3,12 +3,14 @@ import { jest } from "@jest/globals";
 // Mock the data + engine dependencies used by the social router.
 const mockQuery = jest.fn<any>();
 let mockPool: any = { query: mockQuery };
+const mockFetchUserPositions = jest.fn<any>();
 const mockRefresh = jest.fn<any>().mockResolvedValue(undefined);
 let mockEngine: any = { refreshLeadTraders: mockRefresh };
 
 jest.mock("../services/indexer.js", () => ({
   __esModule: true,
   getPool: () => mockPool,
+  fetchUserPositions: (...args: any[]) => mockFetchUserPositions(...args),
 }));
 
 jest.mock("../services/copyEngine.js", () => ({
@@ -42,6 +44,8 @@ const schemaMissing = () => mockQuery.mockResolvedValueOnce({ rows: [{ lead: nul
 describe("Social routes", () => {
   beforeEach(() => {
     mockQuery.mockReset();
+    mockFetchUserPositions.mockReset();
+    mockFetchUserPositions.mockResolvedValue([]);
     mockRefresh.mockClear();
     mockPool = { query: mockQuery };
     mockEngine = { refreshLeadTraders: mockRefresh };
@@ -64,34 +68,30 @@ describe("Social routes", () => {
 
     it("returns a full trader profile with open positions", async () => {
       schemaReady();
-      mockQuery
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              id: 1,
-              address: ADDR.toLowerCase(),
-              profit_fee_bps: 1000,
-              metadata_uri: "ipfs://x",
-              active_followers: 5,
-              total_pnl: "1234",
-              roi: "12.5",
-              win_rate: "60",
-              total_trades: "30",
-            },
-          ],
-        })
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              market: "0xmarket",
-              is_long: true,
-              size: "1000",
-              leverage: "10",
-              entry_price: "2000",
-              pnl: "50",
-            },
-          ],
-        });
+      mockQuery.mockResolvedValueOnce({
+        rows: [
+          {
+            id: 1,
+            address: ADDR.toLowerCase(),
+            profit_fee_bps: 1000,
+            metadata_uri: "ipfs://x",
+            active_followers: 5,
+            total_pnl: "1234",
+            roi: "12.5",
+            win_rate: "60",
+            total_trades: "30",
+          },
+        ],
+      });
+      mockFetchUserPositions.mockResolvedValueOnce([
+        {
+          market: { id: "0xmarket", marketAddress: "0xmarket" },
+          isLong: true,
+          size: "1000",
+          leverage: "10",
+          entryPrice: "2000",
+        },
+      ]);
       const res = await request(app).get(`/api/v1/social/trader/${ADDR}`);
       expect(res.status).toBe(200);
       expect(res.body.address).toBe(ADDR.toLowerCase());

@@ -356,6 +356,13 @@ export interface ReferralStatsNormalized {
     code: string;
     /** True only when the on-chain referral program is configured and reachable on the backend. */
     live: boolean;
+    /**
+     * False only when the backend could not be reached (network/parse/non-OK).
+     * Lets the UI distinguish "couldn't confirm status" from a backend that
+     * reachably reports the program as not configured — so an outage is never
+     * mislabeled as "the referral program isn't live".
+     */
+    reachable: boolean;
 }
 
 function pickFiniteNumberFromRecord(obj: Record<string, unknown>, keys: string[]): number {
@@ -382,7 +389,7 @@ function pickNonEmptyString(obj: Record<string, unknown>, keys: string[]): strin
 export function normalizeReferralStats(raw: unknown, walletAddress: string): ReferralStatsNormalized {
     const fallbackCode = referralCodeFromWallet(walletAddress) ?? '';
     if (!raw || typeof raw !== 'object') {
-        return { referees: 0, totalEarned: 0, pendingClaim: 0, code: fallbackCode, live: false };
+        return { referees: 0, totalEarned: 0, pendingClaim: 0, code: fallbackCode, live: false, reachable: true };
     }
     const o = raw as Record<string, unknown>;
     const referees = Math.max(
@@ -397,7 +404,7 @@ export function normalizeReferralStats(raw: unknown, walletAddress: string): Ref
     // program is configured. Anything else (offline, missing field) is false so
     // the UI never implies a working rewards balance that doesn't exist.
     const live = o.live === true;
-    return { referees, totalEarned, pendingClaim, code, live };
+    return { referees, totalEarned, pendingClaim, code, live, reachable: true };
 }
 
 const EMPTY_REFERRAL_STATS: ReferralStatsNormalized = {
@@ -406,6 +413,7 @@ const EMPTY_REFERRAL_STATS: ReferralStatsNormalized = {
     pendingClaim: 0,
     code: '',
     live: false,
+    reachable: true,
 };
 
 const REFERRAL_LIKE_BODY_KEYS = [
@@ -446,16 +454,16 @@ export function useReferralStats() {
             try {
                 response = await fetch(`${API_BASE_URL}/referrals/stats?address=${encodeURIComponent(address)}`);
             } catch {
-                return normalizeReferralStats(null, address);
+                return { ...normalizeReferralStats(null, address), reachable: false };
             }
             let body: Record<string, unknown> = {};
             try {
                 body = (await response.json()) as Record<string, unknown>;
             } catch {
-                return normalizeReferralStats(null, address);
+                return { ...normalizeReferralStats(null, address), reachable: false };
             }
             if (!response.ok) {
-                return normalizeReferralStats(null, address);
+                return { ...normalizeReferralStats(null, address), reachable: false };
             }
             const payload = referralStatsPayloadFromApiBody(body);
             return normalizeReferralStats(payload, address);

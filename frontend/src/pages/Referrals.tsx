@@ -18,6 +18,9 @@ export function ReferralsPage() {
     // from ReferralRegistry/VaultCore. Until then we keep the shareable link
     // (wallet-derived) but never imply real rewards balances exist.
     const programLive = stats.live;
+    // When the backend can't be reached we genuinely don't know the program's
+    // status, so we must not assert "not live" (the program may well be live).
+    const statusUnknown = stats.reachable === false;
 
     const handleCopy = async () => {
         if (!link) return;
@@ -104,8 +107,8 @@ export function ReferralsPage() {
                                 </div>
                                 <div className="p-4 bg-surface-3/50 rounded-lg border border-[var(--border-color)] text-center">
                                     <div className="text-text-secondary text-xs uppercase tracking-wider font-bold mb-1">Status</div>
-                                    <div className={clsx('text-lg sm:text-2xl font-bold', programLive ? 'text-emerald-400' : 'text-text-muted')}>
-                                        {loading ? <Skeleton className="h-8 w-24 mx-auto" /> : programLive ? 'Active' : 'Coming Soon'}
+                                    <div className={clsx('text-lg sm:text-2xl font-bold', programLive ? 'text-emerald-400' : statusUnknown ? 'text-amber-400' : 'text-text-muted')}>
+                                        {loading ? <Skeleton className="h-8 w-24 mx-auto" /> : programLive ? 'Active' : statusUnknown ? 'Unavailable' : 'Coming Soon'}
                                     </div>
                                 </div>
                             </div>
@@ -120,7 +123,18 @@ export function ReferralsPage() {
                 </p>
             ) : null}
 
-            {isConnected && !loading && !programLive ? (
+            {isConnected && !loading && statusUnknown ? (
+                <div className="max-w-2xl mx-auto">
+                    <div className="p-4 rounded-xl bg-surface-3/50 border border-dashed border-amber-500/40 text-center">
+                        <p className="text-sm text-text-secondary leading-relaxed">
+                            We couldn&apos;t reach the referral service to confirm your stats right now. Your link still
+                            works — earnings and claims will appear here once the connection is restored.
+                        </p>
+                    </div>
+                </div>
+            ) : null}
+
+            {isConnected && !loading && !statusUnknown && !programLive ? (
                 <div className="max-w-2xl mx-auto">
                     <div className="p-4 rounded-xl bg-surface-3/50 border border-dashed border-[var(--border-color)] text-center">
                         <p className="text-sm text-text-secondary leading-relaxed">

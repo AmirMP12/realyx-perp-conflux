@@ -207,6 +207,7 @@ describe('useBackend hooks', () => {
                 pendingClaim: 100,
                 code: 'CUSTOM1',
                 live: false,
+                reachable: true,
             });
         });
 
