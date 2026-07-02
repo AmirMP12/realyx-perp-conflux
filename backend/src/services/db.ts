@@ -30,7 +30,11 @@ function poolMax(): number {
 }
 
 const POOL_OPTS: pg.PoolConfig = {
-    max: poolMax(),
+    // The indexer worker needs at least 3 concurrent connections:
+    // 1 for the advisory lock client (held during full sync pulse),
+    // 1 for reconciliation queries, 1 spare for initDB/cursor writes.
+    // poolMax() can be overridden via PG_POOL_MAX env var.
+    max: Math.max(3, poolMax()),
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 30_000,
     query_timeout: 30_000,
