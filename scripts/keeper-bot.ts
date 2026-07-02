@@ -363,27 +363,53 @@ async function main() {
         }
     }
 
-    // Dynamic TWAP Seeder
+    // Dynamic TWAP Seeder with 4x Concurrency Batching
     async function pokeAllMarkets() {
         const marketAddresses = await getActiveMarkets();
         console.log(`[keeper] maintaining TWAP buffers for ${marketAddresses.length} markets...`);
-        for (const m of marketAddresses) {
-            try {
-                const feedId = await getFeedIdForMarket(m);
-                if (feedId) {
-                    const updateData = await fetchHermesUpdateData(feedId);
-                    if (updateData && updateData.length > 0) {
-                        const fee = await pyth.getUpdateFee(updateData);
-                        const txUpdate = await oracleAggregator.updatePrices(updateData, { value: fee });
-                        await txUpdate.wait(1);
+
+        // Batch them in chunks of 4 to avoid overloading the public RPC
+        const chunkSize = 4;
+        for (let i = 0; i < marketAddresses.length; i += chunkSize) {
+            const chunk = marketAddresses.slice(i, i + chunkSize);
+            console.log(
+                `[keeper] dispatching batch ${Math.floor(i / chunkSize) + 1}/${Math.ceil(marketAddresses.length / chunkSize)}: ${chunk.join(", ")}`,
+            );
+
+            await Promise.all(
+                chunk.map(async (m) => {
+                    try {
+                        const feedId = await getFeedIdForMarket(m);
+                        let updateData: string[] = [];
+                        let updateFee = 0n;
+                        if (feedId) {
+                            try {
+                                const fetched = await fetchHermesUpdateData(feedId);
+                                if (fetched && fetched.length > 0) {
+                                    updateData = fetched;
+                                    updateFee = (await withRpcRetry(
+                                        () => pyth.getUpdateFee(updateData),
+                                        "pyth.getUpdateFee",
+                                    )) as bigint;
+                                }
+                            } catch (hermesErr) {
+                                console.warn(`[keeper] Hermers update fail for market=${m}:`, errorText(hermesErr));
+                            }
+                        }
+
+                        if (updateData.length > 0) {
+                            const txUpdate = await oracleAggregator.updatePrices(updateData, { value: updateFee });
+                            await txUpdate.wait(1);
+                        }
+
+                        const txPoke = await oracleAggregator.pokeTWAP(m);
+                        await txPoke.wait(1);
+                        console.log(`[keeper] poked TWAP for market ${m} successfully.`);
+                    } catch (err) {
+                        console.warn(`[keeper] failed to poke TWAP for market ${m}:`, errorText(err));
                     }
-                }
-                const txPoke = await oracleAggregator.pokeTWAP(m);
-                await txPoke.wait(1);
-                console.log(`[keeper] poked TWAP for market ${m} successfully.`);
-            } catch (err) {
-                console.warn(`[keeper] failed to poke TWAP for market ${m}:`, errorText(err));
-            }
+                }),
+            );
         }
     }
 
