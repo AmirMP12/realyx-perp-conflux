@@ -43,7 +43,15 @@ let writePool: pg.Pool | null = null;
 let readPool: pg.Pool | null = null;
 let readPoolIsPrimary = false;
 
-function ssl() {
+/**
+ * SSL config for Postgres connections.
+ * Disabled when POSTGRES_SSL=false (e.g. Railway private network — already
+ * encrypted at the network layer and doesn't support ALPN-based TLS).
+ * Enabled with rejectUnauthorized=false for all other production connections
+ * (public proxy URLs that require SSL but use self-signed certs).
+ */
+function ssl(): { rejectUnauthorized: boolean } | undefined {
+    if (/^(0|false|no)$/i.test(process.env.POSTGRES_SSL ?? "")) return undefined;
     return process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined;
 }
 
