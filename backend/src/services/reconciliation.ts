@@ -40,10 +40,15 @@ async function indexedOpenInterestUsd(): Promise<number | null> {
   if (!pool || !process.env.POSTGRES_URL) return null;
   try {
     const res = await pool.query(`
-      SELECT COALESCE(SUM(o.size_raw), 0) / 1e18 AS oi
+      SELECT COALESCE(SUM(
+        COALESCE(
+          o.size_raw,
+          CASE WHEN (o.data::jsonb->>4) ~ '^[0-9]+$' THEN (o.data::jsonb->>4)::numeric END,
+          0::numeric
+        )
+      ), 0) / 1e18 AS oi
       FROM position_events o
       WHERE o.event_type = 'PositionOpened'
-        AND o.size_raw IS NOT NULL
         AND NOT EXISTS (
           SELECT 1 FROM position_events c
           WHERE c.event_type IN ('PositionClosed', 'PositionLiquidated')

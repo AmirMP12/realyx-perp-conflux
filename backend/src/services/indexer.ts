@@ -128,7 +128,10 @@ const PROTOCOL_CUMULATIVE_VOLUME_SQL = `
   WITH opened_sizes AS (
     SELECT DISTINCT ON (position_id)
       position_id,
-      size_raw
+      COALESCE(
+        size_raw,
+        CASE WHEN (data::jsonb->>4) ~ '^[0-9]+$' THEN (data::jsonb->>4)::numeric END
+      ) AS size_raw
     FROM position_events
     WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
     ORDER BY position_id, id ASC
@@ -136,8 +139,12 @@ const PROTOCOL_CUMULATIVE_VOLUME_SQL = `
   SELECT 
     COALESCE(SUM(
       CASE
-        WHEN c.event_type = 'PositionOpened' AND c.size_raw IS NOT NULL
-          THEN c.size_raw / POWER(10::numeric, 18)
+        WHEN c.event_type = 'PositionOpened'
+          THEN COALESCE(
+            c.size_raw,
+            CASE WHEN (c.data::jsonb->>4) ~ '^[0-9]+$' THEN (c.data::jsonb->>4)::numeric END,
+            0::numeric
+          ) / POWER(10::numeric, 18)
         WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
           THEN o.size_raw / POWER(10::numeric, 18)
         ELSE 0::numeric
@@ -153,7 +160,10 @@ const PROTOCOL_VOLUME_24H_SQL = `
   WITH opened_sizes AS (
     SELECT DISTINCT ON (position_id)
       position_id,
-      size_raw
+      COALESCE(
+        size_raw,
+        CASE WHEN (data::jsonb->>4) ~ '^[0-9]+$' THEN (data::jsonb->>4)::numeric END
+      ) AS size_raw
     FROM position_events
     WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
     ORDER BY position_id, id ASC
@@ -161,8 +171,12 @@ const PROTOCOL_VOLUME_24H_SQL = `
   SELECT 
     COALESCE(SUM(
       CASE
-        WHEN c.event_type = 'PositionOpened' AND c.size_raw IS NOT NULL
-          THEN c.size_raw / POWER(10::numeric, 18)
+        WHEN c.event_type = 'PositionOpened'
+          THEN COALESCE(
+            c.size_raw,
+            CASE WHEN (c.data::jsonb->>4) ~ '^[0-9]+$' THEN (c.data::jsonb->>4)::numeric END,
+            0::numeric
+          ) / POWER(10::numeric, 18)
         WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
           THEN o.size_raw / POWER(10::numeric, 18)
         ELSE 0::numeric
@@ -183,7 +197,10 @@ const MARKET_VOLUME_24H_SQL = `
   WITH opened_sizes AS (
     SELECT DISTINCT ON (position_id)
       position_id,
-      size_raw,
+      COALESCE(
+        size_raw,
+        CASE WHEN (data::jsonb->>4) ~ '^[0-9]+$' THEN (data::jsonb->>4)::numeric END
+      ) AS size_raw,
       market_id AS open_market_id
     FROM position_events
     WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
@@ -196,8 +213,12 @@ const MARKET_VOLUME_24H_SQL = `
     END) AS market_id,
     COALESCE(SUM(
       CASE
-        WHEN c.event_type = 'PositionOpened' AND c.size_raw IS NOT NULL
-          THEN c.size_raw / POWER(10::numeric, 18)
+        WHEN c.event_type = 'PositionOpened'
+          THEN COALESCE(
+            c.size_raw,
+            CASE WHEN (c.data::jsonb->>4) ~ '^[0-9]+$' THEN (c.data::jsonb->>4)::numeric END,
+            0::numeric
+          ) / POWER(10::numeric, 18)
         WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
           THEN o.size_raw / POWER(10::numeric, 18)
         ELSE 0::numeric
@@ -668,7 +689,11 @@ export async function fetchLeaderboard(
         SELECT DISTINCT ON (position_id)
           position_id,
           account,
-          COALESCE(size_raw, 0) AS size_raw,
+          COALESCE(
+            size_raw,
+            CASE WHEN (data::jsonb->>4) ~ '^[0-9]+$' THEN (data::jsonb->>4)::numeric END,
+            0::numeric
+          ) AS size_raw,
           COALESCE(leverage_raw, 0) AS leverage_raw
         FROM position_events
         WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
@@ -716,7 +741,7 @@ export async function fetchLeaderboard(
         COALESCE(SUM(e.pnl_raw), 0)::text AS total_realized_pnl,
         COALESCE(SUM(
           CASE
-            WHEN o.size_raw IS NOT NULL
+            WHEN o.size_raw > 0
             THEN o.size_raw / POWER(10::numeric, 18)
             ELSE 0::numeric
           END
@@ -898,7 +923,10 @@ export async function fetchProtocolMetrics(
       WITH opened_sizes AS (
         SELECT DISTINCT ON (position_id)
           position_id,
-          size_raw
+          COALESCE(
+            size_raw,
+            CASE WHEN (data::jsonb->>4) ~ '^[0-9]+$' THEN (data::jsonb->>4)::numeric END
+          ) AS size_raw
         FROM position_events
         WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
         ORDER BY position_id, id ASC
@@ -907,8 +935,12 @@ export async function fetchProtocolMetrics(
         SELECT 
           date_trunc('${trunc}', COALESCE(to_timestamp(c.block_time) AT TIME ZONE 'UTC', c.created_at)) as ts,
           CASE
-            WHEN c.event_type = 'PositionOpened' AND c.size_raw IS NOT NULL
-              THEN c.size_raw
+            WHEN c.event_type = 'PositionOpened'
+              THEN COALESCE(
+                c.size_raw,
+                CASE WHEN (c.data::jsonb->>4) ~ '^[0-9]+$' THEN (c.data::jsonb->>4)::numeric END,
+                0::numeric
+              )
             WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
               THEN o.size_raw
             ELSE 0::numeric
