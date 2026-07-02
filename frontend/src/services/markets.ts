@@ -73,7 +73,7 @@ export async function getMarketStats(): Promise<MarketStats> {
     }
     const s = data.data;
     return {
-        totalVolume: parseFloat(s.volume24h ?? '0'),
+        totalVolume: parseFloat(s.cumulativeVolumeUsd ?? s.volume24h ?? '0'),
         totalOpenInterest: parseFloat(s.totalOpenInterest ?? '0'),
         activeMarkets: Number(s.totalMarkets ?? 0),
         totalTrades24h: 0, // Not exposed by current stats endpoint

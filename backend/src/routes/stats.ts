@@ -72,12 +72,20 @@ async function buildStatsPayload(): Promise<StatsData> {
       ? totalMarketsBeforeFilter 
       : markets.length;
     let volume24h = protocol?.volume24hUsd ? Number(protocol.volume24hUsd).toFixed(6) : "0";
-    const cumulativeVolumeUsd = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
-    
-    // Fallback: if global volume is 0 but we have markets with potential volume, sum them
+    let cumulativeVolumeUsd = protocol?.totalVolumeUsd ? Number(protocol.totalVolumeUsd).toFixed(6) : "0";
+
+    // Fallback: if global 24h volume is 0 but we have per-market volumes, sum them.
+    // This covers the case where the global SQL misses events the per-market SQL
+    // picks up (e.g. market_id mismatch) or when protocol fetch returned null.
     if (Number(volume24h) === 0 && markets.length > 0) {
         const sum = markets.reduce((acc, m) => acc + Number((m as any).volume24h || 0), 0);
         if (sum > 0) volume24h = sum.toFixed(6);
+    }
+
+    // Fallback: cumulative volume — use 24h as a floor when DB returns 0 for
+    // cumulative (e.g. pre-migration rows or first-boot before backfill).
+    if (Number(cumulativeVolumeUsd) === 0 && Number(volume24h) > 0) {
+        cumulativeVolumeUsd = volume24h;
     }
 
     let totalOpenInterest = "0";

@@ -357,7 +357,8 @@ export default function AnalyticsDashboard() {
         uniqueTraders: 0
     }));
 
-    const totalVolume = backendStats ? parseFloat(backendStats.volume24h) : 0;
+    const volume24h = backendStats ? parseFloat(backendStats.volume24h) : 0;
+    const totalVolume = backendStats ? parseFloat(backendStats.cumulativeVolumeUsd ?? backendStats.volume24h) : 0;
     const activeTraders24h = backendStats?.activeTraders24h ?? 0;
 
     const { realTimeLongOI, realTimeShortOI, realTimeOI } = useMemo(() => {
@@ -415,13 +416,13 @@ export default function AnalyticsDashboard() {
                 />
                 <StatCard
                     title="24h Volume"
-                    value={formatUsdStat(totalVolume)}
+                    value={formatUsdStat(volume24h)}
                     icon={<DollarSign className="w-5 h-5 md:w-6 md:h-6" />}
                     loading={statsLoading}
                 />
                 <StatCard
                     title="Total Volume"
-                    value={formatUsdStat(backendStats?.cumulativeVolumeUsd ?? 0)}
+                    value={formatUsdStat(totalVolume)}
                     icon={<DollarSign className="w-5 h-5 md:w-6 md:h-6" />}
                     loading={statsLoading}
                 />

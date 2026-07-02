@@ -299,7 +299,8 @@ export async function fetchProtocol(): Promise<Protocol | null> {
       totalLiquidations: String(liq),
       tvl: "0",
     };
-  } catch {
+  } catch (e) {
+    logger.error({ err: e }, "fetchProtocol query failed");
     return null;
   }
 }
