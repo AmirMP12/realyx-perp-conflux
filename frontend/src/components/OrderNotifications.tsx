@@ -54,9 +54,19 @@ const defaultSettings: NotificationSettings = {
     soundEnabled: false
 };
 
-export function useOrderNotifications() {
+export interface OrderNotificationsOptions {
+    /** Called whenever an order is executed or a position is opened/closed/liquidated. Use to trigger an immediate data refetch. */
+    onOrderExecuted?: () => void;
+}
+
+export function useOrderNotifications(options: OrderNotificationsOptions = {}) {
     const { address } = useAccount();
     const { positions } = usePositions();
+    const onOrderExecutedRef = useRef(options.onOrderExecuted);
+    // Keep the ref in sync so the callback in handleWebSocketMessage is always current.
+    useEffect(() => {
+        onOrderExecutedRef.current = options.onOrderExecuted;
+    }, [options.onOrderExecuted]);
     const [connected, setConnected] = useState(false);
     const [notifications, setNotifications] = useState<OrderNotification[]>([]);
     const [settings, setSettings] = useState<NotificationSettings>(() => {
@@ -166,6 +176,13 @@ export function useOrderNotifications() {
             if (notification && shouldShowNotification(notification, settingsRef.current)) {
                 showNotification(notification, settingsRef.current);
                 setNotifications((prev: any) => [notification, ...prev].slice(0, 50));
+            }
+            // Trigger a data refetch whenever an order or position changes state so the
+            // positions panel and pending-orders list update immediately without waiting
+            // for the next polling interval.
+            const refetchEvents = ['OrderExecuted', 'OrderCancelled', 'OrderExpired', 'PositionOpened', 'PositionClosed', 'PositionLiquidated'];
+            if (refetchEvents.includes(data.data?.event)) {
+                onOrderExecutedRef.current?.();
             }
             return;
         }

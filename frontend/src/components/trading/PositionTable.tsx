@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Edit2, Shield, Wallet, Clock, FileText, ArrowRightLeft } from 'lucide-react';
 import clsx from 'clsx';
@@ -18,6 +18,7 @@ import { TransferPositionModal } from './TransferPositionModal';
 import { Skeleton } from '../ui/Skeleton';
 import { FlashValue } from '../ui/FlashValue';
 import { formatPriceWithPrecision } from '../../utils/format';
+import { useOrderNotifications } from '../OrderNotifications';
 
 function fmtUsdPrice(n: number): string {
     return `$${formatPriceWithPrecision(n)}`;
@@ -73,6 +74,19 @@ export function PositionTable({
     const [activeTransferPos, setActiveTransferPos] = useState<Position | null>(null);
 
     const { orders: pendingOrders, loading: ordersLoading, refetch: refetchOrders } = usePendingOrders();
+
+    // Auto-refresh positions and pending orders when an order is executed or a
+    // position opens/closes. The WebSocket notification arrives before the next
+    // polling interval, so this keeps the UI in sync without a manual refresh.
+    const onOrderExecuted = useCallback(() => {
+        // Small delay lets the chain state settle before we re-read it.
+        setTimeout(() => {
+            fetchPositions();
+            refetchOrders();
+        }, 1500);
+    }, [fetchPositions, refetchOrders]);
+
+    useOrderNotifications({ onOrderExecuted });
 
     const [slTpStopLoss, setSlTpStopLoss] = useState('');
     const [slTpTakeProfit, setSlTpTakeProfit] = useState('');
