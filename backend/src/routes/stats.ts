@@ -119,6 +119,7 @@ router.get("/", async (_req: Request, res: Response) => {
       data: {
         totalMarkets: 0,
         volume24h: "0",
+        cumulativeVolumeUsd: "0",
         totalOpenInterest: "0",
         totalLiquidations: "0",
         activeTraders24h: 0,

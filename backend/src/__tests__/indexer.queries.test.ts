@@ -9,6 +9,8 @@ jest.mock("../services/db.js", () => ({
   __esModule: true,
   getReadPool: () => readPool,
   getWritePool: () => writePool,
+  getEffectiveReadPool: async () => readPool,
+  isUsingReadReplica: () => false,
   resetPools: jest.fn(),
 }));
 

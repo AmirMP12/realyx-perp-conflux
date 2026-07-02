@@ -494,7 +494,9 @@ export async function runSync(options?: { fromBlock?: number }) {
       "CopierConfigUpdated(address,address,uint256,uint8)",
     ].map((sig) => ethers.id(sig));
 
-    let startBlock = 248000000; // 248M (April 14th deployment) — avoids scanning empty history
+    // First-sync start height. Override with INDEXER_START_BLOCK on testnet to
+    // skip millions of empty blocks (e.g. 255580000 when trading began ~255584k).
+    let startBlock = Math.max(0, Number(process.env.INDEXER_START_BLOCK ?? "248000000") || 248000000);
     let resumedFromCursor = false;
     let reorgDepth = 0;
     const stateResult = await pool.query(`SELECT last_synced_block FROM indexer_state WHERE key = 'trading_core'`);
@@ -560,7 +562,15 @@ export async function runSync(options?: { fromBlock?: number }) {
     // success. A single oversized/failing range can no longer wedge the loop.
     let chunk = MAX_CHUNK;
     const startTime = Date.now();
-    const TIMEOUT_MS = 7500; // 7.5s safety limit for short-lived/serverless invocations
+    // API lazy-sync keeps a short budget; the dedicated worker gets a much
+    // larger window so each pulse can scan a meaningful range toward head.
+    const TIMEOUT_MS = Math.max(
+      1000,
+      Number(
+        process.env.INDEXER_PULSE_TIMEOUT_MS ??
+          (/^(1|true|yes)$/i.test(process.env.INDEXER_WORKER ?? "") ? "120000" : "7500"),
+      ) || 7500,
+    );
 
     while (currentStart <= latestBlock) {
       if (Date.now() - startTime > TIMEOUT_MS) {

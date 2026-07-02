@@ -1,4 +1,4 @@
-import { getWritePool, getReadPool, resetPools } from "./db.js";
+import { getWritePool, getEffectiveReadPool, resetPools } from "./db.js";
 import { logger } from "../logger.js";
 
 /**
@@ -6,7 +6,7 @@ import { logger } from "../logger.js";
  * for every query. Reads now prefer the replica (when `POSTGRES_READ_URL` is
  * set) and writes always hit the primary, but the existing call sites keep
  * working: `getPool()` returns the primary (writer) so write paths are
- * unaffected, while read helpers below call `getReadPool()` explicitly.
+ * unaffected, while read helpers below call `getEffectiveReadPool()` explicitly.
  */
 export function resetPool(): void {
   resetPools();
@@ -15,8 +15,8 @@ export function getPool(): any {
   return getWritePool();
 }
 /** Reader pool for the heavy, user-agnostic aggregate scans. */
-function getQueryPool(): any {
-  return getReadPool();
+async function getQueryPool(): Promise<any> {
+  return getEffectiveReadPool();
 }
 
 
@@ -172,8 +172,72 @@ const PROTOCOL_VOLUME_24H_SQL = `
   LEFT JOIN opened_sizes o ON o.position_id = c.position_id
   WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
     AND c.position_id IS NOT NULL
-    AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '24 hours'))
+    AND (
+      (c.block_time IS NOT NULL AND c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint)
+      OR
+      (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '24 hours')
+    )
 `;
+
+const MARKET_VOLUME_24H_SQL = `
+  WITH opened_sizes AS (
+    SELECT DISTINCT ON (position_id)
+      position_id,
+      size_raw,
+      market_id AS open_market_id
+    FROM position_events
+    WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
+    ORDER BY position_id, id ASC
+  )
+  SELECT 
+    LOWER(CASE 
+      WHEN c.market_id IS NOT NULL AND c.market_id <> '0x' THEN c.market_id
+      ELSE o.open_market_id
+    END) AS market_id,
+    COALESCE(SUM(
+      CASE
+        WHEN c.event_type = 'PositionOpened' AND c.size_raw IS NOT NULL
+          THEN c.size_raw / POWER(10::numeric, 18)
+        WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
+          THEN o.size_raw / POWER(10::numeric, 18)
+        ELSE 0::numeric
+      END
+    ), 0)::text AS volume24h,
+    COUNT(*)::int AS trades24h
+  FROM position_events c
+  LEFT JOIN opened_sizes o ON o.position_id = c.position_id
+  WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
+    AND c.position_id IS NOT NULL
+    AND (
+      (c.block_time IS NOT NULL AND c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint)
+      OR
+      (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '24 hours')
+    )
+  GROUP BY 1
+`;
+
+/** Per-market 24h volume from indexed events (empty map when DB unavailable). */
+export async function fetchPerMarketVolume24hMap(): Promise<Map<string, { volume24h: string; trades24h: number }>> {
+  const out = new Map<string, { volume24h: string; trades24h: number }>();
+  if (!process.env.POSTGRES_URL) return out;
+  try {
+    const pool = await getQueryPool();
+    if (!pool) return out;
+    const statsRes = await pool.query(MARKET_VOLUME_24H_SQL);
+    for (const row of statsRes.rows) {
+      const mId = String(row.market_id || "").toLowerCase().trim();
+      if (mId && mId !== "0x") {
+        out.set(mId, {
+          volume24h: String(row.volume24h ?? "0"),
+          trades24h: Number(row.trades24h) || 0,
+        });
+      }
+    }
+  } catch (e) {
+    logger.error({ err: e }, "Per-market volume query failed");
+  }
+  return out;
+}
 
 export async function fetchProtocol(): Promise<Protocol | null> {
   if (!process.env.POSTGRES_URL) {
@@ -181,7 +245,7 @@ export async function fetchProtocol(): Promise<Protocol | null> {
     return null;
   }
   try {
-    const pool = getQueryPool();
+    const pool = await getQueryPool();
     if (!pool) return null;
     const [res, vol24Res, volTotalRes] = await Promise.all([
       pool.query(`SELECT event_type, COUNT(*) as count FROM position_events GROUP BY event_type`),
@@ -226,7 +290,7 @@ export async function fetchProtocol(): Promise<Protocol | null> {
 export async function fetchActiveTraders24h(): Promise<number> {
   if (!process.env.POSTGRES_URL) return 0;
   try {
-    const pool = getQueryPool();
+    const pool = await getQueryPool();
     if (!pool) return 0;
     const res = await pool.query(`
       WITH opened_for_liq AS (
@@ -242,14 +306,22 @@ export async function fetchActiveTraders24h(): Promise<number> {
         FROM position_events
         WHERE event_type IN ('PositionOpened', 'PositionClosed')
           AND position_id IS NOT NULL
-          AND created_at >= NOW() - INTERVAL '24 hours'
+          AND (
+            (block_time IS NOT NULL AND block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint)
+            OR
+            (block_time IS NULL AND created_at >= NOW() - INTERVAL '24 hours')
+          )
         UNION
         SELECT o.trader AS w
         FROM position_events c
         INNER JOIN opened_for_liq o ON o.position_id = c.position_id
         WHERE c.event_type = 'PositionLiquidated'
           AND c.position_id IS NOT NULL
-          AND c.created_at >= NOW() - INTERVAL '24 hours'
+          AND (
+            (c.block_time IS NOT NULL AND c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint)
+            OR
+            (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '24 hours')
+          )
       )
       SELECT COUNT(DISTINCT w)::int AS n FROM recent WHERE w IS NOT NULL AND w LIKE '0x%'
     `);
@@ -269,52 +341,15 @@ export async function fetchMarkets(): Promise<Market[]> {
     const onchainRaw = await fetchMarketsOnChain();
     const onchainMap = new Map(onchainRaw.map(m => [m.marketAddress.toLowerCase(), m]));
     
-    const pool = getQueryPool();
+    const pool = await getQueryPool();
     const hasDB = Boolean(process.env.POSTGRES_URL && pool);
 
     // Fetch 24h stats from DB
     const statsMap = new Map();
     if (hasDB) {
       try {
-        const statsRes = await pool.query(`
-          WITH opened_sizes AS (
-            SELECT DISTINCT ON (position_id)
-              position_id,
-              size_raw,
-              market_id AS open_market_id
-            FROM position_events
-            WHERE event_type = 'PositionOpened' AND position_id IS NOT NULL
-            ORDER BY position_id, id ASC
-          )
-          SELECT 
-            LOWER(CASE 
-              WHEN c.market_id IS NOT NULL AND c.market_id <> '0x' THEN c.market_id
-              ELSE o.open_market_id
-            END) AS market_id,
-            COALESCE(SUM(
-              CASE
-                WHEN c.event_type = 'PositionOpened' AND c.size_raw IS NOT NULL
-                  THEN c.size_raw / POWER(10::numeric, 18)
-                WHEN c.event_type IN ('PositionClosed', 'PositionLiquidated') AND o.size_raw IS NOT NULL
-                  THEN o.size_raw / POWER(10::numeric, 18)
-                ELSE 0::numeric
-              END
-            ), 0)::text AS volume24h,
-            COUNT(*)::int AS trades24h
-          FROM position_events c
-          LEFT JOIN opened_sizes o ON o.position_id = c.position_id
-          WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
-            AND c.position_id IS NOT NULL
-            AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '24 hours'))
-          GROUP BY 1
-        `);
-
-        statsRes.rows.forEach((row: any) => {
-          const m_id = String(row.market_id || "").toLowerCase().trim();
-          if (m_id && m_id !== "0x") {
-            statsMap.set(m_id, row);
-          }
-        });
+        const perMarket = await fetchPerMarketVolume24hMap();
+        perMarket.forEach((row, m_id) => statsMap.set(m_id, row));
       } catch (e) {
         logger.error({ err: e }, "Market-volume query failed");
       }
@@ -377,7 +412,7 @@ export async function fetchUserPositions(traderAddress: string): Promise<Positio
   const trader = traderAddress.toLowerCase();
   if (!trader.startsWith("0x") || !process.env.POSTGRES_URL) return [];
   try {
-    const pool = getQueryPool();
+    const pool = await getQueryPool();
     if (!pool) return [];
     const res = await pool.query(
       `SELECT o.* 
@@ -464,7 +499,7 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
   const trader = traderAddress.toLowerCase();
   if (!trader.startsWith("0x") || !process.env.POSTGRES_URL) return [];
   try {
-    const pool = getQueryPool();
+    const pool = await getQueryPool();
     if (!pool) return [];
     // UNION events where user is account (direct action) OR where user is the trader whose position was liquidated
     const res = await pool.query(
@@ -591,8 +626,20 @@ export async function fetchUserTrades(traderAddress: string, limit: number): Pro
 export type LeaderboardTimeframe = "all" | "24h" | "7d";
 
 export function leaderboardTimeFilter(timeframe: LeaderboardTimeframe, tableAlias: string): string {
-  if (timeframe === "24h") return `AND ${tableAlias}.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '24 hours'))`;
-  if (timeframe === "7d") return `AND ${tableAlias}.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '7 days'))`;
+  if (timeframe === "24h") {
+    return `AND (
+      (${tableAlias}.block_time IS NOT NULL AND ${tableAlias}.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '24 hours'))::bigint)
+      OR
+      (${tableAlias}.block_time IS NULL AND ${tableAlias}.created_at >= NOW() - INTERVAL '24 hours')
+    )`;
+  }
+  if (timeframe === "7d") {
+    return `AND (
+      (${tableAlias}.block_time IS NOT NULL AND ${tableAlias}.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '7 days'))::bigint)
+      OR
+      (${tableAlias}.block_time IS NULL AND ${tableAlias}.created_at >= NOW() - INTERVAL '7 days')
+    )`;
+  }
   return "";
 }
 
@@ -608,7 +655,7 @@ export async function fetchLeaderboard(
 ): Promise<User[]> {
   if (!process.env.POSTGRES_URL) return [];
   try {
-    const pool = getQueryPool();
+    const pool = await getQueryPool();
     if (!pool) return [];
     const safeLimit = Math.min(Math.max(limit, 1), 100);
     const tf: LeaderboardTimeframe =
@@ -741,7 +788,7 @@ export async function insertKeeperFailure(failure: Omit<KeeperFailure, 'id' | 't
 export async function fetchKeeperFailures(traderAddress: string, limit: number = 20): Promise<KeeperFailure[]> {
   if (!process.env.POSTGRES_URL) return [];
   try {
-    const pool = getQueryPool();
+    const pool = await getQueryPool();
     if (!pool) return [];
     const res = await pool.query(
       `SELECT id, order_id, trader_address, market_address, failure_reason, selector, created_at
@@ -775,7 +822,7 @@ export async function fetchKeeperFailures(traderAddress: string, limit: number =
 export async function fetchBadDebtClaims(limit: number): Promise<BadDebtClaim[]> {
   if (!process.env.POSTGRES_URL) return [];
   try {
-    const pool = getQueryPool();
+    const pool = await getQueryPool();
     if (!pool) return [];
     const safeLimit = Math.min(Math.max(Math.trunc(Number(limit) || 0), 1), 50);
     const res = await pool.query(
@@ -815,7 +862,7 @@ export async function fetchReferralEarned(referrer: string): Promise<string | nu
   const addr = referrer.toLowerCase();
   if (!addr.startsWith("0x") || !process.env.POSTGRES_URL) return null;
   try {
-    const pool = getQueryPool();
+    const pool = await getQueryPool();
     if (!pool) return null;
     const res = await pool.query(
       `SELECT COALESCE(SUM(amount), 0)::text AS total
@@ -836,7 +883,7 @@ export async function fetchProtocolMetrics(
 ): Promise<ProtocolMetric[]> {
   if (!process.env.POSTGRES_URL) return [];
   try {
-    const pool = getQueryPool();
+    const pool = await getQueryPool();
     if (!pool) return [];
 
     // Whitelist the period unit and coerce the limit to a bounded integer so
@@ -858,7 +905,7 @@ export async function fetchProtocolMetrics(
       ),
       event_metrics AS (
         SELECT 
-          date_trunc('${trunc}', to_timestamp(c.block_time) AT TIME ZONE 'UTC') as ts,
+          date_trunc('${trunc}', COALESCE(to_timestamp(c.block_time) AT TIME ZONE 'UTC', c.created_at)) as ts,
           CASE
             WHEN c.event_type = 'PositionOpened' AND c.size_raw IS NOT NULL
               THEN c.size_raw
@@ -876,7 +923,11 @@ export async function fetchProtocolMetrics(
         LEFT JOIN opened_sizes o ON o.position_id = c.position_id
         WHERE c.event_type IN ('PositionOpened', 'PositionClosed', 'PositionLiquidated')
           AND c.position_id IS NOT NULL
-          AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '${intervalLiteral}'))
+          AND (
+            (c.block_time IS NOT NULL AND c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '${intervalLiteral}'))::bigint)
+            OR
+            (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '${intervalLiteral}')
+          )
       )
       SELECT 
         ts::text as timestamp_text,

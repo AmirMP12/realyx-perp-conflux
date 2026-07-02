@@ -108,7 +108,11 @@ async function buildYieldPayload(): Promise<VaultYieldPayload> {
           LEFT JOIN opened_sizes o ON o.position_id = c.position_id
           WHERE c.event_type IN ('PositionOpened','PositionClosed','PositionLiquidated')
             AND c.position_id IS NOT NULL
-            AND c.block_time >= EXTRACT(EPOCH FROM (NOW() AT TIME ZONE 'UTC' - INTERVAL '30 days'))
+            AND (
+              (c.block_time IS NOT NULL AND c.block_time >= EXTRACT(EPOCH FROM (NOW() - INTERVAL '30 days'))::bigint)
+              OR
+              (c.block_time IS NULL AND c.created_at >= NOW() - INTERVAL '30 days')
+            )
           GROUP BY 1
           ORDER BY 1 ASC
         )

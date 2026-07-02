@@ -1,4 +1,5 @@
 import pg from "pg";
+import { logger } from "../logger.js";
 
 /**
  * Database access with optional read-replica routing.
@@ -79,8 +80,63 @@ export function isUsingReadReplica(): boolean {
     return !readPoolIsPrimary && Boolean((process.env.POSTGRES_READ_URL ?? "").trim());
 }
 
+/** When a replica is configured but empty while the primary has events, route reads to primary. */
+let replicaStaleFallback = false;
+let replicaStaleCheckedAt = 0;
+const REPLICA_STALE_RECHECK_MS = 60_000;
+
+/**
+ * Pool for read-heavy API aggregates. Falls back to the primary when no replica
+ * is configured, replica construction failed, or the replica appears empty
+ * while the primary already has indexed events (common misconfiguration).
+ */
+export async function getEffectiveReadPool(): Promise<pg.Pool | null> {
+    const read = getReadPool();
+    const write = getWritePool();
+    if (!read) return write;
+    if (!write || !isUsingReadReplica()) return read;
+
+    const now = Date.now();
+    if (replicaStaleFallback && now - replicaStaleCheckedAt < REPLICA_STALE_RECHECK_MS) {
+        return write;
+    }
+    if (now - replicaStaleCheckedAt < REPLICA_STALE_RECHECK_MS && !replicaStaleFallback) {
+        return read;
+    }
+
+    replicaStaleCheckedAt = now;
+    try {
+        const [readCount, writeCount] = await Promise.all([
+            read.query("SELECT COUNT(*)::int AS n FROM position_events"),
+            write.query("SELECT COUNT(*)::int AS n FROM position_events"),
+        ]);
+        const rN = Number(readCount.rows[0]?.n ?? 0);
+        const wN = Number(writeCount.rows[0]?.n ?? 0);
+        if (wN > 0 && rN === 0) {
+            if (!replicaStaleFallback) {
+                logger.warn(
+                    { primaryEvents: wN, replicaEvents: rN },
+                    "[db] read replica is empty but primary has indexed events — falling back to primary for reads",
+                );
+            }
+            replicaStaleFallback = true;
+            return write;
+        }
+        replicaStaleFallback = false;
+        return read;
+    } catch (e) {
+        logger.warn(
+            { err: e instanceof Error ? e.message : e },
+            "[db] replica health check failed — using read pool",
+        );
+        return read;
+    }
+}
+
 export function resetPools(): void {
     writePool = null;
     readPool = null;
     readPoolIsPrimary = false;
+    replicaStaleFallback = false;
+    replicaStaleCheckedAt = 0;
 }

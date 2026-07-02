@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { fetchMarkets, fetchProtocol } from "../services/indexer.js";
+import { fetchMarkets, fetchProtocol, fetchPerMarketVolume24hMap } from "../services/indexer.js";
 import { getActiveMarketAddresses } from "../services/activeMarkets.js";
 import { fetchCoinGeckoPrices, getCoinGeckoIdForMarket, fetchPriceHistory } from "../services/coingecko.js";
 import { fetchPythPrices, fetchPyth24hChange, getPythTvSymbol, fetchPythPriceHistory, fetchPythPriceHistoryHermes, getPythFeedId } from "../services/pyth.js";
@@ -46,6 +46,16 @@ function buildFallbackMarkets(): BackendMarket[] {
   }));
 }
 
+async function applyDbVolumeToMarkets(markets: BackendMarket[]): Promise<BackendMarket[]> {
+  const volMap = await fetchPerMarketVolume24hMap();
+  if (volMap.size === 0) return markets;
+  return markets.map((m) => {
+    const stats = volMap.get(m.marketAddress.toLowerCase());
+    if (!stats || Number(stats.volume24h) === 0) return m;
+    return { ...m, volume24h: stats.volume24h };
+  });
+}
+
 // ── Shared response cache for /markets (memory or Redis; user-agnostic) ──
 const MARKETS_CACHE_KEY = "api:markets:v1";
 const MARKETS_RESPONSE_TTL_MS = 5_000;
@@ -82,11 +92,13 @@ async function buildMarketsPayload(): Promise<MarketsPayload> {
         }
         const pythPrice = pythPrices[addr];
         if (pythPrice != null && pythPrice > 0) indexPrice = String(pythPrice);
-        return { ...m, indexPrice, lastPrice: indexPrice, volume24h: "0", ...(change24h !== undefined && { change24h }) };
+        return { ...m, indexPrice, lastPrice: indexPrice, ...(change24h !== undefined && { change24h }) };
       });
-      return { data: enriched, fallback: true };
+      const withVolume = await applyDbVolumeToMarkets(enriched);
+      return { data: withVolume, fallback: true };
     } catch {
-      return { data: fallback, fallback: true };
+      const withVolume = await applyDbVolumeToMarkets(fallback);
+      return { data: withVolume, fallback: true };
     }
   }
   const activeSet = await getActiveMarketAddresses();
@@ -184,9 +196,10 @@ async function buildMarketsFallbackPayload(): Promise<MarketsPayload> {
       if (change24h === undefined) change24h = cg[cgId].change24h;
     }
     if (pyth[addr] != null && pyth[addr] > 0) indexPrice = String(pyth[addr]);
-    return { ...m, indexPrice, lastPrice: indexPrice, volume24h: "0", ...(change24h !== undefined && { change24h }) };
+    return { ...m, indexPrice, lastPrice: indexPrice, ...(change24h !== undefined && { change24h }) };
   });
-  return { data: enriched, fallback: true };
+  const withVolume = await applyDbVolumeToMarkets(enriched);
+  return { data: withVolume, fallback: true };
 }
 
 router.get("/", async (_req: Request, res: Response) => {

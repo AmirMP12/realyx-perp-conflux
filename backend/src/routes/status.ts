@@ -130,8 +130,25 @@ async function buildStatusPayload(): Promise<StatusPayload> {
   // Indexer
   try {
     const t0 = Date.now();
-    await fetchProtocol();
-    components.push({ key: "indexer", label: "Indexer", status: "operational", latencyMs: Date.now() - t0 });
+    const protocol = await fetchProtocol();
+    const indexedTrades = protocol ? Number(protocol.totalTrades) || 0 : 0;
+    const indexedVolume = protocol ? Number(protocol.totalVolumeUsd) || 0 : 0;
+    const indexerStatus: Health =
+      !protocol
+        ? "degraded"
+        : indexedTrades === 0 && indexedVolume === 0
+          ? "degraded"
+          : "operational";
+    components.push({
+      key: "indexer",
+      label: "Indexer",
+      status: indexerStatus,
+      detail:
+        protocol
+          ? `${indexedTrades} trades · $${indexedVolume.toFixed(0)} vol`
+          : "no database",
+      latencyMs: Date.now() - t0,
+    });
   } catch (e) {
     components.push({ key: "indexer", label: "Indexer", status: "degraded", detail: e instanceof Error ? e.message : "error" });
   }

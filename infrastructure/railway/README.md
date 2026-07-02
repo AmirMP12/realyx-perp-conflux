@@ -87,6 +87,8 @@ CORS_ORIGINS=https://<your-frontend-domain>
 NODE_ENV=production
 POSTGRES_URL=${{Postgres.DATABASE_URL}}
 INDEXER_INTERVAL_MS=5000
+# Skip ~7M empty blocks on testnet — set near first trading activity (~255584k)
+INDEXER_START_BLOCK=255580000
 ```
 
 ### keeper

@@ -201,6 +201,11 @@ async function main() {
     const keeperApiBaseUrl = process.env.KEEPER_API_BASE_URL || "http://localhost:3001";
     const lookbackBlocks = BigInt(Math.max(1, Number(process.env.KEEPER_LOOKBACK_BLOCKS ?? "5000")));
     const blockChunkSize = BigInt(Math.max(100, Number(process.env.KEEPER_BLOCK_CHUNK_SIZE ?? "500")));
+    // Cap how many blocks we scan per main-loop tick so order dispatch is not blocked
+    // behind a multi-minute historical backfill (especially with KEEPER_START_BLOCK).
+    const maxBlocksPerLoop = BigInt(
+        Math.max(Number(blockChunkSize), Number(process.env.KEEPER_MAX_BLOCKS_PER_LOOP ?? "5000")),
+    );
     const confirmations = BigInt(Math.max(0, Number(process.env.KEEPER_CONFIRMATIONS ?? "0")));
     const hermesBase = (process.env.KEEPER_HERMES_URL || "https://hermes.pyth.network").replace(/\/+$/, "");
     const rpcRetryBaseDelayMs = Math.max(100, Number(process.env.KEEPER_RPC_RETRY_BASE_DELAY_MS ?? "300"));
@@ -593,6 +598,7 @@ async function main() {
 
             if (safeHead > cursor) {
                 let from = cursor + 1n;
+                let blocksScannedThisLoop = 0n;
                 while (from <= safeHead) {
                     const to = from + blockChunkSize > safeHead ? safeHead : from + blockChunkSize;
                     if (to < from) break;
@@ -635,7 +641,17 @@ async function main() {
                     }
 
                     cursor = to;
+                    blocksScannedThisLoop += to - from + 1n;
                     from = to + 1n;
+
+                    // Execute discovered orders as we catch up — don't wait for full backfill.
+                    if (pending.size > 0) {
+                        dispatchPendingOrders();
+                    }
+
+                    if (blocksScannedThisLoop >= maxBlocksPerLoop) {
+                        break;
+                    }
                 }
             }
 
@@ -652,8 +668,8 @@ async function main() {
                 dispatchPendingOrders();
             }
 
-            // Periodically keep all TWAP buffers warm
-            if (nowMs - lastTwapPokeTime >= twapPokeIntervalMs) {
+            // Periodically keep all TWAP buffers warm (defer while orders are pending to save RPC budget).
+            if (pending.size === 0 && nowMs - lastTwapPokeTime >= twapPokeIntervalMs) {
                 lastTwapPokeTime = nowMs;
                 // Dispatch in background
                 (async () => {

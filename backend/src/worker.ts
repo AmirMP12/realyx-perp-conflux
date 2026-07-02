@@ -60,6 +60,9 @@ async function pulse(): Promise<void> {
 }
 
 async function loop(): Promise<void> {
+  // Signals runSync to use the long worker pulse budget (INDEXER_PULSE_TIMEOUT_MS).
+  process.env.INDEXER_WORKER = "true";
+
   if (!process.env.POSTGRES_URL) {
     log("error", "POSTGRES_URL is not set — the indexer worker has nothing to write to. Exiting.");
     process.exit(1);
