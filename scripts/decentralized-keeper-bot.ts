@@ -1,12 +1,6 @@
 import "dotenv/config";
 import { ethers } from "ethers";
-import {
-    RpcPause,
-    backoffMainLoop,
-    createRpcRetry,
-    parseBotRpcUrls,
-    sleepMs,
-} from "./lib/bot-rpc";
+import { RpcPause, backoffMainLoop, createRpcRetry, parseBotRpcUrls, sleepMs } from "./lib/bot-rpc";
 import { loadDeployment } from "./write-deployment";
 
 /**

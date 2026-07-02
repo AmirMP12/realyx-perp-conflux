@@ -16,9 +16,7 @@ export function errorText(err: unknown): string {
         const code = (err as { code?: unknown }).code;
         const nested = (err as { error?: unknown; info?: unknown }).error ?? (err as { info?: unknown }).info;
         const nestedText =
-            nested != null
-                ? ` ${JSON.stringify(nested, (_k, v) => (typeof v === "bigint" ? v.toString() : v))}`
-                : "";
+            nested != null ? ` ${JSON.stringify(nested, (_k, v) => (typeof v === "bigint" ? v.toString() : v))}` : "";
         return `${err.message} ${code ?? ""}${nestedText}`;
     }
     try {

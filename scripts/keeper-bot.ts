@@ -1,13 +1,6 @@
 import "dotenv/config";
 import { ethers } from "ethers";
-import {
-    RpcPause,
-    backoffMainLoop,
-    createRpcRetry,
-    errorText,
-    parseBotRpcUrls,
-    sleepMs,
-} from "./lib/bot-rpc";
+import { RpcPause, backoffMainLoop, createRpcRetry, errorText, parseBotRpcUrls, sleepMs } from "./lib/bot-rpc";
 import { loadDeployment } from "./write-deployment";
 
 type PendingOrder = {
@@ -32,6 +25,8 @@ const EXECUTE_ORDER_ABI = [
 const ORACLE_AGGREGATOR_ABI = [
     "function pyth() external view returns (address)",
     "function getOracleConfig(address collection) external view returns (bytes32, uint256, uint256, uint256)",
+    "function pokeTWAP(address collection) external",
+    "function updatePrices(bytes[] calldata priceUpdateData) external payable returns (uint256 feeRefund)",
 ];
 const PYTH_ABI = [
     "function getUpdateFee(bytes[] calldata updateData) external view returns (uint256)",
@@ -323,9 +318,6 @@ async function main() {
     console.log(`[keeper] pythAddress=${pythAddress}`);
     pyth = new ethers.Contract(pythAddress, PYTH_ABI, wallet);
 
-    console.log("[keeper] initialization complete.");
-    console.log("[keeper] entering main loop...");
-
     async function getFeedIdForMarket(market: string): Promise<string | null> {
         const key = market.toLowerCase();
         const cached = marketFeedCache.get(key);
@@ -349,6 +341,49 @@ async function main() {
         return updates.length > 0 ? updates : null;
     }
 
+    // Dynamic TWAP Seeder
+    async function pokeAllMarkets() {
+        const marketAddresses = (process.env.MARKET_ADDRESSES ?? "")
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        console.log(`[keeper] maintaining TWAP buffers for ${marketAddresses.length} markets...`);
+        for (const m of marketAddresses) {
+            try {
+                const feedId = await getFeedIdForMarket(m);
+                if (feedId) {
+                    const updateData = await fetchHermesUpdateData(feedId);
+                    if (updateData && updateData.length > 0) {
+                        const fee = await pyth.getUpdateFee(updateData);
+                        const txUpdate = await oracleAggregator.updatePrices(updateData, { value: fee });
+                        await txUpdate.wait(1);
+                    }
+                }
+                const txPoke = await oracleAggregator.pokeTWAP(m);
+                await txPoke.wait(1);
+                console.log(`[keeper] poked TWAP for market ${m} successfully.`);
+            } catch (err) {
+                console.warn(`[keeper] failed to poke TWAP for market ${m}:`, errorText(err));
+            }
+        }
+    }
+
+    async function warmUpTwapBuffers() {
+        console.log("[keeper] warming up TWAP buffers (Phase 1/2)...");
+        await pokeAllMarkets();
+        console.log("[keeper] waiting 32 seconds for TWAP buffer spacing interval...");
+        await sleepMs(32000);
+        console.log("[keeper] warming up TWAP buffers (Phase 2/2)...");
+        await pokeAllMarkets();
+        console.log("[keeper] TWAP buffers successfully warmed.");
+    }
+
+    // Warm up the cold/empty TWAP buffers on startup so that orders don't revert with NoValidPrice
+    await warmUpTwapBuffers();
+
+    console.log("[keeper] initialization complete.");
+    console.log("[keeper] entering main loop...");
+
     async function processOrder(order: PendingOrder): Promise<void> {
         const key = order.id.toString();
         order.attempts += 1;
@@ -362,11 +397,19 @@ async function main() {
                     const fetched = await fetchHermesUpdateData(feedId);
                     if (fetched && fetched.length > 0) {
                         updateData = fetched;
-                        updateFee = (await withRpcRetry(() => pyth.getUpdateFee(updateData), "pyth.getUpdateFee")) as bigint;
-                        console.log(`[keeper] order=${key} market=${order.market} fetched updateData, fee=${updateFee.toString()} wei`);
+                        updateFee = (await withRpcRetry(
+                            () => pyth.getUpdateFee(updateData),
+                            "pyth.getUpdateFee",
+                        )) as bigint;
+                        console.log(
+                            `[keeper] order=${key} market=${order.market} fetched updateData, fee=${updateFee.toString()} wei`,
+                        );
                     }
                 } catch (hermesErr) {
-                    console.warn(`[keeper] could not fetch Pyth update for market=${order.market}, proceeding with empty updateData:`, hermesErr);
+                    console.warn(
+                        `[keeper] could not fetch Pyth update for market=${order.market}, proceeding with empty updateData:`,
+                        hermesErr,
+                    );
                 }
             }
 
@@ -459,6 +502,9 @@ async function main() {
         }
     }
 
+    let lastTwapPokeTime = Date.now();
+    const twapPokeIntervalMs = 3 * 60 * 1000; // 3 minutes
+
     while (!shuttingDown) {
         try {
             resyncNonce();
@@ -535,6 +581,19 @@ async function main() {
             // Asynchronously dispatch any pending orders (non-blocking)
             if (pending.size > 0) {
                 dispatchPendingOrders();
+            }
+
+            // Periodically keep all TWAP buffers warm
+            if (nowMs - lastTwapPokeTime >= twapPokeIntervalMs) {
+                lastTwapPokeTime = nowMs;
+                // Dispatch in background
+                (async () => {
+                    try {
+                        await pokeAllMarkets();
+                    } catch (pokeErr) {
+                        console.error("[keeper] error during background TWAP maintenance:", pokeErr);
+                    }
+                })();
             }
         } catch (err) {
             if (await backoffMainLoop(rpcPause, err, "keeper", rpcRetryBaseDelayMs)) {

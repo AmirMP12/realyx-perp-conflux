@@ -303,7 +303,9 @@ async function main() {
                 }
 
                 if (marketId) {
-                    await withRetryUnderpriced(overrides, (o) => tradingCore.setMarketId(marketAddress, marketId, o ?? {}));
+                    await withRetryUnderpriced(overrides, (o) =>
+                        tradingCore.setMarketId(marketAddress, marketId, o ?? {}),
+                    );
                     console.log("TradingCore.setMarketId ok");
                 }
                 success = true;

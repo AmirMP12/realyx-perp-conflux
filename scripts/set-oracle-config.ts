@@ -238,8 +238,8 @@ async function main() {
     if (doSet && markets.length > 0) {
         console.log("Refreshing price feeds on-chain...");
         try {
-            const ids = markets.map(m => m.feedId.replace(/^0x/i, ""));
-            const q = ids.map(id => `ids[]=${id}`).join("&");
+            const ids = markets.map((m) => m.feedId.replace(/^0x/i, ""));
+            const q = ids.map((id) => `ids[]=${id}`).join("&");
             const url = `https://hermes.pyth.network/v2/updates/price/latest?encoding=hex&${q}`;
             const res = await fetchWithRetry(url);
             if (!res.ok) throw new Error(`Hermes HTTP error ${res.status}`);
@@ -247,14 +247,20 @@ async function main() {
             const raw = body.binary?.data ?? [];
             const updates = raw.filter(Boolean).map((d: string) => (d.startsWith("0x") ? d : `0x${d}`));
             if (updates.length > 0) {
-                const pythWithFee = new ethers.Contract(pythAddress, [
-                    "function getUpdateFee(bytes[] calldata updateData) external view returns (uint256)"
-                ], signer);
+                const pythWithFee = new ethers.Contract(
+                    pythAddress,
+                    ["function getUpdateFee(bytes[] calldata updateData) external view returns (uint256)"],
+                    signer,
+                );
                 const fee = await pythWithFee.getUpdateFee(updates);
-                
-                const oracleWithUpdate = new ethers.Contract(oracleAddress, [
-                    "function updatePrices(bytes[] calldata priceUpdateData) external payable returns (uint256 feeRefund)"
-                ], signer);
+
+                const oracleWithUpdate = new ethers.Contract(
+                    oracleAddress,
+                    [
+                        "function updatePrices(bytes[] calldata priceUpdateData) external payable returns (uint256 feeRefund)",
+                    ],
+                    signer,
+                );
                 const tx = await oracleWithUpdate.updatePrices(updates, { value: fee });
                 console.log(`  Price update transaction sent: ${tx.hash}`);
                 await tx.wait();
@@ -271,18 +277,18 @@ async function main() {
     const livePrices = new Map<string, { price: bigint; expo: number; conf: bigint; publishTime: number }>();
     console.log("Fetching live off-chain prices from Hermes...");
     try {
-        const ids = markets.map(m => m.feedId.replace(/^0x/i, ""));
-        const q = ids.map(id => `ids[]=${id}`).join("&");
+        const ids = markets.map((m) => m.feedId.replace(/^0x/i, ""));
+        const q = ids.map((id) => `ids[]=${id}`).join("&");
         const url = `https://hermes.pyth.network/v2/updates/price/latest?${q}`;
         const res = await fetchWithRetry(url);
         const body: any = await res.json();
-        for (const item of (body.parsed ?? [])) {
+        for (const item of body.parsed ?? []) {
             const feedIdStr = item.id.startsWith("0x") ? item.id.toLowerCase() : "0x" + item.id.toLowerCase();
             livePrices.set(feedIdStr, {
                 price: BigInt(item.price.price),
                 expo: Number(item.price.expo),
                 conf: BigInt(item.price.conf),
-                publishTime: Number(item.price.publish_time)
+                publishTime: Number(item.price.publish_time),
             });
         }
         console.log(`Fetched ${livePrices.size} live prices from Hermes successfully.\n`);
@@ -338,7 +344,7 @@ async function main() {
                     price: BigInt(item.price.price),
                     expo: Number(item.price.expo),
                     conf: BigInt(item.price.conf),
-                    publishTime: Number(item.price.publish_time)
+                    publishTime: Number(item.price.publish_time),
                 };
             }
 
@@ -423,7 +429,7 @@ async function fetchWithRetry(url: string, retries = 3, delayMs = 1500): Promise
         } catch (err: any) {
             console.log(`  Hermes fetch connection error: ${err.message}. Retrying in ${delayMs}ms...`);
         }
-        await new Promise(resolve => setTimeout(resolve, delayMs));
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
     throw new Error(`Failed to fetch from Hermes after ${retries} attempts`);
 }
