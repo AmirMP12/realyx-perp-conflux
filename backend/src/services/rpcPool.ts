@@ -21,7 +21,6 @@ import { recordRpcResult, setRpcCircuitState } from "../middleware/metrics.js";
 
 const DEFAULT_TESTNET_RPCS = [
     "https://evmtestnet.confluxrpc.com",
-    "https://evmtestnet.confluxrpc.org",
 ];
 const DEFAULT_MAINNET_RPCS = ["https://evm.confluxrpc.com"];
 

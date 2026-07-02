@@ -5,10 +5,7 @@
 
 const DEFAULT_LONG_BACKOFF_THRESHOLD_MS = 90_000;
 
-const CONFLUX_FALLBACKS: Record<string, string> = {
-    "https://evmtestnet.confluxrpc.com": "https://evmtestnet.confluxrpc.org",
-    "https://evm.confluxrpc.com": "https://evm.confluxrpc.org",
-};
+const CONFLUX_FALLBACKS: Record<string, string> = {};
 
 /** Serialize an error (including nested JSON-RPC payloads) for pattern matching. */
 export function errorText(err: unknown): string {
