@@ -67,6 +67,15 @@ async function loop(): Promise<void> {
     log("error", "POSTGRES_URL is not set — the indexer worker has nothing to write to. Exiting.");
     process.exit(1);
   }
+
+  // Log a safe version of the DB URL (hide password) so we can confirm which
+  // host/port the indexer is actually connecting to.
+  try {
+    const u = new URL(process.env.POSTGRES_URL);
+    log("info", `DB target: ${u.protocol}//${u.hostname}:${u.port}${u.pathname} ssl=${process.env.POSTGRES_SSL ?? "unset"}`);
+  } catch {
+    log("warn", "POSTGRES_URL could not be parsed as a URL");
+  }
   const tradingCore = (process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE ?? "").trim();
   if (!tradingCore) {
     log("error", "TRADING_CORE_ADDRESS / DEPLOYED_TRADING_CORE is not set. Exiting.");
