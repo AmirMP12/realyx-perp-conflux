@@ -12,6 +12,8 @@ jest.mock("../services/indexer.js", () => ({
   __esModule: true,
   fetchMarkets: (...a: any[]) => fetchMarketsImpl(...a),
   fetchProtocol: async () => ({ volume24hUsd: "0", totalVolumeUsd: "0" }),
+  fetchPerMarketVolume24hMap: async () => new Map(),
+  fetchActiveTraders24h: async () => 0,
   getPool: () => null,
 }));
 jest.mock("../services/activeMarkets.js", () => ({

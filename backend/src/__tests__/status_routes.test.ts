@@ -3,7 +3,16 @@ import { jest } from "@jest/globals";
 let pythImpl: any = async () => ({ a: 1, b: 2 });
 let activeImpl: any = async () => new Set(["0xm"]);
 let poolHealthImpl: any = () => [{ url: "u", failures: 0, cooling: false, state: "CLOSED" }];
-let protocolImpl: any = async () => ({});
+let protocolImpl: any = async () => ({
+  totalTrades: "5",
+  totalVolumeUsd: "1000",
+  volume24hUsd: "100",
+  totalLiquidations: "0",
+  totalPositionsOpened: "5",
+  totalPositionsClosed: "4",
+  totalFeesUsd: "10",
+  tvl: "0",
+});
 let reconImpl: any = () => ({ ran: false });
 let withProviderImpl: any = async (cb: any) => cb({});
 
@@ -77,7 +86,16 @@ describe("Status route", () => {
     pythImpl = async () => ({ a: 1, b: 2 });
     activeImpl = async () => new Set(["0xm"]);
     poolHealthImpl = () => [{ url: "u", failures: 0, cooling: false, state: "CLOSED" }];
-    protocolImpl = async () => ({});
+    protocolImpl = async () => ({
+      totalTrades: "5",
+      totalVolumeUsd: "1000",
+      volume24hUsd: "100",
+      totalLiquidations: "0",
+      totalPositionsOpened: "5",
+      totalPositionsClosed: "4",
+      totalFeesUsd: "10",
+      tvl: "0",
+    });
     reconImpl = () => ({ ran: false });
     withProviderImpl = async (cb: any) => cb({});
     cacheImpl = (_k: string, _t: number, fn: any) => fn();

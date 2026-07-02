@@ -369,7 +369,7 @@ export function useOrderNotifications(options: OrderNotificationsOptions = {}) {
             return {};
         };
 
-        const isHighPriority = notification.type === 'LIQUIDATION_WARNING' || notification.type === 'POSITION_LIQUIDATED' || notification.type === 'KEEPER_FAILURE';
+        const isHighPriority = notification.type === 'POSITION_LIQUIDATED' || notification.type === 'KEEPER_FAILURE';
 
         toast(`${getToastIcon()} ${notification.message}`, {
             duration: isHighPriority ? 8000 : 5000,

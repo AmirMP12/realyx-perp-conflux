@@ -12,6 +12,7 @@ import { usePositions } from '../hooks/usePositions';
 import { useOnChainHistory } from '../hooks/useOnChainHistory';
 import { useLivePnL } from '../hooks/useWebSocket';
 import { useTradeHistory } from '../hooks/useBackend';
+import { usePendingOrders } from '../hooks/usePendingOrders';
 
 import { MarketHeader } from '../components/trading/MarketHeader';
 import { TradingForm } from '../components/trading/TradingForm';
@@ -46,6 +47,7 @@ export function TradingPage() {
     const { positions, refetch: fetchPositions, isLoading: positionsLoading } = usePositions();
     const { data: onChainHistory = [] } = useOnChainHistory();
     const optimisticPositions = usePositionsStore((s) => s.optimisticPositions);
+    const { refetch: refetchOrders } = usePendingOrders();
     
     const mergedPositions = useMemo(() => {
         const real = positions.map((p) => ({ ...p, isOptimistic: false }));
@@ -181,6 +183,7 @@ export function TradingPage() {
                             onPriceRefresh={refetchPrice}
                             onTradeSuccess={() => {
                                 fetchPositions();
+                                refetchOrders();
                             }}
                             className="flex-1"
                         />
@@ -218,6 +221,7 @@ export function TradingPage() {
                         historyLoading={historyLoading}
                         markets={markets}
                         fetchPositions={fetchPositions}
+                        refetchOrders={refetchOrders}
                     />
                 </div>
 

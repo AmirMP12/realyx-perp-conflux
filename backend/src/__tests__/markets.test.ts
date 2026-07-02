@@ -11,7 +11,13 @@ jest.mock('../routes/sync.js', () => ({
 }));
 
 jest.mock('../services/activeMarkets.js');
-jest.mock('../services/indexer.js');
+jest.mock('../services/indexer.js', () => ({
+  __esModule: true,
+  fetchMarkets: jest.fn().mockResolvedValue([]),
+  fetchProtocol: jest.fn().mockResolvedValue({ totalVolumeUsd: '0' }),
+  fetchPerMarketVolume24hMap: jest.fn().mockResolvedValue(new Map()),
+  fetchActiveTraders24h: jest.fn().mockResolvedValue(0),
+}));
 jest.mock('../services/coingecko.js', () => ({
   fetchCoinGeckoPrices: jest.fn().mockResolvedValue({}),
   getCoinGeckoIdForMarket: jest.fn().mockReturnValue(null)

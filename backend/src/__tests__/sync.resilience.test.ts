@@ -60,10 +60,12 @@ describe("sync route", () => {
     process.env.TRADING_CORE_ADDRESS = "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c";
     process.env.NODE_ENV = "test";
     process.env.INDEXER_REORG_BUFFER = "64";
+    delete process.env.INDEXER_START_BLOCK;
     delete process.env.VAULT_CORE_ADDRESS;
     delete process.env.DEPLOYED_VAULT_CORE;
     delete process.env.CRON_SECRET;
     sync = await import("../routes/sync.js");
+    sync.resetSyncPool();
   });
 
   afterEach(() => {
@@ -193,6 +195,12 @@ describe("sync route", () => {
     process.env.INDEXER_MAX_CHUNK = "4000";
     process.env.INDEXER_MIN_CHUNK = "1000";
     jest.resetModules();
+    // Re-register pg mock so the freshly imported sync.js still gets mockPool.
+    jest.doMock("pg", () => ({
+      __esModule: true,
+      Pool: jest.fn(() => mockPool),
+      default: { Pool: jest.fn(() => mockPool) },
+    }));
     const fresh = await import("../routes/sync.js");
     mockProvider.getBlockNumber.mockResolvedValue(248010000);
     mockProvider.getLogs.mockRejectedValue(new Error("range too large"));

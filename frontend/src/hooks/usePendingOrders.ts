@@ -52,6 +52,9 @@ const ORDER_CANCELLED_EVENT = {
     ],
 };
 
+/** How often to re-poll for pending orders when no WS event has fired (ms). */
+const POLL_INTERVAL_MS = 8_000;
+
 export function usePendingOrders() {
     const { address } = useAccount();
     const publicClient = usePublicClient();
@@ -134,6 +137,13 @@ export function usePendingOrders() {
     useEffect(() => {
         fetchOrders();
     }, [fetchOrders]);
+
+    // Polling fallback: keep orders in sync even when no WS notification fires.
+    useEffect(() => {
+        if (!address) return;
+        const id = setInterval(fetchOrders, POLL_INTERVAL_MS);
+        return () => clearInterval(id);
+    }, [fetchOrders, address]);
 
     return { orders, loading, refetch: fetchOrders };
 }

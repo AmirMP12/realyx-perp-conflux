@@ -65,13 +65,16 @@ describe("sync log processing", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPool.query.mockResolvedValue({ rows: [], rowCount: 1 });
     mockProvider.getBlockNumber.mockResolvedValue(248000100);
     mockProvider.getBlock.mockResolvedValue({ number: 248000050, hash: "0x" + "a".repeat(64), timestamp: 1713400000 });
     process.env.POSTGRES_URL = "postgres://local";
     process.env.TRADING_CORE_ADDRESS = "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c";
     process.env.VAULT_CORE_ADDRESS = "0x2222222222222222222222222222222222222222";
     process.env.NODE_ENV = "test";
+    delete process.env.INDEXER_START_BLOCK;
     sync = await import("../routes/sync.js");
+    sync.resetSyncPool();
   });
 
   afterEach(() => {
@@ -94,8 +97,7 @@ describe("sync log processing", () => {
     mockPool.query.mockImplementation((sql: string) => {
       if (sql.includes("SELECT last_synced_block")) return Promise.resolve({ rows: [] });
       if (sql.includes("FROM block_checkpoints")) return Promise.resolve({ rows: [] });
-      // DB fallback open resolution for positionId 2 → found; 3 → none.
-      if (sql.includes("WHERE event_type = 'PositionOpened' AND (data::jsonb->>0)::text = $1")) {
+      if (sql.includes("ORDER BY id DESC LIMIT 1")) {
         return Promise.resolve({ rows: [{ account: TRADER, market_id: MARKET, data: null }] });
       }
       return Promise.resolve({ rows: [], rowCount: 1 });
@@ -144,13 +146,11 @@ describe("sync log processing", () => {
   it("scans multiple chunks and resolves a close via DB with array open data + logIndex", async () => {
     mockProvider.getBlockNumber.mockResolvedValue(248120000); // forces >1 chunk iteration
     mockProvider.getBlock.mockResolvedValue(null); // getBlockHash null + getBlockTime fallback
-    // close uses `logIndex` (not `index`) and resolves via DB where row.data is an array and market_id is "0x".
     const close = { ...tLog("PositionClosed", [5n, TRADER, 0n, 2100n, 1n], 248000050, 0) } as any;
     delete close.index;
     close.logIndex = 4;
     mockProvider.getLogs.mockImplementation((filter: any) => {
       if (filter.address === process.env.VAULT_CORE_ADDRESS) return Promise.resolve([]);
-      // Only return the log in the first chunk; later chunks are empty.
       if (filter.fromBlock <= 248000050 && filter.toBlock >= 248000050) return Promise.resolve([close]);
       return Promise.resolve([]);
     });
@@ -171,6 +171,11 @@ describe("sync log processing", () => {
     process.env.INDEXER_MAX_CHUNK = "8000";
     process.env.INDEXER_MIN_CHUNK = "1000";
     await jest.isolateModulesAsync(async () => {
+      jest.doMock("pg", () => ({
+        __esModule: true,
+        Pool: jest.fn(() => mockPool),
+        default: { Pool: jest.fn(() => mockPool) },
+      }));
       const fresh = await import("../routes/sync.js");
       mockProvider.getBlockNumber.mockResolvedValue(248030000);
       let calls = 0;

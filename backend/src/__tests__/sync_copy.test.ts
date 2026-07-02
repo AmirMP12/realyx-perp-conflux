@@ -1,7 +1,7 @@
 import { jest } from "@jest/globals";
 
 const mockPool = {
-  query: jest.fn<any>(),
+  query: jest.fn<any>().mockResolvedValue({ rows: [], rowCount: 1 }),
   on: jest.fn(),
   connect: jest.fn(),
 };
@@ -66,14 +66,17 @@ describe("sync copy-registry processing", () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockPool.query.mockResolvedValue({ rows: [], rowCount: 1 });
     mockProvider.getBlockNumber.mockResolvedValue(248000100);
     mockProvider.getBlock.mockResolvedValue({ number: 248000050, hash: "0x" + "a".repeat(64), timestamp: 1713400000 });
     process.env.POSTGRES_URL = "postgres://local";
     process.env.TRADING_CORE_ADDRESS = "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c";
     process.env.COPY_REGISTRY_ADDRESS = COPY_REGISTRY;
     process.env.NODE_ENV = "test";
+    delete process.env.INDEXER_START_BLOCK;
     delete process.env.VAULT_CORE_ADDRESS;
     sync = await import("../routes/sync.js");
+    sync.resetSyncPool();
   });
 
   afterEach(() => {

@@ -13,6 +13,8 @@ const VALID_TX = "0x123456789012345678901234567890123456789012345678901234567890
 jest.mock("../services/indexer.js", () => ({
     fetchMarkets: jest.fn().mockResolvedValue([]),
     fetchProtocol: jest.fn().mockResolvedValue({ totalVolumeUsd: "1000" }),
+    fetchPerMarketVolume24hMap: jest.fn().mockResolvedValue(new Map()),
+    fetchActiveTraders24h: jest.fn().mockResolvedValue(0),
 }));
 
 jest.mock("../services/coingecko.js", () => ({

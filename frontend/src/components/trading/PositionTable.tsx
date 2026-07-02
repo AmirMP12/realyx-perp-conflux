@@ -53,6 +53,9 @@ interface PositionTableProps {
     historyLoading: boolean;
     markets: Market[];
     fetchPositions: () => void;
+    /** Optional: pass the shared usePendingOrders refetch from the parent so
+     *  order creation in TradingForm immediately updates the Orders tab. */
+    refetchOrders?: () => void;
 }
 
 export function PositionTable({
@@ -61,7 +64,8 @@ export function PositionTable({
     tradeHistory,
     historyLoading,
     markets,
-    fetchPositions
+    fetchPositions,
+    refetchOrders: refetchOrdersProp,
 }: PositionTableProps) {
     const settings = useSettingsStore();
     const { removePosition } = usePositionsStore();
@@ -73,7 +77,10 @@ export function PositionTable({
     const [activeClosePos, setActiveClosePos] = useState<Position | null>(null);
     const [activeTransferPos, setActiveTransferPos] = useState<Position | null>(null);
 
-    const { orders: pendingOrders, loading: ordersLoading, refetch: refetchOrders } = usePendingOrders();
+    const { orders: pendingOrders, loading: ordersLoading, refetch: refetchOrdersLocal } = usePendingOrders();
+    // Prefer the parent-provided refetch (shared instance) so a new order placed
+    // via TradingForm immediately shows up here without a separate poll cycle.
+    const refetchOrders = refetchOrdersProp ?? refetchOrdersLocal;
 
     // Auto-refresh positions and pending orders when an order is executed or a
     // position opens/closes. The WebSocket notification arrives before the next
