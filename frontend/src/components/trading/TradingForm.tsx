@@ -929,13 +929,7 @@ export function TradingForm({
                     return (
                         <div className="rounded-xl p-3.5 border border-line/60 bg-surface-3/40 shadow-sm overflow-hidden">
                             <div className="flex justify-between text-xs mb-1.5">
-                                <GuidedTooltip
-                                    id="account-health"
-                                    title="Account Health"
-                                    content="Your live cross-margin health factor from the protocol (TradingCore.getAccountRisk). Below 1.00 your account is liquidatable. All cross positions share this collateral."
-                                >
-                                    <span className="text-text-secondary">Account Health</span>
-                                </GuidedTooltip>
+                                <span className="text-text-secondary">Account Health</span>
                                 <span className={clsx('font-mono font-semibold tabular-nums', toneClass)}>
                                     {hfText} · {meta.label}
                                 </span>
