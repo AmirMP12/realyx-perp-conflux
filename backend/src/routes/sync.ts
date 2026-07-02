@@ -63,7 +63,6 @@ const router = express.Router();
 
 function getPool(): pg.Pool | null {
   return getWritePool();
-}  return poolInstance;
 }
 
 function getProvider(): ethers.JsonRpcProvider {
