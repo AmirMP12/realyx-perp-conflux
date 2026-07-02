@@ -79,17 +79,12 @@ function toMsFromSeconds(raw: string | undefined, fallbackSeconds: number): numb
 
 function selectorFromError(err: unknown): string | null {
     const e = err as any;
-    // Prefer the structured revert payload ethers attaches. Scanning the whole
-    // serialized error risks matching an address / tx hash / calldata selector
-    // before the real revert data and misclassifying the error.
     const candidates = [e?.data, e?.info?.error?.data, e?.error?.data, e?.revert?.selector];
     for (const c of candidates) {
         if (typeof c === "string" && /^0x[a-fA-F0-9]{8,}$/.test(c)) {
             return c.slice(0, 10).toLowerCase();
         }
     }
-    // Fallback: scan the serialized error, skipping 40-hex addresses and 64-hex
-    // hashes so we don't mistake them for a 4-byte selector.
     const serialized = JSON.stringify(err, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
     const matches = serialized.match(/0x[a-fA-F0-9]+/g) ?? [];
     for (const m of matches) {
@@ -109,8 +104,6 @@ function revertReason(err: unknown): string | null {
     return typeof reason === "string" ? reason : null;
 }
 
-// A non-revert send failure (RPC drop, broadcast timeout, nonce gap) is not a
-// real execution failure — the order should be retried, not given up on.
 function isTransientError(err: unknown, selector: string): boolean {
     if (TRANSIENT_SELECTORS.has(selector)) return true;
     if (selector === "0x08c379a0") {
@@ -201,13 +194,12 @@ async function main() {
         throw new Error("Set KEEPER_TRADING_CORE_ADDRESS or DEPLOYED_TRADING_CORE (or deployment/<network>.json)");
     }
 
-    const pollMs = toMsFromSeconds(process.env.KEEPER_POLL_INTERVAL_SECONDS, 5);
-    const idlePollMs = toMsFromSeconds(process.env.KEEPER_IDLE_POLL_INTERVAL_SECONDS, 15);
-    const minPriceRefreshMs = toMsFromSeconds(process.env.KEEPER_MIN_PRICE_REFRESH_SECONDS, 20);
+    const pollMs = toMsFromSeconds(process.env.KEEPER_POLL_INTERVAL_SECONDS, 1);
+    const idlePollMs = toMsFromSeconds(process.env.KEEPER_IDLE_POLL_INTERVAL_SECONDS, 1);
     const keeperApiBaseUrl = process.env.KEEPER_API_BASE_URL || "http://localhost:3001";
     const lookbackBlocks = BigInt(Math.max(1, Number(process.env.KEEPER_LOOKBACK_BLOCKS ?? "5000")));
     const blockChunkSize = BigInt(Math.max(100, Number(process.env.KEEPER_BLOCK_CHUNK_SIZE ?? "500")));
-    const confirmations = BigInt(Math.max(0, Number(process.env.KEEPER_CONFIRMATIONS ?? "5")));
+    const confirmations = BigInt(Math.max(0, Number(process.env.KEEPER_CONFIRMATIONS ?? "0")));
     const hermesBase = (process.env.KEEPER_HERMES_URL || "https://hermes.pyth.network").replace(/\/+$/, "");
     const rpcRetryBaseDelayMs = Math.max(100, Number(process.env.KEEPER_RPC_RETRY_BASE_DELAY_MS ?? "300"));
     const maxConcurrency = Math.max(1, Number(process.env.KEEPER_MAX_CONCURRENCY ?? "4"));
@@ -261,15 +253,16 @@ async function main() {
     }
 
     const marketFeedCache = new Map<string, string>();
-    const lastRefreshByMarket = new Map<string, number>();
-    const refreshInFlight = new Map<string, Promise<boolean>>();
+    const pending = new Map<string, PendingOrder>();
+    const inFlight = new Set<string>();
+    const heartbeatMs = toMsFromSeconds(process.env.KEEPER_HEARTBEAT_SECONDS, 30);
+    let lastHeartbeat = 0;
 
     let shuttingDown = false;
     const beginShutdown = (signal: string) => {
         if (shuttingDown) return;
         shuttingDown = true;
         console.log(`[keeper] received ${signal}; draining in-flight work then exiting...`);
-        // Safety net: never hang past this even if a tx wait is slow.
         setTimeout(() => process.exit(0), txWaitTimeoutMs + 5_000).unref();
     };
 
@@ -277,7 +270,6 @@ async function main() {
     process.on("SIGINT", () => beginShutdown("SIGINT"));
 
     console.log("[keeper] starting");
-
     console.log("[keeper] fetching network info...");
     const networkInfo = await withRpcRetry(() => provider.getNetwork(), "getNetwork");
     console.log(`[keeper] network info fetched: chainId=${networkInfo.chainId}`);
@@ -300,10 +292,6 @@ async function main() {
     console.log(
         `[keeper] backfill start=${cursor.toString()} source=${startSource} (replaying to discover resting orders)`,
     );
-    const pending = new Map<string, PendingOrder>();
-    const inFlight = new Set<string>();
-    const heartbeatMs = toMsFromSeconds(process.env.KEEPER_HEARTBEAT_SECONDS, 30);
-    let lastHeartbeat = 0;
 
     console.log(`[keeper] chainId=${networkInfo.chainId.toString()} rpc=${rpcUrls[rpcIndex]}`);
     console.log(`[keeper] wallet=${baseWallet.address}`);
@@ -311,7 +299,6 @@ async function main() {
     console.log(`[keeper] startBlock=${cursor.toString()} pollMs=${pollMs}`);
 
     console.log("[keeper] checking KEEPER_ROLE...");
-
     const hasKeeperRole = await withRpcRetry(
         () => tradingCore.hasRole(KEEPER_ROLE, baseWallet.address),
         "tradingCore.hasRole",
@@ -362,45 +349,29 @@ async function main() {
         return updates.length > 0 ? updates : null;
     }
 
-    async function refreshPythForMarket(market: string, force = false): Promise<boolean> {
-        const key = market.toLowerCase();
-        const inFlightRefresh = refreshInFlight.get(key);
-        if (inFlightRefresh) return inFlightRefresh;
-
-        const run = (async (): Promise<boolean> => {
-            const now = Date.now();
-            const last = lastRefreshByMarket.get(key) ?? 0;
-            if (!force && now - last < minPriceRefreshMs) return false;
-
-            const feedId = await getFeedIdForMarket(market);
-            if (!feedId) return false;
-
-            const updateData = await fetchHermesUpdateData(feedId);
-            if (!updateData) return false;
-
-            const updateFee = (await withRpcRetry(() => pyth.getUpdateFee(updateData), "pyth.getUpdateFee")) as bigint;
-            const tx = await pyth.updatePriceFeeds(updateData, { value: updateFee });
-            await waitForReceipt(tx);
-            lastRefreshByMarket.set(key, now);
-            console.log(`[keeper] refreshed pyth market=${market} tx=${tx.hash}`);
-            return true;
-        })();
-
-        refreshInFlight.set(key, run);
-        try {
-            return await run;
-        } finally {
-            refreshInFlight.delete(key);
-        }
-    }
-
     async function processOrder(order: PendingOrder): Promise<void> {
         const key = order.id.toString();
         order.attempts += 1;
         try {
-            await refreshPythForMarket(order.market);
+            const feedId = await getFeedIdForMarket(order.market);
+            let updateData: string[] = [];
+            let updateFee = 0n;
 
-            const tx = await tradingCore.executeOrder(order.id, []);
+            if (feedId) {
+                try {
+                    const fetched = await fetchHermesUpdateData(feedId);
+                    if (fetched && fetched.length > 0) {
+                        updateData = fetched;
+                        updateFee = (await withRpcRetry(() => pyth.getUpdateFee(updateData), "pyth.getUpdateFee")) as bigint;
+                        console.log(`[keeper] order=${key} market=${order.market} fetched updateData, fee=${updateFee.toString()} wei`);
+                    }
+                } catch (hermesErr) {
+                    console.warn(`[keeper] could not fetch Pyth update for market=${order.market}, proceeding with empty updateData:`, hermesErr);
+                }
+            }
+
+            // ATOMIC EXECUTION: Pass the updateData and the updateFee in the single execution transaction
+            const tx = await tradingCore.executeOrder(order.id, updateData, { value: updateFee });
             console.log(`[keeper] execute sent order=${key} tx=${tx.hash}`);
             const receipt = await waitForReceipt(tx);
             if (receipt?.status === 1) {
@@ -417,25 +388,6 @@ async function main() {
             console.warn(
                 `[keeper] execute failed order=${key} selector=${selector} attempt=${order.attempts}/${maxOrderAttempts} msg=${message}`,
             );
-
-            if (selector === STALE_PRICE_SELECTOR) {
-                try {
-                    const refreshed = await refreshPythForMarket(order.market, true);
-                    if (refreshed) {
-                        const retryTx = await tradingCore.executeOrder(order.id, []);
-                        console.log(`[keeper] retry execute sent order=${key} tx=${retryTx.hash}`);
-                        const retryReceipt = await waitForReceipt(retryTx);
-                        if (retryReceipt?.status === 1) {
-                            pending.delete(key);
-                            console.log(`[keeper] executed on retry order=${key} block=${retryReceipt.blockNumber}`);
-                            return;
-                        }
-                    }
-                } catch (retryErr) {
-                    const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
-                    console.warn(`[keeper] stale-price retry failed order=${key} msg=${retryMsg}`);
-                }
-            }
 
             if (isTransientError(err, selector)) {
                 order.attempts -= 1;
@@ -479,16 +431,32 @@ async function main() {
         }
     }
 
-    async function runPool<T>(items: T[], limit: number, worker: (item: T) => Promise<void>): Promise<void> {
-        let idx = 0;
-        const runNext = async (): Promise<void> => {
-            while (idx < items.length) {
-                const current = items[idx++];
-                await worker(current);
-            }
-        };
-        const workers = Array.from({ length: Math.min(limit, items.length) }, () => runNext());
-        await Promise.all(workers);
+    // Ultra-fast background worker dispatcher
+    function dispatchPendingOrders() {
+        if (shuttingDown) return;
+        const now = Date.now();
+        const readyOrders = [...pending.values()]
+            .filter((o) => !inFlight.has(o.id.toString()) && o.nextAttemptAt <= now)
+            .sort((a, b) => (a.id < b.id ? -1 : 1));
+
+        while (inFlight.size < maxConcurrency && readyOrders.length > 0) {
+            const order = readyOrders.shift()!;
+            const key = order.id.toString();
+            inFlight.add(key);
+
+            // Execute order in the background asynchronously
+            (async () => {
+                try {
+                    await processOrder(order);
+                } catch (err) {
+                    console.error(`[keeper] fatal worker error for order=${key}:`, err);
+                } finally {
+                    inFlight.delete(key);
+                    // Re-trigger dispatching as slots open up
+                    dispatchPendingOrders();
+                }
+            })();
+        }
     }
 
     while (!shuttingDown) {
@@ -504,8 +472,10 @@ async function main() {
                 }
                 throw rpcErr;
             }
+
             const safeHead = head > confirmations ? head - confirmations : 0n;
             let logsFoundThisTick = 0;
+
             if (safeHead > cursor) {
                 let from = cursor + 1n;
                 while (from <= safeHead) {
@@ -529,6 +499,7 @@ async function main() {
                         const parsed = iface.parseLog(log);
                         const id = parsed?.args?.orderId as bigint | undefined;
                         if (id == null) continue;
+
                         if (topic0 === createdTopic) {
                             const market = (parsed?.args?.market as string | undefined) || ethers.ZeroAddress;
                             const account = (parsed?.args?.account as string | undefined) || ethers.ZeroAddress;
@@ -561,25 +532,9 @@ async function main() {
                 );
             }
 
+            // Asynchronously dispatch any pending orders (non-blocking)
             if (pending.size > 0) {
-                const readyAt = Date.now();
-                const orders = [...pending.values()]
-                    .filter((o) => !inFlight.has(o.id.toString()) && o.nextAttemptAt <= readyAt)
-                    .sort((a, b) => (a.id < b.id ? -1 : 1));
-                if (orders.length > 0 && !shuttingDown) {
-                    console.log(
-                        `[keeper] pending=${pending.size} dispatching=${orders.length} concurrency=${maxConcurrency} newestBlock=${cursor.toString()}`,
-                    );
-                    await runPool(orders, maxConcurrency, async (order) => {
-                        const key = order.id.toString();
-                        inFlight.add(key);
-                        try {
-                            await processOrder(order);
-                        } finally {
-                            inFlight.delete(key);
-                        }
-                    });
-                }
+                dispatchPendingOrders();
             }
         } catch (err) {
             if (await backoffMainLoop(rpcPause, err, "keeper", rpcRetryBaseDelayMs)) {

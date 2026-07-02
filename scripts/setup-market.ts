@@ -1,6 +1,14 @@
 import { ethers, network } from "hardhat";
 import { loadDeployment } from "./write-deployment";
 
+// Register global error handlers to prevent undici connect timeouts from crashing the process
+process.on("unhandledRejection", (reason) => {
+    console.warn("Unhandled Rejection (ignored to prevent crash):", reason);
+});
+process.on("uncaughtException", (error) => {
+    console.warn("Uncaught Exception (ignored to prevent crash):", error);
+});
+
 const MIN_GAS_GWEI = 2;
 const RETRY_DELAY_MS = 4000;
 const MAX_UNDERPRICED_ATTEMPTS = 8;
@@ -226,84 +234,94 @@ async function main() {
         const hex = pythFeedId.startsWith("0x") ? pythFeedId : "0x" + pythFeedId;
         const feedIdBytes32 = ethers.hexlify(ethers.zeroPadValue(ethers.getBytes(hex), 32));
 
-        try {
-            await withRetryUnderpriced(overrides, (o) =>
-                oracle.setPythFeed(marketAddress, feedIdBytes32, maxStaleness, maxConfidence, o ?? {}),
-            );
-            console.log("OracleAggregator.setPythFeed ok (maxConfidence", maxConfidence.toString() + ")");
+        let success = false;
+        const maxMarketAttempts = 5;
+        for (let attempt = 1; attempt <= maxMarketAttempts; attempt++) {
+            try {
+                await withRetryUnderpriced(overrides, (o) =>
+                    oracle.setPythFeed(marketAddress, feedIdBytes32, maxStaleness, maxConfidence, o ?? {}),
+                );
+                console.log("OracleAggregator.setPythFeed ok (maxConfidence", maxConfidence.toString() + ")");
 
-            await withRetryUnderpriced(
-                overrides,
-                (o) => oracle.addSupportedMarket(marketAddress, o ?? {}),
-                "addSupportedMarket",
-            );
-            console.log("OracleAggregator.addSupportedMarket ok");
-
-            if (marketId) {
-                await withRetryUnderpriced(overrides, (o) => oracle.setMarketId(marketAddress, marketId, o ?? {}));
-                console.log("OracleAggregator.setMarketId ok");
-            }
-
-            const existingMarket = await tradingCore.getMarketInfo(marketAddress);
-            const currentCount = await tradingCore.activeMarketCount();
-
-            if (existingMarket.isListed) {
                 await withRetryUnderpriced(
                     overrides,
-                    (o) =>
-                        tradingCore.updateMarket(
-                            marketAddress,
-                            marketAddress,
-                            maxLeverage,
-                            maxPositionSize,
-                            maxExposure,
-                            mmBps,
-                            imBps,
-                            maxStaleness,
-                            o ?? {},
-                        ),
-                    "updateMarket",
+                    (o) => oracle.addSupportedMarket(marketAddress, o ?? {}),
+                    "addSupportedMarket",
                 );
-                console.log("TradingCore.updateMarket ok (market already listed)");
-            } else {
-                if (currentCount >= MAX_ACTIVE_MARKETS) {
-                    throw new Error(
-                        `TradingCore has ${currentCount} active markets; max is ${MAX_ACTIVE_MARKETS}. ` +
-                            "Cannot add more markets. Unlist a market first or upgrade the contract to increase MAX_ACTIVE_MARKETS.",
-                    );
+                console.log("OracleAggregator.addSupportedMarket ok");
+
+                if (marketId) {
+                    await withRetryUnderpriced(overrides, (o) => oracle.setMarketId(marketAddress, marketId, o ?? {}));
+                    console.log("OracleAggregator.setMarketId ok");
                 }
-                await withRetryUnderpriced(
-                    overrides,
-                    (o) =>
-                        tradingCore.setMarket(
-                            marketAddress,
-                            marketAddress,
-                            maxLeverage,
-                            maxPositionSize,
-                            maxExposure,
-                            mmBps,
-                            imBps,
-                            maxStaleness,
-                            o ?? {},
-                        ),
-                    "setMarket",
-                );
-                console.log("TradingCore.setMarket ok");
-            }
 
-            if (marketId) {
-                await withRetryUnderpriced(overrides, (o) => tradingCore.setMarketId(marketAddress, marketId, o ?? {}));
-                console.log("TradingCore.setMarketId ok");
+                const existingMarket = await tradingCore.getMarketInfo(marketAddress);
+                const currentCount = await tradingCore.activeMarketCount();
+
+                if (existingMarket.isListed) {
+                    await withRetryUnderpriced(
+                        overrides,
+                        (o) =>
+                            tradingCore.updateMarket(
+                                marketAddress,
+                                marketAddress,
+                                maxLeverage,
+                                maxPositionSize,
+                                maxExposure,
+                                mmBps,
+                                imBps,
+                                maxStaleness,
+                                o ?? {},
+                            ),
+                        "updateMarket",
+                    );
+                    console.log("TradingCore.updateMarket ok (market already listed)");
+                } else {
+                    if (currentCount >= MAX_ACTIVE_MARKETS) {
+                        throw new Error(
+                            `TradingCore has ${currentCount} active markets; max is ${MAX_ACTIVE_MARKETS}. ` +
+                                "Cannot add more markets. Unlist a market first or upgrade the contract to increase MAX_ACTIVE_MARKETS.",
+                        );
+                    }
+                    await withRetryUnderpriced(
+                        overrides,
+                        (o) =>
+                            tradingCore.setMarket(
+                                marketAddress,
+                                marketAddress,
+                                maxLeverage,
+                                maxPositionSize,
+                                maxExposure,
+                                mmBps,
+                                imBps,
+                                maxStaleness,
+                                o ?? {},
+                            ),
+                        "setMarket",
+                    );
+                    console.log("TradingCore.setMarket ok");
+                }
+
+                if (marketId) {
+                    await withRetryUnderpriced(overrides, (o) => tradingCore.setMarketId(marketAddress, marketId, o ?? {}));
+                    console.log("TradingCore.setMarketId ok");
+                }
+                success = true;
+                break;
+            } catch (e) {
+                const reason = formatRevertReason(e);
+                console.error(`\nAttempt ${attempt}/${maxMarketAttempts} failed for market ${marketAddress}:`, reason);
+                if (reason.includes("revert") || reason.includes("reverted")) {
+                    console.error(
+                        "Common causes: MaxActiveMarketsExceeded (max 20 markets), MarketAlreadyListed, InvalidMarginConfig, or missing OPERATOR role.",
+                    );
+                    // For revert errors, we probably shouldn't retry as it is a logic issue
+                    throw e;
+                }
+                if (attempt === maxMarketAttempts) throw e;
+                console.log("Waiting 6 seconds before retrying market setup...");
+                await delay(6000);
             }
-        } catch (e) {
-            const reason = formatRevertReason(e);
-            console.error("\nExecution reverted for market", marketAddress, marketId || "", ":", reason);
-            if (reason.includes("revert") || reason.includes("reverted")) {
-                console.error(
-                    "Common causes: MaxActiveMarketsExceeded (max 20 markets), MarketAlreadyListed, InvalidMarginConfig, or missing OPERATOR role.",
-                );
-            }
-            throw e;
         }
     }
 
