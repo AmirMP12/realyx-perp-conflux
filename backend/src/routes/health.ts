@@ -52,6 +52,7 @@ router.get("/detailed", async (_req: Request, res: Response) => {
     checks,
     config: {
       indexerSet: Boolean(config.postgresUrl),
+      pgSslDisabled: /^(0|false|no)$/i.test(process.env.POSTGRES_SSL ?? ""),
       rpcSet: Boolean(process.env.RPC_URL?.trim()),
       tradingCoreSet: Boolean((process.env.TRADING_CORE_ADDRESS ?? process.env.DEPLOYED_TRADING_CORE)?.trim()),
       vaultCoreSet: Boolean((process.env.VAULT_CORE_ADDRESS ?? process.env.DEPLOYED_VAULT_CORE)?.trim()),
