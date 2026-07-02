@@ -57,23 +57,13 @@ const COPY_REGISTRY_SYNC_ABI = [
   "event CopierConfigUpdated(address indexed copier, address indexed leadTrader, uint256 maxAllocation, uint8 maxLeverage)",
 ] as const;
 
+import { getWritePool } from "../services/db.js";
+
 const router = express.Router();
 
-let poolInstance: pg.Pool | null = null;
 function getPool(): pg.Pool | null {
-  if (poolInstance) return poolInstance;
-  if (!process.env.POSTGRES_URL) return null;
-  poolInstance = new pg.Pool({
-    connectionString: process.env.POSTGRES_URL,
-    ssl: /^(0|false|no)$/i.test(process.env.POSTGRES_SSL ?? "") ? undefined : (process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined),
-    max: 1,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 30_000,
-    query_timeout: 30_000,
-    statement_timeout: 30_000,
-    allowExitOnIdle: true,
-  });
-  return poolInstance;
+  return getWritePool();
+}  return poolInstance;
 }
 
 function getProvider(): ethers.JsonRpcProvider {
