@@ -21,6 +21,8 @@ const EXECUTE_ORDER_ABI = [
     "function executeOrder(uint256 orderId, bytes[] calldata updateData) external payable",
     "function hasRole(bytes32 role, address account) external view returns (bool)",
     "function oracleAggregator() external view returns (address)",
+    "function activeMarketCount() external view returns (uint256)",
+    "function activeMarketAt(uint256 index) external view returns (address)",
 ];
 const ORACLE_AGGREGATOR_ABI = [
     "function pyth() external view returns (address)",
@@ -341,12 +343,29 @@ async function main() {
         return updates.length > 0 ? updates : null;
     }
 
+    // Dynamic Active Market Retriever
+    async function getActiveMarkets(): Promise<string[]> {
+        try {
+            const count = await withRpcRetry(() => tradingCore.activeMarketCount(), "tradingCore.activeMarketCount");
+            const list: string[] = [];
+            for (let i = 0; i < Number(count); i++) {
+                const m = await withRpcRetry(() => tradingCore.activeMarketAt(i), `tradingCore.activeMarketAt(${i})`);
+                list.push(m);
+            }
+            return list;
+        } catch (err) {
+            console.error("[keeper] failed to fetch active markets list on-chain:", errorText(err));
+            // Fallback to env if contract call fails
+            return (process.env.MARKET_ADDRESSES ?? "")
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean);
+        }
+    }
+
     // Dynamic TWAP Seeder
     async function pokeAllMarkets() {
-        const marketAddresses = (process.env.MARKET_ADDRESSES ?? "")
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean);
+        const marketAddresses = await getActiveMarkets();
         console.log(`[keeper] maintaining TWAP buffers for ${marketAddresses.length} markets...`);
         for (const m of marketAddresses) {
             try {
