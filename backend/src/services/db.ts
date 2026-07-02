@@ -30,12 +30,11 @@ function poolMax(): number {
 }
 
 const POOL_OPTS: pg.PoolConfig = {
-    // Serverless-safe defaults: fail fast instead of hanging and timing out.
     max: poolMax(),
-    idleTimeoutMillis: 10_000,
-    connectionTimeoutMillis: 10_000, // increased for Railway public proxy latency
-    query_timeout: 10_000,
-    statement_timeout: 10_000,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 30_000,
+    query_timeout: 30_000,
+    statement_timeout: 30_000,
     allowExitOnIdle: true,
 };
 

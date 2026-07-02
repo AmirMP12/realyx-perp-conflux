@@ -67,10 +67,10 @@ function getPool(): pg.Pool | null {
     connectionString: process.env.POSTGRES_URL,
     ssl: /^(0|false|no)$/i.test(process.env.POSTGRES_SSL ?? "") ? undefined : (process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined),
     max: 1,
-    idleTimeoutMillis: 10_000,
-    connectionTimeoutMillis: 10_000,
-    query_timeout: 10_000,
-    statement_timeout: 10_000,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 30_000,
+    query_timeout: 30_000,
+    statement_timeout: 30_000,
     allowExitOnIdle: true,
   });
   return poolInstance;
