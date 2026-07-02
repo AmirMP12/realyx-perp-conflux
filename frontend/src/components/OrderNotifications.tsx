@@ -158,7 +158,7 @@ export function useOrderNotifications(options: OrderNotificationsOptions = {}) {
                     };
 
                     if (settingsRef.current.liquidationWarning) {
-                        showNotification(notification, settingsRef.current);
+                        // Add to notification bell only — no toast popup for liquidation warnings
                         setNotifications((prev) => [notification, ...prev].slice(0, 50));
                     }
                 }
@@ -330,6 +330,8 @@ export function useOrderNotifications(options: OrderNotificationsOptions = {}) {
     };
 
     const showNotification = (notification: OrderNotification, currentSettings: NotificationSettings) => {
+        // Liquidation warnings go silently to the bell only — no disruptive toast popup
+        if (notification.type === 'LIQUIDATION_WARNING') return;
         const getToastIcon = () => {
             switch (notification.type) {
                 case 'ORDER_EXECUTED': return '✅';
