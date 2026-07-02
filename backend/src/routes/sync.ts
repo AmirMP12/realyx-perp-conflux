@@ -1192,7 +1192,10 @@ router.get("/", async (req: any, res: any) => {
 
   } catch (error) {
     console.error("Sync error:", error);
-    res.status(500).json({ success: false, error: String(error) });
+    const msg = error instanceof AggregateError
+      ? (error.errors?.map((e: any) => e?.message ?? String(e)).join('; ') ?? String(error))
+      : (error instanceof Error ? error.message : String(error));
+    res.status(500).json({ success: false, error: msg });
   }
 });
 

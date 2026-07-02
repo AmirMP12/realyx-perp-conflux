@@ -120,7 +120,9 @@ router.get("/", async (_req: Request, res: Response) => {
     const data = await cacheGetOrSet(STATS_CACHE_KEY, STATS_CACHE_TTL_MS, buildStatsPayload);
     res.json({ success: true, data } as ApiResponse<StatsData>);
   } catch (e) {
-    const message = e instanceof Error ? e.message : "Failed to fetch stats";
+    const message = e instanceof AggregateError
+      ? (e.errors?.map((err: any) => err?.message ?? String(err)).join('; ') ?? String(e))
+      : (e instanceof Error ? e.message : "Failed to fetch stats");
     res.json({
       success: false,
       error: message,

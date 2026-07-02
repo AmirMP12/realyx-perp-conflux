@@ -55,11 +55,27 @@ function ssl(): { rejectUnauthorized: boolean } | undefined {
     return process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined;
 }
 
+/**
+ * Append ?sslmode=disable to a connection string when POSTGRES_SSL=false.
+ * Some pg driver paths honour the URL parameter more reliably than the
+ * config-object ssl field (e.g. when the URL already contains ?sslmode=require).
+ */
+function connectionString(url: string): string {
+    if (!/^(0|false|no)$/i.test(process.env.POSTGRES_SSL ?? "")) return url;
+    try {
+        const u = new URL(url);
+        u.searchParams.set("sslmode", "disable");
+        return u.toString();
+    } catch {
+        return url;
+    }
+}
+
 /** Primary (writer) pool. Returns null when no DB is configured. */
 export function getWritePool(): pg.Pool | null {
     if (writePool) return writePool;
     if (!process.env.POSTGRES_URL) return null;
-    writePool = new Pool({ connectionString: process.env.POSTGRES_URL, ssl: ssl(), ...POOL_OPTS });
+    writePool = new Pool({ connectionString: connectionString(process.env.POSTGRES_URL), ssl: ssl(), ...POOL_OPTS });
     return writePool;
 }
 
@@ -75,7 +91,7 @@ export function getReadPool(): pg.Pool | null {
         return getWritePool();
     }
     try {
-        readPool = new Pool({ connectionString: replicaUrl, ssl: ssl(), ...POOL_OPTS });
+        readPool = new Pool({ connectionString: connectionString(replicaUrl), ssl: ssl(), ...POOL_OPTS });
         readPoolIsPrimary = false;
         return readPool;
     } catch {
