@@ -1156,6 +1156,9 @@ async function runRepair(pool: pg.Pool, provider: ethers.Provider) {
 
 /** Triggered by API traffic when Crons are unavailable. */
 export async function checkAndSync() {
+  // When a dedicated indexer worker owns ingestion, skip the lazy-sync entirely
+  // so the API never competes with the worker for the Postgres advisory lock.
+  if (/^(1|true|yes)$/i.test(process.env.DISABLE_INBAND_SYNC ?? "")) return;
   const pool = getPool();
   if (!pool) return;
   try {
