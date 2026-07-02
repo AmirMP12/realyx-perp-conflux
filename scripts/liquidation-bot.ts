@@ -1,5 +1,13 @@
 import "dotenv/config";
 import { ethers } from "ethers";
+import {
+    RpcPause,
+    backoffMainLoop,
+    createRpcRetry,
+    errorText,
+    parseBotRpcUrls,
+    sleepMs,
+} from "./lib/bot-rpc";
 import { loadDeployment } from "./write-deployment";
 
 /**
@@ -69,17 +77,6 @@ function selectorFromError(err: unknown): string | null {
     return match[0].slice(0, 10).toLowerCase();
 }
 
-function isRetriableRpcError(err: unknown): boolean {
-    const text = err instanceof Error ? `${err.message} ${(err as any).code ?? ""}` : String(err);
-    return /timeout|rate exceeded|too many requests|429|ETIMEDOUT|SERVER_ERROR/i.test(text);
-}
-
-function parseRpcUrls(primary: string): string[] {
-    const csv = process.env.LIQ_RPC_URLS ?? process.env.KEEPER_RPC_URLS;
-    const list = (csv ? csv.split(",") : [primary]).map((s) => s.trim()).filter(Boolean);
-    return [...new Set(list)];
-}
-
 function bytes32ToPythId(feedId: string): string {
     return feedId.toLowerCase().replace(/^0x/, "");
 }
@@ -104,7 +101,8 @@ async function main() {
         throw new Error("Set LIQ_TRADING_CORE_ADDRESS or DEPLOYED_TRADING_CORE (or deployment/<network>.json)");
     }
 
-    const pollMs = toMsFromSeconds(process.env.LIQ_POLL_INTERVAL_SECONDS, 5);
+    const pollMs = toMsFromSeconds(process.env.LIQ_POLL_INTERVAL_SECONDS, 8);
+    const idlePollMs = toMsFromSeconds(process.env.LIQ_IDLE_POLL_INTERVAL_SECONDS, 20);
     const minPriceRefreshMs = toMsFromSeconds(process.env.LIQ_MIN_PRICE_REFRESH_SECONDS, 20);
     const lookbackBlocks = BigInt(Math.max(1, Number(process.env.LIQ_LOOKBACK_BLOCKS ?? "50000")));
     const blockChunkSize = BigInt(Math.max(100, Number(process.env.LIQ_BLOCK_CHUNK_SIZE ?? "500")));
@@ -115,7 +113,8 @@ async function main() {
     ).replace(/\/+$/, "");
     const rpcRetryBaseDelayMs = Math.max(100, Number(process.env.LIQ_RPC_RETRY_BASE_DELAY_MS ?? "300"));
 
-    const rpcUrls = parseRpcUrls(rpcUrl);
+    const rpcUrls = parseBotRpcUrls(rpcUrl, process.env.LIQ_RPC_URLS ?? process.env.KEEPER_RPC_URLS);
+    const rpcPause = new RpcPause();
     let rpcIndex = 0;
     let provider = new ethers.JsonRpcProvider(rpcUrls[rpcIndex]);
     let wallet = new ethers.Wallet(privateKey, provider);
@@ -135,21 +134,13 @@ async function main() {
         console.warn(`[liq] switched rpc -> ${rpcUrls[rpcIndex]} (reason: ${reason})`);
     }
 
-    async function withRpcRetry<T>(fn: () => Promise<T>, op: string): Promise<T> {
-        const maxAttempts = Math.max(1, Number(process.env.LIQ_RPC_MAX_ATTEMPTS ?? "3"));
-        let lastErr: unknown;
-        for (let i = 1; i <= maxAttempts; i++) {
-            try {
-                return await fn();
-            } catch (err) {
-                lastErr = err;
-                if (!isRetriableRpcError(err)) throw err;
-                await rotateRpc(`${op} retriable rpc error`);
-                await new Promise((r) => setTimeout(r, rpcRetryBaseDelayMs * i));
-            }
-        }
-        throw lastErr;
-    }
+    const withRpcRetry = createRpcRetry({
+        logPrefix: "liq",
+        maxAttempts: Math.max(1, Number(process.env.LIQ_RPC_MAX_ATTEMPTS ?? "3")),
+        baseDelayMs: rpcRetryBaseDelayMs,
+        rpcPause,
+        rotateRpc,
+    });
 
     const marketFeedCache = new Map<string, string>();
     const lastRefreshByMarket = new Map<string, number>();
@@ -291,7 +282,15 @@ async function main() {
 
     while (true) {
         try {
-            const currentBlock = BigInt(await withRpcRetry(() => provider.getBlockNumber(), "loop:getBlockNumber"));
+            let currentBlock: bigint;
+            try {
+                currentBlock = BigInt(await withRpcRetry(() => provider.getBlockNumber(), "loop:getBlockNumber"));
+            } catch (rpcErr) {
+                if (await backoffMainLoop(rpcPause, rpcErr, "liq", rpcRetryBaseDelayMs, "loop:getBlockNumber")) {
+                    continue;
+                }
+                throw rpcErr;
+            }
             if (currentBlock > cursor) {
                 let from = cursor + 1n;
                 while (from <= currentBlock) {
@@ -366,11 +365,15 @@ async function main() {
                 }
             }
         } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
+            if (await backoffMainLoop(rpcPause, err, "liq", rpcRetryBaseDelayMs)) {
+                continue;
+            }
+            const message = errorText(err);
             console.error(`[liq] loop error: ${message}`);
         }
 
-        await new Promise((resolve) => setTimeout(resolve, pollMs));
+        const loopDelay = candidates.size > 0 ? pollMs : idlePollMs;
+        await sleepMs(loopDelay);
     }
 }
 

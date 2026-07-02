@@ -1,5 +1,13 @@
 import "dotenv/config";
 import { ethers } from "ethers";
+import {
+    RpcPause,
+    backoffMainLoop,
+    createRpcRetry,
+    errorText,
+    parseBotRpcUrls,
+    sleepMs,
+} from "./lib/bot-rpc";
 import { loadDeployment } from "./write-deployment";
 
 type PendingOrder = {
@@ -90,35 +98,6 @@ function selectorFromError(err: unknown): string | null {
         if (hexLen >= 8) return m.slice(0, 10).toLowerCase();
     }
     return null;
-}
-
-function errorText(err: unknown): string {
-    if (err instanceof Error) return `${err.message} ${(err as any).code ?? ""}`;
-    return JSON.stringify(err, (_k, v) => (typeof v === "bigint" ? v.toString() : v));
-}
-
-function isRetriableRpcError(err: unknown): boolean {
-    const text = errorText(err);
-    return /timeout|rate exceeded|too many requests|429|ETIMEDOUT|SERVER_ERROR|daily request count exceeded|-32005|wrong epoch numbers|largest epoch number|-32016/i.test(
-        text,
-    );
-}
-
-function retryAfterMsFromError(err: unknown, capMs = 60_000): number | null {
-    const m = errorText(err).match(/try again after\s+(?:(\d+)m)?(?:([\d.]+)s)?(?:(\d+)ms)?/i);
-    if (!m) return null;
-    const minutes = m[1] ? Number(m[1]) : 0;
-    const seconds = m[2] ? Number(m[2]) : 0;
-    const millis = m[3] ? Number(m[3]) : 0;
-    const total = minutes * 60_000 + seconds * 1_000 + millis;
-    if (!Number.isFinite(total) || total <= 0) return null;
-    return Math.min(total, capMs);
-}
-
-function parseRpcUrls(primary: string): string[] {
-    const csv = process.env.KEEPER_RPC_URLS;
-    const list = (csv ? csv.split(",") : [primary]).map((s) => s.trim()).filter(Boolean);
-    return [...new Set(list)];
 }
 
 const TRANSIENT_REASON_PATTERNS =
@@ -222,7 +201,8 @@ async function main() {
         throw new Error("Set KEEPER_TRADING_CORE_ADDRESS or DEPLOYED_TRADING_CORE (or deployment/<network>.json)");
     }
 
-    const pollMs = toMsFromSeconds(process.env.KEEPER_POLL_INTERVAL_SECONDS, 3);
+    const pollMs = toMsFromSeconds(process.env.KEEPER_POLL_INTERVAL_SECONDS, 5);
+    const idlePollMs = toMsFromSeconds(process.env.KEEPER_IDLE_POLL_INTERVAL_SECONDS, 15);
     const minPriceRefreshMs = toMsFromSeconds(process.env.KEEPER_MIN_PRICE_REFRESH_SECONDS, 20);
     const keeperApiBaseUrl = process.env.KEEPER_API_BASE_URL || "http://localhost:3001";
     const lookbackBlocks = BigInt(Math.max(1, Number(process.env.KEEPER_LOOKBACK_BLOCKS ?? "5000")));
@@ -235,7 +215,8 @@ async function main() {
     const txWaitTimeoutMs = toMsFromSeconds(process.env.KEEPER_TX_WAIT_TIMEOUT_SECONDS, 120);
     const transientBackoffMs = toMsFromSeconds(process.env.KEEPER_TRANSIENT_RETRY_SECONDS, 15);
 
-    const rpcUrls = parseRpcUrls(rpcUrl);
+    const rpcUrls = parseBotRpcUrls(rpcUrl, process.env.KEEPER_RPC_URLS);
+    const rpcPause = new RpcPause();
     let rpcIndex = 0;
     let provider = new ethers.JsonRpcProvider(rpcUrls[rpcIndex]);
     let baseWallet = new ethers.Wallet(privateKey, provider);
@@ -262,26 +243,13 @@ async function main() {
         console.warn(`[keeper] switched rpc -> ${rpcUrls[rpcIndex]} (reason: ${reason})`);
     }
 
-    async function withRpcRetry<T>(fn: () => Promise<T>, op: string): Promise<T> {
-        const maxAttempts = Math.max(1, Number(process.env.KEEPER_RPC_MAX_ATTEMPTS ?? "3"));
-        let lastErr: unknown;
-        for (let i = 1; i <= maxAttempts; i++) {
-            try {
-                return await fn();
-            } catch (err) {
-                lastErr = err;
-                if (!isRetriableRpcError(err)) throw err;
-                await rotateRpc(`${op} retriable rpc error`);
-                const retryAfter = retryAfterMsFromError(err);
-                const delay = retryAfter ?? rpcRetryBaseDelayMs * i;
-                if (retryAfter != null) {
-                    console.warn(`[keeper] ${op} rate-limited; backing off ${delay}ms (provider hint)`);
-                }
-                await new Promise((r) => setTimeout(r, delay));
-            }
-        }
-        throw lastErr;
-    }
+    const withRpcRetry = createRpcRetry({
+        logPrefix: "keeper",
+        maxAttempts: Math.max(1, Number(process.env.KEEPER_RPC_MAX_ATTEMPTS ?? "3")),
+        baseDelayMs: rpcRetryBaseDelayMs,
+        rpcPause,
+        rotateRpc,
+    });
 
     function resyncNonce(): void {
         const nm = wallet as ethers.NonceManager;
@@ -527,7 +495,15 @@ async function main() {
         try {
             resyncNonce();
 
-            const head = BigInt(await withRpcRetry(() => provider.getBlockNumber(), "loop:getBlockNumber"));
+            let head: bigint;
+            try {
+                head = BigInt(await withRpcRetry(() => provider.getBlockNumber(), "loop:getBlockNumber"));
+            } catch (rpcErr) {
+                if (await backoffMainLoop(rpcPause, rpcErr, "keeper", rpcRetryBaseDelayMs, "loop:getBlockNumber")) {
+                    continue;
+                }
+                throw rpcErr;
+            }
             const safeHead = head > confirmations ? head - confirmations : 0n;
             let logsFoundThisTick = 0;
             if (safeHead > cursor) {
@@ -606,11 +582,15 @@ async function main() {
                 }
             }
         } catch (err) {
+            if (await backoffMainLoop(rpcPause, err, "keeper", rpcRetryBaseDelayMs)) {
+                continue;
+            }
             const message = err instanceof Error ? err.message : String(err);
             console.error(`[keeper] loop error: ${message}`);
         }
 
-        await new Promise((resolve) => setTimeout(resolve, pollMs));
+        const loopDelay = pending.size > 0 ? pollMs : idlePollMs;
+        await sleepMs(loopDelay);
     }
 
     console.log("[keeper] drained; exiting.");

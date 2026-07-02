@@ -106,9 +106,15 @@ KEEPER_PRIVATE_KEY=<funded signer private key>    # SECRET — set only in Railw
 # KEEPER_API_BASE_URL=https://<your-api-domain>   # for failure webhooks
 # KEEPER_WEBHOOK_SECRET=<same value as the api service>  # enables failure notifications
 # KEEPER_HERMES_URL=https://hermes.pyth.network
-# KEEPER_POLL_INTERVAL_SECONDS=3
+# KEEPER_POLL_INTERVAL_SECONDS=5
+# KEEPER_IDLE_POLL_INTERVAL_SECONDS=15
 # KEEPER_MAX_CONCURRENCY=4
 ```
+
+> **Public RPC limits:** Conflux public endpoints enforce a ~100k requests/day
+> quota per IP. The bots share a global cooldown on `-32005` / daily-limit errors
+> and back off for the provider's `try again after …` hint. For production,
+> set `KEEPER_RPC_URLS` to multiple endpoints and/or a dedicated RPC provider.
 
 ### liquidation (optional)
 
@@ -120,7 +126,22 @@ LIQ_NETWORK=confluxTestnet                         # or inherits KEEPER_NETWORK
 LIQ_RPC_URL=https://evmtestnet.confluxrpc.com      # or inherits KEEPER_RPC_URL
 LIQ_PRIVATE_KEY=<funded liquidator key>            # or inherits KEEPER_PRIVATE_KEY
 # LIQ_TRADING_CORE_ADDRESS=0x...                    # else from deployment file
-# LIQ_POLL_INTERVAL_SECONDS=5
+# LIQ_POLL_INTERVAL_SECONDS=8
+# LIQ_IDLE_POLL_INTERVAL_SECONDS=20
+```
+
+### decentralized-keeper (optional)
+
+Permissionless keeper via `KeeperNetwork`. Falls back to `KEEPER_*` / `DK_*` env vars.
+
+```
+NODE_ENV=production
+DK_NETWORK=confluxTestnet
+DK_RPC_URL=https://evmtestnet.confluxrpc.com
+DK_PRIVATE_KEY=<funded signer key>
+# DK_KEEPER_NETWORK_ADDRESS=0x...                   # else from deployment file
+# DK_POLL_INTERVAL_SECONDS=6
+# DK_IDLE_POLL_INTERVAL_SECONDS=18
 ```
 
 > **Security:** the keeper/liquidation signer sends real transactions and must

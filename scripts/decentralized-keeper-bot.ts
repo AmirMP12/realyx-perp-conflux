@@ -1,5 +1,12 @@
 import "dotenv/config";
 import { ethers } from "ethers";
+import {
+    RpcPause,
+    backoffMainLoop,
+    createRpcRetry,
+    parseBotRpcUrls,
+    sleepMs,
+} from "./lib/bot-rpc";
 import { loadDeployment } from "./write-deployment";
 
 /**
@@ -99,17 +106,6 @@ function selectorFromError(err: unknown): string | null {
     return match[0].slice(0, 10).toLowerCase();
 }
 
-function isRetriableRpcError(err: unknown): boolean {
-    const text = err instanceof Error ? `${err.message} ${(err as any).code ?? ""}` : String(err);
-    return /timeout|rate exceeded|too many requests|429|ETIMEDOUT|SERVER_ERROR/i.test(text);
-}
-
-function parseRpcUrls(primary: string): string[] {
-    const csv = process.env.DK_RPC_URLS ?? process.env.KEEPER_RPC_URLS;
-    const list = (csv ? csv.split(",") : [primary]).map((s) => s.trim()).filter(Boolean);
-    return [...new Set(list)];
-}
-
 function bytes32ToPythId(feedId: string): string {
     return feedId.toLowerCase().replace(/^0x/, "");
 }
@@ -133,7 +129,8 @@ async function main() {
         throw new Error("Set DK_KEEPER_NETWORK_ADDRESS or KEEPER_NETWORK_ADDRESS (deployed KeeperNetwork proxy).");
     }
 
-    const pollMs = toMsFromSeconds(process.env.DK_POLL_INTERVAL_SECONDS, 4);
+    const pollMs = toMsFromSeconds(process.env.DK_POLL_INTERVAL_SECONDS, 6);
+    const idlePollMs = toMsFromSeconds(process.env.DK_IDLE_POLL_INTERVAL_SECONDS, 18);
     const lookbackBlocks = BigInt(Math.max(1, Number(process.env.DK_LOOKBACK_BLOCKS ?? "50000")));
     const blockChunkSize = BigInt(Math.max(100, Number(process.env.DK_BLOCK_CHUNK_SIZE ?? "500")));
     const hermesBase = (
@@ -153,7 +150,8 @@ async function main() {
     const enableTriggers = (process.env.DK_ENABLE_TRIGGERS ?? "true").toLowerCase() !== "false";
     const enableOrders = (process.env.DK_ENABLE_ORDERS ?? "true").toLowerCase() !== "false";
 
-    const rpcUrls = parseRpcUrls(rpcUrl);
+    const rpcUrls = parseBotRpcUrls(rpcUrl, process.env.DK_RPC_URLS ?? process.env.KEEPER_RPC_URLS);
+    const rpcPause = new RpcPause();
     let rpcIndex = 0;
     let provider = new ethers.JsonRpcProvider(rpcUrls[rpcIndex]);
     let baseWallet = new ethers.Wallet(privateKey, provider);
@@ -197,21 +195,13 @@ async function main() {
         console.warn(`[dkeeper] switched rpc -> ${rpcUrls[rpcIndex]} (reason: ${reason})`);
     }
 
-    async function withRpcRetry<T>(fn: () => Promise<T>, op: string): Promise<T> {
-        const maxAttempts = Math.max(1, Number(process.env.DK_RPC_MAX_ATTEMPTS ?? "3"));
-        let lastErr: unknown;
-        for (let i = 1; i <= maxAttempts; i++) {
-            try {
-                return await fn();
-            } catch (err) {
-                lastErr = err;
-                if (!isRetriableRpcError(err)) throw err;
-                await rotateRpc(`${op} retriable rpc error`);
-                await new Promise((r) => setTimeout(r, rpcRetryBaseDelayMs * i));
-            }
-        }
-        throw lastErr;
-    }
+    const withRpcRetry = createRpcRetry({
+        logPrefix: "dkeeper",
+        maxAttempts: Math.max(1, Number(process.env.DK_RPC_MAX_ATTEMPTS ?? "3")),
+        baseDelayMs: rpcRetryBaseDelayMs,
+        rpcPause,
+        rotateRpc,
+    });
 
     const marketFeedCache = new Map<string, string>();
 
@@ -498,7 +488,15 @@ async function main() {
     // --- Main loop ---------------------------------------------------------
     while (true) {
         try {
-            const currentBlock = BigInt(await withRpcRetry(() => provider.getBlockNumber(), "loop:getBlockNumber"));
+            let currentBlock: bigint;
+            try {
+                currentBlock = BigInt(await withRpcRetry(() => provider.getBlockNumber(), "loop:getBlockNumber"));
+            } catch (rpcErr) {
+                if (await backoffMainLoop(rpcPause, rpcErr, "dkeeper", rpcRetryBaseDelayMs, "loop:getBlockNumber")) {
+                    continue;
+                }
+                throw rpcErr;
+            }
             if (currentBlock > cursor) {
                 let from = cursor + 1n;
                 while (from <= currentBlock) {
@@ -570,10 +568,14 @@ async function main() {
                 }
             }
         } catch (err) {
+            if (await backoffMainLoop(rpcPause, err, "dkeeper", rpcRetryBaseDelayMs)) {
+                continue;
+            }
             console.error(`[dkeeper] loop error: ${err instanceof Error ? err.message : String(err)}`);
         }
 
-        await new Promise((resolve) => setTimeout(resolve, pollMs));
+        const hasWork = pendingOrders.size > 0 || openPositions.size > 0;
+        await sleepMs(hasWork ? pollMs : idlePollMs);
     }
 }
 
