@@ -74,6 +74,11 @@ function toMsFromSeconds(raw: string | undefined, fallbackSeconds: number): numb
     return Math.floor(n * 1000);
 }
 
+// Local reliable sleep that does NOT call unref() to ensure node event loop stays active
+function localSleepMs(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function selectorFromError(err: unknown): string | null {
     const e = err as any;
     const candidates = [e?.data, e?.info?.error?.data, e?.error?.data, e?.revert?.selector];
@@ -245,8 +250,11 @@ async function main() {
         if (typeof nm.reset === "function") nm.reset();
     }
 
-    async function waitForReceipt(tx: ethers.TransactionResponse): Promise<ethers.TransactionReceipt | null> {
-        return tx.wait(1, txWaitTimeoutMs);
+    async function waitForReceipt(
+        tx: ethers.TransactionResponse,
+        timeout = txWaitTimeoutMs,
+    ): Promise<ethers.TransactionReceipt | null> {
+        return tx.wait(1, timeout);
     }
 
     const marketFeedCache = new Map<string, string>();
@@ -363,7 +371,7 @@ async function main() {
         }
     }
 
-    // Dynamic TWAP Seeder (Fully Batched & 100% Concurrent Pokes)
+    // Dynamic TWAP Seeder (Fully Batched & 100% Concurrent Pokes with wait timeouts)
     async function pokeAllMarkets() {
         const marketAddresses = await getActiveMarkets();
         console.log(`[keeper] maintaining TWAP buffers for ${marketAddresses.length} markets...`);
@@ -407,20 +415,20 @@ async function main() {
             try {
                 console.log(`[keeper] updating ${updateData.length} price feeds in a single transaction...`);
                 const txUpdate = await oracleAggregator.updatePrices(updateData, { value: updateFee });
-                await txUpdate.wait(1);
+                await waitForReceipt(txUpdate, 25000); // 25s timeout instead of hanging
                 console.log("[keeper] price feeds updated successfully.");
             } catch (updateErr) {
                 console.warn("[keeper] price feed update transaction failed:", errorText(updateErr));
             }
         }
 
-        // 4. Send all pokeTWAP transactions in parallel (100% concurrent)
+        // 4. Send all pokeTWAP transactions in parallel (100% concurrent with timeouts)
         console.log(`[keeper] sending pokeTWAP transactions for ${marketAddresses.length} markets in parallel...`);
         await Promise.all(
             marketAddresses.map(async (m) => {
                 try {
                     const txPoke = await oracleAggregator.pokeTWAP(m);
-                    await txPoke.wait(1);
+                    await waitForReceipt(txPoke, 25000); // 25s timeout instead of hanging
                     console.log(`[keeper] poked TWAP for market ${m} successfully.`);
                 } catch (err) {
                     console.warn(`[keeper] failed to poke TWAP for market ${m}:`, errorText(err));
@@ -433,7 +441,7 @@ async function main() {
         console.log("[keeper] warming up TWAP buffers (Phase 1/2)...");
         await pokeAllMarkets();
         console.log("[keeper] waiting 32 seconds for TWAP buffer spacing interval...");
-        await sleepMs(32000);
+        await localSleepMs(32000); // Standard timeout that keeps Node event loop active
         console.log("[keeper] warming up TWAP buffers (Phase 2/2)...");
         await pokeAllMarkets();
         console.log("[keeper] TWAP buffers successfully warmed.");
@@ -665,7 +673,7 @@ async function main() {
         }
 
         const loopDelay = pending.size > 0 ? pollMs : idlePollMs;
-        await sleepMs(loopDelay);
+        await localSleepMs(loopDelay);
     }
 
     console.log("[keeper] drained; exiting.");
