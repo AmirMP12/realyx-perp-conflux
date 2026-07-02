@@ -363,54 +363,70 @@ async function main() {
         }
     }
 
-    // Dynamic TWAP Seeder with 4x Concurrency Batching
+    // Dynamic TWAP Seeder (Fully Batched & 100% Concurrent Pokes)
     async function pokeAllMarkets() {
         const marketAddresses = await getActiveMarkets();
         console.log(`[keeper] maintaining TWAP buffers for ${marketAddresses.length} markets...`);
 
-        // Batch them in chunks of 4 to avoid overloading the public RPC
-        const chunkSize = 4;
-        for (let i = 0; i < marketAddresses.length; i += chunkSize) {
-            const chunk = marketAddresses.slice(i, i + chunkSize);
-            console.log(
-                `[keeper] dispatching batch ${Math.floor(i / chunkSize) + 1}/${Math.ceil(marketAddresses.length / chunkSize)}: ${chunk.join(", ")}`,
-            );
-
-            await Promise.all(
-                chunk.map(async (m) => {
-                    try {
-                        const feedId = await getFeedIdForMarket(m);
-                        let updateData: string[] = [];
-                        let updateFee = 0n;
-                        if (feedId) {
-                            try {
-                                const fetched = await fetchHermesUpdateData(feedId);
-                                if (fetched && fetched.length > 0) {
-                                    updateData = fetched;
-                                    updateFee = (await withRpcRetry(
-                                        () => pyth.getUpdateFee(updateData),
-                                        "pyth.getUpdateFee",
-                                    )) as bigint;
-                                }
-                            } catch (hermesErr) {
-                                console.warn(`[keeper] Hermers update fail for market=${m}:`, errorText(hermesErr));
-                            }
-                        }
-
-                        if (updateData.length > 0) {
-                            const txUpdate = await oracleAggregator.updatePrices(updateData, { value: updateFee });
-                            await txUpdate.wait(1);
-                        }
-
-                        const txPoke = await oracleAggregator.pokeTWAP(m);
-                        await txPoke.wait(1);
-                        console.log(`[keeper] poked TWAP for market ${m} successfully.`);
-                    } catch (err) {
-                        console.warn(`[keeper] failed to poke TWAP for market ${m}:`, errorText(err));
-                    }
-                }),
-            );
+        // 1. Gather all Pyth feed IDs
+        const feedIds: string[] = [];
+        for (const m of marketAddresses) {
+            const feedId = await getFeedIdForMarket(m);
+            if (feedId) {
+                feedIds.push(bytes32ToPythId(feedId));
+            }
         }
+
+        // 2. Fetch all price updates in a single batched Hermes request
+        let updateData: string[] = [];
+        let updateFee = 0n;
+        if (feedIds.length > 0) {
+            try {
+                const q = feedIds.map((id) => `ids[]=${id}`).join("&");
+                const url = `${hermesBase}/v2/updates/price/latest?encoding=hex&${q}`;
+                const res = await fetch(url);
+                if (res.ok) {
+                    const body = (await res.json()) as { binary?: { data?: string[] } };
+                    updateData = (body.binary?.data || [])
+                        .filter(Boolean)
+                        .map((d) => (d.startsWith("0x") ? d : `0x${d}`));
+                    if (updateData.length > 0) {
+                        updateFee = (await withRpcRetry(
+                            () => pyth.getUpdateFee(updateData),
+                            "pyth.getUpdateFee",
+                        )) as bigint;
+                    }
+                }
+            } catch (hermesErr) {
+                console.warn("[keeper] failed to fetch batched Pyth updates:", errorText(hermesErr));
+            }
+        }
+
+        // 3. Update all price feeds on-chain in a single batched transaction
+        if (updateData.length > 0) {
+            try {
+                console.log(`[keeper] updating ${updateData.length} price feeds in a single transaction...`);
+                const txUpdate = await oracleAggregator.updatePrices(updateData, { value: updateFee });
+                await txUpdate.wait(1);
+                console.log("[keeper] price feeds updated successfully.");
+            } catch (updateErr) {
+                console.warn("[keeper] price feed update transaction failed:", errorText(updateErr));
+            }
+        }
+
+        // 4. Send all pokeTWAP transactions in parallel (100% concurrent)
+        console.log(`[keeper] sending pokeTWAP transactions for ${marketAddresses.length} markets in parallel...`);
+        await Promise.all(
+            marketAddresses.map(async (m) => {
+                try {
+                    const txPoke = await oracleAggregator.pokeTWAP(m);
+                    await txPoke.wait(1);
+                    console.log(`[keeper] poked TWAP for market ${m} successfully.`);
+                } catch (err) {
+                    console.warn(`[keeper] failed to poke TWAP for market ${m}:`, errorText(err));
+                }
+            }),
+        );
     }
 
     async function warmUpTwapBuffers() {
