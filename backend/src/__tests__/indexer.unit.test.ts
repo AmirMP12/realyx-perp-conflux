@@ -99,7 +99,6 @@ describe("Indexer Logic Paths", () => {
 
     it("fetchLeaderboard: returns empty array on error in non-production", async () => {
         process.env.NODE_ENV = "development";
-        // The logger derives its level from NODE_ENV at import time; under
         // "development" it would emit the expected error to pino's own stream
         // (bypassing the console silencing in setup). Force it silent for this
         // case and restore afterwards so other suites still see real levels.

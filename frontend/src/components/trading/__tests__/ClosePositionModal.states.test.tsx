@@ -11,7 +11,7 @@ const closePosition = vi.fn();
 const partialClose = vi.fn();
 const pushLatestForMarkets = vi.fn();
 
-describe('ClosePositionModal edge cases', () => {
+describe('ClosePositionModal states', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         closePosition.mockResolvedValue(true);

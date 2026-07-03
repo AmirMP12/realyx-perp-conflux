@@ -10,7 +10,7 @@ vi.mock('../../hooks/usePositions', () => ({ usePositions: vi.fn() }));
 vi.mock('../../utils/pwa', () => ({ notify: vi.fn() }));
 vi.mock('react-hot-toast', () => ({ default: vi.fn() }));
 
-describe('OrderNotifications extra', () => {
+describe('OrderNotifications event parsing', () => {
     let wsInstance: any;
 
     beforeEach(() => {
@@ -58,13 +58,18 @@ describe('OrderNotifications extra', () => {
     it('emits a local liquidation warning from health monitoring', async () => {
         (usePositions as any).mockReturnValue({
             positions: [
-                { id: '9', isLong: true, markPrice: '105', liquidationPrice: '100' }, // HF 1.05 -> warn
-                { id: '10', isLong: false, markPrice: '50', liquidationPrice: '40' }, // not at risk
-                { id: '11', isLong: true, markPrice: '0', liquidationPrice: '0' }, // skipped
+                { id: '9', isLong: true, markPrice: '105', liquidationPrice: '100' },
+                { id: '10', isLong: false, markPrice: '50', liquidationPrice: '40' },
+                { id: '11', isLong: true, markPrice: '0', liquidationPrice: '0' },
             ],
         });
         render(<NotificationBell />);
         await act(async () => { /* checkHealth runs on mount */ });
-        expect(toast).toHaveBeenCalledWith(expect.stringContaining('nearing liquidation'), expect.anything());
+        expect(screen.getByText('1')).toBeInTheDocument();
+        expect(toast).not.toHaveBeenCalled();
+        await act(async () => {
+            screen.getByRole('button', { name: /open notifications/i }).click();
+        });
+        expect(screen.getByText(/Position #9 \(LONG\) nearing liquidation/)).toBeInTheDocument();
     });
 });

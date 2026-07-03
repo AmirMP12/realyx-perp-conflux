@@ -249,17 +249,9 @@ describe("TradingCore — orders & keeper (integration)", () => {
             const d = await loadFixture(deployConfigured);
             const tx = await d.tradingCore
                 .connect(d.alice)
-                ["createOrder(uint8,address,uint256,uint256,uint256,bool,uint256,uint256)"](
-                    OrderType.MARKET_INCREASE,
-                    d.market,
-                    usdc(10_000),
-                    usdc(2_000),
-                    0,
-                    true,
-                    0,
-                    0,
-                    { value: EXEC_FEE },
-                );
+                [
+                    "createOrder(uint8,address,uint256,uint256,uint256,bool,uint256,uint256)"
+                ](OrderType.MARKET_INCREASE, d.market, usdc(10_000), usdc(2_000), 0, true, 0, 0, { value: EXEC_FEE });
             await expect(tx).to.emit(d.tradingCore, "OrderCreated");
         });
     });

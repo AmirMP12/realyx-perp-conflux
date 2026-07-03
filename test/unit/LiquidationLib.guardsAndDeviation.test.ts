@@ -9,13 +9,6 @@ const e6 = (n: bigint | number) => ethers.parseUnits(n.toString(), 6);
 
 const MARKET = "0x00000000000000000000000000000000000000B7";
 
-/**
- * Verifies LiquidationLib guard and deviation handling via the deep and simple
- * harnesses: the position state guard, TWAP-deviation direction, profit-vs-loss
- * payout, insurance shortfall and partial-fee paths, repay failure, the reward
- * floor, long/short open-interest accounting, and the exposure floor.
- */
-
 async function deployLiq(fund: boolean) {
     const [admin, treasury, owner, liquidator] = await ethers.getSigners();
     const USDC = await ethers.getContractFactory("MockUSDC");
@@ -89,7 +82,6 @@ describe("LiquidationLib — deep paths", () => {
         await h.setCollateral(1, e18(400));
         await pt.setOwner(1, owner.address);
         const now = (await ethers.provider.getBlock("latest"))!.timestamp;
-        // spot above twap -> exercises the currentPrice > twapPrice deviation direction
         await oracle.setPrice(MARKET, e18(53_000), 0, now);
         await oracle.setTWAP(MARKET, e18(53_000));
         await h.liquidate(1);

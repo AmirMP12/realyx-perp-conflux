@@ -9,7 +9,7 @@ describe("On-chain Market Logic Paths", () => {
         process.env.RPC_URL = "http://localhost:8545";
     });
 
-    it("handles toStr edge cases", async () => {
+    it("handles toStr invalid inputs", async () => {
         const mProvider = {
             getNetwork: jest.fn().mockResolvedValue({ chainId: 71n }),
             _detectNetwork: jest.fn().mockResolvedValue({ chainId: 71n }),

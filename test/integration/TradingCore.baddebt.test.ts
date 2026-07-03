@@ -8,12 +8,6 @@ import { setPythPrice } from "../helpers/pyth";
 
 const price = (n: number) => BigInt(n) * 10n ** 18n;
 
-/**
- * Drives a liquidation deep enough to create residual bad debt so the engine
- * records a FailedRepayment, then resolves it via the admin path. Exercises
- * TradingCore.recordFailedRepayment / resolveFailedRepayment and the
- * TradingLib resolve* helpers through the real engine.
- */
 describe("TradingCore — bad debt & failed repayment (integration)", () => {
     it("liquidates a moderately underwater position through the engine", async () => {
         const d = await loadFixture(deployConfigured);

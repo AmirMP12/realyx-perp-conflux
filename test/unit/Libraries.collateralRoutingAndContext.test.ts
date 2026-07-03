@@ -7,10 +7,6 @@ const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 const e6 = (n: bigint | number) => ethers.parseUnits(n.toString(), 6);
 const e8 = (n: bigint | number) => ethers.parseUnits(n.toString(), 8);
 
-/**
- * Verifies CollateralRouterLib and TradingContextLib behavior.
- */
-
 describe("CollateralRouterLib", () => {
     async function deployFixture() {
         const [admin, user] = await ethers.getSigners();
@@ -42,8 +38,18 @@ describe("CollateralRouterLib", () => {
         const token2Addr = await token2.getAddress();
 
         // Set oracle prices for the tokens (1:1 with USDC for simplicity)
-        await oracle.setPrice(token1Addr, e18(1), e18(0.01), await ethers.provider.getBlock('latest').then(b => b!.timestamp));
-        await oracle.setPrice(token2Addr, e18(1), e18(0.01), await ethers.provider.getBlock('latest').then(b => b!.timestamp));
+        await oracle.setPrice(
+            token1Addr,
+            e18(1),
+            e18(0.01),
+            await ethers.provider.getBlock("latest").then((b) => b!.timestamp),
+        );
+        await oracle.setPrice(
+            token2Addr,
+            e18(1),
+            e18(0.01),
+            await ethers.provider.getBlock("latest").then((b) => b!.timestamp),
+        );
 
         // Setup collateral configs using registerToken
         await registry.registerToken(
@@ -55,7 +61,7 @@ describe("CollateralRouterLib", () => {
             50, // volatility adder
             e6(1_000_000), // max exposure
             token1Addr, // oracle feed (token address used as market address)
-            6 // decimals
+            6, // decimals
         );
 
         await registry.registerToken(
@@ -67,7 +73,7 @@ describe("CollateralRouterLib", () => {
             50,
             e6(500_000),
             token2Addr,
-            6
+            6,
         );
 
         // Mint tokens to user
@@ -87,14 +93,13 @@ describe("CollateralRouterLib", () => {
                 tokens,
                 await registry.getAddress(),
                 e6(1000), // require 1000 USDC value
-                false // normal haircut
+                false, // normal haircut
             );
 
             expect(token).to.not.equal(ethers.ZeroAddress);
             expect(tokenAmount).to.be.greaterThan(0n);
             expect(usdcValue).to.be.greaterThan(0n);
         });
-
 
         it("returns zero address when insufficient balance", async () => {
             const { harness, registry, token1, token2, user } = await loadFixture(deployFixture);
@@ -105,7 +110,7 @@ describe("CollateralRouterLib", () => {
                 tokens,
                 await registry.getAddress(),
                 e6(100_000), // require more than user has
-                false
+                false,
             );
 
             expect(token).to.equal(ethers.ZeroAddress);
@@ -120,7 +125,7 @@ describe("CollateralRouterLib", () => {
                 tokens,
                 await registry.getAddress(),
                 e6(100),
-                false
+                false,
             );
 
             const [token2Liq, , usdcValueLiq] = await harness.selectBestCollateral(
@@ -128,13 +133,13 @@ describe("CollateralRouterLib", () => {
                 tokens,
                 await registry.getAddress(),
                 e6(100),
-                true // liquidation haircut
+                true, // liquidation haircut
             );
 
             // Both should select a token
             expect(token1Normal).to.not.equal(ethers.ZeroAddress);
             expect(token2Liq).to.not.equal(ethers.ZeroAddress);
-            
+
             // Values should be positive (haircut applied means less than gross value)
             expect(usdcValueNormal).to.be.greaterThan(0);
             expect(usdcValueLiq).to.be.greaterThan(0);
@@ -152,7 +157,7 @@ describe("CollateralRouterLib", () => {
                 tokens,
                 await registry.getAddress(),
                 e6(100),
-                false
+                false,
             );
 
             // Should select token2 since token1 is disabled
@@ -165,14 +170,13 @@ describe("CollateralRouterLib", () => {
             const { harness, registry, token1, token2, user } = await loadFixture(deployFixture);
 
             const tokens = [await token1.getAddress(), await token2.getAddress()];
-            const [selectedTokens, amounts, usdcValues, totalUsdcValue] =
-                await harness.selectBestCollateralBasket(
-                    user.address,
-                    tokens,
-                    await registry.getAddress(),
-                    e6(1000),
-                    false
-                );
+            const [selectedTokens, amounts, usdcValues, totalUsdcValue] = await harness.selectBestCollateralBasket(
+                user.address,
+                tokens,
+                await registry.getAddress(),
+                e6(1000),
+                false,
+            );
 
             expect(selectedTokens.length).to.equal(1);
             expect(totalUsdcValue).to.be.greaterThan(0n);
@@ -188,7 +192,7 @@ describe("CollateralRouterLib", () => {
                 tokens,
                 await registry.getAddress(),
                 e6(12_000), // More than user balance
-                false
+                false,
             );
 
             // Should try to use multiple tokens
@@ -204,7 +208,7 @@ describe("CollateralRouterLib", () => {
                 tokens,
                 await registry.getAddress(),
                 e6(50_000), // Way more than user has
-                false
+                false,
             );
 
             expect(totalUsdcValue).to.be.lessThan(e6(50_000));
@@ -220,7 +224,7 @@ describe("CollateralRouterLib", () => {
                 user.address,
                 tokens,
                 await registry.getAddress(),
-                false
+                false,
             );
 
             expect(totalValue).to.be.greaterThan(0n);
@@ -234,7 +238,7 @@ describe("CollateralRouterLib", () => {
                 admin.address, // admin has no tokens
                 tokens,
                 await registry.getAddress(),
-                false
+                false,
             );
 
             expect(totalValue).to.equal(0n);
@@ -247,7 +251,7 @@ describe("CollateralRouterLib", () => {
                 user.address,
                 [await token1.getAddress(), await token2.getAddress()],
                 await registry.getAddress(),
-                false
+                false,
             );
 
             // Disable token1
@@ -257,7 +261,7 @@ describe("CollateralRouterLib", () => {
                 user.address,
                 [await token1.getAddress(), await token2.getAddress()],
                 await registry.getAddress(),
-                false
+                false,
             );
 
             expect(totalAfter).to.be.lessThan(totalBefore);
@@ -304,7 +308,7 @@ describe("TradingContextLib", () => {
             admin,
             trader,
             referrer,
-            treasury
+            treasury,
         };
     }
 
@@ -319,7 +323,7 @@ describe("TradingContextLib", () => {
                 minFeeUsdc: e6(1),
                 lpShareBps: 7000,
                 insuranceShareBps: 2000,
-                treasuryShareBps: 1000
+                treasuryShareBps: 1000,
             };
 
             const ctx = await harness.buildCloseCtx(
@@ -332,7 +336,7 @@ describe("TradingContextLib", () => {
                 await collateralRegistry.getAddress(),
                 feeConfig,
                 ethers.ZeroAddress, // no referral registry
-                trader.address
+                trader.address,
             );
 
             expect(ctx.usdc).to.equal(await usdc.getAddress());
@@ -348,10 +352,10 @@ describe("TradingContextLib", () => {
                 await loadFixture(deployFixture);
 
             const tiers = {
-                nearThresholdBps: 100,        // 1% for near-liquidation
-                mediumRiskBps: 75,            // 0.75% for medium risk
-                deeplyUnderwaterBps: 50,      // 0.5% for deeply underwater
-                liquidatorShareBps: 5000      // 50% goes to liquidator
+                nearThresholdBps: 100, // 1% for near-liquidation
+                mediumRiskBps: 75, // 0.75% for medium risk
+                deeplyUnderwaterBps: 50, // 0.5% for deeply underwater
+                liquidatorShareBps: 5000, // 50% goes to liquidator
             };
 
             const ctx = await harness.buildLiqCtx(
@@ -364,7 +368,7 @@ describe("TradingContextLib", () => {
                 admin.address, // trading core
                 await collateralRegistry.getAddress(),
                 tiers,
-                1000 // 10% deviation
+                1000, // 10% deviation
             );
 
             expect(ctx.usdc).to.equal(await usdc.getAddress());
@@ -381,7 +385,7 @@ describe("TradingContextLib", () => {
                 await oracle.getAddress(),
                 await collateralRegistry.getAddress(),
                 await usdc.getAddress(), // collateral token
-                e18(0.05) // 5% max uncertainty
+                e18(0.05), // 5% max uncertainty
             );
 
             expect(ctx.usdc).to.equal(await usdc.getAddress());

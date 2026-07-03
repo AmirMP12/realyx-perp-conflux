@@ -58,10 +58,6 @@ describe("Sync Route Exhaustive Scenarios", () => {
     it("should fail if POSTGRES_URL is missing", async () => {
         const originalUrl = process.env.POSTGRES_URL;
         delete process.env.POSTGRES_URL;
-        // Re-import or trigger pool creation if possible, but here we can just test the exported runSync directly
-        // because it calls getPool internally.
-        // Wait, getPool uses poolInstance. We need to clear it.
-        // For testing purposes, we might need to reset the module state if possible, or just rely on the error thrown in runSync.
         await expect(sync.runSync()).rejects.toThrow("Database not configured");
         process.env.POSTGRES_URL = originalUrl;
     });

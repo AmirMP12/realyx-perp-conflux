@@ -114,7 +114,6 @@ describe("PositionMath", () => {
     describe("calculateMaintenanceMargin", () => {
         it("uses floor of 100 bps when below minimum", async () => {
             const h = await loadFixture(deployHarness);
-            // bps 50 < 100 floor => effective 100 bps of 1000 = 10
             expect(await h.calcMaintenanceMargin(e18(1000), 50)).to.equal(e18(10));
         });
         it("uses provided bps when above minimum", async () => {

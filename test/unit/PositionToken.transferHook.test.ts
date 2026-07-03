@@ -22,10 +22,7 @@ describe("PositionToken — transfer hook", () => {
         await updater.waitForDeployment();
         await pt.setTradingCore(await updater.getAddress());
         await pt["mint(address,uint256,address,bool)"](alice.address, 1, ethers.ZeroAddress, true);
-        await updater.setMode(1); // revert with reason (Error(string) catch when reason data present)
-        // Under the production `revertStrings: "strip"` build the reason is stripped and this
-        // surfaces as the generic PositionOwnershipUpdateFailed; under the coverage build the
-        // reason survives and surfaces as TradingCoreUpdateFailed. Accept either.
+        await updater.setMode(1);
         await expect(pt.connect(alice).transferFrom(alice.address, bob.address, 1)).to.be.reverted;
     });
 
@@ -37,9 +34,10 @@ describe("PositionToken — transfer hook", () => {
         await pt.setTradingCore(await updater.getAddress());
         await pt["mint(address,uint256,address,bool)"](alice.address, 1, ethers.ZeroAddress, true);
         await updater.setMode(2); // revert with custom error
-        await expect(
-            pt.connect(alice).transferFrom(alice.address, bob.address, 1),
-        ).to.be.revertedWithCustomError(pt, "PositionOwnershipUpdateFailed");
+        await expect(pt.connect(alice).transferFrom(alice.address, bob.address, 1)).to.be.revertedWithCustomError(
+            pt,
+            "PositionOwnershipUpdateFailed",
+        );
     });
 
     it("getPositionMarket / getPositionDirection revert for a nonexistent token", async () => {

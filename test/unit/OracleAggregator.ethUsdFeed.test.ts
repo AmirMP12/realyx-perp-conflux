@@ -153,9 +153,10 @@ describe("OracleAggregator", () => {
         });
         it("proposePythFeed reverts on zero maxConfidence", async () => {
             const { oracle, operator } = await loadFixture(deployWithFeed);
-            await expect(
-                oracle.connect(operator).proposePythFeed(MARKET, FEED, 900, 0),
-            ).to.be.revertedWithCustomError(oracle, "MaxConfidenceRequired");
+            await expect(oracle.connect(operator).proposePythFeed(MARKET, FEED, 900, 0)).to.be.revertedWithCustomError(
+                oracle,
+                "MaxConfidenceRequired",
+            );
         });
     });
 
@@ -186,19 +187,14 @@ describe("OracleAggregator", () => {
         });
         it("cancelPendingEmergencyPrice reverts when none staged", async () => {
             const { oracle, guardian } = await loadFixture(deployWithFeed);
-            await expect(
-                oracle.connect(guardian).cancelPendingEmergencyPrice(MARKET),
-            ).to.be.reverted;
+            await expect(oracle.connect(guardian).cancelPendingEmergencyPrice(MARKET)).to.be.reverted;
         });
     });
 
     describe("historical price", () => {
         it("reverts DataNotFound when no record", async () => {
             const { oracle } = await loadFixture(deployWithFeed);
-            await expect(oracle.getHistoricalPrice(MARKET, 1)).to.be.revertedWithCustomError(
-                oracle,
-                "DataNotFound",
-            );
+            await expect(oracle.getHistoricalPrice(MARKET, 1)).to.be.revertedWithCustomError(oracle, "DataNotFound");
         });
         it("returns a recorded historical price after a breaker check", async () => {
             const ctx = await loadFixture(deployWithFeed);

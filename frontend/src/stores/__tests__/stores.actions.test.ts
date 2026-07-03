@@ -3,7 +3,7 @@ import { useMarketsStore, usePositionsStore, useStatsStore } from '../index';
 import { useMarketStore } from '../marketStore';
 import { useSettingsStore, useReferralStore, initializeTheme } from '../settingsStore';
 
-describe('stores/index gaps', () => {
+describe('stores/index actions', () => {
     it('toggles favorites on and off', () => {
         const { toggleFavorite } = useMarketsStore.getState();
         toggleFavorite('FAVX');
@@ -43,7 +43,7 @@ describe('stores/index gaps', () => {
     });
 });
 
-describe('marketStore gaps', () => {
+describe('marketStore actions', () => {
     it('selects, finds by id/symbol, and toggles favorites', () => {
         useMarketStore.getState().setMarkets([{ id: 'btc', symbol: 'BTC-USD' } as any]);
         useMarketStore.getState().selectMarket('btc');
@@ -56,12 +56,12 @@ describe('marketStore gaps', () => {
     });
 });
 
-describe('settingsStore gaps', () => {
+describe('settingsStore actions', () => {
     beforeEach(() => {
         useSettingsStore.setState({ theme: 'dark' });
     });
 
-    it('exercises every setter and toggleTheme', () => {
+    it('updates all settings and toggles theme', () => {
         const s = useSettingsStore.getState();
         s.setTheme('light');
         expect(document.documentElement.classList.contains('light-theme')).toBe(true);
@@ -97,16 +97,14 @@ describe('settingsStore gaps', () => {
     });
 });
 
-describe('referralStore gaps', () => {
+describe('referralStore actions', () => {
     it('generates code, applies codes, and accrues volume/earnings/tiers', () => {
         const s = useReferralStore.getState();
         s.generateReferralCode('0x1234567890abcdef1234567890abcdef12345678');
         const code = useReferralStore.getState().referralCode!;
         expect(code).toMatch(/^0X12/);
-        // applying own code fails
         expect(useReferralStore.getState().applyReferralCode(code)).toBe(false);
         expect(useReferralStore.getState().applyReferralCode('OTHERCODE')).toBe(true);
-        // applying again when one is used fails
         expect(useReferralStore.getState().applyReferralCode('ANOTHER')).toBe(false);
         useReferralStore.getState().addTradingVolume(1_000_000); // 100k points -> diamond
         expect(useReferralStore.getState().stats.tier).toBe('diamond');

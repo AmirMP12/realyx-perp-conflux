@@ -2,7 +2,6 @@ import request from "supertest";
 import { app } from "../app.js";
 import pino from "pino";
 
-// We need to trigger the error handler. 
 // A simple way is to mock a route and make it throw.
 jest.mock("../routes/health.js", () => {
     const express = require("express");
@@ -40,7 +39,6 @@ describe("Application Comprehensive Integration", () => {
 
     it("configures the pino logger level for the test environment", () => {
         // This is tricky because the logger is created at module load.
-        // We can't easily re-import with different NODE_ENV in Jest without jest.resetModules()
         // But we can check if it loaded correctly with 'test' level (which should be 'silent' according to src/app.ts)
         const { logger } = require("../app.js");
         expect(logger.level).toBe("silent");

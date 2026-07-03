@@ -52,8 +52,6 @@ describe("TradingCoreViews — _globalUnrealizedPnL", () => {
         expect(complete).to.equal(true);
     });
 
-    // NOTE: the `longCurrent > maxSafe` overflow-skip path is defensive and
-    // unreachable in practice: with uint128 sizes the `size * price` product
     // panics (uint256 overflow) before it can exceed int256.max/2, so the
     // try/catch already covers the failure mode. Left intentionally untested.
 

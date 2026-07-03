@@ -40,7 +40,6 @@ describe('SettingsPage more handlers', () => {
     it('copies the wallet address and resets the copied flag after the timeout', () => {
         vi.useFakeTimers();
         renderPage();
-        // The wallet card copy button (Copy icon) calls copyAddress.
         const copyBtn = screen.getByText('Connected').closest('.glass-panel')?.querySelector('button');
         expect(copyBtn).toBeTruthy();
         act(() => { fireEvent.click(copyBtn!); });

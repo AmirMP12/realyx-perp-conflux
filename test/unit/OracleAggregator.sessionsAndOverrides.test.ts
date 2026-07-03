@@ -123,9 +123,7 @@ describe("OracleAggregator", () => {
             await oracle.connect(operator).configureBreaker(MARKET, BreakerType.PRICE_DROP, 1000, 900, 600);
             await oracle.connect(guardian).triggerBreaker(MARKET, BreakerType.PRICE_DROP);
             // guardian (non-admin) cannot reset during cooldown
-            await expect(
-                oracle.connect(guardian).resetBreaker(MARKET, BreakerType.PRICE_DROP),
-            ).to.be.reverted; // CooldownActive
+            await expect(oracle.connect(guardian).resetBreaker(MARKET, BreakerType.PRICE_DROP)).to.be.reverted; // CooldownActive
             await time.increase(601);
             await oracle.connect(guardian).resetBreaker(MARKET, BreakerType.PRICE_DROP);
             const status = await oracle.getBreakerStatus(MARKET, BreakerType.PRICE_DROP);
@@ -182,9 +180,8 @@ describe("OracleAggregator — access-control & setter bounds", () => {
         await expect(oracle.connect(other).proposePythFeed(MARKET, FEED, 900, 1)).to.be.reverted;
         await expect(oracle.connect(other).cancelPendingPythFeed(MARKET)).to.be.reverted;
         await expect(oracle.connect(other).setMarketId(MARKET, "X")).to.be.reverted;
-        await expect(
-            oracle.connect(other).configureBreaker(MARKET, BreakerType.PRICE_DROP, 1000, 900, 600),
-        ).to.be.reverted;
+        await expect(oracle.connect(other).configureBreaker(MARKET, BreakerType.PRICE_DROP, 1000, 900, 600)).to.be
+            .reverted;
         await expect(oracle.connect(other).setBreakerEnabled(MARKET, BreakerType.PRICE_DROP, true)).to.be.reverted;
     });
 
@@ -210,9 +207,7 @@ describe("OracleAggregator — access-control & setter bounds", () => {
     it("setEmergencyPriceProposalMinInterval enforces [10m, 24h]", async () => {
         const { oracle, admin } = await loadFixture(deploy);
         await expect(oracle.connect(admin).setEmergencyPriceProposalMinInterval(60)).to.be.reverted;
-        await expect(
-            oracle.connect(admin).setEmergencyPriceProposalMinInterval(25 * 60 * 60),
-        ).to.be.reverted;
+        await expect(oracle.connect(admin).setEmergencyPriceProposalMinInterval(25 * 60 * 60)).to.be.reverted;
         await oracle.connect(admin).setEmergencyPriceProposalMinInterval(3600);
     });
 

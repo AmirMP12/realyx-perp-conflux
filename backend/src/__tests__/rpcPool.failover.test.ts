@@ -39,7 +39,6 @@ describe("rpcPool failover", () => {
     process.env.RPC_URLS = "::not-a-valid-url::";
     const health = getPoolHealth(); // builds from urls without constructing providers
     expect(health.some((h) => h.url === "::not-a-valid-url::")).toBe(true);
-    // Force pool construction so hostOf runs on the bad URL.
     expect(() => getProvider()).not.toThrow();
   });
 

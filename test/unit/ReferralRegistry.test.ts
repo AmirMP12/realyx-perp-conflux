@@ -61,18 +61,12 @@ describe("ReferralRegistry", () => {
         it("reverts when affiliate already has a code", async () => {
             const { rr, alice } = await loadFixture(deploy);
             await rr.connect(alice).registerCode("alice1");
-            await expect(rr.connect(alice).registerCode("alice2")).to.be.revertedWithCustomError(
-                rr,
-                "AlreadyHasCode",
-            );
+            await expect(rr.connect(alice).registerCode("alice2")).to.be.revertedWithCustomError(rr, "AlreadyHasCode");
         });
         it("reverts when code already taken", async () => {
             const { rr, alice, bob } = await loadFixture(deploy);
             await rr.connect(alice).registerCode("shared");
-            await expect(rr.connect(bob).registerCode("SHARED")).to.be.revertedWithCustomError(
-                rr,
-                "CodeAlreadyTaken",
-            );
+            await expect(rr.connect(bob).registerCode("SHARED")).to.be.revertedWithCustomError(rr, "CodeAlreadyTaken");
         });
         it("isCodeAvailable reflects state and validity", async () => {
             const { rr, alice } = await loadFixture(deploy);

@@ -8,15 +8,6 @@ import { setPythPrice } from "../helpers/pyth";
 
 const price = (n: number) => BigInt(n) * 10n ** 18n;
 
-/**
- * Verifies TradingCoreViews against the wired deployConfigured fixture (and the
- * unseeded deployProtocol for the zero-TVL case):
- *   - re-initialization guard
- *   - protocol health reports a zero ratio on an empty vault
- *   - getPositionPnL / canLiquidate early-return for non-open positions
- *   - global unrealized PnL across a short-only market
- *   - short-position stop-loss and take-profit trigger evaluation
- */
 describe("TradingCoreViews — initialize & protocol health", () => {
     it("initialize reverts when already initialized", async () => {
         const d = await loadFixture(deployConfigured);
@@ -86,9 +77,7 @@ describe("TradingCoreViews — short-position scenarios", () => {
         const m = await d.tradingCore.getMarketInfo(d.market);
         expect(m.totalShortSize).to.be.greaterThan(0n);
         expect(m.totalLongSize).to.equal(0n);
-        const [, complete] = await d.tradingViews.getGlobalUnrealizedPnLDetailed(
-            await d.tradingCore.getAddress(),
-        );
+        const [, complete] = await d.tradingViews.getGlobalUnrealizedPnLDetailed(await d.tradingCore.getAddress());
         expect(complete).to.equal(true);
     });
 

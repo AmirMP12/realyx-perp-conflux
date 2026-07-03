@@ -2,7 +2,6 @@ import { jest } from "@jest/globals";
 import request from "supertest";
 import express from "express";
 
-// Mocking dependencies for index.ts
 jest.mock("../app.js", () => ({
   app: {
     listen: jest.fn().mockImplementation((port, cb: any) => {
@@ -86,7 +85,7 @@ describe("Global System Integration Logic", () => {
         }, 20000);
     });
 
-    describe("health.ts extra scenarios", () => {
+    describe("health route error handling", () => {
         it("returns 503 and handles non-error rejections", async () => {
              const healthModule = await import("../routes/health.js");
              const healthRouter = healthModule.default;
@@ -157,7 +156,6 @@ describe("Global System Integration Logic", () => {
         }, 15000);
 
         it("triggers top-level catch in index.js", async () => {
-             // Force the top-level catch to run
              const oldNodeEnv = process.env.NODE_ENV;
              process.env.NODE_ENV = "not-test";
              const { app } = await import("../app.js");
@@ -184,7 +182,6 @@ describe("Global System Integration Logic", () => {
              await request(app).get("/price-history/btc");
 
              // 2. Reject paths to trigger the catch handlers
-             // We need fetchMarkets to return an empty array to enter the fallback block
              (fetchMarkets as jest.Mock).mockResolvedValueOnce([]); 
              // Inside here: [protocol, cgPrices, pythPrices] = await Promise.all([fetchProtocol(), fetchCoinGeckoPrices(), fetchPythPrices()]);
              // These don't have an inline catch here, but the fallback map does:

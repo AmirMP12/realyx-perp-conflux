@@ -37,10 +37,7 @@ describe("CopyRegistry — views & admin", () => {
         });
         it("getCopiersOfLeadTrader reverts for unregistered address", async () => {
             const { cr, copier } = await loadFixture(deploy);
-            await expect(cr.getCopiersOfLeadTrader(copier.address)).to.be.revertedWithCustomError(
-                cr,
-                "NotRegistered",
-            );
+            await expect(cr.getCopiersOfLeadTrader(copier.address)).to.be.revertedWithCustomError(cr, "NotRegistered");
         });
     });
 
@@ -131,9 +128,10 @@ describe("CopyRegistry — UUPS upgrade execution", () => {
         const { cr, CopyRegistry } = await loadFixture(deployForUpgrade);
         const newImpl = await CopyRegistry.deploy();
         await newImpl.waitForDeployment();
-        await expect(
-            cr.upgradeToAndCall(await newImpl.getAddress(), "0x"),
-        ).to.be.revertedWithCustomError(cr, "PendingImplementationMismatch");
+        await expect(cr.upgradeToAndCall(await newImpl.getAddress(), "0x")).to.be.revertedWithCustomError(
+            cr,
+            "PendingImplementationMismatch",
+        );
     });
 
     it("reverts upgrade while timelock active, succeeds after it elapses", async () => {
@@ -183,9 +181,10 @@ describe("CopyRegistry — follow / unfollow & copier config", () => {
         await expect(
             cr.connect(copier).updateCopierConfig(lead.address, usdc(2000), 101),
         ).to.be.revertedWithCustomError(cr, "InvalidMaxLeverage");
-        await expect(
-            cr.connect(copier).updateCopierConfig(lead.address, usdc(2000), 0),
-        ).to.be.revertedWithCustomError(cr, "InvalidMaxLeverage");
+        await expect(cr.connect(copier).updateCopierConfig(lead.address, usdc(2000), 0)).to.be.revertedWithCustomError(
+            cr,
+            "InvalidMaxLeverage",
+        );
     });
 
     it("getCopierFollowing skips deregistered leads", async () => {
@@ -208,8 +207,9 @@ describe("CopyRegistry — follow / unfollow & copier config", () => {
             cr,
             "InvalidMaxLeverage",
         );
-        await expect(
-            cr.connect(copier).followTrader(lead.address, usdc(1000), 101),
-        ).to.be.revertedWithCustomError(cr, "InvalidMaxLeverage");
+        await expect(cr.connect(copier).followTrader(lead.address, usdc(1000), 101)).to.be.revertedWithCustomError(
+            cr,
+            "InvalidMaxLeverage",
+        );
     });
 });

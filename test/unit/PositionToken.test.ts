@@ -12,11 +12,11 @@ import { MINTER_ROLE } from "../helpers/constants";
 async function deploy() {
     const [admin, minter, alice, bob] = await ethers.getSigners();
     const PositionToken = await ethers.getContractFactory("PositionToken");
-    const pt = await upgrades.deployProxy(
-        PositionToken,
-        ["RWA Position", "RWAP", "https://meta/"],
-        { kind: "uups", initializer: "initialize", unsafeAllow: ["constructor"] },
-    );
+    const pt = await upgrades.deployProxy(PositionToken, ["RWA Position", "RWAP", "https://meta/"], {
+        kind: "uups",
+        initializer: "initialize",
+        unsafeAllow: ["constructor"],
+    });
     await pt.waitForDeployment();
     return { pt, admin, minter, alice, bob };
 }

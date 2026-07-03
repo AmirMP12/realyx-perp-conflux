@@ -60,12 +60,12 @@ describe("sync route", () => {
     process.env.TRADING_CORE_ADDRESS = "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c";
     process.env.NODE_ENV = "test";
     process.env.INDEXER_REORG_BUFFER = "64";
-    delete process.env.INDEXER_START_BLOCK;
+    process.env.INDEXER_START_BLOCK = "248000000";
     delete process.env.VAULT_CORE_ADDRESS;
     delete process.env.DEPLOYED_VAULT_CORE;
     delete process.env.CRON_SECRET;
     sync = await import("../routes/sync.js");
-    sync.resetSyncPool();
+    sync.resetSyncPool(mockPool);
   });
 
   afterEach(() => {

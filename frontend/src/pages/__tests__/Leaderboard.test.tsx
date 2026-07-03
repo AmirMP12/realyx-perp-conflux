@@ -66,7 +66,6 @@ describe('LeaderboardPage', () => {
     it('displays loading skeletons', () => {
         vi.mocked(useLeaderboard).mockReturnValue({ entries: [], loading: true, error: null } as any);
         renderWithRouter(<LeaderboardPage />);
-        // Should show skeletons (we can't easily check for the component types without extra setup, but we check for absence of data)
         expect(screen.queryByText('+$5k')).not.toBeInTheDocument();
     });
 

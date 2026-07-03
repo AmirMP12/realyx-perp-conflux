@@ -4,18 +4,6 @@ import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { setPythPrice, PYTH_EXPO } from "../helpers/pyth";
 import { OPERATOR_ROLE, ORACLE_ROLE, GUARDIAN_ROLE, KEEPER_ROLE, BreakerType } from "../helpers/constants";
 
-/**
- * Verifies OracleAggregator guard and bound behaviors:
- *   - `_normalizePythPrice` reverts PriceOutOfBounds on out-of-range exponents
- *   - setMarketCalendar rejects the zero address
- *   - confirmEmergencyPrice and cancelPendingEmergencyPrice are guardian-only
- *   - resetBreaker requires admin or guardian
- *   - confirmEmergencyPause is guardian-only
- *   - setPythFeed enforces staged-rotation parameter matching
- *   - recordPricePoint wraps the TWAP ring buffer correctly
- *   - registerPausable enforces the MAX_PAUSABLES cap
- */
-
 const FEED = ethers.zeroPadValue("0x0abc", 32);
 const FEED_B = ethers.zeroPadValue("0x0bcd", 32);
 const MARKET = "0x00000000000000000000000000000000000000B7";

@@ -1,10 +1,6 @@
 
 import { describe, it, expect } from 'vitest';
-// closeTxErrorMessage, decodeCreateOrderRevert and mapRevertToMessage are internal
-// helpers in useProgram.ts, exported there so their error-mapping logic can be
-// unit-tested directly.
-
-import { 
+import {
     // @ts-expect-error - Internal functions not exported in type definition
     closeTxErrorMessage, 
     // @ts-expect-error - Internal functions not exported in type definition
@@ -13,7 +9,7 @@ import {
     mapRevertToMessage 
 } from '../useProgram';
 
-describe('useProgram Error Mapping', () => {
+describe('useProgram error mapping', () => {
     describe('closeTxErrorMessage', () => {
         it('handles StalePrice selector', () => {
             const err = { data: '0x19abf40e' };
@@ -146,7 +142,7 @@ describe('useProgram Error Mapping', () => {
         });
     });
 
-    describe('decodeCreateOrderRevert extra', () => {
+    describe('decodeCreateOrderRevert messages', () => {
         it('decodes the alt-collateral selector', () => {
             expect(decodeCreateOrderRevert({ data: '0xcf6d6d6d' })).toContain('Alternative collateral is not enabled');
         });

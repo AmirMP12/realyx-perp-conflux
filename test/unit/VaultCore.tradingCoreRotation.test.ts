@@ -202,9 +202,10 @@ describe("VaultCore — withdraw & queue guards", () => {
     it("instant withdraw reverts on InsufficientShares", async () => {
         const { d } = await loadFixture(fundedVault);
         const sh = await d.vault.lpBalanceOf(d.lp.address);
-        await expect(
-            d.vault.connect(d.lp).withdraw(sh + 1n, d.lp.address, d.lp.address),
-        ).to.be.revertedWithCustomError(d.vault, "InsufficientShares");
+        await expect(d.vault.connect(d.lp).withdraw(sh + 1n, d.lp.address, d.lp.address)).to.be.revertedWithCustomError(
+            d.vault,
+            "InsufficientShares",
+        );
     });
 
     it("instant withdraw reverts on InsufficientLiquidity when borrows drain the pool", async () => {
@@ -216,9 +217,10 @@ describe("VaultCore — withdraw & queue guards", () => {
         expect(ok1).to.equal(true);
         await d.vault.connect(coreEoa).borrow(usdc(3_000_000), market, true);
         // a full-share instant withdraw now exceeds on-hand liquidity
-        await expect(
-            d.vault.connect(d.lp).withdraw(sh, d.lp.address, d.lp.address),
-        ).to.be.revertedWithCustomError(d.vault, "InsufficientLiquidity");
+        await expect(d.vault.connect(d.lp).withdraw(sh, d.lp.address, d.lp.address)).to.be.revertedWithCustomError(
+            d.vault,
+            "InsufficientLiquidity",
+        );
     });
 
     it("queueWithdrawal enforces the per-user cap", async () => {

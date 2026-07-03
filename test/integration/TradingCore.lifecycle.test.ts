@@ -10,7 +10,11 @@ describe("TradingCore — position lifecycle (integration)", () => {
     describe("opening positions", () => {
         it("opens a long and tracks user position + NFT", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             const pos = await d.tradingCore.getPosition(id);
             expect(pos.state).to.equal(PosStatus.OPEN);
             expect(pos.size).to.be.greaterThan(0n);
@@ -21,7 +25,11 @@ describe("TradingCore — position lifecycle (integration)", () => {
 
         it("opens a short position", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.bob, { isLong: false, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.bob, {
+                isLong: false,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             const pos = await d.tradingCore.getPosition(id);
             expect(pos.state).to.equal(PosStatus.OPEN);
             expect(await d.positionToken.getPositionDirection(id)).to.equal(false);
@@ -62,7 +70,11 @@ describe("TradingCore — position lifecycle (integration)", () => {
     describe("closing positions", () => {
         it("closes a profitable long and pays out", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             await time.increase(120);
             await setPythPrice(d.pyth, d.feedId, 55_000n * 10n ** 18n);
             const before = await d.usdt0.balanceOf(d.alice.address);
@@ -73,7 +85,11 @@ describe("TradingCore — position lifecycle (integration)", () => {
 
         it("closes a losing long for less than collateral", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             await time.increase(120);
             await setPythPrice(d.pyth, d.feedId, 48_000n * 10n ** 18n); // -4%
             const before = await d.usdt0.balanceOf(d.alice.address);
@@ -84,13 +100,21 @@ describe("TradingCore — position lifecycle (integration)", () => {
 
         it("reverts closing before min position duration", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             await expect(closeFull(d, d.alice, id)).to.be.reverted; // MinPositionDuration
         });
 
         it("reverts closing past deadline", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             await time.increase(120);
             const pastDeadline = (await time.latest()) - 1;
             await expect(
@@ -105,7 +129,11 @@ describe("TradingCore — position lifecycle (integration)", () => {
 
         it("partialClose reduces position size", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(20_000), collateralUsdc: usdc(4_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(20_000),
+                collateralUsdc: usdc(4_000),
+            });
             const before = (await d.tradingCore.getPosition(id)).size;
             await time.increase(120);
             const deadline = (await time.latest()) + 3600;
@@ -120,7 +148,11 @@ describe("TradingCore — position lifecycle (integration)", () => {
     describe("collateral management", () => {
         it("adds collateral, lowering leverage", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             const levBefore = (await d.tradingCore.getPosition(id)).leverage;
             await time.increase(5);
             await d.tradingCore.connect(d.alice).addCollateral(id, usdc(1_000), 0, false);
@@ -130,7 +162,11 @@ describe("TradingCore — position lifecycle (integration)", () => {
 
         it("reverts addCollateral by a non-owner", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             await expect(
                 d.tradingCore.connect(d.bob).addCollateral(id, usdc(1_000), 0, false),
             ).to.be.revertedWithCustomError(d.tradingCore, "NotPositionOwner");
@@ -138,7 +174,11 @@ describe("TradingCore — position lifecycle (integration)", () => {
 
         it("withdraws excess collateral while healthy", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(5_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(5_000),
+            });
             await time.increase(5);
             const before = await d.usdt0.balanceOf(d.alice.address);
             await d.tradingCore.connect(d.alice).withdrawCollateral(id, usdc(500));
@@ -147,7 +187,11 @@ describe("TradingCore — position lifecycle (integration)", () => {
 
         it("reverts withdrawing collateral that would breach margin", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             await time.increase(5);
             await expect(
                 d.tradingCore.connect(d.alice).withdrawCollateral(id, usdc(1_900)),
@@ -158,19 +202,31 @@ describe("TradingCore — position lifecycle (integration)", () => {
     describe("stop-loss / take-profit / trailing", () => {
         it("sets and clears a stop loss", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             await d.tradingCore.connect(d.alice).setStopLoss(id, 45_000n * 10n ** 18n);
             expect((await d.tradingCore.getPosition(id)).stopLossPrice).to.equal(45_000n * 10n ** 18n);
         });
         it("sets a take profit", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             await d.tradingCore.connect(d.alice).setTakeProfit(id, 60_000n * 10n ** 18n);
             expect((await d.tradingCore.getPosition(id)).takeProfitPrice).to.equal(60_000n * 10n ** 18n);
         });
         it("sets a trailing stop and anchors price", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             await d.tradingCore.connect(d.alice).setTrailingStop(id, 500);
             expect((await d.tradingCore.getPosition(id)).trailingStopBps).to.equal(500);
         });
@@ -179,7 +235,11 @@ describe("TradingCore — position lifecycle (integration)", () => {
     describe("views", () => {
         it("getPositionPnL via views contract", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             await setPythPrice(d.pyth, d.feedId, 52_000n * 10n ** 18n);
             const [pnl, hf] = await d.tradingCore.getPositionPnL(id);
             expect(pnl).to.be.greaterThan(0n);
@@ -187,7 +247,11 @@ describe("TradingCore — position lifecycle (integration)", () => {
         });
         it("canLiquidate false for a healthy position", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(5_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(5_000),
+            });
             const [can] = await d.tradingCore.canLiquidate(id);
             expect(can).to.equal(false);
         });

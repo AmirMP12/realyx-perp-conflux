@@ -2,12 +2,6 @@ import { expect } from "chai";
 import { ethers, upgrades } from "hardhat";
 import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 
-/**
- * Exercises the `_authorizeUpgrade` staged-timelock bodies of the UUPS
- * contracts by performing a real upgradeToAndCall through the propose →
- * wait → upgrade flow, including the revert paths.
- */
-
 const TL = 48 * 60 * 60 + 1;
 
 describe("UUPS upgrade timelock — _authorizeUpgrade bodies", () => {
@@ -19,10 +13,7 @@ describe("UUPS upgrade timelock — _authorizeUpgrade bodies", () => {
         const impl = await F.deploy();
         await impl.waitForDeployment();
         const addr = await impl.getAddress();
-        await expect(p.upgradeToAndCall(addr, "0x")).to.be.revertedWithCustomError(
-            p,
-            "PendingImplementationMismatch",
-        );
+        await expect(p.upgradeToAndCall(addr, "0x")).to.be.revertedWithCustomError(p, "PendingImplementationMismatch");
         await p.proposeImplementation(addr);
         await expect(p.upgradeToAndCall(addr, "0x")).to.be.revertedWithCustomError(p, "UpgradeTimelockActive");
         await time.increase(TL);
@@ -57,10 +48,7 @@ describe("UUPS upgrade timelock — _authorizeUpgrade bodies", () => {
         const impl = await F.deploy();
         await impl.waitForDeployment();
         const addr = await impl.getAddress();
-        await expect(p.upgradeToAndCall(addr, "0x")).to.be.revertedWithCustomError(
-            p,
-            "PendingImplementationMismatch",
-        );
+        await expect(p.upgradeToAndCall(addr, "0x")).to.be.revertedWithCustomError(p, "PendingImplementationMismatch");
         await p.proposeImplementation(addr);
         await expect(p.upgradeToAndCall(addr, "0x")).to.be.revertedWithCustomError(p, "UpgradeTimelockActive");
         await time.increase(TL);
@@ -101,10 +89,7 @@ describe("UUPS upgrade timelock — _authorizeUpgrade bodies", () => {
         const impl = await F.deploy();
         await impl.waitForDeployment();
         const addr = await impl.getAddress();
-        await expect(p.upgradeToAndCall(addr, "0x")).to.be.revertedWithCustomError(
-            p,
-            "PendingImplementationMismatch",
-        );
+        await expect(p.upgradeToAndCall(addr, "0x")).to.be.revertedWithCustomError(p, "PendingImplementationMismatch");
         await p.proposeImplementation(addr);
         await time.increase(TL);
         await p.upgradeToAndCall(addr, "0x");

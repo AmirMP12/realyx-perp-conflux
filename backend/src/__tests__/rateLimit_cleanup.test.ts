@@ -1,11 +1,5 @@
 import { jest } from "@jest/globals";
 
-/**
- * Covers the periodic cleanup() sweep that prunes expired API-count buckets and
- * tier-cache entries. It runs on a 30s interval, so we import the module under
- * fake timers and advance the clock to trigger it with both expired and
- * still-fresh entries present.
- */
 describe("rateLimit cleanup sweep", () => {
   const OLD = { ...process.env };
 

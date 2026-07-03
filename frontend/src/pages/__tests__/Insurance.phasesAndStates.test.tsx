@@ -39,7 +39,7 @@ const fund = {
     insSharePrice: 1, circuitBreakerActive: false, loading: false,
 };
 
-describe('InsurancePage extra', () => {
+describe('InsurancePage phases and states', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         (useAccount as any).mockReturnValue({ isConnected: true });

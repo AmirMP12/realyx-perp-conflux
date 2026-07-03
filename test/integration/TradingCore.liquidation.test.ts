@@ -83,7 +83,11 @@ describe("TradingCore — liquidation & funding (integration)", () => {
 
         it("settlePositionFunding charges/credits the trader", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(50_000), collateralUsdc: usdc(6_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(50_000),
+                collateralUsdc: usdc(6_000),
+            });
             await time.increase(8 * 60 * 60 + 1);
             await setPythPrice(d.pyth, d.feedId, price(50_000)); // refresh price so reads are not stale
             await d.tradingCore.settleFunding(d.market);

@@ -37,7 +37,6 @@ describe("Routes Failover", () => {
 
     describe("GET /markets", () => {
         it("renders a fallback name for an unknown market address", async () => {
-            // We need a request that triggers enrichment for an unknown market.
             // If fetchMarkets returns a market not in MARKET_META.
             const indexer = require("../services/indexer.js");
             jest.spyOn(indexer, "fetchMarkets").mockResolvedValueOnce([
@@ -71,7 +70,6 @@ describe("Routes Failover", () => {
              const indexer = require("../services/indexer.js");
              jest.spyOn(indexer, "fetchMarkets").mockRejectedValueOnce(new Error("Markets Fail"));
              
-             // Force the enrichment path to fail by making the parallel
              // price fetch throw
              const coingecko = require("../services/coingecko.js");
              jest.spyOn(coingecko, "fetchCoinGeckoPrices").mockImplementationOnce(() => { throw new Error("Hard Fail"); });

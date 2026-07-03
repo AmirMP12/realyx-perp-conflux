@@ -60,11 +60,7 @@ export async function createOrder(
 /**
  * Keeper executes an order with a fresh price update for the configured feed.
  */
-export async function executeOrder(
-    d: Deployment,
-    orderId: bigint,
-    priceNormalized1e18?: bigint,
-): Promise<void> {
+export async function executeOrder(d: Deployment, orderId: bigint, priceNormalized1e18?: bigint): Promise<void> {
     const updates: string[] = [];
     let fee = 0n;
     if (priceNormalized1e18 !== undefined) {

@@ -10,9 +10,6 @@ const price = (n: number) => BigInt(n) * 10n ** 18n;
 const RWA_TIMELOCK = 48 * 60 * 60;
 
 describe("TradingCore", () => {
-    // ───────────────────────────────────────────────────────────────────
-    // Referral registry rotation timelock
-    // ───────────────────────────────────────────────────────────────────
     describe("setReferralRegistry timelock", () => {
         it("reverts when supplied registry does not match the staged proposal", async () => {
             const d = await loadFixture(deployConfigured);
@@ -50,10 +47,6 @@ describe("TradingCore", () => {
             expect(effective).to.equal(0n);
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // RWA contracts rotation timelock
-    // ───────────────────────────────────────────────────────────────────
     describe("setRWAContracts rotation", () => {
         it("reverts on mismatch against the staged proposal (already initialized)", async () => {
             const d = await loadFixture(deployConfigured);
@@ -61,9 +54,10 @@ describe("TradingCore", () => {
             const dm = await d.dividendManager.getAddress();
             const cm = await d.compliance.getAddress();
             // no propose -> pending all zero, so non-zero triple mismatches
-            await expect(
-                d.tradingCore.connect(d.admin).setRWAContracts(cal, dm, cm),
-            ).to.be.revertedWithCustomError(d.tradingCore, "PendingRWAMismatch");
+            await expect(d.tradingCore.connect(d.admin).setRWAContracts(cal, dm, cm)).to.be.revertedWithCustomError(
+                d.tradingCore,
+                "PendingRWAMismatch",
+            );
         });
 
         it("reverts when rotation timelock is still active", async () => {
@@ -72,9 +66,10 @@ describe("TradingCore", () => {
             const dm = await d.dividendManager.getAddress();
             const cm = await d.compliance.getAddress();
             await d.tradingCore.connect(d.admin).proposeRWAContracts(cal, dm, cm);
-            await expect(
-                d.tradingCore.connect(d.admin).setRWAContracts(cal, dm, cm),
-            ).to.be.revertedWithCustomError(d.tradingCore, "RWATimelockActive");
+            await expect(d.tradingCore.connect(d.admin).setRWAContracts(cal, dm, cm)).to.be.revertedWithCustomError(
+                d.tradingCore,
+                "RWATimelockActive",
+            );
         });
 
         it("applies the rotation after the timelock elapses", async () => {
@@ -107,10 +102,6 @@ describe("TradingCore", () => {
             expect(pcm).to.equal(cm);
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // setMarketId rebinding guards
-    // ───────────────────────────────────────────────────────────────────
     describe("setMarketId rebinding", () => {
         it("allows rebinding an id when there are no open positions", async () => {
             const d = await loadFixture(deployConfigured);
@@ -131,10 +122,6 @@ describe("TradingCore", () => {
             ).to.be.revertedWithCustomError(d.tradingCore, "MarketIdRebindForbidden");
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // Market listing configuration
-    // ───────────────────────────────────────────────────────────────────
     describe("market listing setters", () => {
         it("unlistMarket removes the market from the active set", async () => {
             const d = await loadFixture(deployConfigured);
@@ -146,17 +133,16 @@ describe("TradingCore", () => {
 
         it("only operator can unlistMarket", async () => {
             const d = await loadFixture(deployConfigured);
-            await expect(
-                d.tradingCore.connect(d.alice).unlistMarket(d.market),
-            ).to.be.revertedWithCustomError(d.tradingCore, "NotOperator");
+            await expect(d.tradingCore.connect(d.alice).unlistMarket(d.market)).to.be.revertedWithCustomError(
+                d.tradingCore,
+                "NotOperator",
+            );
         });
 
         it("only operator can setMarket", async () => {
             const d = await loadFixture(deployConfigured);
             await expect(
-                d.tradingCore
-                    .connect(d.alice)
-                    .setMarket(d.bob.address, d.bob.address, 10, 1, 1, 500, 1000, 900),
+                d.tradingCore.connect(d.alice).setMarket(d.bob.address, d.bob.address, 10, 1, 1, 500, 1000, 900),
             ).to.be.revertedWithCustomError(d.tradingCore, "NotOperator");
         });
 
@@ -166,10 +152,6 @@ describe("TradingCore", () => {
             expect(addr.toLowerCase()).to.equal(d.market.toLowerCase());
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // validateOracleForMarket
-    // ───────────────────────────────────────────────────────────────────
     describe("validateOracleForMarket", () => {
         it("passes for a configured market", async () => {
             const d = await loadFixture(deployConfigured);
@@ -178,15 +160,12 @@ describe("TradingCore", () => {
 
         it("reverts for a market with no oracle source", async () => {
             const d = await loadFixture(deployConfigured);
-            await expect(
-                d.tradingCore.validateOracleForMarket(d.bob.address),
-            ).to.be.revertedWithCustomError(d.tradingCore, "InsufficientOracleSources");
+            await expect(d.tradingCore.validateOracleForMarket(d.bob.address)).to.be.revertedWithCustomError(
+                d.tradingCore,
+                "InsufficientOracleSources",
+            );
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // Subaccount-delegated order creation (effectiveOwner != msg.sender)
-    // ───────────────────────────────────────────────────────────────────
     describe("subaccount delegation in createOrder", () => {
         it("a delegated bot can create an order owned by the principal", async () => {
             const d = await loadFixture(deployConfigured);
@@ -198,9 +177,10 @@ describe("TradingCore", () => {
                 isLong: true,
                 owner: d.alice.address,
             });
-            await expect(
-                d.tradingCore.connect(d.bob).createOrder(params, { value: EXEC_FEE }),
-            ).to.emit(d.tradingCore, "OrderCreated");
+            await expect(d.tradingCore.connect(d.bob).createOrder(params, { value: EXEC_FEE })).to.emit(
+                d.tradingCore,
+                "OrderCreated",
+            );
         });
 
         it("reverts when the bot is not an approved subaccount", async () => {
@@ -224,10 +204,6 @@ describe("TradingCore", () => {
             expect(await d.tradingCore.isSubaccount(d.alice.address, d.bob.address)).to.equal(false);
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // createOrder POST_ONLY/market-type and alt-collateral guards
-    // ───────────────────────────────────────────────────────────────────
     describe("createOrder guards", () => {
         it("POST_ONLY on a market order reverts (PostOnlyNotAllowedForMarket)", async () => {
             const d = await loadFixture(deployConfigured);
@@ -259,10 +235,6 @@ describe("TradingCore", () => {
             ).to.be.revertedWithCustomError(d.tradingCore, "AltCollateralDisabled");
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // addCollateral / withdrawCollateral paths
-    // ───────────────────────────────────────────────────────────────────
     describe("collateral adjustments", () => {
         it("addCollateral increases the position margin", async () => {
             const d = await loadFixture(deployConfigured);
@@ -309,10 +281,6 @@ describe("TradingCore", () => {
             ).to.be.revertedWithCustomError(d.tradingCore, "PositionNotFound");
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // cancelOrder + refund withdrawals
-    // ───────────────────────────────────────────────────────────────────
     describe("order cancellation & refunds", () => {
         it("cancelOrder credits an order refund that can be withdrawn", async () => {
             const d = await loadFixture(deployConfigured);
@@ -340,10 +308,6 @@ describe("TradingCore", () => {
             await d.tradingCore.connect(d.bob).withdrawKeeperFees();
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // Funding settlement entry points
-    // ───────────────────────────────────────────────────────────────────
     describe("funding settlement", () => {
         it("settleFunding for a market does not revert", async () => {
             const d = await loadFixture(deployConfigured);
@@ -376,10 +340,6 @@ describe("TradingCore", () => {
             await expect(d.tradingCore.connect(d.alice).forceSettleFunding(d.market)).to.be.reverted;
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // Protocol health + bad-debt admin paths
-    // ───────────────────────────────────────────────────────────────────
     describe("protocol health & bad debt", () => {
         it("keeper can refresh protocol health", async () => {
             const d = await loadFixture(deployConfigured);
@@ -407,10 +367,6 @@ describe("TradingCore", () => {
             expect(badDebt).to.equal(0n);
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // View delegations through tradingViews
-    // ───────────────────────────────────────────────────────────────────
     describe("delegated view queries", () => {
         it("getPositionPnL returns a pnl and health factor for an open position", async () => {
             const d = await loadFixture(deployConfigured);
@@ -447,10 +403,6 @@ describe("TradingCore", () => {
             expect(pnl).to.be.greaterThan(0n);
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // liquidatePosition guards
-    // ───────────────────────────────────────────────────────────────────
     describe("liquidatePosition guards", () => {
         it("reverts liquidating a healthy position", async () => {
             const d = await loadFixture(deployConfigured);
@@ -472,10 +424,6 @@ describe("TradingCore", () => {
             await expect(d.tradingCore.connect(d.alice).liquidatePosition(id)).to.be.reverted;
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // failed-repayment views
-    // ───────────────────────────────────────────────────────────────────
     describe("failed-repayment list views", () => {
         it("failedRepaymentIdAt reverts on an out-of-range index", async () => {
             const d = await loadFixture(deployConfigured);
@@ -487,10 +435,6 @@ describe("TradingCore", () => {
             expect(await d.tradingCore.totalFailedRepayments()).to.equal(0n);
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // closePosition deadline gate
-    // ───────────────────────────────────────────────────────────────────
     describe("closePosition deadline", () => {
         it("reverts when the deadline has passed", async () => {
             const d = await loadFixture(deployConfigured);
@@ -510,10 +454,6 @@ describe("TradingCore", () => {
             ).to.be.revertedWithCustomError(d.tradingCore, "DeadlineExpired");
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // setParams valid bound application (minPositionSize, minInteractionDelay)
-    // ───────────────────────────────────────────────────────────────────
     describe("setParams valid bound application", () => {
         it("applies maxActionsPerBlock and minInteractionDelay within range", async () => {
             const d = await loadFixture(deployConfigured);
@@ -525,9 +465,8 @@ describe("TradingCore", () => {
 
         it("rejects maxOracleUncertainty above 1e18", async () => {
             const d = await loadFixture(deployConfigured);
-            await expect(
-                d.tradingCore.connect(d.admin).setParams(0, ethers.parseEther("2"), 0, 0, 0, 0, 0),
-            ).to.be.reverted;
+            await expect(d.tradingCore.connect(d.admin).setParams(0, ethers.parseEther("2"), 0, 0, 0, 0, 0)).to.be
+                .reverted;
         });
 
         it("rejects maxActionsPerBlock above 1000", async () => {

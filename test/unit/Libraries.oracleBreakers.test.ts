@@ -6,21 +6,14 @@ import { deployAllLibraries, deployHarness } from "../helpers/harness";
 
 const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 
-/**
- * Exercises pure/internal library logic via the in-repo harnesses for
- * OracleAggregatorLib, CircuitBreakerLib, RateLimitLib, FundingLib, HealthLib,
- * DividendSettlementLib, and LiquidationLib that is awkward to reach through
- * the full engine.
- */
 async function deployCoverageHarness() {
     const libs = await deployAllLibraries();
     return deployHarness("CoverageHarness", libs);
 }
 
-describe("OracleAggregatorLib (via CoverageHarness)", () => {
+describe("OracleAggregatorLib", () => {
     it("calculateDeviation is relative to the second argument", async () => {
         const h = await loadFixture(deployCoverageHarness);
-        // deviation = |a-b| * BPS / b
         expect(await h.testCalculateDeviation(100, 110)).to.equal(909n); // 10/110
         expect(await h.testCalculateDeviation(110, 100)).to.equal(1000n); // 10/100
     });
@@ -30,7 +23,6 @@ describe("OracleAggregatorLib (via CoverageHarness)", () => {
     });
     it("normalizeChainlinkPrice scales by decimals", async () => {
         const h = await loadFixture(deployCoverageHarness);
-        // answer 100 with 8 decimals -> normalized to 1e18
         expect(await h.testNormalizeChainlinkPrice(100n * 10n ** 8n, 8)).to.equal(e18(100));
     });
     it("checkPriceDropTriggered fires when drop exceeds threshold", async () => {
@@ -80,7 +72,7 @@ describe("OracleAggregatorLib (via CoverageHarness)", () => {
     });
 });
 
-describe("CircuitBreakerLib (via CoverageHarness)", () => {
+describe("CircuitBreakerLib", () => {
     const MARKET = "0x00000000000000000000000000000000000000B7";
     it("configure + trigger + reset cycle", async () => {
         const h = await loadFixture(deployCoverageHarness);
@@ -98,7 +90,6 @@ describe("CircuitBreakerLib (via CoverageHarness)", () => {
         const h = await loadFixture(deployCoverageHarness);
         await h.testConfigureBreaker(MARKET, BreakerType.PRICE_DROP, 500, 900, 600);
         await h.testCheckPriceDropBreaker(MARKET, e18(90), e18(100));
-        // after a >5% drop the breaker should restrict actions
         expect(await h.testIsActionAllowed(MARKET, 0, false)).to.equal(false);
     });
     it("checkTWAPDeviationBreaker evaluates deviation", async () => {
@@ -108,7 +99,7 @@ describe("CircuitBreakerLib (via CoverageHarness)", () => {
     });
 });
 
-describe("RateLimitLib (via CoverageHarness)", () => {
+describe("RateLimitLib", () => {
     it("allows small actions and updates the bucket", async () => {
         const h = await loadFixture(deployCoverageHarness);
         // size below threshold -> no revert
@@ -121,7 +112,7 @@ describe("RateLimitLib (via CoverageHarness)", () => {
     });
 });
 
-describe("TradingLib helpers (via CoverageHarness)", () => {
+describe("TradingLib helpers", () => {
     it("checkVolumeLimit enforces user/global caps", async () => {
         const h = await loadFixture(deployCoverageHarness);
         const [a] = await ethers.getSigners();
@@ -156,7 +147,7 @@ describe("TradingLib helpers (via CoverageHarness)", () => {
     });
 });
 
-describe("FundingLib (dedicated harness)", () => {
+describe("FundingLib", () => {
     async function deploy() {
         const libs = await deployAllLibraries();
         return deployHarness("FundingLibHarness", libs);
@@ -189,7 +180,7 @@ describe("FundingLib (dedicated harness)", () => {
     });
 });
 
-describe("HealthLib (dedicated harness)", () => {
+describe("HealthLib", () => {
     async function deploy() {
         const libs = await deployAllLibraries();
         return deployHarness("HealthLibHarness", libs);
@@ -217,7 +208,7 @@ describe("HealthLib (dedicated harness)", () => {
     });
 });
 
-describe("DividendSettlementLib (dedicated harness)", () => {
+describe("DividendSettlementLib", () => {
     async function deploy() {
         const Mgr = await ethers.getContractFactory("MockDividendManagerForSettlement");
         const mgr = await Mgr.deploy();
@@ -251,7 +242,7 @@ describe("DividendSettlementLib (dedicated harness)", () => {
     });
 });
 
-describe("LiquidationLib (dedicated harness)", () => {
+describe("LiquidationLib", () => {
     async function deploy() {
         const libs = await deployAllLibraries();
         return deployHarness("LiquidationLibHarness", libs);

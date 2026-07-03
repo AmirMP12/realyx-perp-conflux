@@ -7,14 +7,6 @@ import { PosStatus } from "../helpers/constants";
 const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 const U128_MAX = 2n ** 128n - 1n;
 
-/**
- * Verifies the remaining PositionMath behaviors:
- *  - dynamic maintenance margin capped at MAX_DYNAMIC_MAINTENANCE_BPS
- *  - liquidation price clamped to the NO_LIQUIDATION sentinel
- *  - isLiquidatable early-out when the maintenance margin is zero
- *  - calculateFundingOwed large-size path with zero and non-zero remainders
- *  - slippage validation in both directions
- */
 async function fcpm() {
     const libs = await deployAllLibraries();
     return deployHarness("FeeCalculatorPositionMathHarness", libs);
@@ -56,7 +48,7 @@ describe("PositionMath — dynamic maintenance & liquidation price", () => {
     });
 });
 
-describe("PositionMath — isLiquidatable edges", () => {
+describe("PositionMath isLiquidatable", () => {
     it("returns (false, max) when maintenance margin is zero", async () => {
         const h = await loadFixture(fcpm);
         // size 0 -> dynamic maintenance margin 0 -> early-out.

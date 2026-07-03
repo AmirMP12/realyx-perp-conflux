@@ -34,7 +34,6 @@ async function withReferral() {
     await time.increase(48 * 60 * 60 + 1);
     await d.tradingCore.connect(d.admin).setReferralRegistry(await reg.getAddress());
 
-    // The 48h timelock jump staled the Pyth price + TWAP buffer; reseed both.
     const { seedTwap } = await import("../helpers/fixture");
     await seedTwap(d, price(50_000));
 

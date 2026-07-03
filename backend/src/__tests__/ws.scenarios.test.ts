@@ -89,7 +89,6 @@ describe("WebSocket Server Comprehensive Logic Paths", () => {
         };
         wssOnConnection(mockWs, { socket: { remoteAddress: "127.0.0.1" } });
         
-        // We can't easily wait 30s, but the setInterval logic is:
         // if (ws.isAlive === false) return ws.terminate();
         // and it starts with isAlive = true in connection.
     });

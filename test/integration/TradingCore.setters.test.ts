@@ -15,16 +15,12 @@ describe("TradingCore — setter bounds and execute gates", () => {
         });
         it("rejects user daily volume above the ceiling", async () => {
             const d = await loadFixture(deployConfigured);
-            await expect(
-                d.tradingCore.connect(d.admin).setLimits(usdc(2_000_000_000), 0, 0, 0, 0, 0),
-            ).to.be.reverted;
+            await expect(d.tradingCore.connect(d.admin).setLimits(usdc(2_000_000_000), 0, 0, 0, 0, 0)).to.be.reverted;
         });
         it("rejects large-action threshold out of range", async () => {
             const d = await loadFixture(deployConfigured);
             await expect(d.tradingCore.connect(d.admin).setLimits(0, 0, usdc(500), 0, 0, 0)).to.be.reverted;
-            await expect(
-                d.tradingCore.connect(d.admin).setLimits(0, 0, usdc(2_000_000_000), 0, 0, 0),
-            ).to.be.reverted;
+            await expect(d.tradingCore.connect(d.admin).setLimits(0, 0, usdc(2_000_000_000), 0, 0, 0)).to.be.reverted;
         });
         it("rejects large-action interval over 24h", async () => {
             const d = await loadFixture(deployConfigured);
@@ -32,14 +28,9 @@ describe("TradingCore — setter bounds and execute gates", () => {
         });
         it("applies valid limits including minPositionDuration and maxUserExposure", async () => {
             const d = await loadFixture(deployConfigured);
-            await d.tradingCore.connect(d.admin).setLimits(
-                usdc(2_000),
-                usdc(10_000),
-                usdc(2_000),
-                3600,
-                usdc(900_000_000),
-                60,
-            );
+            await d.tradingCore
+                .connect(d.admin)
+                .setLimits(usdc(2_000), usdc(10_000), usdc(2_000), 3600, usdc(900_000_000), 60);
             expect(await d.tradingCore.minPositionDuration()).to.equal(60n);
         });
     });
@@ -55,7 +46,9 @@ describe("TradingCore — setter bounds and execute gates", () => {
         });
         it("applies valid params (minExecutionFee, liquidationDeviationBps)", async () => {
             const d = await loadFixture(deployConfigured);
-            await d.tradingCore.connect(d.admin).setParams(usdc(10), 5n * 10n ** 17n, 1000, ethers.parseEther("0.01"), 200, 1, 500);
+            await d.tradingCore
+                .connect(d.admin)
+                .setParams(usdc(10), 5n * 10n ** 17n, 1000, ethers.parseEther("0.01"), 200, 1, 500);
             expect(await d.tradingCore.minExecutionFee()).to.equal(ethers.parseEther("0.01"));
         });
     });

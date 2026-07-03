@@ -18,12 +18,6 @@ async function deploy() {
     return { adapter, admin, keeper };
 }
 
-/**
- * Verifies the `_normalize` decimal handling and the `_ingest` invalid-value
- * guards, plus the batch-push unconfigured-market revert. Covers feed decimals
- * other than 8, zero and round-to-zero values, and an unconfigured market in a
- * batch.
- */
 describe("RedStoneAdapter — normalize and ingest", () => {
     it("_normalize returns the raw value unchanged when feedDecimals == 18", async () => {
         const { adapter, admin, keeper } = await loadFixture(deploy);

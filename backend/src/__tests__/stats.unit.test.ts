@@ -54,10 +54,8 @@ describe("Stats Route Logic Paths", () => {
     });
 
     it("caches the TVL value across repeated calls", async () => {
-        // First call to set cache
         await request(app).get("/api/stats");
         
-        // Second call should reuse the cache if time hasn't passed
         const res = await request(app).get("/api/stats");
         expect(res.status).toBe(200);
     });

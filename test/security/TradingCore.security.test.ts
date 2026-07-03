@@ -107,9 +107,8 @@ describe("Security — TradingCore", () => {
     describe("privileged function access control", () => {
         it("recordFailedRepayment is restricted to TRADING_CORE_ROLE", async () => {
             const d = await loadFixture(deployConfigured);
-            await expect(
-                d.tradingCore.connect(d.alice).recordFailedRepayment(1, usdc(100), d.market, true, 0),
-            ).to.be.reverted;
+            await expect(d.tradingCore.connect(d.alice).recordFailedRepayment(1, usdc(100), d.market, true, 0)).to.be
+                .reverted;
         });
         it("resolveFailedRepayment is admin-only", async () => {
             const d = await loadFixture(deployConfigured);
@@ -136,12 +135,20 @@ describe("Security — TradingCore", () => {
     describe("position ownership", () => {
         it("a non-owner cannot set stop loss", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             await expect(d.tradingCore.connect(d.bob).setStopLoss(id, price(45_000))).to.be.reverted;
         });
         it("a non-owner cannot close another's position", async () => {
             const d = await loadFixture(deployConfigured);
-            const id = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
+            const id = await openMarket(d, d.alice, {
+                isLong: true,
+                sizeUsdc: usdc(10_000),
+                collateralUsdc: usdc(2_000),
+            });
             await time.increase(120);
             const deadline = (await time.latest()) + 3600;
             await expect(

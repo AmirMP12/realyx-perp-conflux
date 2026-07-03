@@ -156,9 +156,8 @@ describe("TradingCore — admin, config & wiring", () => {
     describe("setParams / setLimits bounds", () => {
         it("setParams rejects maxOracleUncertainty over 1e18", async () => {
             const d = await loadFixture(deployConfigured);
-            await expect(
-                d.tradingCore.connect(d.admin).setParams(0, ethers.parseUnits("2", 18), 0, 0, 0, 0, 0),
-            ).to.be.reverted;
+            await expect(d.tradingCore.connect(d.admin).setParams(0, ethers.parseUnits("2", 18), 0, 0, 0, 0, 0)).to.be
+                .reverted;
         });
         it("setParams rejects maxActionsPerBlock over 1000", async () => {
             const d = await loadFixture(deployConfigured);
@@ -166,9 +165,8 @@ describe("TradingCore — admin, config & wiring", () => {
         });
         it("setLimits rejects global < user volume limit", async () => {
             const d = await loadFixture(deployConfigured);
-            await expect(
-                d.tradingCore.connect(d.admin).setLimits(usdc(1_000_000), usdc(500_000), 0, 0, 0, 0),
-            ).to.be.reverted;
+            await expect(d.tradingCore.connect(d.admin).setLimits(usdc(1_000_000), usdc(500_000), 0, 0, 0, 0)).to.be
+                .reverted;
         });
         it("setMaxFundingIntervals bounds [1,72]", async () => {
             const d = await loadFixture(deployConfigured);
@@ -213,9 +211,7 @@ describe("TradingCore — admin, config & wiring", () => {
             const d = await loadFixture(deployConfigured);
             // already wired in fixture; a re-set without proposal must revert
             await expect(
-                d.tradingCore
-                    .connect(d.admin)
-                    .setRWAContracts(d.bob.address, d.bob.address, d.bob.address),
+                d.tradingCore.connect(d.admin).setRWAContracts(d.bob.address, d.bob.address, d.bob.address),
             ).to.be.revertedWithCustomError(d.tradingCore, "PendingRWAMismatch");
         });
         it("propose then apply after timelock", async () => {
@@ -224,9 +220,10 @@ describe("TradingCore — admin, config & wiring", () => {
             const dm = await d.dividendManager.getAddress();
             const cm = await d.compliance.getAddress();
             await d.tradingCore.connect(d.admin).proposeRWAContracts(cal, dm, cm);
-            await expect(
-                d.tradingCore.connect(d.admin).setRWAContracts(cal, dm, cm),
-            ).to.be.revertedWithCustomError(d.tradingCore, "RWATimelockActive");
+            await expect(d.tradingCore.connect(d.admin).setRWAContracts(cal, dm, cm)).to.be.revertedWithCustomError(
+                d.tradingCore,
+                "RWATimelockActive",
+            );
             await time.increase(48 * 60 * 60 + 1);
             await expect(d.tradingCore.connect(d.admin).setRWAContracts(cal, dm, cm)).to.emit(
                 d.tradingCore,
@@ -240,9 +237,10 @@ describe("TradingCore — admin, config & wiring", () => {
             const d = await loadFixture(deployConfigured);
             const reg = d.bob.address;
             await d.tradingCore.connect(d.admin).proposeReferralRegistry(reg);
-            await expect(
-                d.tradingCore.connect(d.admin).setReferralRegistry(reg),
-            ).to.be.revertedWithCustomError(d.tradingCore, "ReferralRegistryTimelockActive");
+            await expect(d.tradingCore.connect(d.admin).setReferralRegistry(reg)).to.be.revertedWithCustomError(
+                d.tradingCore,
+                "ReferralRegistryTimelockActive",
+            );
             await time.increase(48 * 60 * 60 + 1);
             await expect(d.tradingCore.connect(d.admin).setReferralRegistry(reg)).to.emit(
                 d.tradingCore,
@@ -269,9 +267,10 @@ describe("TradingCore — admin, config & wiring", () => {
         });
         it("rejects an over-long market id", async () => {
             const d = await loadFixture(deployConfigured);
-            await expect(
-                d.tradingCore.setMarketId(d.bob.address, "X".repeat(33)),
-            ).to.be.revertedWithCustomError(d.tradingCore, "MarketIdTooLong");
+            await expect(d.tradingCore.setMarketId(d.bob.address, "X".repeat(33))).to.be.revertedWithCustomError(
+                d.tradingCore,
+                "MarketIdTooLong",
+            );
         });
     });
 

@@ -15,23 +15,11 @@ async function deploy() {
     return { dm, admin, manager, stranger };
 }
 
-/**
- * Verifies the rolling-window distribution cap and `setDividendLimits`:
- *   - distributeDividend with the cap disabled (maxDividendPerWindow == 0)
- *   - distributeDividend rejecting a distribution that exceeds the cap
- *   - distributeDividend resetting the window once its duration has elapsed
- *   - setDividendLimits admin-gating and its zero-windowDuration revert
- *   - the upgrade timelock when no implementation is staged
- *   - the re-initialization revert
- */
 describe("DividendManager — rolling-window cap & limits", () => {
     describe("setDividendLimits", () => {
         it("reverts InvalidWindowDuration when windowDuration is zero", async () => {
             const { dm } = await loadFixture(deploy);
-            await expect(dm.setDividendLimits(0, e18(1))).to.be.revertedWithCustomError(
-                dm,
-                "InvalidWindowDuration",
-            );
+            await expect(dm.setDividendLimits(0, e18(1))).to.be.revertedWithCustomError(dm, "InvalidWindowDuration");
         });
 
         it("is admin-gated (non-admin reverts)", async () => {

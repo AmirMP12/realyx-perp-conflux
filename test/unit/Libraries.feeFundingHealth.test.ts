@@ -6,18 +6,12 @@ import { PosStatus } from "../helpers/constants";
 
 const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 
-/**
- * Verifies FeeCalculator referral and rebate fee math, PositionMath safe-casts
- * and edge math, HealthLib insurance netting and soft thresholds, FundingLib
- * settlement caps, and CircuitBreakerLib auto-reset and guards.
- */
-
 async function fcpm() {
     const libs = await deployAllLibraries();
     return deployHarness("FeeCalculatorPositionMathHarness", libs);
 }
 
-async function coverageHarness() {
+async function deployCoverageHarness() {
     const libs = await deployAllLibraries();
     return deployHarness("CoverageHarness", libs);
 }
@@ -126,7 +120,7 @@ describe("FeeCalculator referral & rebate paths", () => {
     });
 });
 
-describe("PositionMath edge cases", () => {
+describe("PositionMath boundary inputs", () => {
     it("safe casts revert on overflow and pass within range", async () => {
         const h = await loadFixture(fcpm);
         expect(await h.toUint128(123n)).to.equal(123n);
@@ -302,7 +296,7 @@ describe("FundingLib settle cap & shortfall events", () => {
 describe("CircuitBreakerLib autoReset & guards", () => {
     const MARKET = "0x00000000000000000000000000000000000000B7";
     it("autoResetBreakers clears triggered after cooldown", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.testConfigureBreaker(MARKET, 0, 500, 900, 600);
         await h.testTriggerBreaker(MARKET, 0);
         expect(await h.testIsActionAllowed(MARKET, 0, false)).to.equal(false);
@@ -311,19 +305,19 @@ describe("CircuitBreakerLib autoReset & guards", () => {
         expect(await h.testIsActionAllowed(MARKET, 0, false)).to.equal(true);
     });
     it("configureBreaker reverts on zero window / cooldown", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await expect(h.testConfigureBreaker(MARKET, 0, 500, 0, 600)).to.be.reverted;
         await expect(h.testConfigureBreaker(MARKET, 0, 500, 900, 0)).to.be.reverted;
     });
     it("triggerBreaker reverts when not configured & when already triggered", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await expect(h.testTriggerBreaker(MARKET, 0)).to.be.reverted; // not configured
         await h.testConfigureBreaker(MARKET, 0, 500, 900, 600);
         await h.testTriggerBreaker(MARKET, 0);
         await expect(h.testTriggerBreaker(MARKET, 0)).to.be.reverted; // already triggered
     });
     it("resetBreaker reverts when not triggered & cooldown active for non-admin", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.testConfigureBreaker(MARKET, 0, 500, 900, 600);
         await expect(h.testResetBreaker(MARKET, 0, false)).to.be.reverted; // not triggered
         await h.testTriggerBreaker(MARKET, 0);
@@ -333,20 +327,20 @@ describe("CircuitBreakerLib autoReset & guards", () => {
         expect(await h.testIsActionAllowed(MARKET, 0, false)).to.equal(true);
     });
     it("EMERGENCY breaker blocks all action types", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.testConfigureBreaker(MARKET, 5, 500, 900, 600); // EMERGENCY
         await h.testTriggerBreaker(MARKET, 5);
         expect(await h.testIsActionAllowed(MARKET, 1, false)).to.equal(false);
     });
     it("checkPriceDropBreaker no-trigger when refPrice zero / disabled", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         // not configured -> disabled
         expect(await h.testCheckPriceDropBreaker.staticCall(MARKET, e18(90), e18(100))).to.equal(false);
         await h.testConfigureBreaker(MARKET, 0, 500, 900, 600);
         expect(await h.testCheckPriceDropBreaker.staticCall(MARKET, e18(90), 0)).to.equal(false);
     });
     it("checkTWAPDeviationBreaker disabled & zero twap cases", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         expect(await h.testCheckTWAPDeviationBreaker.staticCall(MARKET, e18(120), e18(100))).to.equal(false);
         await h.testConfigureBreaker(MARKET, 2, 500, 900, 600);
         expect(await h.testCheckTWAPDeviationBreaker.staticCall(MARKET, e18(120), 0)).to.equal(false);

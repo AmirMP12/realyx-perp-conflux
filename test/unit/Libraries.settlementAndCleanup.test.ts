@@ -7,7 +7,7 @@ import { PosStatus } from "../helpers/constants";
 const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 const e6 = (n: bigint | number) => ethers.parseUnits(n.toString(), 6);
 
-async function coverageHarness() {
+async function deployCoverageHarness() {
     const libs = await deployAllLibraries();
     return deployHarness("CoverageHarness", libs);
 }
@@ -21,10 +21,11 @@ async function mockUsdc() {
 
 describe("WithdrawLib ETH + token refunds", () => {
     it("withdraws keeper fees as ETH to an EOA and zeroes the balance", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const [, , recipient] = await ethers.getSigners();
-        // fund the harness with ETH
-        await (await ethers.getSigners())[0].sendTransaction({ to: await h.getAddress(), value: ethers.parseEther("1") });
+        await (
+            await ethers.getSigners()
+        )[0].sendTransaction({ to: await h.getAddress(), value: ethers.parseEther("1") });
         await h.setKeeperFeeBalance(recipient.address, ethers.parseEther("0.5"));
         const before = await ethers.provider.getBalance(recipient.address);
         await h.testWithdrawKeeperFees(recipient.address);
@@ -32,9 +33,11 @@ describe("WithdrawLib ETH + token refunds", () => {
     });
 
     it("withdraws order refund as ETH to an EOA", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const [, , recipient] = await ethers.getSigners();
-        await (await ethers.getSigners())[0].sendTransaction({ to: await h.getAddress(), value: ethers.parseEther("1") });
+        await (
+            await ethers.getSigners()
+        )[0].sendTransaction({ to: await h.getAddress(), value: ethers.parseEther("1") });
         await h.setOrderRefundBalance(recipient.address, ethers.parseEther("0.3"));
         const before = await ethers.provider.getBalance(recipient.address);
         await h.testWithdrawOrderRefund(recipient.address);
@@ -42,27 +45,31 @@ describe("WithdrawLib ETH + token refunds", () => {
     });
 
     it("reverts keeper-fee withdrawal when the recipient rejects ETH", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const Rej = await ethers.getContractFactory("MockRejectEthReceiver");
         const rej = await Rej.deploy();
         await rej.waitForDeployment();
-        await (await ethers.getSigners())[0].sendTransaction({ to: await h.getAddress(), value: ethers.parseEther("1") });
+        await (
+            await ethers.getSigners()
+        )[0].sendTransaction({ to: await h.getAddress(), value: ethers.parseEther("1") });
         await h.setKeeperFeeBalance(await rej.getAddress(), ethers.parseEther("0.5"));
         await expect(h.testWithdrawKeeperFees(await rej.getAddress())).to.be.reverted; // TransferFailed
     });
 
     it("reverts order-refund withdrawal when the recipient rejects ETH", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const Rej = await ethers.getContractFactory("MockRejectEthReceiver");
         const rej = await Rej.deploy();
         await rej.waitForDeployment();
-        await (await ethers.getSigners())[0].sendTransaction({ to: await h.getAddress(), value: ethers.parseEther("1") });
+        await (
+            await ethers.getSigners()
+        )[0].sendTransaction({ to: await h.getAddress(), value: ethers.parseEther("1") });
         await h.setOrderRefundBalance(await rej.getAddress(), ethers.parseEther("0.5"));
         await expect(h.testWithdrawOrderRefund(await rej.getAddress())).to.be.reverted;
     });
 
     it("withdraws an ERC20 collateral-token refund", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const usdc = await mockUsdc();
         const [, , recipient] = await ethers.getSigners();
         await usdc.mintTo(await h.getAddress(), e6(1000));
@@ -73,7 +80,7 @@ describe("WithdrawLib ETH + token refunds", () => {
     });
 
     it("token refund is a no-op for a zero balance", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const usdc = await mockUsdc();
         const [, , recipient] = await ethers.getSigners();
         await h.testWithdrawOrderCollateralTokenRefund(recipient.address, await usdc.getAddress());
@@ -82,7 +89,7 @@ describe("WithdrawLib ETH + token refunds", () => {
 
 describe("CleanupLib admin, liquidated, and unresolved cases", () => {
     it("self-cleanup removes LIQUIDATED positions", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.setPositionSimple(1, e18(100), e18(100), 1, PosStatus.LIQUIDATED, ethers.ZeroAddress);
         await h.addCleanupPosition(1);
         const cleaned = await h.testCleanupPositions.staticCall(10);
@@ -91,7 +98,7 @@ describe("CleanupLib admin, liquidated, and unresolved cases", () => {
     });
 
     it("admin cleanup preserves LIQUIDATED but purges CLOSED", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.setPositionSimple(1, e18(100), e18(100), 1, PosStatus.LIQUIDATED, ethers.ZeroAddress);
         await h.setPositionSimple(2, e18(100), e18(100), 1, PosStatus.CLOSED, ethers.ZeroAddress);
         await h.addCleanupPosition(1);
@@ -102,7 +109,7 @@ describe("CleanupLib admin, liquidated, and unresolved cases", () => {
     });
 
     it("refuses to clean a position with an unresolved failed repayment", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.setPositionSimple(1, e18(100), e18(100), 1, PosStatus.CLOSED, ethers.ZeroAddress);
         await h.addCleanupPosition(1);
         await h.setHarnessFailedRepayment(1, e6(50), false); // unresolved
@@ -111,7 +118,7 @@ describe("CleanupLib admin, liquidated, and unresolved cases", () => {
     });
 
     it("cleans a CLOSED position whose failed repayment is resolved", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.setPositionSimple(1, e18(100), e18(100), 1, PosStatus.CLOSED, ethers.ZeroAddress);
         await h.addCleanupPosition(1);
         await h.setHarnessFailedRepayment(1, e6(50), true); // resolved
@@ -122,7 +129,7 @@ describe("CleanupLib admin, liquidated, and unresolved cases", () => {
 
 describe("FlashLoanCheck minInteractionDelay", () => {
     it("reverts when a non-operator acts within the interaction delay", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const [, actor] = await ethers.getSigners();
         await expect(h.testValidateFlashLoanDelay(actor.address, 3600)).to.be.reverted; // RateLimitExceeded
     });
@@ -186,7 +193,7 @@ describe("DividendSettlementLib zero-manager case", () => {
 
 describe("GlobalPnLLib overflow-skip & PortfolioRiskLib fallback", () => {
     it("global PnL skips a market whose product overflows the safe bound", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const Mock = await ethers.getContractFactory("MockOracleConfigurable");
         const oracle = await Mock.deploy();
         await oracle.waitForDeployment();
@@ -199,7 +206,7 @@ describe("GlobalPnLLib overflow-skip & PortfolioRiskLib fallback", () => {
     });
 
     it("global PnL skips an active market with zero open interest", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const Mock = await ethers.getContractFactory("MockOracleConfigurable");
         const oracle = await Mock.deploy();
         await oracle.waitForDeployment();
@@ -214,7 +221,7 @@ describe("GlobalPnLLib overflow-skip & PortfolioRiskLib fallback", () => {
     });
 
     it("global PnL skips a market priced at zero", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const Mock = await ethers.getContractFactory("MockOracleConfigurable");
         const oracle = await Mock.deploy();
         await oracle.waitForDeployment();

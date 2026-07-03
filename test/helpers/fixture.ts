@@ -196,11 +196,7 @@ export async function deployProtocol(): Promise<Deployment> {
     const TradingCoreViews = await ethers.getContractFactory("TradingCoreViews");
     const tradingViews = await TradingCoreViews.deploy();
     await tradingViews.waitForDeployment();
-    await tradingViews.initialize(
-        await tradingCore.getAddress(),
-        await vault.getAddress(),
-        await oracle.getAddress(),
-    );
+    await tradingViews.initialize(await tradingCore.getAddress(), await vault.getAddress(), await oracle.getAddress());
 
     const DividendKeeper = await ethers.getContractFactory("DividendKeeper");
     const dividendKeeper = await upgrades.deployProxy(

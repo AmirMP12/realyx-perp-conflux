@@ -7,11 +7,6 @@ const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 const e6 = (n: bigint | number) => ethers.parseUnits(n.toString(), 6);
 const MARKET = "0x00000000000000000000000000000000000000B7";
 
-/**
- * Exercises TradingLib.closePosition (via PositionCloseLib) through the
- * driveOpen/driveClose harness drivers. Each test opens a real position in
- * harness storage, then closes it to exercise a specific close path.
- */
 async function setup() {
     const [admin] = await ethers.getSigners();
     const libs = await deployAllLibraries();

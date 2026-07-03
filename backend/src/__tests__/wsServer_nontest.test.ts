@@ -1,7 +1,6 @@
 import { EventEmitter } from "events";
 import { jest } from "@jest/globals";
 
-// Exercise the `!isTestEnv` logging branches (connect/disconnect/listening +
 // the send-error catch) that the test-env suites intentionally skip. We force a
 // non-test NODE_ENV before the module is imported so `isTestEnv` is false.
 
@@ -45,7 +44,7 @@ jest.mock("../services/activeMarkets.js", () => ({
   getActiveMarketAddresses: jest.fn(async () => new Set([ADDR.toLowerCase()])),
 }));
 
-describe("wsServer non-test logging branches", () => {
+describe("wsServer logging", () => {
   let cleanup: (() => void) | undefined;
   let infoSpy: any;
   let errorSpy: any;

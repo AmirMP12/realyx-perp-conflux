@@ -16,7 +16,7 @@ describe('useGovernance error handling', () => {
         (useAccount as any).mockReturnValue({ address: '0xUser' });
     });
 
-    it('createProposal hits the catch and uses error.message', async () => {
+    it('createProposal surfaces error.message on failure', async () => {
         (toast.success as any).mockImplementation(() => { throw new Error('create boom'); });
         const { result } = renderHook(() => useGovernance());
         let res: any;
@@ -25,7 +25,7 @@ describe('useGovernance error handling', () => {
         expect(toast.error).toHaveBeenCalledWith('create boom', expect.anything());
     });
 
-    it('approveProposal hits the catch with the default message', async () => {
+    it('approveProposal uses the default error message on failure', async () => {
         (toast.success as any).mockImplementation(() => { throw {}; });
         const { result } = renderHook(() => useGovernance());
         let ok: any;
@@ -34,7 +34,7 @@ describe('useGovernance error handling', () => {
         expect(toast.error).toHaveBeenCalledWith('Failed to approve proposal', expect.anything());
     });
 
-    it('executeProposal hits the catch', async () => {
+    it('executeProposal surfaces error.message on failure', async () => {
         (toast.success as any).mockImplementation(() => { throw new Error('exec boom'); });
         const { result } = renderHook(() => useGovernance());
         let ok: any;
@@ -43,7 +43,7 @@ describe('useGovernance error handling', () => {
         expect(toast.error).toHaveBeenCalledWith('exec boom', expect.anything());
     });
 
-    it('emergencyPause hits the catch with default message', async () => {
+    it('emergencyPause uses the default error message on failure', async () => {
         (toast.success as any).mockImplementation(() => { throw {}; });
         const { result } = renderHook(() => useGovernance());
         let ok: any;

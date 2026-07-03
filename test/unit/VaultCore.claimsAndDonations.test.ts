@@ -125,9 +125,10 @@ describe("VaultCore — withdrawal guards", () => {
 
     it("withdraw reverts for ZeroShares and ZeroAddress receiver", async () => {
         const { d } = await loadFixture(fundedVault);
-        await expect(
-            d.vault.connect(d.lp).withdraw(0, d.lp.address, d.lp.address),
-        ).to.be.revertedWithCustomError(d.vault, "ZeroShares");
+        await expect(d.vault.connect(d.lp).withdraw(0, d.lp.address, d.lp.address)).to.be.revertedWithCustomError(
+            d.vault,
+            "ZeroShares",
+        );
         const sh = await d.vault.lpBalanceOf(d.lp.address);
         await expect(
             d.vault.connect(d.lp).withdraw(sh / 10n, ethers.ZeroAddress, d.lp.address),
@@ -175,12 +176,14 @@ describe("VaultCore — withdrawal guards", () => {
             d.vault,
             "ZeroAssets",
         );
-        await expect(
-            d.vault.connect(d.lp).unstakeInsurance(1, ethers.ZeroAddress),
-        ).to.be.revertedWithCustomError(d.vault, "ZeroAddress");
+        await expect(d.vault.connect(d.lp).unstakeInsurance(1, ethers.ZeroAddress)).to.be.revertedWithCustomError(
+            d.vault,
+            "ZeroAddress",
+        );
         const sh = await d.vault.insBalanceOf(d.lp.address);
-        await expect(
-            d.vault.connect(d.lp).unstakeInsurance(sh + 1n, d.lp.address),
-        ).to.be.revertedWithCustomError(d.vault, "InsufficientShares");
+        await expect(d.vault.connect(d.lp).unstakeInsurance(sh + 1n, d.lp.address)).to.be.revertedWithCustomError(
+            d.vault,
+            "InsufficientShares",
+        );
     });
 });

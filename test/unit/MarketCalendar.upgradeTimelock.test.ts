@@ -29,9 +29,10 @@ describe("MarketCalendar", () => {
             const { cal, MarketCalendar } = await loadFixture(deployCalendar);
             const newImpl = await MarketCalendar.deploy();
             await newImpl.waitForDeployment();
-            await expect(
-                cal.upgradeToAndCall(await newImpl.getAddress(), "0x"),
-            ).to.be.revertedWithCustomError(cal, "PendingImplementationMismatch");
+            await expect(cal.upgradeToAndCall(await newImpl.getAddress(), "0x")).to.be.revertedWithCustomError(
+                cal,
+                "PendingImplementationMismatch",
+            );
         });
 
         it("upgrade reverts while the timelock is active, then succeeds after it elapses", async () => {
@@ -40,10 +41,7 @@ describe("MarketCalendar", () => {
             await newImpl.waitForDeployment();
             const addr = await newImpl.getAddress();
             await expect(cal.proposeImplementation(addr)).to.emit(cal, "ImplementationProposed");
-            await expect(cal.upgradeToAndCall(addr, "0x")).to.be.revertedWithCustomError(
-                cal,
-                "UpgradeTimelockActive",
-            );
+            await expect(cal.upgradeToAndCall(addr, "0x")).to.be.revertedWithCustomError(cal, "UpgradeTimelockActive");
             await time.increase(48 * 60 * 60 + 1);
             await cal.upgradeToAndCall(addr, "0x");
             const [pending, effective] = await cal.pendingImplementation();
@@ -100,7 +98,7 @@ describe("MarketCalendar", () => {
         });
     });
 
-    describe("time-adjustment edge cases", () => {
+    describe("time-adjustment boundaries", () => {
         it("isMarketOpen returns false when the timezone-adjusted time is negative", async () => {
             const { cal } = await loadFixture(deployCalendar);
             // -12h offset; a tiny timestamp drives adjustedTime below zero

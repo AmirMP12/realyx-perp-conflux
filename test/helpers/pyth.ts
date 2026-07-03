@@ -1,5 +1,20 @@
 import { ethers } from "hardhat";
-import type { MockPythWrapper } from "../../typechain";
+
+/** Minimal surface used by test helpers; accepts Hardhat deploy/getContractAt results. */
+export interface MockPythLike {
+    createPriceFeedUpdateData(
+        id: string,
+        price: bigint,
+        conf: bigint,
+        expo: number,
+        emaPrice: bigint,
+        emaConf: bigint,
+        publishTime: number,
+        prevPublishTime: number,
+    ): Promise<string>;
+    getUpdateFee(updateData: string[]): Promise<bigint>;
+    updatePriceFeeds(updateData: string[], overrides?: { value?: bigint }): Promise<unknown>;
+}
 
 /**
  * Helpers for driving the MockPyth oracle in tests.
@@ -48,7 +63,7 @@ export function rawFromNormalized(normalized1e18: bigint): bigint {
 export const DEFAULT_CONF = 10n ** 14n;
 
 export async function buildPriceUpdate(
-    mockPyth: MockPythWrapper,
+    mockPyth: MockPythLike,
     feedId: string,
     normalized1e18: bigint,
     confNormalized1e18?: bigint,
@@ -75,7 +90,7 @@ export async function buildPriceUpdate(
  * Push a price into MockPyth so subsequent getPriceUnsafe returns it.
  */
 export async function setPythPrice(
-    mockPyth: MockPythWrapper,
+    mockPyth: MockPythLike,
     feedId: string,
     normalized1e18: bigint,
     confNormalized1e18?: bigint,

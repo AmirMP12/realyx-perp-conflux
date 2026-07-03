@@ -36,7 +36,6 @@ describe('App wrong-network toast', () => {
 
     it('renders the toast switch action and triggers switchChain', () => {
         render(<MemoryRouter future={routerFuture}><App /></MemoryRouter>);
-        // The wrong-network toast is invoked with a render function.
         const call = (toast as any).mock.calls.find((c: any[]) => typeof c[0] === 'function');
         expect(call).toBeTruthy();
         const renderFn = call[0];

@@ -43,9 +43,10 @@ describe("VaultCore — deposit and withdraw guards", () => {
     it("deposit reverts while emergency mode is active (notEmergencyMode modifier)", async () => {
         const { d } = await loadFixture(fundedVault);
         await d.vault.connect(d.guardian).triggerEmergencyMode();
-        await expect(
-            d.vault.connect(d.alice).deposit(usdc(1_000), d.alice.address),
-        ).to.be.revertedWithCustomError(d.vault, "EmergencyModeActive");
+        await expect(d.vault.connect(d.alice).deposit(usdc(1_000), d.alice.address)).to.be.revertedWithCustomError(
+            d.vault,
+            "EmergencyModeActive",
+        );
     });
 
     it("instant withdraw reverts with NotOwner when owner != caller", async () => {
@@ -70,10 +71,7 @@ describe("VaultCore — deposit and withdraw guards", () => {
         const { d } = await loadFixture(fundedVault);
         const sh = await d.vault.lpBalanceOf(d.lp.address);
         const before = await d.usdt0.balanceOf(d.lp.address);
-        await expect(d.vault.connect(d.lp).withdraw(sh / 10n, d.lp.address, d.lp.address)).to.emit(
-            d.vault,
-            "Withdraw",
-        );
+        await expect(d.vault.connect(d.lp).withdraw(sh / 10n, d.lp.address, d.lp.address)).to.emit(d.vault, "Withdraw");
         expect(await d.vault.lpBalanceOf(d.lp.address)).to.be.lessThan(sh);
         expect(await d.usdt0.balanceOf(d.lp.address)).to.be.greaterThan(before);
     });
@@ -111,17 +109,19 @@ describe("VaultCore — queue cancellation", () => {
 describe("VaultCore — insurance stake/unstake guards", () => {
     it("first insurance stake below the minimum reverts", async () => {
         const { d } = await loadFixture(freshVault);
-        await expect(
-            d.vault.connect(d.lp).stakeInsurance(usdc(999), d.lp.address),
-        ).to.be.revertedWithCustomError(d.vault, "MinimumInsuranceDepositRequired");
+        await expect(d.vault.connect(d.lp).stakeInsurance(usdc(999), d.lp.address)).to.be.revertedWithCustomError(
+            d.vault,
+            "MinimumInsuranceDepositRequired",
+        );
     });
 
     it("unstakeInsurance reverts with CooldownNotStarted when no request exists", async () => {
         const { d } = await loadFixture(fundedVault);
         const sh = await d.vault.insBalanceOf(d.lp.address);
-        await expect(
-            d.vault.connect(d.lp).unstakeInsurance(sh / 10n, d.lp.address),
-        ).to.be.revertedWithCustomError(d.vault, "CooldownNotStarted");
+        await expect(d.vault.connect(d.lp).unstakeInsurance(sh / 10n, d.lp.address)).to.be.revertedWithCustomError(
+            d.vault,
+            "CooldownNotStarted",
+        );
     });
 
     it("unstakeInsurance reverts with CooldownNotComplete before the cooldown elapses", async () => {
@@ -129,9 +129,10 @@ describe("VaultCore — insurance stake/unstake guards", () => {
         const sh = await d.vault.insBalanceOf(d.lp.address);
         await d.vault.connect(d.lp).requestUnstake();
         // no time advanced -> cooldown not complete
-        await expect(
-            d.vault.connect(d.lp).unstakeInsurance(sh / 10n, d.lp.address),
-        ).to.be.revertedWithCustomError(d.vault, "CooldownNotComplete");
+        await expect(d.vault.connect(d.lp).unstakeInsurance(sh / 10n, d.lp.address)).to.be.revertedWithCustomError(
+            d.vault,
+            "CooldownNotComplete",
+        );
     });
 
     it("cancelUnstakeRequest reverts when no request is active", async () => {
@@ -175,18 +176,20 @@ describe("VaultCore — emergency mode", () => {
     it("emergencyEscapeWithdraw reverts with NotEmergencyMode when not in emergency", async () => {
         const { d } = await loadFixture(fundedVault);
         const sh = await d.vault.lpBalanceOf(d.lp.address);
-        await expect(
-            d.vault.connect(d.lp).emergencyEscapeWithdraw(sh / 10n),
-        ).to.be.revertedWithCustomError(d.vault, "NotEmergencyMode");
+        await expect(d.vault.connect(d.lp).emergencyEscapeWithdraw(sh / 10n)).to.be.revertedWithCustomError(
+            d.vault,
+            "NotEmergencyMode",
+        );
     });
 
     it("emergencyEscapeWithdraw reverts before the escape timelock expires", async () => {
         const { d } = await loadFixture(fundedVault);
         await d.vault.connect(d.guardian).triggerEmergencyMode();
         const sh = await d.vault.lpBalanceOf(d.lp.address);
-        await expect(
-            d.vault.connect(d.lp).emergencyEscapeWithdraw(sh / 10n),
-        ).to.be.revertedWithCustomError(d.vault, "EscapeTimelockNotExpired");
+        await expect(d.vault.connect(d.lp).emergencyEscapeWithdraw(sh / 10n)).to.be.revertedWithCustomError(
+            d.vault,
+            "EscapeTimelockNotExpired",
+        );
     });
 
     it("emergencyEscapeWithdraw pays out in full when liquidity is sufficient (no cap)", async () => {
@@ -363,10 +366,7 @@ describe("VaultCore — claim rate-limiting", () => {
         const id2 = await d.vault.connect(coreEoa).submitClaim.staticCall(usdc(80_000), 2);
         await d.vault.connect(coreEoa).submitClaim(usdc(80_000), 2);
         await d.vault.connect(d.guardian).approveClaim(id2);
-        await expect(d.vault.processClaim(id2)).to.be.revertedWithCustomError(
-            d.vault,
-            "ClaimRateLimitExceeded",
-        );
+        await expect(d.vault.processClaim(id2)).to.be.revertedWithCustomError(d.vault, "ClaimRateLimitExceeded");
     });
 
     it("processClaim pays in full and marks the claim paid when within the window budget", async () => {

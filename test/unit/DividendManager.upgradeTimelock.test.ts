@@ -20,19 +20,17 @@ describe("DividendManager", () => {
     describe("UUPS upgrade timelock", () => {
         it("proposeImplementation reverts on the zero address", async () => {
             const { dm } = await loadFixture(deploy);
-            await expect(dm.proposeImplementation(ethers.ZeroAddress)).to.be.revertedWithCustomError(
-                dm,
-                "ZeroAddress",
-            );
+            await expect(dm.proposeImplementation(ethers.ZeroAddress)).to.be.revertedWithCustomError(dm, "ZeroAddress");
         });
 
         it("upgradeToAndCall reverts PendingImplementationMismatch when nothing is staged", async () => {
             const { dm, DividendManager } = await loadFixture(deploy);
             const newImpl = await DividendManager.deploy();
             await newImpl.waitForDeployment();
-            await expect(
-                dm.upgradeToAndCall(await newImpl.getAddress(), "0x"),
-            ).to.be.revertedWithCustomError(dm, "PendingImplementationMismatch");
+            await expect(dm.upgradeToAndCall(await newImpl.getAddress(), "0x")).to.be.revertedWithCustomError(
+                dm,
+                "PendingImplementationMismatch",
+            );
         });
 
         it("upgrade reverts while timelock active, then succeeds after it elapses", async () => {
@@ -41,10 +39,7 @@ describe("DividendManager", () => {
             await newImpl.waitForDeployment();
             const addr = await newImpl.getAddress();
             await expect(dm.proposeImplementation(addr)).to.emit(dm, "ImplementationProposed");
-            await expect(dm.upgradeToAndCall(addr, "0x")).to.be.revertedWithCustomError(
-                dm,
-                "UpgradeTimelockActive",
-            );
+            await expect(dm.upgradeToAndCall(addr, "0x")).to.be.revertedWithCustomError(dm, "UpgradeTimelockActive");
             await time.increase(48 * 60 * 60 + 1);
             await dm.upgradeToAndCall(addr, "0x");
             const [pending] = await dm.pendingImplementation();

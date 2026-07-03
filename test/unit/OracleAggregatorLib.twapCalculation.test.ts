@@ -5,23 +5,6 @@ import { deployAllLibraries, deployHarness } from "../helpers/harness";
 
 const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 
-/**
- * Verifies OracleAggregatorLib TWAP and aggregation logic via the harness
- * wrappers, covering:
- *   - calculateTWAP reverting when count == 0
- *   - the cutoff-time window edge where the window meets or exceeds the timestamp
- *   - calculateTWAP reverting when no points contribute weight
- *   - calculateTWAPWithCount reverting when count == 0
- *   - calculateTWAPWithCount's cutoff-time window edge
- *   - calculateTWAPWithCount reverting when no points contribute weight
- *   - computeAggregatedPrice returning zeros for empty inputs
- *
- * Note: the `price > maxSafePrice` guards are unreachable because `point.price`
- * is a uint128 and `maxSafePrice` is type(uint128).max, so the stored value can
- * never exceed it. The overflow guards (`weightedSum + contribution < weightedSum`)
- * require an arithmetic overflow that the 48-slot ring buffer cannot accumulate,
- * so those revert paths are defensive code left untested.
- */
 async function harness() {
     const libs = await deployAllLibraries();
     return deployHarness("CoverageHarness", libs);

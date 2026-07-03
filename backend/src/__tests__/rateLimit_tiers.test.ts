@@ -12,7 +12,6 @@ describe("Rate Limit Tiering", () => {
   });
 
   it("resolveTier falls back to FREE when DB returns no rows", async () => {
-    // The global pg mock resolves to { rows: [] }.
     expect(await resolveTier("realyx_unknownkey")).toBe("FREE");
   });
 

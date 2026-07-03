@@ -62,8 +62,8 @@ const router = express.Router();
 let poolInstance: pg.Pool | null = null;
 
 /** Reset the cached pool — used in tests to force a fresh pool on next call. */
-export function resetSyncPool(): void {
-  poolInstance = null;
+export function resetSyncPool(injected?: any): void {
+  poolInstance = injected ?? null;
 }
 
 function getPool(): pg.Pool | null {

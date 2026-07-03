@@ -11,14 +11,12 @@ process.env.NODE_ENV = "test";
 import request from "supertest";
 import express from "express";
 
-// --- Mock Variables ---
 const mockPoolQuery = jest.fn();
 const mockActiveMarketCount = jest.fn();
 const mockActiveMarketAt = jest.fn();
 const mockGetMarketInfo = jest.fn();
 const mockGetFundingState = jest.fn();
 
-// --- Setup Mocks ---
 jest.mock("pg", () => {
     const mPool = {
         query: mockPoolQuery,

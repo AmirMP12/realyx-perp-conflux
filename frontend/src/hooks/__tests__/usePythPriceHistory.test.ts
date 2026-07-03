@@ -42,7 +42,6 @@ describe('usePythPriceHistory', () => {
     const { result } = renderHook(() => usePythPriceHistory('some-id', 60, 1));
 
     await waitFor(() => {
-      // The hook catches individual fetch errors and returns null, 
       // which eventually leads to this error message if all fail.
       expect(result.current.error).toBe('No price data available for this market');
     }, { timeout: 15000 });

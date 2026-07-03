@@ -9,12 +9,6 @@ const e6 = (n: bigint | number) => ethers.parseUnits(n.toString(), 6);
 
 const MARKET = "0x00000000000000000000000000000000000000B7";
 
-/**
- * Exercises the full close and liquidation paths through the dedicated deep
- * harnesses (PositionCloseLibHarness, LiquidationLibHarnessDeep) across profit,
- * loss, bad-debt, and insurance-cover scenarios.
- */
-
 async function closeSetup() {
     const [admin, treasury, owner] = await ethers.getSigners();
     const USDC = await ethers.getContractFactory("MockUSDC");
@@ -42,7 +36,6 @@ async function closeSetup() {
         treasury.address,
     ]);
 
-    // Fund the harness with USDC so repay/payout transfers succeed.
     await usdc.mintTo(await h.getAddress(), e6(10_000_000));
     const now = (await ethers.provider.getBlock("latest"))!.timestamp;
     await oracle.setPrice(MARKET, e18(50_000), 0, now);

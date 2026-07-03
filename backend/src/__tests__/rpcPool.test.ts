@@ -78,7 +78,6 @@ describe("rpcPool", () => {
     it("records failures in pool health and recovers on success", async () => {
       process.env.RPC_URLS = "https://a.example,https://b.example";
       __resetRpcPool();
-      // Force the first-ordered endpoint to fail once, succeed on the next.
       let attempt = 0;
       await withProvider(async () => {
         attempt += 1;

@@ -16,7 +16,15 @@ vi.mock('../../stores', () => ({
     usePositionsStore: (sel: any) => sel({ optimisticPositions: optimisticState }),
 }));
 vi.mock('../../stores/layoutStore', () => ({
-    useLayoutStore: () => ({ positionPanelHeight: 300 }),
+    useLayoutStore: () => ({ positionPanelHeight: 300, setPositionPanelHeight: vi.fn() }),
+}));
+
+vi.mock('../../hooks/usePendingOrders', () => ({
+    usePendingOrders: vi.fn(() => ({ orders: [], loading: false, refetch: vi.fn() })),
+}));
+vi.mock('../../hooks/useMediaQuery', () => ({
+    useIsDesktop: vi.fn(() => true),
+    useMediaQuery: vi.fn(() => true),
 }));
 
 vi.mock('../../utils/market', () => ({ applyMarketDisplayFallback: (m: any) => m }));
@@ -53,6 +61,10 @@ vi.mock('../../components/trading/ChartPanel', () => ({ ChartPanel: () => <div d
 vi.mock('../../components/trading/MarketLiquidityPanel', () => ({ MarketLiquidityPanel: () => <div data-testid="liquidity" /> }));
 vi.mock('../../components/trading/FundingComparePanel', () => ({ FundingComparePanel: () => <div data-testid="funding" /> }));
 vi.mock('../../components/trading/CopyTradersStrip', () => ({ CopyTradersStrip: () => <div data-testid="copy-strip" /> }));
+vi.mock('../../components/trading/ResizeHandle', () => ({ ResizeHandle: () => <div data-testid="resize-handle" /> }));
+vi.mock('../../components/trading/TradingPageSkeleton', () => ({
+    TradingPageSkeleton: () => <div aria-label="Loading market">Loading…</div>,
+}));
 
 import { TradingPage } from '../Trading';
 

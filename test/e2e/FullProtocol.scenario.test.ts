@@ -98,9 +98,8 @@ describe("E2E — full protocol scenarios", () => {
         const d = await loadFixture(deployConfigured);
         await d.oracle.connect(d.guardian).activateGlobalPause();
         // breaker gate on increase orders should block creation
-        await expect(
-            openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) }),
-        ).to.be.reverted;
+        await expect(openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) })).to
+            .be.reverted;
 
         await time.increase(6 * 60 * 60 + 1);
         await d.oracle.expireGlobalPause();

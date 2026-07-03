@@ -12,8 +12,6 @@ vi.mock('../../hooks/useBackend', () => ({ useBackendStats: vi.fn(), useLeaderbo
 vi.mock('../../hooks/useMarketData', () => ({ useAllMarketsOnChainData: vi.fn() }));
 vi.mock('../../components/ui', () => ({ Skeleton: () => <div data-testid="skeleton" /> }));
 
-// Render the Tooltip `content` with a payload entry that has NO `value`, so
-// CustomTooltip uses the `(entry.value ?? 0)` fallback.
 vi.mock('recharts', () => ({
     ResponsiveContainer: ({ children }: any) => <div>{children}</div>,
     BarChart: ({ children }: any) => <div>{children}</div>,
@@ -33,7 +31,7 @@ vi.mock('recharts', () => ({
 const renderPage = () =>
     render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><AnalyticsDashboard /></MemoryRouter>);
 
-describe('AnalyticsDashboard', () => {
+describe('AnalyticsDashboard empty and fallback states', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         (useVaultStats as any).mockReturnValue({ stats: { tvl: 5_000_000 }, loading: false });
@@ -50,7 +48,6 @@ describe('AnalyticsDashboard', () => {
 
     it('renders the tooltip value fallback ($0) when a payload entry has no value', () => {
         renderPage();
-        // `(entry.value ?? 0)` -> 0 -> "$0" currency formatting
         expect(screen.getAllByText(/Volume:\s*\$0/).length).toBeGreaterThan(0);
     });
 
@@ -79,7 +76,6 @@ describe('AnalyticsDashboard', () => {
             error: null,
         });
         renderPage();
-        // 24h Volume card -> formatUsdStat(NaN) -> formatCompact(0) -> "$0"
         expect(screen.getAllByText('$0').length).toBeGreaterThan(0);
     });
 
@@ -95,7 +91,6 @@ describe('AnalyticsDashboard', () => {
             error: null,
         });
         renderPage();
-        // rank 3 and rank 4 rows exercise the orange and default medal styles.
         expect(screen.getAllByText(/0x3333/).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/0x4444/).length).toBeGreaterThan(0);
     });

@@ -6,14 +6,12 @@ import express from "express";
 describe("Middleware Comprehensive Scenarios", () => {
     describe("Rate Limit Middleware", () => {
         it("applies the in-memory rate limit store", async () => {
-            // We can't easily switch to Redis in unit tests without complex setup, 
             // but we can test the memory store increments.
             const res = await request(app).get("/health");
             expect(res.status).toBe(200);
         });
 
         it("should handle error in rate limit check", async () => {
-            // Mocking the rate limit function to throw
             const mockReq = {} as any;
             const mockRes = { status: jest.fn().mockReturnThis(), json: jest.fn() } as any;
             const mockNext = jest.fn();

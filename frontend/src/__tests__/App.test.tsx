@@ -72,7 +72,6 @@ describe('App', () => {
             </MemoryRouter>
         );
 
-        // The wrong-network notice is now a custom toast with a one-click switch
         // action (a render function), surfaced under the same id.
         expect(toast).toHaveBeenCalledWith(
             expect.any(Function),
@@ -103,9 +102,6 @@ describe('App', () => {
             </MemoryRouter>
         );
 
-        // Effect should trigger setMarkets
-        // We can't easily check the store directly here, but we can verify it doesn't crash
-        // and exercises the mapping path.
     });
 
     it('shows page loader for lazy routes', async () => {

@@ -6,7 +6,7 @@ import { useAccount, usePublicClient } from 'wagmi';
 vi.mock('wagmi', () => ({ useAccount: vi.fn(), usePublicClient: vi.fn() }));
 vi.mock('../useProgram', () => ({ TRADING_CORE_ADDRESS: '0xCore' }));
 
-describe('usePendingOrders extra', () => {
+describe('usePendingOrders filtering', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         (useAccount as any).mockReturnValue({ address: '0xUser' });

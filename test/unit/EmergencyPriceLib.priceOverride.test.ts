@@ -4,18 +4,6 @@ import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { setPythPrice } from "../helpers/pyth";
 import { OPERATOR_ROLE, ORACLE_ROLE, GUARDIAN_ROLE, KEEPER_ROLE } from "../helpers/constants";
 
-/**
- * Exercises EmergencyPriceLib through the OracleAggregator
- * propose/confirm/apply emergency-price flow, covering:
- *   - confirming after a fast-track execution (proposal already executed)
- *   - overrides below the oracle reference price
- *   - applyPendingEmergencyPrice when the oracle returns a zero price at apply time
- *
- * A colliding proposalId (ProposalAlreadyExists) is unreachable: each proposal
- * mixes a monotonic nonce and block.number into the keccak id, so two stored
- * proposals cannot share an id.
- */
-
 const FEED = ethers.zeroPadValue("0x0abc", 32);
 const MARKET = "0x00000000000000000000000000000000000000B7";
 const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);

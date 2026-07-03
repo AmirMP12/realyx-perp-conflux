@@ -36,7 +36,17 @@ describe("PositionCloseLib token-collateral payout", () => {
         await registry.waitForDeployment();
         const now = (await ethers.provider.getBlock("latest"))!.timestamp;
         await oracle.setPrice(await collat.getAddress(), e18(1), 0, now);
-        await registry.registerToken(await collat.getAddress(), 200, 500, 3000, 100, 50, e6(100_000_000), await collat.getAddress(), 6);
+        await registry.registerToken(
+            await collat.getAddress(),
+            200,
+            500,
+            3000,
+            100,
+            50,
+            e6(100_000_000),
+            await collat.getAddress(),
+            6,
+        );
 
         const libs = await deployAllLibraries();
         const h = await deployHarness("PositionCloseLibHarness", libs, [

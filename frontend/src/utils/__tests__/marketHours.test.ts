@@ -1,11 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getMarketSession, isEquityCategory } from '../marketHours';
 
-/**
- * Build a UTC Date that corresponds to a known US-Eastern wall-clock time.
- * January is EST (UTC-5); July is EDT (UTC-4). We pass explicit UTC hours so
- * the test is deterministic regardless of the machine's local zone.
- */
 function utc(year: number, month: number, day: number, hourUtc: number, minute = 0): Date {
     return new Date(Date.UTC(year, month - 1, day, hourUtc, minute, 0));
 }

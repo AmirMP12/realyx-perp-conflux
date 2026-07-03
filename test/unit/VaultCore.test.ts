@@ -40,9 +40,10 @@ describe("VaultCore", () => {
         });
         it("reverts on zero receiver", async () => {
             const d = await loadFixture(fundedVault);
-            await expect(
-                d.vault.connect(d.lp).deposit(usdc(1000), ethers.ZeroAddress),
-            ).to.be.revertedWithCustomError(d.vault, "ZeroAddress");
+            await expect(d.vault.connect(d.lp).deposit(usdc(1000), ethers.ZeroAddress)).to.be.revertedWithCustomError(
+                d.vault,
+                "ZeroAddress",
+            );
         });
         it("reverts when first deposit below minimum", async () => {
             const d = await loadFixture(fundedVault);
@@ -99,9 +100,10 @@ describe("VaultCore", () => {
             await d.vault.connect(d.lp).deposit(usdc(1_000_000), d.lp.address);
             const sh = await d.vault.lpBalanceOf(d.lp.address);
             await d.vault.connect(d.guardian).triggerEmergencyMode();
-            await expect(
-                d.vault.connect(d.lp).withdraw(sh, d.lp.address, d.lp.address),
-            ).to.be.revertedWithCustomError(d.vault, "EmergencyModeActive");
+            await expect(d.vault.connect(d.lp).withdraw(sh, d.lp.address, d.lp.address)).to.be.revertedWithCustomError(
+                d.vault,
+                "EmergencyModeActive",
+            );
         });
     });
 
@@ -173,9 +175,10 @@ describe("VaultCore", () => {
     describe("insurance fund", () => {
         it("reverts staking below minimum initial", async () => {
             const d = await loadFixture(fundedVault);
-            await expect(
-                d.vault.connect(d.lp).stakeInsurance(usdc(999), d.lp.address),
-            ).to.be.revertedWithCustomError(d.vault, "MinimumInsuranceDepositRequired");
+            await expect(d.vault.connect(d.lp).stakeInsurance(usdc(999), d.lp.address)).to.be.revertedWithCustomError(
+                d.vault,
+                "MinimumInsuranceDepositRequired",
+            );
         });
         it("stakes and tracks insurance assets", async () => {
             const d = await loadFixture(fundedVault);
@@ -191,13 +194,15 @@ describe("VaultCore", () => {
             const sh = await d.vault.insBalanceOf(d.lp.address);
             const partial = sh / 2n; // keep the pool healthy after unstake
             // cannot unstake before requesting
-            await expect(
-                d.vault.connect(d.lp).unstakeInsurance(partial, d.lp.address),
-            ).to.be.revertedWithCustomError(d.vault, "CooldownNotStarted");
+            await expect(d.vault.connect(d.lp).unstakeInsurance(partial, d.lp.address)).to.be.revertedWithCustomError(
+                d.vault,
+                "CooldownNotStarted",
+            );
             await d.vault.connect(d.lp).requestUnstake();
-            await expect(
-                d.vault.connect(d.lp).unstakeInsurance(partial, d.lp.address),
-            ).to.be.revertedWithCustomError(d.vault, "CooldownNotComplete");
+            await expect(d.vault.connect(d.lp).unstakeInsurance(partial, d.lp.address)).to.be.revertedWithCustomError(
+                d.vault,
+                "CooldownNotComplete",
+            );
             await time.increase(7 * 24 * 60 * 60 + 1);
             await expect(d.vault.connect(d.lp).unstakeInsurance(partial, d.lp.address)).to.emit(
                 d.vault,
@@ -335,10 +340,9 @@ describe("VaultCore", () => {
         });
         it("updateProtocolTVL reverts (deprecated)", async () => {
             const d = await loadFixture(fundedVault);
-            await d.vault.connect(d.admin).grantRole(
-                ethers.keccak256(ethers.toUtf8Bytes("OPERATOR_ROLE")),
-                d.alice.address,
-            );
+            await d.vault
+                .connect(d.admin)
+                .grantRole(ethers.keccak256(ethers.toUtf8Bytes("OPERATOR_ROLE")), d.alice.address);
             await expect(d.vault.connect(d.alice).updateProtocolTVL(1)).to.be.revertedWithCustomError(
                 d.vault,
                 "InvalidRequest",

@@ -156,9 +156,10 @@ describe("VaultCore — gated insurance, claims & surplus", () => {
             await d.vault.connect(d.lp).requestUnstake();
             await time.increase(7 * 24 * 60 * 60 + 1);
             // unstaking nearly all insurance breaches minRatioBps vs protocol TVL
-            await expect(
-                d.vault.connect(d.lp).unstakeInsurance(sh, d.lp.address),
-            ).to.be.revertedWithCustomError(d.vault, "UnhealthyRatio");
+            await expect(d.vault.connect(d.lp).unstakeInsurance(sh, d.lp.address)).to.be.revertedWithCustomError(
+                d.vault,
+                "UnhealthyRatio",
+            );
         });
     });
 

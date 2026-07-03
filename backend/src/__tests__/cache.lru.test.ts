@@ -55,7 +55,6 @@ describe("cache service (extended)", () => {
       for (let i = 0; i < 510; i++) {
         await cacheSet(`key-${i}`, i, 60_000);
       }
-      // The earliest keys should have been evicted.
       expect(await cacheGet("key-0")).toBeUndefined();
       // Recent keys remain.
       expect(await cacheGet("key-509")).toBe(509);

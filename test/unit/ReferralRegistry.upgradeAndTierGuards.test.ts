@@ -5,22 +5,6 @@ import { TRADING_CORE_ROLE } from "../helpers/constants";
 
 const u = (n: number) => ethers.parseUnits(n.toString(), 6);
 
-/**
- * ReferralRegistry — upgrade and tier guards
- *
- * Verifies the upgrade and tier-management guards:
- *   - the re-initialization revert
- *   - the discountBps/rebateBps bounds on initialize, addTier, and setDefaultRates
- *   - the admin-only authorization on upgrades, removeTier, and setDefaultRates
- *   - the volume-walk stopping at the highest qualifying tier
- *   - the MAX_TIERS (16) cap on addTier
- *   - the soft normalizer rejecting over-length and invalid-character codes
- *
- * Re-entrancy reverts on registerCode/setTraderReferralCode/transferCode are not
- * exercised: none of those paths make an external call, so the nonReentrant guard
- * cannot be tripped. A zero referrer in getTraderReferralData is likewise
- * unreachable, since a bound trader always references a non-zero code owner.
- */
 async function deploy() {
     const [admin, core, alice, bob, carol] = await ethers.getSigners();
     const RR = await ethers.getContractFactory("ReferralRegistry");
@@ -36,10 +20,7 @@ async function deploy() {
 describe("ReferralRegistry — upgrade & tier guards", () => {
     it("initialize cannot be called twice", async () => {
         const { rr, admin } = await loadFixture(deploy);
-        await expect(rr.initialize(admin.address, 100, 50)).to.be.revertedWithCustomError(
-            rr,
-            "InvalidInitialization",
-        );
+        await expect(rr.initialize(admin.address, 100, 50)).to.be.revertedWithCustomError(rr, "InvalidInitialization");
     });
 
     it("initialize rejects a rebate above BPS even when discount is valid", async () => {
@@ -54,9 +35,10 @@ describe("ReferralRegistry — upgrade & tier guards", () => {
 
     it("a non-admin caller cannot drive an upgrade", async () => {
         const { rr, alice } = await loadFixture(deploy);
-        await expect(
-            rr.connect(alice).upgradeToAndCall(alice.address, "0x"),
-        ).to.be.revertedWithCustomError(rr, "NotAdmin");
+        await expect(rr.connect(alice).upgradeToAndCall(alice.address, "0x")).to.be.revertedWithCustomError(
+            rr,
+            "NotAdmin",
+        );
     });
 
     it("tier walk stops at the highest qualifying tier", async () => {

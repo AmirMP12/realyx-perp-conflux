@@ -49,9 +49,10 @@ describe("EmergencyPauseLib", () => {
     it("confirmEmergencyPause reverts ProposalNotFound for an unknown id", async () => {
         const { oracle, guardian } = await loadFixture(deploy);
         const bogus = ethers.keccak256(ethers.toUtf8Bytes("does-not-exist"));
-        await expect(
-            oracle.connect(guardian).confirmEmergencyPause(bogus),
-        ).to.be.revertedWithCustomError(oracle, "ProposalNotFound");
+        await expect(oracle.connect(guardian).confirmEmergencyPause(bogus)).to.be.revertedWithCustomError(
+            oracle,
+            "ProposalNotFound",
+        );
     });
 
     // A target that was never registered as pausable is skipped during execution.
@@ -82,13 +83,11 @@ describe("EmergencyPauseLib", () => {
         const addr = await r.getAddress();
         await oracle.connect(admin).registerPausable(addr);
 
-        // First execution: target fails -> recorded (failedTargets[addr] = true).
         const id1 = await proposePauseId(oracle, guardian, [addr]);
         await oracle.connect(g2).confirmEmergencyPause(id1);
         await oracle.connect(g3).confirmEmergencyPause(id1);
         expect(await oracle.failedPauseCount()).to.equal(1n);
 
-        // Second execution (distinct pauseId): target fails again, but
         // failedTargets[addr] is already true -> not pushed again.
         const id2 = await proposePauseId(oracle, guardian, [addr]);
         await oracle.connect(g2).confirmEmergencyPause(id2);

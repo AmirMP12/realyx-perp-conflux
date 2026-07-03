@@ -54,12 +54,17 @@ describe('OrderNotifications — PnL formatting', () => {
     it('warns on a short position nearing liquidation and skips zero liq price', async () => {
         (usePositions as any).mockReturnValue({
             positions: [
-                { id: '20', isLong: false, markPrice: '100', liquidationPrice: '105' }, // short HF 1.05 -> warn
-                { id: '21', isLong: true, markPrice: '50', liquidationPrice: '0' }, // liqPrice 0 -> skip
+                { id: '20', isLong: false, markPrice: '100', liquidationPrice: '105' },
+                { id: '21', isLong: true, markPrice: '50', liquidationPrice: '0' },
             ],
         });
         render(<NotificationBell />);
         await act(async () => { /* checkHealth runs on mount */ });
-        expect(toast).toHaveBeenCalledWith(expect.stringContaining('nearing liquidation'), expect.anything());
+        expect(screen.getByText('1')).toBeInTheDocument();
+        expect(toast).not.toHaveBeenCalled();
+        await act(async () => {
+            screen.getByRole('button', { name: /open notifications/i }).click();
+        });
+        expect(screen.getByText(/Position #20 \(SHORT\) nearing liquidation/)).toBeInTheDocument();
     });
 });

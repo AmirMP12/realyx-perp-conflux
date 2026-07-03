@@ -252,8 +252,6 @@ contract CoverageHarness {
     }
     mapping(uint256 => DataTypes.Order) private _harnessOrders;
 
-    // ── Additive richer cancelOrder driver to reach the alt-collateral refund
-    //    ledger and the explicit executionFeePayer credit branch. ──
     function boostCancelOrderRich(
         uint256 orderId,
         address user,
@@ -850,7 +848,6 @@ contract CoverageHarness {
             );
     }
 
-    // ── Full open-path driver for TradingLib._executeIncrease branch coverage ──
     address public openMarketAddr;
     address public openUsdc;
     address public openVault;
@@ -888,9 +885,6 @@ contract CoverageHarness {
         openPositionToken = pt;
     }
 
-    // ── Additive referral wiring (test-only) so the open path can exercise the
-    //    referral-rebate split inside TradingLib._distributeFees. Defaults keep
-    //    the unreferred behaviour for every existing caller of driveOpen. ──
     address public openReferrer;
     uint16 public openReferralDiscountBps;
     uint16 public openReferralRebateBps;
@@ -901,10 +895,6 @@ contract CoverageHarness {
         openReferralRebateBps = rebateBps;
     }
 
-    // ── Additive SL/TP driver: runs TradingLib.executeStopLossTakeProfit over
-    //    positions previously created with driveOpen, using the same open
-    //    wiring. Trailing-anchor storage and dividend/referral wiring are
-    //    threaded so the per-position branch family is reachable from tests. ──
     mapping(uint256 => uint256) private _harnessTrailingAnchors;
 
     function setTrailingAnchor(uint256 id, uint256 anchor) external {
@@ -1070,7 +1060,6 @@ contract CoverageHarness {
         return positionCollaterals[id];
     }
 
-    // ── Close-path driver for TradingLib.closePosition branch coverage ──
     function driveClose(uint256 positionId, uint256 closeSize, uint256 minReceive) external returns (int256) {
         TradingLib.ClosePositionContext memory ctx = TradingLib.ClosePositionContext({
             usdc: openUsdc,
@@ -1106,9 +1095,6 @@ contract CoverageHarness {
             );
     }
 
-    // ── Additive decrease driver to reach TradingLib._executeDecrease and its
-    //    LIMIT_DECREASE trigger-price gate. Builds a decrease order against an
-    //    already-open position (created via driveOpen). ──
     function driveDecrease(
         uint256 positionId,
         address account,

@@ -20,7 +20,6 @@ describe("Rate Limit middleware", () => {
         // Fast forward 61 seconds
         jest.advanceTimersByTime(61000);
         
-        // Second request should reset count
         apiRateLimit(req as any, {} as any, next);
         expect(next).toHaveBeenCalledTimes(2);
     });

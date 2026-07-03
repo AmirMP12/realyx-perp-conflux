@@ -73,10 +73,11 @@ describe("sync copy-registry processing", () => {
     process.env.TRADING_CORE_ADDRESS = "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c";
     process.env.COPY_REGISTRY_ADDRESS = COPY_REGISTRY;
     process.env.NODE_ENV = "test";
-    delete process.env.INDEXER_START_BLOCK;
+    process.env.INDEXER_START_BLOCK = "248000000"; // force below mock getBlockNumber value
     delete process.env.VAULT_CORE_ADDRESS;
     sync = await import("../routes/sync.js");
-    sync.resetSyncPool();
+    // Inject mockPool directly so pg.Pool mock state doesn't matter.
+    sync.resetSyncPool(mockPool);
   });
 
   afterEach(() => {
@@ -169,13 +170,11 @@ describe("sync copy-registry processing", () => {
     mockPool.query.mockImplementation((q: string) => {
       if (q.includes("SELECT last_synced_block")) return Promise.resolve({ rows: [] });
       if (q.includes("FROM block_checkpoints")) return Promise.resolve({ rows: [] });
-      // First statement of refreshCopyTradingStats — make it blow up.
       if (q.includes("active_followers =")) return Promise.reject(new Error("stats boom"));
       return Promise.resolve({ rows: [], rowCount: 1 });
     });
 
     const result = await sync.runSync();
-    // The raw events are already persisted, so a stats failure is swallowed
     // and the pulse still reports success.
     expect(result.success).toBe(true);
     expect(result.copyEventsSynced).toBe(1);

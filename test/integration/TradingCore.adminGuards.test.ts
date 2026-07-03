@@ -11,27 +11,7 @@ const ADDR2 = "0x00000000000000000000000000000000000000A2";
 const ADDR3 = "0x00000000000000000000000000000000000000A3";
 const FRESH_MARKET = "0x00000000000000000000000000000000000000C9";
 
-/**
- * Verifies TradingCore's administrative wiring, rotation, and access guards:
- *   - wiring setters: ZeroAddress reverts (setContracts / setCollateralRegistry)
- *   - referral-registry rotation: mismatch + timelock-active reverts + access
- *   - RWA-contracts rotation: mismatch + timelock-active reverts + access
- *   - setMarketId: access, too-long, rebind-forbidden
- *   - access-gated entrypoints: recordFailedRepayment / liquidatePosition /
- *     resolveFailedRepayment / updatePositionOwner direct call
- *   - createOrder validation: POST_ONLY-on-market, reduce-only first guard,
- *     reduce-only increase operand, visible-size-too-large, low-uncertainty
- *     POST_ONLY oracle reject, owner==msg.sender self-delegation operand
- *   - executeOrder on a non-existent order (account==0 short-circuits)
- *   - the whenNotPaused gate for trigger setters and createOrder
- *   - cleanupPositions cap clamping (maxClean > cap)
- *   - _enforcePortfolioRiskFor early-return when disabled
- *   - no-op withdrawal ledgers (zero balance)
- */
 describe("TradingCore — admin wiring, rotation, and access guards", () => {
-    // ───────────────────────────────────────────────────────────────────
-    // Wiring setters — ZeroAddress guards
-    // ───────────────────────────────────────────────────────────────────
     describe("wiring setter zero-address guards", () => {
         it("setContracts reverts on a zero vault address", async () => {
             const d = await loadFixture(deployConfigured);
@@ -49,10 +29,6 @@ describe("TradingCore — admin wiring, rotation, and access guards", () => {
             ).to.be.revertedWithCustomError(d.tradingCore, "ZeroAddress");
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // Referral-registry rotation guards
-    // ───────────────────────────────────────────────────────────────────
     describe("referral-registry rotation", () => {
         it("rejects a non-admin proposeReferralRegistry", async () => {
             const d = await loadFixture(deployConfigured);
@@ -67,17 +43,19 @@ describe("TradingCore — admin wiring, rotation, and access guards", () => {
         it("setReferralRegistry reverts when the value does not match the staged proposal", async () => {
             const d = await loadFixture(deployConfigured);
             // no proposal staged (pending == 0); a non-zero arg cannot match
-            await expect(
-                d.tradingCore.connect(d.admin).setReferralRegistry(ADDR1),
-            ).to.be.revertedWithCustomError(d.tradingCore, "PendingReferralRegistryMismatch");
+            await expect(d.tradingCore.connect(d.admin).setReferralRegistry(ADDR1)).to.be.revertedWithCustomError(
+                d.tradingCore,
+                "PendingReferralRegistryMismatch",
+            );
         });
 
         it("setReferralRegistry reverts while the timelock is still active", async () => {
             const d = await loadFixture(deployConfigured);
             await d.tradingCore.connect(d.admin).proposeReferralRegistry(ADDR1);
-            await expect(
-                d.tradingCore.connect(d.admin).setReferralRegistry(ADDR1),
-            ).to.be.revertedWithCustomError(d.tradingCore, "ReferralRegistryTimelockActive");
+            await expect(d.tradingCore.connect(d.admin).setReferralRegistry(ADDR1)).to.be.revertedWithCustomError(
+                d.tradingCore,
+                "ReferralRegistryTimelockActive",
+            );
         });
 
         it("applies a referral-registry rotation after the timelock elapses", async () => {
@@ -91,22 +69,15 @@ describe("TradingCore — admin wiring, rotation, and access guards", () => {
             expect(await d.tradingCore.referralRegistry()).to.equal(ethers.getAddress(ADDR1));
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // RWA-contracts rotation guards (already initialized in fixture)
-    // ───────────────────────────────────────────────────────────────────
     describe("RWA-contracts rotation", () => {
         it("rejects a non-admin proposeRWAContracts", async () => {
             const d = await loadFixture(deployConfigured);
-            await expect(
-                d.tradingCore.connect(d.alice).proposeRWAContracts(ADDR1, ADDR2, ADDR3),
-            ).to.be.reverted;
+            await expect(d.tradingCore.connect(d.alice).proposeRWAContracts(ADDR1, ADDR2, ADDR3)).to.be.reverted;
         });
 
         it("rejects a non-admin setRWAContracts", async () => {
             const d = await loadFixture(deployConfigured);
-            await expect(d.tradingCore.connect(d.alice).setRWAContracts(ADDR1, ADDR2, ADDR3)).to.be
-                .reverted;
+            await expect(d.tradingCore.connect(d.alice).setRWAContracts(ADDR1, ADDR2, ADDR3)).to.be.reverted;
         });
 
         it("setRWAContracts reverts on a mismatch against the staged proposal", async () => {
@@ -125,10 +96,6 @@ describe("TradingCore — admin wiring, rotation, and access guards", () => {
             ).to.be.revertedWithCustomError(d.tradingCore, "RWATimelockActive");
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // setMarketId guards
-    // ───────────────────────────────────────────────────────────────────
     describe("setMarketId guards", () => {
         it("rejects a non-operator caller", async () => {
             const d = await loadFixture(deployConfigured);
@@ -151,21 +118,17 @@ describe("TradingCore — admin wiring, rotation, and access guards", () => {
                 sizeUsdc: usdc(10_000),
                 collateralUsdc: usdc(2_000),
             });
-            await expect(
-                d.tradingCore.connect(d.admin).setMarketId(d.market, "ETH-USD"),
-            ).to.be.revertedWithCustomError(d.tradingCore, "MarketIdRebindForbidden");
+            await expect(d.tradingCore.connect(d.admin).setMarketId(d.market, "ETH-USD")).to.be.revertedWithCustomError(
+                d.tradingCore,
+                "MarketIdRebindForbidden",
+            );
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // Access-gated entrypoints
-    // ───────────────────────────────────────────────────────────────────
     describe("role-gated entrypoints reject unauthorized callers", () => {
         it("recordFailedRepayment is TRADING_CORE_ROLE only", async () => {
             const d = await loadFixture(deployConfigured);
-            await expect(
-                d.tradingCore.connect(d.alice).recordFailedRepayment(1, usdc(100), d.market, true, 0),
-            ).to.be.reverted;
+            await expect(d.tradingCore.connect(d.alice).recordFailedRepayment(1, usdc(100), d.market, true, 0)).to.be
+                .reverted;
         });
 
         it("liquidatePosition is LIQUIDATOR_ROLE only", async () => {
@@ -185,10 +148,6 @@ describe("TradingCore — admin wiring, rotation, and access guards", () => {
             ).to.be.revertedWithCustomError(d.tradingCore, "NotPositionToken");
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // createOrder validation
-    // ───────────────────────────────────────────────────────────────────
     describe("createOrder validation", () => {
         it("POST_ONLY on a MARKET_INCREASE reverts PostOnlyNotAllowedForMarket", async () => {
             const d = await loadFixture(deployConfigured);
@@ -304,10 +263,6 @@ describe("TradingCore — admin wiring, rotation, and access guards", () => {
             ).to.emit(d.tradingCore, "OrderCreated");
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // executeOrder on a non-existent order (account == 0 short-circuit)
-    // ───────────────────────────────────────────────────────────────────
     describe("executeOrder account==0 short-circuit", () => {
         it("reverts cleanly when the order id does not exist", async () => {
             const d = await loadFixture(deployConfigured);
@@ -316,10 +271,6 @@ describe("TradingCore — admin wiring, rotation, and access guards", () => {
             await expect(d.tradingCore.connect(d.keeper).executeOrder(999_999, [])).to.be.reverted;
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // whenNotPaused gate for trigger setters and createOrder
-    // ───────────────────────────────────────────────────────────────────
     describe("paused-gate enforcement", () => {
         it("setStopLoss / setTakeProfit / setTrailingStop revert while paused", async () => {
             const d = await loadFixture(deployConfigured);
@@ -359,23 +310,15 @@ describe("TradingCore — admin wiring, rotation, and access guards", () => {
                 collateralUsdc: usdc(2_000),
             });
             await d.tradingCore.connect(d.guardian).pause();
-            await expect(
-                d.tradingCore.connect(d.alice).addCollateral(id, usdc(500), 0, false),
-            ).to.be.reverted;
+            await expect(d.tradingCore.connect(d.alice).addCollateral(id, usdc(500), 0, false)).to.be.reverted;
             await d.tradingCore.connect(d.admin).unpause();
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // cleanupPositions cap clamp (maxClean > cap)
-    // ───────────────────────────────────────────────────────────────────
     describe("cleanupPositions cap clamp", () => {
         it("clamps a self-serve maxClean above the cap and returns a count", async () => {
             const d = await loadFixture(deployConfigured);
             // maxClean (100) > self cap (20) -> the request is clamped to the cap
-            const cleaned = await d.tradingCore
-                .connect(d.alice)
-                .cleanupPositions.staticCall(d.alice.address, 100);
+            const cleaned = await d.tradingCore.connect(d.alice).cleanupPositions.staticCall(d.alice.address, 100);
             expect(cleaned).to.equal(0n);
             await d.tradingCore.connect(d.alice).cleanupPositions(d.alice.address, 100);
         });
@@ -387,10 +330,6 @@ describe("TradingCore — admin wiring, rotation, and access guards", () => {
             ).to.be.revertedWithCustomError(d.tradingCore, "Unauthorized");
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // _enforcePortfolioRiskFor early-return when disabled
-    // ───────────────────────────────────────────────────────────────────
     describe("portfolio-risk disabled early return", () => {
         it("withdrawCollateral succeeds with portfolio risk disabled", async () => {
             const d = await loadFixture(deployConfigured);
@@ -406,19 +345,13 @@ describe("TradingCore — admin wiring, rotation, and access guards", () => {
             expect(pos.size).to.be.greaterThan(0n);
         });
     });
-
-    // ───────────────────────────────────────────────────────────────────
-    // No-op withdrawal ledgers (zero balance early returns)
-    // ───────────────────────────────────────────────────────────────────
     describe("withdrawal ledger no-ops", () => {
         it("withdrawOrderRefund / withdrawKeeperFees / withdrawOrderCollateralRefund are no-ops with no balance", async () => {
             const d = await loadFixture(deployConfigured);
             await d.tradingCore.connect(d.alice).withdrawOrderRefund();
             await d.tradingCore.connect(d.alice).withdrawKeeperFees();
             await d.tradingCore.connect(d.alice).withdrawOrderCollateralRefund();
-            const [keeperFee, orderRefund, orderCollateralRefund] = await d.tradingCore.getBalances(
-                d.alice.address,
-            );
+            const [keeperFee, orderRefund, orderCollateralRefund] = await d.tradingCore.getBalances(d.alice.address);
             expect(keeperFee).to.equal(0n);
             expect(orderRefund).to.equal(0n);
             expect(orderCollateralRefund).to.equal(0n);

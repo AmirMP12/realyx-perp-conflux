@@ -66,7 +66,6 @@ describe('OrderNotifications', () => {
         });
         expect(wsInstance.send).toHaveBeenCalledWith(expect.stringContaining('subscribe:user'));
         
-        // Simulate notification message
         await act(async () => {
             wsInstance.onmessage({
                 data: JSON.stringify({

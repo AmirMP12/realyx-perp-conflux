@@ -7,7 +7,7 @@ import { PosStatus } from "../helpers/constants";
 const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 const usdc6 = (n: bigint | number) => ethers.parseUnits(n.toString(), 6);
 
-async function coverageHarness() {
+async function deployCoverageHarness() {
     const libs = await deployAllLibraries();
     return deployHarness("CoverageHarness", libs);
 }
@@ -21,19 +21,17 @@ async function mockUsdc() {
 
 describe("WithdrawLib", () => {
     it("withdraws keeper fees to the caller and zeros the balance", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const [a] = await ethers.getSigners();
-        await h.setKeeperFeeBalance(a.address, e18(1)); // tracked balance only
-        // No ETH in harness -> withdraw of 0 path / revert tolerance:
+        await h.setKeeperFeeBalance(a.address, e18(1));
         await h.setKeeperFeeBalance(a.address, 0);
-        await h.testWithdrawKeeperFees(a.address); // zero balance no-op
+        await h.testWithdrawKeeperFees(a.address);
     });
 
     it("withdraws order collateral refund in USDC", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const usdc = await loadFixture(mockUsdc);
         const [a] = await ethers.getSigners();
-        // fund the harness with USDC and credit a refund balance
         await usdc.mintTo(await h.getAddress(), usdc6(1000));
         await h.setOrderCollateralRefundBalance(a.address, usdc6(100));
         const before = await usdc.balanceOf(a.address);
@@ -42,7 +40,7 @@ describe("WithdrawLib", () => {
     });
 
     it("order refund (ETH) zero balance is a no-op", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const [a] = await ethers.getSigners();
         await h.testWithdrawOrderRefund(a.address);
     });
@@ -50,7 +48,7 @@ describe("WithdrawLib", () => {
 
 describe("CleanupLib", () => {
     it("removes closed positions from the user list", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         // seed 3 positions, mark some CLOSED
         await h.setPositionSimple(1, e18(100), e18(100), 1, PosStatus.CLOSED, ethers.ZeroAddress);
         await h.setPositionSimple(2, e18(100), e18(100), 1, PosStatus.OPEN, ethers.ZeroAddress);
@@ -66,7 +64,7 @@ describe("CleanupLib", () => {
 
 describe("DustLib", () => {
     it("does not sweep below the threshold", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const usdc = await loadFixture(mockUsdc);
         const [, treasury] = await ethers.getSigners();
         await h.setDust(100); // below DUST_THRESHOLD
@@ -77,30 +75,27 @@ describe("DustLib", () => {
 
 describe("FlashLoanCheck", () => {
     it("same-sender same-block second call reverts (non-operator)", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const [a] = await ethers.getSigners();
-        await expect(
-            h.testDoubleValidateFlashLoan(a.address, a.address, false, 10, 0),
-        ).to.be.reverted; // FlashLoanDetected
+        await expect(h.testDoubleValidateFlashLoan(a.address, a.address, false, 10, 0)).to.be.reverted; // FlashLoanDetected
     });
 
     it("operator is exempt from the same-block lock", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const [a] = await ethers.getSigners();
         await h.testDoubleValidateFlashLoan(a.address, a.address, true, 10, 0);
     });
 
     it("global per-block action cap trips with different senders", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const [a, b] = await ethers.getSigners();
         // maxActionsPerBlock = 1 -> second sender in same block trips RateLimitExceeded
-        await expect(
-            h.testDoubleValidateFlashLoanDifferentSenders(a.address, b.address, a.address, false, 1, 0),
-        ).to.be.reverted;
+        await expect(h.testDoubleValidateFlashLoanDifferentSenders(a.address, b.address, a.address, false, 1, 0)).to.be
+            .reverted;
     });
 
     it("single validate passes for a fresh sender", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const [a] = await ethers.getSigners();
         await h.testValidateFlashLoan(a.address, a.address, false, 10, 0);
     });
@@ -109,39 +104,37 @@ describe("FlashLoanCheck", () => {
 describe("ConfigLib", () => {
     const M = "0x00000000000000000000000000000000000000B7";
     it("sets and updates a market", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.testSetMarket(M, M, 20, e18(1_000_000), e18(5_000_000), 500, 1000, 900, e18(1) / 2n);
         await h.testUpdateMarket(M, M, 15, e18(2_000_000), e18(6_000_000), 600, 1200, 800, e18(1) / 2n);
     });
     it("unlists a market", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.testSetMarket(M, M, 20, e18(1_000_000), e18(5_000_000), 500, 1000, 900, e18(1) / 2n);
         await h.setUnlistMarket(M);
     });
     it("reverts re-listing an already-listed market", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.testSetMarket(M, M, 20, e18(1_000_000), e18(5_000_000), 500, 1000, 900, e18(1) / 2n);
-        await expect(
-            h.testSetMarket(M, M, 20, e18(1_000_000), e18(5_000_000), 500, 1000, 900, e18(1) / 2n),
-        ).to.be.reverted; // MarketAlreadyListed
+        await expect(h.testSetMarket(M, M, 20, e18(1_000_000), e18(5_000_000), 500, 1000, 900, e18(1) / 2n)).to.be
+            .reverted; // MarketAlreadyListed
     });
     it("reverts on invalid margin config (im <= mm)", async () => {
-        const h = await loadFixture(coverageHarness);
-        await expect(
-            h.testSetMarket(M, M, 20, e18(1_000_000), e18(5_000_000), 1000, 1000, 900, e18(1) / 2n),
-        ).to.be.reverted; // InvalidMarginConfig
+        const h = await loadFixture(deployCoverageHarness);
+        await expect(h.testSetMarket(M, M, 20, e18(1_000_000), e18(5_000_000), 1000, 1000, 900, e18(1) / 2n)).to.be
+            .reverted; // InvalidMarginConfig
     });
     it("reverts on zero market/feed", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await expect(
             h.testSetMarket(ethers.ZeroAddress, M, 20, e18(1_000_000), e18(5_000_000), 500, 1000, 900, e18(1) / 2n),
         ).to.be.reverted; // InvalidMarket
     });
 });
 
-describe("GlobalPnLLib + MonitoringLib (via CoverageHarness)", () => {
+describe("GlobalPnLLib and MonitoringLib", () => {
     it("global PnL across markets with a mock oracle", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const Mock = await ethers.getContractFactory("MockOracleConfigurable");
         const oracle = await Mock.deploy();
         await oracle.waitForDeployment();
@@ -157,28 +150,28 @@ describe("GlobalPnLLib + MonitoringLib (via CoverageHarness)", () => {
         // so we use the fully-wired protocol vault/oracle rather than a thin mock.
         const { deployConfigured } = await import("../helpers/fixture");
         const d = await deployConfigured();
-        const h = await coverageHarness();
+        const h = await deployCoverageHarness();
         await h.setProtocolHealth(true, 0, (await ethers.provider.getBlock("latest"))!.timestamp);
         const res = await h.testGetProtocolHealth(await d.vault.getAddress(), await d.oracle.getAddress());
         expect(res).to.not.equal(undefined);
     });
 });
 
-describe("PositionMath trailing/anchor (via CoverageHarness)", () => {
+describe("PositionMath trailing and anchor", () => {
     it("PnL and health via boost helper", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.setPositionSimple(1, e18(10_000), e18(100), 1, PosStatus.OPEN, ethers.ZeroAddress);
         await h.setCollateral(1, e18(2_000));
         const [pnl] = await h.boostGetPositionPnL(1, e18(110));
         expect(pnl).to.be.greaterThan(0n);
     });
     it("realized PnL booster", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const r = await h.boostCalculateRealizedPnL(e18(100), e18(5), e18(2));
         expect(r).to.equal(e18(93));
     });
     it("funding owed booster + intervals", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.setPositionSimple(1, e18(1000), e18(100), 1, PosStatus.OPEN, ethers.ZeroAddress);
         const owed = await h.boostCalculateFundingOwed(
             {
@@ -203,21 +196,21 @@ describe("PositionMath trailing/anchor (via CoverageHarness)", () => {
     });
 });
 
-describe("DataTypes helpers (via CoverageHarness)", () => {
+describe("DataTypes helpers", () => {
     it("toUsdcPrecisionCeil rounds up", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         expect(await h.testToUsdcPrecisionCeil(0)).to.equal(0n);
         expect(await h.testToUsdcPrecisionCeil(1)).to.equal(1n); // ceil of dust
         expect(await h.testToUsdcPrecisionCeil(10n ** 12n)).to.equal(1n);
     });
     it("isCrossMargin flag decode", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         expect(await h.testIsCrossMargin(2)).to.equal(true);
         expect(await h.testIsCrossMargin(1)).to.equal(false);
     });
 });
 
-describe("PositionCloseLib (dedicated harness)", () => {
+describe("PositionCloseLib", () => {
     async function deploy() {
         const usdc = await mockUsdc();
         const Mock = await ethers.getContractFactory("MockOracleConfigurable");

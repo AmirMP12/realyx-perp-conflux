@@ -20,7 +20,7 @@ describe('useSound webkit fallback', () => {
     });
 });
 
-describe('useFocusTrap edge cases', () => {
+describe('useFocusTrap empty container', () => {
     it('does nothing when the container has no focusable elements', () => {
         function Empty() {
             const ref = useFocusTrap(true);

@@ -6,7 +6,6 @@ import { usdc, TRADING_CORE_ROLE } from "../helpers/constants";
 
 const market = "0x00000000000000000000000000000000000000B7";
 
-// Fresh: tokens minted/approved, TRADING_CORE_ROLE granted to a spare EOA, but
 // NO LP deposit and NO insurance stake. `alice` deliberately holds no vault
 // roles so she can drive the unauthorized side of every role-gated entrypoint.
 async function freshVault() {
@@ -38,12 +37,6 @@ function reqIdFrom(d: any, rc: any): bigint {
         })
         .find((p: any) => p && p.name === "WithdrawalQueued")!.args[2];
 }
-
-// ───────────────────────────────────────────────────────────────────────────
-// Access-control: the UNAUTHORIZED side of every role-gated entrypoint. These
-// verify the revert NotX() guard of each function's role modifier — the side
-// the happy-path tests never exercise.
-// ───────────────────────────────────────────────────────────────────────────
 describe("VaultCore — onlyAdmin unauthorized reverts", () => {
     it("setTradingCore rejects a non-admin caller", async () => {
         const { d } = await loadFixture(fundedVault);
@@ -96,9 +89,10 @@ describe("VaultCore — onlyAdmin unauthorized reverts", () => {
     });
     it("setMinInitialInsuranceDeposit rejects a non-admin caller", async () => {
         const { d } = await loadFixture(fundedVault);
-        await expect(
-            d.vault.connect(d.alice).setMinInitialInsuranceDeposit(usdc(500)),
-        ).to.be.revertedWithCustomError(d.vault, "NotAdmin");
+        await expect(d.vault.connect(d.alice).setMinInitialInsuranceDeposit(usdc(500))).to.be.revertedWithCustomError(
+            d.vault,
+            "NotAdmin",
+        );
     });
     it("resetInsuranceCircuitBreaker rejects a non-admin caller", async () => {
         const { d } = await loadFixture(fundedVault);
@@ -116,9 +110,10 @@ describe("VaultCore — onlyAdmin unauthorized reverts", () => {
     });
     it("setSwapRouterAllowed rejects a non-admin caller", async () => {
         const { d } = await loadFixture(fundedVault);
-        await expect(
-            d.vault.connect(d.alice).setSwapRouterAllowed(d.bob.address, true),
-        ).to.be.revertedWithCustomError(d.vault, "NotAdmin");
+        await expect(d.vault.connect(d.alice).setSwapRouterAllowed(d.bob.address, true)).to.be.revertedWithCustomError(
+            d.vault,
+            "NotAdmin",
+        );
     });
     it("setMinSwapSlippageBps rejects a non-admin caller", async () => {
         const { d } = await loadFixture(fundedVault);
@@ -129,10 +124,7 @@ describe("VaultCore — onlyAdmin unauthorized reverts", () => {
     });
     it("stopEmergencyMode rejects a non-admin caller", async () => {
         const { d } = await loadFixture(fundedVault);
-        await expect(d.vault.connect(d.alice).stopEmergencyMode()).to.be.revertedWithCustomError(
-            d.vault,
-            "NotAdmin",
-        );
+        await expect(d.vault.connect(d.alice).stopEmergencyMode()).to.be.revertedWithCustomError(d.vault, "NotAdmin");
     });
 });
 
@@ -153,9 +145,10 @@ describe("VaultCore — onlyTradingCore unauthorized reverts", () => {
     });
     it("updateExposure rejects a caller without TRADING_CORE_ROLE", async () => {
         const { d } = await loadFixture(fundedVault);
-        await expect(
-            d.vault.connect(d.alice).updateExposure(market, usdc(1), true),
-        ).to.be.revertedWithCustomError(d.vault, "NotTradingCore");
+        await expect(d.vault.connect(d.alice).updateExposure(market, usdc(1), true)).to.be.revertedWithCustomError(
+            d.vault,
+            "NotTradingCore",
+        );
     });
     it("coverBadDebt rejects a caller without TRADING_CORE_ROLE", async () => {
         const { d } = await loadFixture(fundedVault);
@@ -238,17 +231,14 @@ describe("VaultCore — onlyOperator / onlyGuardian unauthorized reverts", () =>
         );
     });
 });
-
-// ───────────────────────────────────────────────────────────────────────────
-// whenNotPaused: the paused side of the modifier for the LP-facing entrypoints.
-// ───────────────────────────────────────────────────────────────────────────
 describe("VaultCore — whenNotPaused reverts when paused", () => {
     it("deposit reverts while the vault is paused", async () => {
         const { d } = await loadFixture(fundedVault);
         await d.vault.connect(d.guardian).pause();
-        await expect(
-            d.vault.connect(d.alice).deposit(usdc(1_000), d.alice.address),
-        ).to.be.revertedWithCustomError(d.vault, "EnforcedPause");
+        await expect(d.vault.connect(d.alice).deposit(usdc(1_000), d.alice.address)).to.be.revertedWithCustomError(
+            d.vault,
+            "EnforcedPause",
+        );
     });
     it("withdraw reverts while the vault is paused", async () => {
         const { d } = await loadFixture(fundedVault);
@@ -261,9 +251,10 @@ describe("VaultCore — whenNotPaused reverts when paused", () => {
     it("stakeInsurance reverts while the vault is paused", async () => {
         const { d } = await loadFixture(fundedVault);
         await d.vault.connect(d.guardian).pause();
-        await expect(
-            d.vault.connect(d.lp).stakeInsurance(usdc(1_000), d.lp.address),
-        ).to.be.revertedWithCustomError(d.vault, "EnforcedPause");
+        await expect(d.vault.connect(d.lp).stakeInsurance(usdc(1_000), d.lp.address)).to.be.revertedWithCustomError(
+            d.vault,
+            "EnforcedPause",
+        );
     });
     it("distributeSurplus reverts while the vault is paused", async () => {
         const { d } = await loadFixture(fundedVault);
@@ -277,10 +268,6 @@ describe("VaultCore — whenNotPaused reverts when paused", () => {
         await expect(d.vault.connect(d.alice).deposit(usdc(1_000), d.alice.address)).to.emit(d.vault, "Deposit");
     });
 });
-
-// ───────────────────────────────────────────────────────────────────────────
-// deposit input guards + receiver routing
-// ───────────────────────────────────────────────────────────────────────────
 describe("VaultCore — deposit guards & receiver routing", () => {
     it("deposit reverts on zero assets", async () => {
         const { d } = await loadFixture(fundedVault);
@@ -291,9 +278,10 @@ describe("VaultCore — deposit guards & receiver routing", () => {
     });
     it("deposit reverts on a zero-address receiver", async () => {
         const { d } = await loadFixture(fundedVault);
-        await expect(
-            d.vault.connect(d.alice).deposit(usdc(1_000), ethers.ZeroAddress),
-        ).to.be.revertedWithCustomError(d.vault, "ZeroAddress");
+        await expect(d.vault.connect(d.alice).deposit(usdc(1_000), ethers.ZeroAddress)).to.be.revertedWithCustomError(
+            d.vault,
+            "ZeroAddress",
+        );
     });
     it("deposit credits shares to a receiver other than the caller", async () => {
         const { d } = await loadFixture(fundedVault);
@@ -304,10 +292,6 @@ describe("VaultCore — deposit guards & receiver routing", () => {
         expect(await d.vault.lpBalanceOf(d.alice.address)).to.equal(0n);
     });
 });
-
-// ───────────────────────────────────────────────────────────────────────────
-// withdraw / queueWithdrawal guards
-// ───────────────────────────────────────────────────────────────────────────
 describe("VaultCore — withdraw / queue guards", () => {
     it("instant withdraw routes assets to a receiver other than the owner/caller", async () => {
         const { d } = await loadFixture(fundedVault);
@@ -321,10 +305,7 @@ describe("VaultCore — withdraw / queue guards", () => {
     });
     it("queueWithdrawal reverts on zero shares", async () => {
         const { d } = await loadFixture(fundedVault);
-        await expect(d.vault.connect(d.lp).queueWithdrawal(0, 0)).to.be.revertedWithCustomError(
-            d.vault,
-            "ZeroShares",
-        );
+        await expect(d.vault.connect(d.lp).queueWithdrawal(0, 0)).to.be.revertedWithCustomError(d.vault, "ZeroShares");
     });
     it("queueWithdrawal reverts on insufficient shares", async () => {
         const { d } = await loadFixture(fundedVault);
@@ -346,10 +327,6 @@ describe("VaultCore — withdraw / queue guards", () => {
         expect(req.user).to.equal(d.lp.address);
     });
 });
-
-// ───────────────────────────────────────────────────────────────────────────
-// insurance stake/unstake
-// ───────────────────────────────────────────────────────────────────────────
 describe("VaultCore — insurance stake/unstake", () => {
     it("a second insurance stake is priced against the existing pool (insAssets > 0)", async () => {
         const { d } = await loadFixture(fundedVault);
@@ -387,10 +364,6 @@ describe("VaultCore — insurance stake/unstake", () => {
         expect(await d.usdt0.balanceOf(d.lp.address)).to.be.greaterThan(before);
     });
 });
-
-// ───────────────────────────────────────────────────────────────────────────
-// repay PnL accounting
-// ───────────────────────────────────────────────────────────────────────────
 describe("VaultCore — repay PnL accounting", () => {
     it("repay with profit exceeding principal reduces the LP cash counter", async () => {
         const { d, coreEoa } = await loadFixture(fundedVault);
@@ -412,10 +385,6 @@ describe("VaultCore — repay PnL accounting", () => {
         expect(await d.vault.lpAssets()).to.equal(lpBefore + usdc(100_000));
     });
 });
-
-// ───────────────────────────────────────────────────────────────────────────
-// claims, surplus, donations, threshold-setter guards
-// ───────────────────────────────────────────────────────────────────────────
 describe("VaultCore — claims / surplus / donations / setters", () => {
     it("coverBadDebt at exactly the approval threshold takes the auto-paid path", async () => {
         const { d, coreEoa } = await loadFixture(fundedVault);
@@ -441,7 +410,6 @@ describe("VaultCore — claims / surplus / donations / setters", () => {
         await d.vault.connect(coreEoa).submitClaim(usdc(50_000), 22);
         await d.vault.connect(d.guardian).approveClaim(claimId);
 
-        // First pass: only 20k insurance available -> partial payment.
         await d.vault.processClaim(claimId);
         let claim = await d.vault.getClaim(claimId);
         expect(claim.paid).to.equal(false);

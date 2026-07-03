@@ -63,7 +63,6 @@ describe("TradingLib failed-repayment lifecycle", () => {
         const vault = await mockVault();
         const [sender] = await ethers.getSigners();
         await h.boostRecordFailedRepayment(1, e6(100), MARKET, true, e18(5));
-        // fund the harness so it does not need to pull from sender
         await usdc.mintTo(await h.getAddress(), e6(1000));
         await h.boostResolveFailedRepayment(
             1,
@@ -157,14 +156,14 @@ describe("TradingLib failed-repayment lifecycle", () => {
     });
 });
 
-async function coverageHarness() {
+async function deployCoverageHarness() {
     const libs = await deployAllLibraries();
     return deployHarness("CoverageHarness", libs);
 }
 
 describe("TradingLib settlePositionFunding & getActivePositions", () => {
     it("settlePositionFunding charges an open position and stamps lastFundingTime", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const Mock = await ethers.getContractFactory("MockOracleConfigurable");
         const oracle = await Mock.deploy();
         await oracle.waitForDeployment();
@@ -180,7 +179,7 @@ describe("TradingLib settlePositionFunding & getActivePositions", () => {
     });
 
     it("settlePositionFunding reverts for a non-open position", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const Mock = await ethers.getContractFactory("MockOracleConfigurable");
         const oracle = await Mock.deploy();
         await oracle.waitForDeployment();
@@ -188,7 +187,7 @@ describe("TradingLib settlePositionFunding & getActivePositions", () => {
     });
 
     it("getActivePositions returns only OPEN ids", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.setPositionSimple(1, e18(100), e18(100), 1, PosStatus.OPEN, MARKET);
         await h.setPositionSimple(2, e18(100), e18(100), 1, PosStatus.CLOSED, MARKET);
         await h.setPositionSimple(3, e18(100), e18(100), 1, PosStatus.OPEN, MARKET);

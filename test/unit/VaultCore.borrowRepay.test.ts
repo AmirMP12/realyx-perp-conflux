@@ -4,30 +4,21 @@ import { loadFixture, time } from "@nomicfoundation/hardhat-network-helpers";
 import { deployProtocol } from "../helpers/fixture";
 import { usdc, TRADING_CORE_ROLE, GUARDIAN_ROLE } from "../helpers/constants";
 
-/**
- * Exercises VaultCore borrow/repay/exposure, bad-debt cover and claims,
- * referral rebates, surplus distribution, donation sweeps, and rate limits.
- * We impersonate the TradingCore role on a fresh signer so the vault's
- * TradingCore-gated entrypoints can be driven directly.
- */
 async function fundedVault() {
     const d = await deployProtocol();
     const [, , , , , , , , , , , coreEoa] = d.signers;
-    // Grant a fresh EOA the TRADING_CORE_ROLE so we can call gated fns directly.
-    // Note: the real tradingCore already holds the role; granting a second is fine.
     await d.vault.connect(d.admin).grantRole(TRADING_CORE_ROLE, coreEoa.address);
 
     for (const s of [d.lp, d.alice, d.bob, coreEoa]) {
         await d.usdt0.mintTo(s.address, usdc(50_000_000));
         await d.usdt0.connect(s).approve(await d.vault.getAddress(), ethers.MaxUint256);
     }
-    // seed LP + insurance
     await d.vault.connect(d.lp).deposit(usdc(5_000_000), d.lp.address);
     await d.vault.connect(d.lp).stakeInsurance(usdc(1_000_000), d.lp.address);
     return { d, coreEoa };
 }
 
-describe("VaultCore — advanced (TradingCore-gated paths)", () => {
+describe("VaultCore borrow and repay", () => {
     const market = "0x00000000000000000000000000000000000000B7";
 
     describe("borrow / repay / exposure", () => {
@@ -50,7 +41,6 @@ describe("VaultCore — advanced (TradingCore-gated paths)", () => {
         it("repay returns principal and settles PnL (profit path)", async () => {
             const { d, coreEoa } = await loadFixture(fundedVault);
             await d.vault.connect(coreEoa).borrow(usdc(100_000), market, true);
-            // repay with profit: vault pays trader the pnl; coreEoa must hold receiveAmount
             await d.vault.connect(coreEoa).repay(usdc(100_000), market, true, usdc(5_000));
             expect(await d.vault.totalBorrowed()).to.equal(0n);
         });
@@ -77,9 +67,10 @@ describe("VaultCore — advanced (TradingCore-gated paths)", () => {
             // Cap ≈ conservativeTVL(1e18-scaled, ~5e24) * 2000/10000 ≈ 1e24 (raw units).
             // Pass a raw delta above that bound to deterministically exceed the cap.
             const huge = 10n ** 25n;
-            await expect(
-                d.vault.connect(coreEoa).updateExposure(market, huge, true),
-            ).to.be.revertedWithCustomError(d.vault, "ExceedsExposureCap");
+            await expect(d.vault.connect(coreEoa).updateExposure(market, huge, true)).to.be.revertedWithCustomError(
+                d.vault,
+                "ExceedsExposureCap",
+            );
         });
     });
 

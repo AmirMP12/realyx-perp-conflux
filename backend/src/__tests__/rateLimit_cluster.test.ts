@@ -1,13 +1,5 @@
 import { jest } from "@jest/globals";
 
-/**
- * Tests apiRateLimitCluster — the Redis-backed, cluster-wide limiter. The
- * cache module is mocked so we can drive isRedisActive()/cacheIncr() and
- * cover each scenario: Redis-inactive fallback, per-IP and per-key buckets,
- * the 429 paths (with and without res.status), the null/error fall-throughs to
- * the in-memory limiter, and the catch-all safety net.
- */
-
 const isRedisActive = jest.fn<() => boolean>();
 const cacheIncr = jest.fn<(key: string, windowMs: number) => Promise<number | null>>();
 

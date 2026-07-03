@@ -8,38 +8,12 @@ const e6 = (n: bigint | number) => ethers.parseUnits(n.toString(), 6);
 const MARKET = "0x00000000000000000000000000000000000000B7";
 const ZERO = ethers.ZeroAddress;
 
-// OrderType enum
 const MARKET_INCREASE = 0;
 const MARKET_DECREASE = 1;
 
-// PosStatus enum
 const NONE = 0;
 const OPEN = 1;
 
-/**
- * Exercises additional TradingLib open-position guard paths:
- *
- *  - getPositionPnL non-open short-circuit.
- *  - addCollateral risk gates (emergency-on-active, zero oracle price,
- *    oracle-uncertainty band, leverage ceiling).
- *  - updatePositionOwner gates (zero owner, non-open, exposure cap,
- *    self-transfer no-op).
- *  - checkMarketOpen with a wired calendar + market id (the non-default
- *    `calendar.isMarketOpen` path).
- *  - settlePositionFundingWithDividends dividend-manager / market-id /
- *    zero-amount sub-cases.
- *  - _executeIncrease additional paths: zero-TWAP skip, market trigger within
- *    slippage, overwrite-guard.
- *  - _executeDecrease owner mismatch.
- *  - executeStopLossTakeProfit: empty session id with a wired calendar,
- *    zero-TWAP skip, trailing anchor fallback to entry price, dividend
- *    market-id / zero-amount sub-cases, and the per-position referral
- *    resolution against unsafe + reverting registries (_safeGetReferral).
- *  - resolveFailedRepayment happy path with a pre-funded harness.
- *
- * Driven through the additive harness test-only entry points; no new
- * wrappers are added.
- */
 async function setup() {
     const [admin, keeper, other] = await ethers.getSigners();
     const libs = await deployAllLibraries();
@@ -119,7 +93,15 @@ describe("TradingLib — open-position guards", () => {
             await h.setPositionSimple(1, e18(10_000), e18(50_000), 1, OPEN, MARKET);
             await h.setCollateral(1, e18(2_000));
             await expect(
-                h.testAddCollateral(1, e6(100), 100, true, await usdc.getAddress(), await oracle.getAddress(), e18(0.5)),
+                h.testAddCollateral(
+                    1,
+                    e6(100),
+                    100,
+                    true,
+                    await usdc.getAddress(),
+                    await oracle.getAddress(),
+                    e18(0.5),
+                ),
             ).to.be.reverted;
         });
 
@@ -130,7 +112,15 @@ describe("TradingLib — open-position guards", () => {
             await h.setPositionSimple(1, e18(10_000), e18(50_000), 1, OPEN, MARKET);
             await h.setCollateral(1, e18(2_000));
             await expect(
-                h.testAddCollateral(1, e6(100), 100, false, await usdc.getAddress(), await oracle.getAddress(), e18(0.5)),
+                h.testAddCollateral(
+                    1,
+                    e6(100),
+                    100,
+                    false,
+                    await usdc.getAddress(),
+                    await oracle.getAddress(),
+                    e18(0.5),
+                ),
             ).to.be.reverted;
         });
 
@@ -142,7 +132,15 @@ describe("TradingLib — open-position guards", () => {
             await h.setPositionSimple(1, e18(10_000), e18(50_000), 1, OPEN, MARKET);
             await h.setCollateral(1, e18(2_000));
             await expect(
-                h.testAddCollateral(1, e6(100), 100, false, await usdc.getAddress(), await oracle.getAddress(), e18(0.5)),
+                h.testAddCollateral(
+                    1,
+                    e6(100),
+                    100,
+                    false,
+                    await usdc.getAddress(),
+                    await oracle.getAddress(),
+                    e18(0.5),
+                ),
             ).to.be.reverted;
         });
 
@@ -215,7 +213,11 @@ describe("TradingLib — open-position guards", () => {
             await dm.setSettleResult(e18(5), 1);
             await h.driveOpen(base);
             // no setMarketId -> marketIds[MARKET] empty -> dividend block skipped
-            await h.testTradingLibSettlePositionFundingWithDividends(1, await oracle.getAddress(), await dm.getAddress());
+            await h.testTradingLibSettlePositionFundingWithDividends(
+                1,
+                await oracle.getAddress(),
+                await dm.getAddress(),
+            );
             expect((await h.getDrivenPosition(1)).state).to.equal(OPEN);
         });
 
@@ -227,7 +229,11 @@ describe("TradingLib — open-position guards", () => {
             await dm.setSettleResult(0, 1); // index advances, amount zero
             await h.setMarketId(MARKET, "AAPL");
             await h.driveOpen(base);
-            await h.testTradingLibSettlePositionFundingWithDividends(1, await oracle.getAddress(), await dm.getAddress());
+            await h.testTradingLibSettlePositionFundingWithDividends(
+                1,
+                await oracle.getAddress(),
+                await dm.getAddress(),
+            );
             expect((await h.getDrivenPosition(1)).state).to.equal(OPEN);
         });
     });

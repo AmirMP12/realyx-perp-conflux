@@ -8,13 +8,6 @@ const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 const e6 = (n: bigint | number) => ethers.parseUnits(n.toString(), 6);
 const MARKET = "0x00000000000000000000000000000000000000B7";
 
-/**
- * Verifies PositionCloseLib close guards and accounting: the TWAP-valid
- * deviation guard, the warming-up bypass with slippage protection, short-side
- * open-interest accounting, partial-close leverage and liquidation-price
- * recomputation, the guard reverts, and the fee-distribution shares on a
- * profitable USDC close.
- */
 async function deployClose(fund: boolean) {
     const [admin, treasury, owner] = await ethers.getSigners();
     const USDC = await ethers.getContractFactory("MockUSDC");

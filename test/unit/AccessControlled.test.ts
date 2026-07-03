@@ -92,10 +92,9 @@ describe("AccessControlled (base)", () => {
     describe("circuit breaker hub", () => {
         it("reverts zero address", async () => {
             const d = await loadFixture(deployProtocol);
-            await expect(d.vault.connect(d.admin).setCircuitBreakerHub(ethers.ZeroAddress)).to.be.revertedWithCustomError(
-                d.vault,
-                "ZeroAddress",
-            );
+            await expect(
+                d.vault.connect(d.admin).setCircuitBreakerHub(ethers.ZeroAddress),
+            ).to.be.revertedWithCustomError(d.vault, "ZeroAddress");
         });
         it("sets and reads back the hub", async () => {
             const d = await loadFixture(deployProtocol);
@@ -110,15 +109,17 @@ describe("AccessControlled (base)", () => {
     describe("UUPS upgrade timelock", () => {
         it("reverts proposeImplementation zero address", async () => {
             const d = await loadFixture(deployProtocol);
-            await expect(d.vault.connect(d.admin).proposeImplementation(ethers.ZeroAddress)).to.be.revertedWithCustomError(
-                d.vault,
-                "ZeroAddress",
-            );
+            await expect(
+                d.vault.connect(d.admin).proposeImplementation(ethers.ZeroAddress),
+            ).to.be.revertedWithCustomError(d.vault, "ZeroAddress");
         });
         it("propose then cancel implementation", async () => {
             const d = await loadFixture(deployProtocol);
             const dummy = "0x00000000000000000000000000000000DeaDBeef";
-            await expect(d.vault.connect(d.admin).proposeImplementation(dummy)).to.emit(d.vault, "ImplementationProposed");
+            await expect(d.vault.connect(d.admin).proposeImplementation(dummy)).to.emit(
+                d.vault,
+                "ImplementationProposed",
+            );
             const [pending, eff] = await d.vault.pendingImplementation();
             expect(pending).to.equal(ethers.getAddress(dummy));
             expect(eff).to.be.greaterThan(0n);

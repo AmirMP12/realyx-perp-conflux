@@ -232,7 +232,7 @@ describe('useProgram reads and writes', () => {
         });
     });
 
-    describe('calculatePnL edge cases', () => {
+    describe('calculatePnL invalid inputs', () => {
         it('returns zero for null position', () => {
             expect(calculatePnL(null, 100)).toEqual({ pnl: 0, pnlPercent: 0 });
         });

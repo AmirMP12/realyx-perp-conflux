@@ -57,7 +57,7 @@ function renderForm(props = {}) {
     );
 }
 
-describe('TradingForm extra', () => {
+describe('TradingForm execution', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         (useAccount as any).mockReturnValue({ isConnected: true });

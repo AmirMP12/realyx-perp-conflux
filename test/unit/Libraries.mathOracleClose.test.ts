@@ -12,7 +12,7 @@ async function fcpm() {
     const libs = await deployAllLibraries();
     return deployHarness("FeeCalculatorPositionMathHarness", libs);
 }
-async function coverageHarness() {
+async function deployCoverageHarness() {
     const libs = await deployAllLibraries();
     return deployHarness("CoverageHarness", libs);
 }
@@ -20,22 +20,20 @@ async function coverageHarness() {
 describe("PositionMath — large-size and floor handling", () => {
     it("calculateMaintenanceMargin floors to MIN when bps below the minimum", async () => {
         const h = await loadFixture(fcpm);
-        // bps 10 < MIN(100) -> floored to 100
         expect(await h.calcMaintenanceMargin(e18(10_000), 10)).to.equal((e18(10_000) * 100n) / 10_000n);
     });
 
     it("calculateFundingOwed large-size path (> uint96) with remainder", async () => {
         const h = await loadFixture(fcpm);
-        // size above uint96.max (~7.9e28) with a remainder mod 1e18 -> large-size path
-        const bigSize = (2n ** 96n) + 123n;
+        const bigSize = 2n ** 96n + 123n;
         const owed = await h.calcFundingOwed(bigSize, 1, e18(1) / 1000n);
         expect(owed).to.not.equal(0n);
     });
 
     it("calculateFundingOwed large-size path with a large delta (> uint96)", async () => {
         const h = await loadFixture(fcpm);
-        const bigSize = (2n ** 100n);
-        const bigDelta = (2n ** 97n); // > uint96 but < uint128
+        const bigSize = 2n ** 100n;
+        const bigDelta = 2n ** 97n; // > uint96 but < uint128
         const owed = await h.calcFundingOwed(bigSize, 0, bigDelta); // short flips sign
         expect(owed).to.be.lessThan(0n);
     });
@@ -46,9 +44,9 @@ describe("PositionMath — large-size and floor handling", () => {
     });
 });
 
-describe("OracleAggregatorLib — TWAP edge cases", () => {
+describe("OracleAggregatorLib TWAP staleness", () => {
     it("calculateTWAP breaks on points older than the window and reverts when all are stale", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const now = await time.latest();
         // add a single old point far outside any small window
         await h.addPricePoint(e18(100), 0, now - 100_000);
@@ -57,7 +55,7 @@ describe("OracleAggregatorLib — TWAP edge cases", () => {
     });
 
     it("calculateTWAP with recent points returns a weighted price", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const now = await time.latest();
         await h.addPricePoint(e18(100), 0, now - 100);
         await h.addPricePoint(e18(102), 0, now - 50);
@@ -66,10 +64,9 @@ describe("OracleAggregatorLib — TWAP edge cases", () => {
     });
 
     it("calculateTWAPWithCount caps a price above uint128.max and counts points", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const now = await time.latest();
-        // price stored as uint128; max it out to exercise the price-cap path
-        await h.addPricePoint((2n ** 128n) - 1n, 1, now - 10);
+        await h.addPricePoint(2n ** 128n - 1n, 1, now - 10);
         await h.addPricePoint(e18(100), 1, now - 5);
         const [twap, count] = await h.testCalculateTWAPWithCount(900);
         expect(count).to.equal(2n);
@@ -77,14 +74,14 @@ describe("OracleAggregatorLib — TWAP edge cases", () => {
     });
 
     it("calculateTWAPWithCount reverts when all points fall outside the window", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const now = await time.latest();
         await h.addPricePoint(e18(100), 1, now - 100_000);
         await expect(h.testCalculateTWAPWithCount(10)).to.be.reverted;
     });
 
     it("calculateSimpleTWAP averages buffered prices", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const now = await time.latest();
         await h.addPricePoint(e18(100), 0, now - 10);
         await h.addPricePoint(e18(200), 0, now - 5);
@@ -92,16 +89,16 @@ describe("OracleAggregatorLib — TWAP edge cases", () => {
     });
 
     it("calculateTWAP caps a price above uint128.max within the window", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const now = await time.latest();
-        await h.addPricePoint((2n ** 128n) - 1n, 0, now - 10);
+        await h.addPricePoint(2n ** 128n - 1n, 0, now - 10);
         await h.addPricePoint(e18(100), 0, now - 5);
         const twap = await h.testCalculateTWAP(900);
         expect(twap).to.be.greaterThan(0n);
     });
 
     it("calculateTWAP includes a point exactly at the cutoff (zero time-weight)", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const now = await time.latest();
         // a point right at the cutoff boundary contributes zero time-weight
         await h.addPricePoint(e18(100), 0, now - 900);
@@ -218,7 +215,7 @@ describe("FeeCalculator zero-size & WithdrawLib zero-balance no-ops", () => {
     });
 
     it("withdrawOrderCollateralRefund is a no-op for a zero balance", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const M = await ethers.getContractFactory("MockUSDC");
         const usdc = await M.deploy();
         await usdc.waitForDeployment();

@@ -10,7 +10,6 @@ const ThrowError = ({ shouldThrow }: { shouldThrow: boolean }) => {
 };
 
 describe('ErrorBoundary', () => {
-  // The boundary intentionally catches a thrown error; React logs it via
   // console.error and dispatches it to the jsdom window. Suppress both so the
   // expected error doesn't pollute the test run output.
   const swallowError = (e: ErrorEvent) => e.preventDefault();

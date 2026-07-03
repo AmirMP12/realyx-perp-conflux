@@ -23,7 +23,7 @@ function renderHeader(props: Partial<React.ComponentProps<typeof MarketHeader>> 
     );
 }
 
-describe('MarketHeader extra', () => {
+describe('MarketHeader search and provenance', () => {
     beforeEach(() => vi.clearAllMocks());
 
     it('filters markets by search query', () => {

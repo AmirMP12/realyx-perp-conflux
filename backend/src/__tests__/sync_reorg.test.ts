@@ -1,14 +1,3 @@
-/**
- * Reorg-awareness tests for the indexer.
- *
- * Verifies the block-hash checkpointing path in runSync:
- *  - healthy resume: newest stored hash matches the chain → resume at last+1,
- *    no orphan purge of real rows.
- *  - reorg detected: stored hash for the tip no longer matches → walk back to
- *    the common ancestor and rewind to re-ingest from there.
- *  - fallback: no stored hashes → fixed-window rewind (REORG_BUFFER_BLOCKS).
- */
-
 import { jest } from "@jest/globals";
 import { ethers } from "ethers";
 
@@ -81,7 +70,6 @@ describe("Indexer reorg-awareness", () => {
       }
       return Promise.resolve({ rows: [] });
     });
-    // The tip hash still matches the chain → no reorg.
     mockProvider.getBlock.mockResolvedValue({ number: last, hash: HASH_A, timestamp: 1713400000 });
 
     const result = await sync.runSync();

@@ -28,7 +28,7 @@ const renderPage = () =>
 
 const noRisk = { hasPositions: false, healthFactor: Infinity, crossPositionCount: 0, totalCollateral: 0, unrealizedPnL: 0, maintenanceMargin: 0, totalNotional: 0 };
 
-describe('PortfolioPage extra', () => {
+describe('PortfolioPage health and charts', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         (useAccount as any).mockReturnValue({ address: '0xUser' });

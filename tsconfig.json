@@ -25,6 +25,7 @@
     "typechain",
     "docs-site",
     "landing",
-    "demo"
+    "demo",
+    "test"
   ]
 }

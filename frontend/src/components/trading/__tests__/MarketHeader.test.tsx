@@ -43,7 +43,6 @@ describe('MarketHeader', () => {
         
         expect(screen.getByTestId('market-symbol')).toHaveTextContent('ETH');
         expect(screen.getAllByText('Ethereum')[0]).toBeInTheDocument();
-        // The same change text appears in multiple responsive sections.
         expect(screen.getAllByText(/5\.50\s*%/).length).toBeGreaterThan(0);
         // Volume rendered via the shared formatCompact helper, e.g. "$100m".
         expect(screen.getAllByText(/\$\s*100\s*m/i).length).toBeGreaterThan(0); // 100M Vol

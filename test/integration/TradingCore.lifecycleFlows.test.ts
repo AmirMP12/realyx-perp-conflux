@@ -8,12 +8,7 @@ import { setPythPrice } from "../helpers/pyth";
 
 const price = (n: number) => BigInt(n) * 10n ** 18n;
 
-/**
- * Broad engine flows that exercise the TradingLib / PositionCloseLib / VaultCore
- * close and decrease paths across profit, loss, partial, short, and
- * multi-position scenarios.
- */
-describe("TradingCore — lifecycle flows", () => {
+describe("TradingCore lifecycle flows", () => {
     it("short position: open, price rises (loss), close", async () => {
         const d = await loadFixture(deployConfigured);
         const id = await openMarket(d, d.bob, { isLong: false, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
@@ -68,7 +63,11 @@ describe("TradingCore — lifecycle flows", () => {
     it("multiple positions per user open and close independently", async () => {
         const d = await loadFixture(deployConfigured);
         const id1 = await openMarket(d, d.alice, { isLong: true, sizeUsdc: usdc(10_000), collateralUsdc: usdc(2_000) });
-        const id2 = await openMarket(d, d.alice, { isLong: false, sizeUsdc: usdc(15_000), collateralUsdc: usdc(3_000) });
+        const id2 = await openMarket(d, d.alice, {
+            isLong: false,
+            sizeUsdc: usdc(15_000),
+            collateralUsdc: usdc(3_000),
+        });
         await time.increase(120);
         await setPythPrice(d.pyth, d.feedId, price(50_500));
         await seedTwap(d, price(50_500));

@@ -6,22 +6,6 @@ import { deployAllLibraries, deployHarness } from "../helpers/harness";
 const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 const e6 = (n: bigint | number) => ethers.parseUnits(n.toString(), 6);
 
-/**
- * Verifies CollateralRouterLib selection logic via ExtraCoverageHarness.
- *
- * Covers a token that values to zero USDC: a 1-wei balance of a 6-decimal token
- * yields grossUsdc=1 and net=floor(1*9800/10000)=0, so the value rounds to zero
- * without reverting and the token is skipped.
- *
- * Some defensive cases are not exercised because they are unreachable with the
- * real CollateralRegistry:
- *   - A zero token address: the registry cannot register address(0), so its
- *     config is always disabled and the loop continues before the guard.
- *   - A needed amount exceeding the balance in selectBestCollateral and the
- *     basket path: getCollateralValue floors twice while getTokenAmountForUsdc
- *     ceils, so for any required <= balance value the inverted amount is provably
- *     <= balance. These clamp/skip cases are dead defensive code in practice.
- */
 async function setup() {
     const [admin, user] = await ethers.getSigners();
     const Oracle = await ethers.getContractFactory("MockOracleConfigurable");
@@ -69,13 +53,7 @@ describe("CollateralRouterLib — selectBestCollateral", () => {
     it("returns no token when balance is insufficient", async () => {
         const { h, registry, t1, a1, user } = await loadFixture(setup);
         await t1.mintTo(user.address, e6(10));
-        const [token] = await h.selectBestCollateral(
-            user.address,
-            [a1],
-            await registry.getAddress(),
-            e6(1_000),
-            false,
-        );
+        const [token] = await h.selectBestCollateral(user.address, [a1], await registry.getAddress(), e6(1_000), false);
         expect(token).to.equal(ethers.ZeroAddress);
     });
 
@@ -161,12 +139,7 @@ describe("CollateralRouterLib — getUserTotalCollateralValue", () => {
         await t1.mintTo(user.address, e6(1_000));
         await t2.mintTo(user.address, e6(1_000));
         await registry.setTokenEnabled(a2, false); // disabled -> skipped
-        const total = await h.getUserTotalCollateralValue(
-            user.address,
-            [a1, a2],
-            await registry.getAddress(),
-            false,
-        );
+        const total = await h.getUserTotalCollateralValue(user.address, [a1, a2], await registry.getAddress(), false);
         expect(total).to.be.greaterThan(0n);
     });
 });

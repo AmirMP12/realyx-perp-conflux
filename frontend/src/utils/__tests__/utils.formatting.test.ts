@@ -9,7 +9,7 @@ import {
     formatFundingDisplay,
 } from '../tradePreview';
 
-describe('format gaps', () => {
+describe('format utilities', () => {
     it('uses 6 decimals for sub-cent prices', () => {
         expect(formatPriceWithPrecision(0.005)).toBe((0.005).toLocaleString(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 6 }));
     });
@@ -19,7 +19,7 @@ describe('format gaps', () => {
     it('uses 2 decimals for >= $1', () => {
         expect(formatPriceWithPrecision(1234.5)).toContain('1,234.5');
     });
-    it('formatPrice / formatPercent / safeUsd / truncateAddress edge cases', () => {
+    it('handles formatPrice, formatPercent, safeUsd, and truncateAddress', () => {
         expect(formatPrice(1.2, 3)).toBe('1.200');
         expect(formatPercent(-2)).toBe('-2.00%');
         expect(safeUsd(null)).toBe(0);
@@ -29,7 +29,7 @@ describe('format gaps', () => {
     });
 });
 
-describe('marketHours gaps', () => {
+describe('marketHours utilities', () => {
     it('computes multi-day reopen from a weekend (closed)', () => {
         // 2024-01-06 is a Saturday.
         const sat = new Date('2024-01-06T15:00:00Z');
@@ -44,7 +44,7 @@ describe('marketHours gaps', () => {
     });
 });
 
-describe('tradePreview gaps', () => {
+describe('tradePreview utilities', () => {
     it('payForNotional returns 0 for invalid input and a value otherwise', () => {
         expect(payForNotional(0, 10)).toBe(0);
         expect(payForNotional(1000, 0)).toBe(0);
@@ -53,7 +53,6 @@ describe('tradePreview gaps', () => {
 
     it('computeMarginPreview handles zero and min-fee cases', () => {
         expect(computeMarginPreview(0, 10).notionalValue).toBe(0);
-        // Tiny size triggers the MIN_OPENING_FEE floor.
         const tiny = computeMarginPreview(0.05, 2);
         expect(tiny.estimatedOpeningFee).toBeCloseTo(0.1);
         expect(tiny.baseMargin).toBe(0);
@@ -65,7 +64,7 @@ describe('tradePreview gaps', () => {
         expect(triggerReturnPct(90, 100, 10, false)).toBeCloseTo(100);
     });
 
-    it('computeCostToHold covers pay, receive and neutral', () => {
+    it('computeCostToHold handles pay, receive, and neutral directions', () => {
         expect(computeCostToHold(0.001, 1000, true).direction).toBe('pay');
         expect(computeCostToHold(0.001, 1000, false).direction).toBe('receive');
         expect(computeCostToHold(0, 1000, true).direction).toBe('neutral');

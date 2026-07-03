@@ -88,9 +88,6 @@ contract LiquidationLibHarnessDeep {
         userExposure[user] = amount;
     }
 
-    /// @dev Additive coverage helper: seed market open-interest accumulators so
-    ///      the OI-decrement `> sz`/`> cost` true sides in `liquidatePosition`
-    ///      are reachable (default zero OI only exercises the floor-to-zero side).
     function setMarketOI(
         address market,
         uint256 longSize,

@@ -22,7 +22,6 @@ describe("User Route Logic Paths", () => {
         
         // Mock MARKET_SYMBOL
         const userModule = require("../routes/user.js");
-        // We can't easily mock internal const, but we can trigger the resolve by calling the route
         
         const res = await request(app).get("/api/user/0xUserAddress/trades");
         expect(res.status).toBe(200);

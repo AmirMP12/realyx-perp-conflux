@@ -1,9 +1,5 @@
 import { jest } from "@jest/globals";
 
-/**
- * Tests pyth.ts error/guard paths. Each test re-imports the
- * module fresh so the in-module price/change caches never leak between cases.
- */
 function setFetch(impl: (url: string) => any) {
   (global as any).fetch = jest.fn((url: any) => Promise.resolve(impl(String(url))));
 }

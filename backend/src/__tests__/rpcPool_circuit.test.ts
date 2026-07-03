@@ -1,10 +1,5 @@
 import { withProvider, getPoolHealth, __resetRpcPool } from "../services/rpcPool.js";
 
-/**
- * Circuit-breaker behavior for the RPC pool: an endpoint that fails past the
- * threshold trips OPEN (cooling), routing prefers healthy endpoints, and a
- * recovered endpoint closes again.
- */
 describe("rpcPool circuit breaker", () => {
   const ORIGINAL = { ...process.env };
 
@@ -35,7 +30,6 @@ describe("rpcPool circuit breaker", () => {
   });
 
   it("trips an endpoint OPEN after consecutive failures past the threshold", async () => {
-    // Force the SAME (first-ordered) endpoint to fail every attempt by making
     // the work throw — both endpoints fail, so each accrues failures. Repeat
     // until the breaker trips.
     for (let i = 0; i < 3; i++) {
@@ -61,7 +55,6 @@ describe("rpcPool circuit breaker", () => {
       return "ok";
     });
     const health = getPoolHealth();
-    // The endpoint that ultimately succeeded must be closed with 0 failures.
     expect(health.some((h) => h.state === "closed" && h.failures === 0)).toBe(true);
   });
 });

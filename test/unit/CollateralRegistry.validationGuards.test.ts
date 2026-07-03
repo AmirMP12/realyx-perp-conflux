@@ -32,9 +32,10 @@ describe("CollateralRegistry", () => {
             const oracle = await Mock.deploy();
             await oracle.waitForDeployment();
             const Registry = await ethers.getContractFactory("CollateralRegistry");
-            await expect(
-                Registry.deploy(ethers.ZeroAddress, await oracle.getAddress()),
-            ).to.be.revertedWithCustomError(Registry, "ZeroAddress");
+            await expect(Registry.deploy(ethers.ZeroAddress, await oracle.getAddress())).to.be.revertedWithCustomError(
+                Registry,
+                "ZeroAddress",
+            );
         });
 
         it("reverts when the oracle is zero", async () => {
@@ -67,9 +68,8 @@ describe("CollateralRegistry", () => {
 
         it("reverts for a non-operator caller", async () => {
             const { registry, tAddr, user } = await loadFixture(deploy);
-            await expect(
-                registry.connect(user).registerToken(tAddr, 200, 500, 3000, 100, 50, e6(1_000_000), tAddr, 6),
-            ).to.be.reverted;
+            await expect(registry.connect(user).registerToken(tAddr, 200, 500, 3000, 100, 50, e6(1_000_000), tAddr, 6))
+                .to.be.reverted;
         });
     });
 

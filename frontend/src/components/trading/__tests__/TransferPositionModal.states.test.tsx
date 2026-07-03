@@ -11,7 +11,7 @@ const longPos = { id: '7', collateral: '100', leverage: '10', size: '1000', isLo
 const shortPosShortAddr = { id: '8', collateral: '50', leverage: '5', size: '500', isLong: false, marketAddress: '0xABCD' } as any;
 const noAddrPos = { id: '9', collateral: '50', leverage: '5', size: '500', isLong: true, marketAddress: '' } as any;
 
-describe('TransferPositionModal edge cases', () => {
+describe('TransferPositionModal states', () => {
     const transfer = vi.fn();
     const recipientHasCode = vi.fn();
     beforeEach(() => {

@@ -5,16 +5,6 @@ import { usdc, OPERATOR_ROLE, GUARDIAN_ROLE, TRADING_CORE_ROLE } from "../helper
 
 const market = "0x00000000000000000000000000000000000000B7";
 
-/**
- * Verifies VaultCore views that depend on a wired TradingCore returning a
- * controllable global PnL (totalAssets / getConservativeTotalAssets /
- * getUtilization / getLPSharePrice / share conversions), plus the
- * unwired-tradingCore (address(0)) early-return path, the rebate
- * accrual/claim flow, and the per-market exposure-bps fallback.
- *
- * It deploys a standalone VaultCore proxy so the FIRST-TIME setTradingCore
- * wireup (immediate, no 48h timelock) can point at MockTradingCorePnl.
- */
 async function deployVault() {
     const [admin, treasuryAcct, lp, alice, referrer] = await ethers.getSigners();
 
@@ -23,11 +13,10 @@ async function deployVault() {
     await token.waitForDeployment();
 
     const Vault = await ethers.getContractFactory("VaultCore");
-    const vault = await upgrades.deployProxy(
-        Vault,
-        [admin.address, await token.getAddress(), treasuryAcct.address],
-        { kind: "uups", initializer: "initialize" },
-    );
+    const vault = await upgrades.deployProxy(Vault, [admin.address, await token.getAddress(), treasuryAcct.address], {
+        kind: "uups",
+        initializer: "initialize",
+    });
     await vault.waitForDeployment();
 
     await vault.connect(admin).grantRole(OPERATOR_ROLE, admin.address);
@@ -108,7 +97,10 @@ describe("VaultCore — PnL-dependent views via a mock TradingCore", () => {
     it("getUtilization is non-zero once there are borrows and assets", async () => {
         const { vault, core } = await loadFixture(fundedWithCore);
         // wire a non-zero borrow via the mock acting as TradingCore role-holder
-        await vault.connect(await impersonate(core)).borrow(usdc(500_000), market, true).catch(() => {});
+        await vault
+            .connect(await impersonate(core))
+            .borrow(usdc(500_000), market, true)
+            .catch(() => {});
         // utilization computes total via the mock PnL probe when globalPnL is zero
         const util = await vault.getUtilization();
         expect(util).to.be.a("bigint");
@@ -129,7 +121,6 @@ describe("VaultCore — PnL-dependent views via a mock TradingCore", () => {
 describe("VaultCore — unwired TradingCore (address(0))", () => {
     it("traderPnLFullyPriced returns true when tradingCore is unset", async () => {
         const { vault } = await loadFixture(deployVault);
-        // tradingCore never wired -> exercises the tradingCore == address(0) case
         expect(await vault.traderPnLFullyPriced()).to.equal(true);
     });
 

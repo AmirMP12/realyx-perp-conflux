@@ -72,10 +72,7 @@ describe("ConfigLib", () => {
     // unlistMarket rejects a zero market address.
     it("unlistMarket reverts InvalidMarket when m == address(0)", async () => {
         const { h, configLib } = await loadFixture(harness);
-        await expect(h.setUnlistMarket(ethers.ZeroAddress)).to.be.revertedWithCustomError(
-            configLib,
-            "InvalidMarket",
-        );
+        await expect(h.setUnlistMarket(ethers.ZeroAddress)).to.be.revertedWithCustomError(configLib, "InvalidMarket");
     });
 
     // A market that is listed but flagged inactive skips the active-set removal loop.
@@ -83,7 +80,6 @@ describe("ConfigLib", () => {
         const { h } = await loadFixture(harness);
         const M = addr(2);
         await h.testSetMarket(M, FEED, 20, e18(1e6), e18(5e6), 500, 1000, 900, U);
-        // Force isMarketActive[m] = false while the market remains listed.
         await h.corruptIsMarketActive(M, false);
         await h.setUnlistMarket(M);
         expect((await h.configMarkets(M)).isListed).to.equal(false);

@@ -7,14 +7,6 @@ const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 const FEED = "0x00000000000000000000000000000000000000F1";
 const U = e18(1) / 2n;
 
-/**
- * Verifies ConfigLib market configuration via the harness wrappers, covering:
- *   - setMarket skipping the active-set push when a market is already active
- *   - setMarket enforcing the MAX_ACTIVE_MARKETS cap
- *   - setMarket skipping funding-clock init when lastSettlement is already set
- *   - updateMarket validation of feed, leverage, and margin config
- *   - unlistMarket removing a market from the active set
- */
 async function harness() {
     const libs = await deployAllLibraries();
     return deployHarness("CoverageHarness", libs);
@@ -42,9 +34,7 @@ describe("ConfigLib — setMarket", () => {
             await h.testSetMarket(addr(i), FEED, 20, e18(1e6), e18(5e6), 500, 1000, 900, U);
         }
         // the 21st distinct market trips the cap
-        await expect(
-            h.testSetMarket(addr(99), FEED, 20, e18(1e6), e18(5e6), 500, 1000, 900, U),
-        ).to.be.reverted;
+        await expect(h.testSetMarket(addr(99), FEED, 20, e18(1e6), e18(5e6), 500, 1000, 900, U)).to.be.reverted;
     });
 
     it("setMarket skips funding-clock init when lastSettlement already set", async () => {
@@ -74,38 +64,29 @@ describe("ConfigLib — updateMarket", () => {
 
     it("updateMarket reverts on zero feed", async () => {
         const { h, M } = await listed();
-        await expect(
-            h.testUpdateMarket(M, ethers.ZeroAddress, 20, e18(1e6), e18(5e6), 500, 1000, 900, U),
-        ).to.be.reverted;
+        await expect(h.testUpdateMarket(M, ethers.ZeroAddress, 20, e18(1e6), e18(5e6), 500, 1000, 900, U)).to.be
+            .reverted;
     });
 
     it("updateMarket reverts for an unlisted market", async () => {
         const h = await loadFixture(harness);
         const M = addr(5); // never listed
-        await expect(
-            h.testUpdateMarket(M, FEED, 20, e18(1e6), e18(5e6), 500, 1000, 900, U),
-        ).to.be.reverted;
+        await expect(h.testUpdateMarket(M, FEED, 20, e18(1e6), e18(5e6), 500, 1000, 900, U)).to.be.reverted;
     });
 
     it("updateMarket reverts when maxLev == 0", async () => {
         const { h, M } = await listed();
-        await expect(
-            h.testUpdateMarket(M, FEED, 0, e18(1e6), e18(5e6), 500, 1000, 900, U),
-        ).to.be.reverted;
+        await expect(h.testUpdateMarket(M, FEED, 0, e18(1e6), e18(5e6), 500, 1000, 900, U)).to.be.reverted;
     });
 
     it("updateMarket reverts when maxLev > MAX_LEVERAGE_LIMIT", async () => {
         const { h, M } = await listed();
-        await expect(
-            h.testUpdateMarket(M, FEED, 101, e18(1e6), e18(5e6), 500, 1000, 900, U),
-        ).to.be.reverted;
+        await expect(h.testUpdateMarket(M, FEED, 101, e18(1e6), e18(5e6), 500, 1000, 900, U)).to.be.reverted;
     });
 
     it("updateMarket reverts on invalid margin config im <= mm", async () => {
         const { h, M } = await listed();
-        await expect(
-            h.testUpdateMarket(M, FEED, 20, e18(1e6), e18(5e6), 600, 600, 900, U),
-        ).to.be.reverted;
+        await expect(h.testUpdateMarket(M, FEED, 20, e18(1e6), e18(5e6), 600, 600, 900, U)).to.be.reverted;
     });
 
     it("updateMarket succeeds with valid params", async () => {

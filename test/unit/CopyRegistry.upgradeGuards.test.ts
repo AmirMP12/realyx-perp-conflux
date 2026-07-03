@@ -4,21 +4,6 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 
 const usdc = (n: number) => ethers.parseUnits(n.toString(), 6);
 
-/**
- * CopyRegistry — upgrade guards
- *
- * Verifies the upgrade and enumeration guards:
- *   - the re-initialization revert
- *   - the owner-only authorization on upgrades and cancelPendingImplementation
- *   - the upgrade timelock when no implementation is staged
- *   - deregisterAsLeadTrader leaving a remainder when followers exceed the drain batch
- *   - getCopierFollowing skipping live leads the copier does not follow
- *
- * The activeFollowers == 0 underflow guards in _deregisterChunk and unfollowTrader
- * are not exercised: copier counts and activeFollowers are mutated in lock-step by
- * every path (follow +1/+1, unfollow -1/-1, drain -1/-1), so whenever there is a
- * copier to drain or unfollow, activeFollowers is necessarily greater than zero.
- */
 async function deploy() {
     const [owner, lead, lead2, copier, copier2] = await ethers.getSigners();
     const CopyRegistry = await ethers.getContractFactory("CopyRegistry");
@@ -46,9 +31,10 @@ describe("CopyRegistry — upgrade guards", () => {
 
     it("a non-owner caller cannot drive an upgrade", async () => {
         const { cr, copier } = await loadFixture(deploy);
-        await expect(
-            cr.connect(copier).upgradeToAndCall(copier.address, "0x"),
-        ).to.be.revertedWithCustomError(cr, "OwnableUnauthorizedAccount");
+        await expect(cr.connect(copier).upgradeToAndCall(copier.address, "0x")).to.be.revertedWithCustomError(
+            cr,
+            "OwnableUnauthorizedAccount",
+        );
     });
 
     it("upgrade with nothing staged reverts UpgradeTimelockActive", async () => {
@@ -56,9 +42,10 @@ describe("CopyRegistry — upgrade guards", () => {
         // owner caller, nothing proposed: _pendingImpl == 0, so passing
         // address(0) clears the mismatch check (0 == 0) and the upgrade
         // timelock then rejects the call.
-        await expect(
-            cr.upgradeToAndCall(ethers.ZeroAddress, "0x"),
-        ).to.be.revertedWithCustomError(cr, "UpgradeTimelockActive");
+        await expect(cr.upgradeToAndCall(ethers.ZeroAddress, "0x")).to.be.revertedWithCustomError(
+            cr,
+            "UpgradeTimelockActive",
+        );
     });
 
     it("a non-owner caller cannot cancel a pending implementation", async () => {

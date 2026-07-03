@@ -7,7 +7,7 @@ import { BreakerType, PosStatus } from "../helpers/constants";
 const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 const MARKET = "0x00000000000000000000000000000000000000B7";
 
-async function coverageHarness() {
+async function deployCoverageHarness() {
     const libs = await deployAllLibraries();
     return deployHarness("CoverageHarness", libs);
 }
@@ -19,7 +19,7 @@ async function extraHarness() {
 
 describe("GlobalPnLLib short-side accumulation", () => {
     it("aggregates both long and short PnL across a market", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const Mock = await ethers.getContractFactory("MockOracleConfigurable");
         const oracle = await Mock.deploy();
         await oracle.waitForDeployment();
@@ -33,7 +33,7 @@ describe("GlobalPnLLib short-side accumulation", () => {
     });
 
     it("short-only market contributes short PnL", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const Mock = await ethers.getContractFactory("MockOracleConfigurable");
         const oracle = await Mock.deploy();
         await oracle.waitForDeployment();
@@ -58,7 +58,7 @@ describe("RateLimitLib checkOnly sub-threshold actions", () => {
 
 describe("CircuitBreakerLib — action gating and threshold checks", () => {
     it("isActionAllowed allows non-restricting actions under a non-emergency breaker", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.testConfigureBreaker(MARKET, BreakerType.PRICE_DROP, 500, 900, 600);
         await h.testTriggerBreaker(MARKET, BreakerType.PRICE_DROP);
         // actionType != 0 under a non-EMERGENCY breaker is still allowed
@@ -68,7 +68,7 @@ describe("CircuitBreakerLib — action gating and threshold checks", () => {
     });
 
     it("checkPriceDropBreaker does not trigger below threshold", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.testConfigureBreaker(MARKET, BreakerType.PRICE_DROP, 5000, 900, 600); // 50% threshold
         // 2% drop is below threshold -> no trigger
         const triggered = await h.testCheckPriceDropBreaker.staticCall(MARKET, e18(98), e18(100));
@@ -76,7 +76,7 @@ describe("CircuitBreakerLib — action gating and threshold checks", () => {
     });
 
     it("checkTWAPDeviationBreaker does not trigger below threshold", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.testConfigureBreaker(MARKET, BreakerType.TWAP_DEVIATION, 5000, 900, 600);
         const triggered = await h.testCheckTWAPDeviationBreaker.staticCall(MARKET, e18(102), e18(100));
         expect(triggered).to.equal(false);

@@ -47,7 +47,7 @@ jobs:
       - name: Check formatting
         run: |
           npm run lint:fix
-          if [ -n "$(git status --porcelain -- contracts/ scripts/)" ]; then
+          if [ -n "$(git status --porcelain -- contracts/ scripts/ test/)" ]; then
             echo "::error::Code style issues found. Run 'npm run lint:fix' locally and commit."
             git diff --stat
             exit 1

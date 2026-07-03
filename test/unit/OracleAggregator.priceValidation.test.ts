@@ -33,12 +33,6 @@ async function deploy() {
     return { oracle, pyth, admin, operator, oracleBot, guardian, g2, g3, keeper, other };
 }
 
-/**
- * Push a fully-custom raw Pyth update (raw int64 price, raw uint64 conf, expo)
- * directly through MockPyth so tests can exercise normalization edge cases
- * that the higher-level `setPythPrice` helper (fixed expo / positive price)
- * cannot reach.
- */
 async function pushRaw(
     pyth: any,
     feedId: string,
@@ -225,9 +219,10 @@ describe("OracleAggregator — price validation guards", () => {
             // conf band 1e16 on a 50k price -> fraction = 1e16*1e18/50000e18 = 2e11, tiny.
             // Use a near-zero maxUncertainty so even a tiny fraction exceeds it.
             await setPythPrice(pyth, FEED, e18(50_000), 10n ** 16n);
-            await expect(
-                oracle.getPriceWithConfidence(MARKET, 1n),
-            ).to.be.revertedWithCustomError(oracle, "InsufficientConfidence");
+            await expect(oracle.getPriceWithConfidence(MARKET, 1n)).to.be.revertedWithCustomError(
+                oracle,
+                "InsufficientConfidence",
+            );
         });
     });
 
@@ -248,9 +243,7 @@ describe("OracleAggregator — price validation guards", () => {
             );
             const fee = await pyth.getUpdateFee([data]);
             // overpay by 100 wei so the refund path returns the overpayment
-            const refund = await oracle
-                .connect(other)
-                .updatePrices.staticCall([data], { value: fee + 100n });
+            const refund = await oracle.connect(other).updatePrices.staticCall([data], { value: fee + 100n });
             expect(refund).to.equal(100n);
             await oracle.connect(other).updatePrices([data], { value: fee + 100n });
         });
@@ -268,9 +261,10 @@ describe("OracleAggregator — price validation guards", () => {
                 block!.timestamp + 1,
                 0,
             );
-            await expect(
-                oracle.connect(other).updatePrices([data], { value: 0 }),
-            ).to.be.revertedWithCustomError(oracle, "InsufficientUpdateFee");
+            await expect(oracle.connect(other).updatePrices([data], { value: 0 })).to.be.revertedWithCustomError(
+                oracle,
+                "InsufficientUpdateFee",
+            );
         });
     });
 

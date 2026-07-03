@@ -71,7 +71,7 @@ describe("Comprehensive System Logic Paths", () => {
     });
 
     describe("sync service and routes", () => {
-        it("handles runSync edge cases", async () => {
+        it("handles runSync error paths", async () => {
              // 0. Setup default for initDB and state check
              mockPoolQuery.mockResolvedValue({ rows: [] });
 
@@ -147,7 +147,6 @@ describe("Comprehensive System Logic Paths", () => {
             const statsModule = await import("../routes/stats.js");
             const statsApp = express(); statsApp.use("/", statsModule.default);
             
-            // First call warms cache
             await request(statsApp).get("/");
             // Second call returns the cached value
             await request(statsApp).get("/");

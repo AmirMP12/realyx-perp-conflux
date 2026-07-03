@@ -138,4 +138,31 @@ describe("stats routes", () => {
     const err = await request(app).get("/api/stats/history");
     expect(err.body.success).toBe(false);
   });
+
+  it("joins AggregateError child messages when cache throws", async () => {
+    cacheImpl = async () => {
+      throw new AggregateError(
+        [new Error("child error A"), new Error("child error B")],
+        "parallel fetch failed"
+      );
+    };
+    const res = await request(app).get("/api/stats");
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(false);
+    expect(res.body.error).toContain("child error A");
+    expect(res.body.error).toContain("child error B");
+    expect(res.body.error).toContain(";");
+  });
+
+  it("uses String(e) when AggregateError.errors is undefined", async () => {
+    cacheImpl = async () => {
+      const aggErr = new AggregateError([], "agg");
+      (aggErr as any).errors = undefined;
+      throw aggErr;
+    };
+    const res = await request(app).get("/api/stats");
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(false);
+    expect(typeof res.body.error).toBe("string");
+  });
 });

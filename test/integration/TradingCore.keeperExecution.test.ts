@@ -56,9 +56,7 @@ describe("TradingCore — integration", () => {
                 sizeUsdc: usdc(10_000),
                 collateralUsdc: usdc(2_000),
             });
-            await expect(
-                d.tradingCore.connect(d.alice).executeStopLossTakeProfit([id], []),
-            ).to.be.reverted;
+            await expect(d.tradingCore.connect(d.alice).executeStopLossTakeProfit([id], [])).to.be.reverted;
         });
 
         it("clears trailing anchor when trailing stop set to 0", async () => {
@@ -245,16 +243,18 @@ describe("TradingCore — order gating & updateMarket", () => {
 
     it("updateMarket changes risk parameters of a listed market", async () => {
         const d = await loadFixture(deployConfigured);
-        await d.tradingCore.connect(d.admin).updateMarket(
-            d.market,
-            d.market,
-            15,
-            ethers.parseUnits("200000000", 18),
-            ethers.parseUnits("600000000", 18),
-            600,
-            1200,
-            900,
-        );
+        await d.tradingCore
+            .connect(d.admin)
+            .updateMarket(
+                d.market,
+                d.market,
+                15,
+                ethers.parseUnits("200000000", 18),
+                ethers.parseUnits("600000000", 18),
+                600,
+                1200,
+                900,
+            );
         const info = await d.tradingCore.getMarketInfo(d.market);
         expect(info.maxLeverage).to.equal(15n);
         expect(info.maintenanceMargin).to.equal(600n);
@@ -269,9 +269,8 @@ describe("TradingCore — order gating & updateMarket", () => {
 
     it("recordFailedRepayment is restricted to self (TradingCore internal)", async () => {
         const d = await loadFixture(deployConfigured);
-        await expect(
-            d.tradingCore.connect(d.alice).recordFailedRepayment(1, usdc(100), d.market, true, 0),
-        ).to.be.reverted;
+        await expect(d.tradingCore.connect(d.alice).recordFailedRepayment(1, usdc(100), d.market, true, 0)).to.be
+            .reverted;
     });
 
     it("resolveFailedRepayment reverts for an unknown record (admin)", async () => {

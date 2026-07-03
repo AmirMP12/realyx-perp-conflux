@@ -27,7 +27,6 @@ describe('useOnChainHistory falsy-arg fallbacks', () => {
     }
 
     it('defaults missing size/leverage/price args to zero', async () => {
-        // open log with undefined size/leverage/entryPrice -> exercise the `|| 0n` fallbacks
         const bareOpen = { args: { positionId: 1n, market: '0xM', isLong: true }, blockNumber: 10n, transactionHash: '0xA' };
         // close matched to the open but with undefined pnl/price/fee
         const bareClose = { args: { positionId: 1n }, blockNumber: 11n, transactionHash: '0xB' };

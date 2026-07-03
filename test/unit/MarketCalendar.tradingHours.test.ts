@@ -84,9 +84,10 @@ describe("MarketCalendar", () => {
     it("isMarketOpen reverts on timestamp beyond MAX_VALID_TIMESTAMP", async () => {
         const { cal } = await loadFixture(deployCalendar);
         await cal.setMarketConfig("EQ", 0, 1439, 0, false);
-        await expect(
-            cal["isMarketOpen(string,uint256)"]("EQ", 2_000_000_000_001n),
-        ).to.be.revertedWithCustomError(cal, "TimestampOutOfRange");
+        await expect(cal["isMarketOpen(string,uint256)"]("EQ", 2_000_000_000_001n)).to.be.revertedWithCustomError(
+            cal,
+            "TimestampOutOfRange",
+        );
     });
 
     it("getNextOpenTime reverts on timestamp beyond MAX_VALID_TIMESTAMP", async () => {

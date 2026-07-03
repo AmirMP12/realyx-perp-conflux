@@ -18,7 +18,7 @@ vi.mock('../../hooks/useMarketData', () => ({ useAllMarketsOnChainData: vi.fn() 
 const renderPage = () =>
     render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><AnalyticsDashboard /></MemoryRouter>);
 
-describe('AnalyticsDashboard extra', () => {
+describe('AnalyticsDashboard data states', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         (useVaultStats as any).mockReturnValue({ stats: { tvl: 5_000_000 }, loading: false });

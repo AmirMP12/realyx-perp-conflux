@@ -31,7 +31,6 @@ describe("rateLimit resolveTier", () => {
     query.mockResolvedValueOnce({ rows: [{ tier: "PRO" }] });
     const first = await resolveTier("key-pro");
     expect(first).toBe("PRO");
-    // Second call is served from cache (no further query).
     query.mockClear();
     const second = await resolveTier("key-pro");
     expect(second).toBe("PRO");
@@ -49,7 +48,6 @@ describe("rateLimit resolveTier", () => {
   });
 
   it("returns FREE when no database is configured", async () => {
-    // Force a cold cache + no pool by clearing the env. The pool is cached at
     // module level, but an uncached key still calls getPool() which returns the
     // existing pool; use a brand-new key to drive the lookup path.
     query.mockResolvedValueOnce({ rows: [{ tier: "VIP" }] });

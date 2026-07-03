@@ -43,9 +43,7 @@ describe("OracleAggregator", () => {
             const { oracle, admin, pyth } = await loadFixture(deploy);
             expect(await oracle.guardianQuorum()).to.equal(3n);
             expect(await oracle.emergencyPriceQuorum()).to.equal(3n);
-            await expect(
-                oracle.initialize(admin.address, await pyth.getAddress()),
-            ).to.be.reverted;
+            await expect(oracle.initialize(admin.address, await pyth.getAddress())).to.be.reverted;
         });
     });
 
@@ -374,9 +372,10 @@ describe("OracleAggregator", () => {
         });
         it("setEmergencyPriceProposalMinInterval bounds", async () => {
             const { oracle, admin } = await loadFixture(deploy);
-            await expect(
-                oracle.connect(admin).setEmergencyPriceProposalMinInterval(60),
-            ).to.be.revertedWithCustomError(oracle, "InvalidSource");
+            await expect(oracle.connect(admin).setEmergencyPriceProposalMinInterval(60)).to.be.revertedWithCustomError(
+                oracle,
+                "InvalidSource",
+            );
             await oracle.connect(admin).setEmergencyPriceProposalMinInterval(3600);
             expect(await oracle.emergencyPriceProposalMinInterval()).to.equal(3600n);
         });
@@ -387,9 +386,10 @@ describe("OracleAggregator", () => {
         });
         it("setMarketId rejects too-long id", async () => {
             const { oracle, operator } = await loadFixture(deploy);
-            await expect(
-                oracle.connect(operator).setMarketId(MARKET, "x".repeat(33)),
-            ).to.be.revertedWithCustomError(oracle, "MarketIdTooLong");
+            await expect(oracle.connect(operator).setMarketId(MARKET, "x".repeat(33))).to.be.revertedWithCustomError(
+                oracle,
+                "MarketIdTooLong",
+            );
         });
     });
 });

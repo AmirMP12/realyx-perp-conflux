@@ -11,7 +11,7 @@ async function fcpm() {
     return deployHarness("FeeCalculatorPositionMathHarness", libs);
 }
 
-describe("PositionMath — maintenance margin and liquidation edge cases", () => {
+describe("PositionMath maintenance margin and liquidation", () => {
     it("calculateDynamicMaintenanceMargin caps at MAX_DYNAMIC_MAINTENANCE_BPS for very high leverage", async () => {
         const h = await loadFixture(fcpm);
         // very high leverage pushes the bps curve above the 20% cap; result is
@@ -61,7 +61,15 @@ describe("PositionMath — maintenance margin and liquidation edge cases", () =>
     it("getPositionPnLExt: open vs closed", async () => {
         const h = await loadFixture(fcpm);
         // closed -> (0,0)
-        const [pnlClosed, hfClosed] = await h.getPositionPnLExt(e18(1000), e18(100), 1, 20, PosStatus.CLOSED, e18(500), e18(110));
+        const [pnlClosed, hfClosed] = await h.getPositionPnLExt(
+            e18(1000),
+            e18(100),
+            1,
+            20,
+            PosStatus.CLOSED,
+            e18(500),
+            e18(110),
+        );
         expect(pnlClosed).to.equal(0n);
         expect(hfClosed).to.equal(0n);
         // open long in profit
@@ -71,7 +79,15 @@ describe("PositionMath — maintenance margin and liquidation edge cases", () =>
 
     it("canLiquidateExt: open vs closed", async () => {
         const h = await loadFixture(fcpm);
-        const [liqClosed, hfClosed] = await h.canLiquidateExt(e18(1000), e18(100), 1, 20, PosStatus.CLOSED, e18(500), e18(110));
+        const [liqClosed, hfClosed] = await h.canLiquidateExt(
+            e18(1000),
+            e18(100),
+            1,
+            20,
+            PosStatus.CLOSED,
+            e18(500),
+            e18(110),
+        );
         expect(liqClosed).to.equal(false);
         expect(hfClosed).to.equal(ethers.MaxUint256);
         const [liqOpen] = await h.canLiquidateExt(e18(10_000), e18(100), 1, 20, PosStatus.OPEN, e18(50), e18(90));
@@ -86,7 +102,7 @@ describe("PositionMath — maintenance margin and liquidation edge cases", () =>
 });
 
 describe("ConfigLib — margin-config boundary cases", () => {
-    async function coverageHarness() {
+    async function deployCoverageHarness() {
         const libs = await deployAllLibraries();
         return deployHarness("CoverageHarness", libs);
     }
@@ -94,20 +110,18 @@ describe("ConfigLib — margin-config boundary cases", () => {
     const FEED = "0x00000000000000000000000000000000000000F1";
 
     it("setMarket boundary margin configs (mm=50, im=100, mm=5000<im)", async () => {
-        const h = await loadFixture(coverageHarness);
-        // exercise the boundary-valid margin-config combinations
+        const h = await loadFixture(deployCoverageHarness);
         await h.testSetMarket(M, FEED, 100, e18(1_000_000), e18(5_000_000), 50, 100, 900, e18(1) / 2n);
     });
 
     it("setMarket reverts when maxLev exactly 0 and exactly above limit", async () => {
-        const h = await loadFixture(coverageHarness);
-        await expect(
-            h.testSetMarket(M, FEED, 0, e18(1_000_000), e18(5_000_000), 50, 100, 900, e18(1) / 2n),
-        ).to.be.reverted;
+        const h = await loadFixture(deployCoverageHarness);
+        await expect(h.testSetMarket(M, FEED, 0, e18(1_000_000), e18(5_000_000), 50, 100, 900, e18(1) / 2n)).to.be
+            .reverted;
     });
 
     it("updateMarket boundary margin config", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         await h.testSetMarket(M, FEED, 100, e18(1_000_000), e18(5_000_000), 50, 100, 900, e18(1) / 2n);
         await h.testUpdateMarket(M, FEED, 100, e18(1_000_000), e18(5_000_000), 4999, 5000, 900, e18(1) / 2n);
     });

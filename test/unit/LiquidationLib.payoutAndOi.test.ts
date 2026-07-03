@@ -4,17 +4,6 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { deployAllLibraries, deployHarness } from "../helpers/harness";
 import { PosStatus } from "../helpers/constants";
 
-/**
- * Verifies LiquidationLib payout and open-interest accounting:
- *   - the profitable-position payout path (receiveAmount/pnlUsdc)
- *   - a liquidation where collateral fully covers the required amount
- *   - a partial cover leaving a remainder below the liquidation fee
- *   - the reward floor when the liquidator reward is tiny
- *   - long open-interest decrement on liquidation
- *   - short open-interest decrement on liquidation
- *   - user exposure being reduced rather than floored
- */
-
 const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 const e6 = (n: bigint | number) => ethers.parseUnits(n.toString(), 6);
 const MARKET = "0x00000000000000000000000000000000000000B7";

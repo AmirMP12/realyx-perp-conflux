@@ -3,11 +3,6 @@ import { ethers } from "hardhat";
 import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 import { OPERATOR_ROLE, TRADING_CORE_ROLE } from "../helpers/constants";
 
-/**
- * CollateralRegistry is a plain AccessControl contract. We pair it with a
- * simple mock oracle (MockOracleConfigurable exposes getPrice) so valuation
- * branches can be exercised deterministically.
- */
 async function deploy() {
     const [admin, operator, core, other] = await ethers.getSigners();
 
@@ -48,7 +43,9 @@ describe("CollateralRegistry", () => {
         it("reverts on zero token/feed", async () => {
             const { cr, operator } = await loadFixture(deploy);
             await expect(
-                cr.connect(operator).registerToken(ethers.ZeroAddress, 200, 500, 3000, 100, 100, 0, ethers.ZeroAddress, 18),
+                cr
+                    .connect(operator)
+                    .registerToken(ethers.ZeroAddress, 200, 500, 3000, 100, 100, 0, ethers.ZeroAddress, 18),
             ).to.be.revertedWithCustomError(cr, "ZeroAddress");
         });
         it("reverts on haircut over 100%", async () => {

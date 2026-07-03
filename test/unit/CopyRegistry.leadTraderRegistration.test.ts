@@ -81,9 +81,10 @@ describe("CopyRegistry", () => {
             const { cr, lead, copier } = await loadFixture(deploy);
             await cr.connect(lead).registerAsLeadTrader(1000, "x");
             await cr.connect(copier).followTrader(lead.address, usdc(1000), 5);
-            await expect(
-                cr.connect(copier).followTrader(lead.address, usdc(1000), 5),
-            ).to.be.revertedWithCustomError(cr, "AlreadyFollowing");
+            await expect(cr.connect(copier).followTrader(lead.address, usdc(1000), 5)).to.be.revertedWithCustomError(
+                cr,
+                "AlreadyFollowing",
+            );
         });
 
         it("unfollowTrader reverts NotFollowing when there is no active relationship", async () => {

@@ -5,11 +5,11 @@ import { loadFixture } from "@nomicfoundation/hardhat-network-helpers";
 async function deploy() {
     const [admin, minter, alice, bob] = await ethers.getSigners();
     const PositionToken = await ethers.getContractFactory("PositionToken");
-    const pt = await upgrades.deployProxy(
-        PositionToken,
-        ["RWA Position", "RWAP", "https://meta/"],
-        { kind: "uups", initializer: "initialize", unsafeAllow: ["constructor"] },
-    );
+    const pt = await upgrades.deployProxy(PositionToken, ["RWA Position", "RWAP", "https://meta/"], {
+        kind: "uups",
+        initializer: "initialize",
+        unsafeAllow: ["constructor"],
+    });
     await pt.waitForDeployment();
     return { pt, admin, minter, alice, bob };
 }
@@ -18,10 +18,7 @@ describe("PositionToken — upgrades & interfaces", () => {
     describe("UUPS upgrade timelock", () => {
         it("proposeImplementation rejects zero and stages otherwise", async () => {
             const { pt, bob } = await loadFixture(deploy);
-            await expect(pt.proposeImplementation(ethers.ZeroAddress)).to.be.revertedWithCustomError(
-                pt,
-                "ZeroAddress",
-            );
+            await expect(pt.proposeImplementation(ethers.ZeroAddress)).to.be.revertedWithCustomError(pt, "ZeroAddress");
             await expect(pt.proposeImplementation(bob.address)).to.emit(pt, "ImplementationProposed");
             const [pending, effective] = await pt.pendingImplementation();
             expect(pending).to.equal(bob.address);

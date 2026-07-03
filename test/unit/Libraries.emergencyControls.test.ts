@@ -6,10 +6,6 @@ import { deployAllLibraries, deployHarness } from "../helpers/harness";
 const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 const e6 = (n: bigint | number) => ethers.parseUnits(n.toString(), 6);
 
-/**
- * Verifies EmergencyPriceLib, EmergencyPauseLib, MonitoringLib, and DustLib behavior.
- */
-
 describe("EmergencyPriceLib", () => {
     async function deployFixture() {
         const [admin, guardian1, guardian2, guardian3] = await ethers.getSigners();
@@ -32,13 +28,13 @@ describe("EmergencyPriceLib", () => {
         it("creates a new price proposal", async () => {
             const { harness, guardian1 } = await loadFixture(deployFixture);
             const validUntil = (await time.latest()) + 86400; // +1 day
-            
+
             const tx = await harness.connect(guardian1).proposeEmergencyPrice(
                 COLLECTION,
                 e18(100),
                 validUntil,
                 1, // nonce
-                0  // minIntervalSeconds
+                0, // minIntervalSeconds
             );
 
             const receipt = await tx.wait();
@@ -50,13 +46,7 @@ describe("EmergencyPriceLib", () => {
             const pastTime = (await time.latest()) - 1000;
 
             await expect(
-                harness.connect(guardian1).proposeEmergencyPrice(
-                    COLLECTION,
-                    e18(100),
-                    pastTime,
-                    1,
-                    0
-                )
+                harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(100), pastTime, 1, 0),
             ).to.be.revertedWithCustomError(harness, "EmergencyPriceValidUntilOutOfRange");
         });
 
@@ -65,61 +55,37 @@ describe("EmergencyPriceLib", () => {
             const tooFarFuture = (await time.latest()) + 8 * 86400; // 8 days
 
             await expect(
-                harness.connect(guardian1).proposeEmergencyPrice(
-                    COLLECTION,
-                    e18(100),
-                    tooFarFuture,
-                    1,
-                    0
-                )
+                harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(100), tooFarFuture, 1, 0),
             ).to.be.revertedWithCustomError(harness, "EmergencyPriceValidUntilOutOfRange");
         });
 
         it("enforces per-guardian rate limiting", async () => {
             const { harness, guardian1 } = await loadFixture(deployFixture);
             const validUntil = (await time.latest()) + 86400;
-            
+
             await harness.connect(guardian1).proposeEmergencyPrice(
                 COLLECTION,
                 e18(100),
                 validUntil,
                 1,
-                3600 // 1 hour minimum interval
+                3600, // 1 hour minimum interval
             );
 
             await expect(
-                harness.connect(guardian1).proposeEmergencyPrice(
-                    COLLECTION,
-                    e18(101),
-                    validUntil,
-                    2,
-                    3600
-                )
+                harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(101), validUntil, 2, 3600),
             ).to.be.revertedWithCustomError(harness, "ProposalAlreadyExists");
         });
 
         it("allows proposals after rate limit window expires", async () => {
             const { harness, guardian1 } = await loadFixture(deployFixture);
             const validUntil = (await time.latest()) + 86400;
-            
-            await harness.connect(guardian1).proposeEmergencyPrice(
-                COLLECTION,
-                e18(100),
-                validUntil,
-                1,
-                3600
-            );
+
+            await harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(100), validUntil, 1, 3600);
 
             await time.increase(3601);
 
             await expect(
-                harness.connect(guardian1).proposeEmergencyPrice(
-                    COLLECTION,
-                    e18(102),
-                    validUntil + 3601,
-                    2,
-                    3600
-                )
+                harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(102), validUntil + 3601, 2, 3600),
             ).to.not.be.reverted;
         });
     });
@@ -136,7 +102,7 @@ describe("EmergencyPriceLib", () => {
                 e18(102), // 2% deviation
                 validUntil,
                 1,
-                0
+                0,
             );
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
@@ -146,7 +112,7 @@ describe("EmergencyPriceLib", () => {
                     return false;
                 }
             });
-            
+
             const parsedEvent = harness.interface.parseLog(event as any);
             const proposalId = parsedEvent?.args[0];
 
@@ -164,7 +130,7 @@ describe("EmergencyPriceLib", () => {
             const fakeProposalId = ethers.keccak256(ethers.toUtf8Bytes("fake"));
 
             await expect(
-                harness.connect(guardian2).confirmEmergencyPrice(fakeProposalId)
+                harness.connect(guardian2).confirmEmergencyPrice(fakeProposalId),
             ).to.be.revertedWithCustomError(harness, "EmergencyPriceProposalNotFound");
         });
 
@@ -174,13 +140,7 @@ describe("EmergencyPriceLib", () => {
 
             await oracle.setPrice(COLLECTION, e18(100), e18(1), await time.latest());
 
-            const tx = await harness.connect(guardian1).proposeEmergencyPrice(
-                COLLECTION,
-                e18(102),
-                validUntil,
-                1,
-                0
-            );
+            const tx = await harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(102), validUntil, 1, 0);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -192,9 +152,10 @@ describe("EmergencyPriceLib", () => {
             const parsedEvent = harness.interface.parseLog(event as any);
             const proposalId = parsedEvent?.args[0];
 
-            await expect(
-                harness.connect(guardian1).confirmEmergencyPrice(proposalId)
-            ).to.be.revertedWithCustomError(harness, "AlreadyConfirmed");
+            await expect(harness.connect(guardian1).confirmEmergencyPrice(proposalId)).to.be.revertedWithCustomError(
+                harness,
+                "AlreadyConfirmed",
+            );
         });
 
         it("reverts when proposal has expired", async () => {
@@ -203,13 +164,7 @@ describe("EmergencyPriceLib", () => {
 
             await oracle.setPrice(COLLECTION, e18(100), e18(1), await time.latest());
 
-            const tx = await harness.connect(guardian1).proposeEmergencyPrice(
-                COLLECTION,
-                e18(102),
-                validUntil,
-                1,
-                0
-            );
+            const tx = await harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(102), validUntil, 1, 0);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -223,26 +178,21 @@ describe("EmergencyPriceLib", () => {
 
             await time.increase(3601); // Proposal expires after 1 hour
 
-            await expect(
-                harness.connect(guardian2).confirmEmergencyPrice(proposalId)
-            ).to.be.revertedWithCustomError(harness, "EmergencyPriceProposalExpired");
+            await expect(harness.connect(guardian2).confirmEmergencyPrice(proposalId)).to.be.revertedWithCustomError(
+                harness,
+                "EmergencyPriceProposalExpired",
+            );
         });
 
         it("applies fast-track override when conditions met", async () => {
             const { harness, oracle, guardian1, guardian2, guardian3 } = await loadFixture(deployFixture);
             await harness.setEmergencyPriceQuorum(1); // Set quorum to 1, fast-track needs 2 (2x quorum)
-            
+
             const validUntil = (await time.latest()) + 86400;
             await oracle.setPrice(COLLECTION, e18(100), e18(1), await time.latest());
 
             // 0.5% deviation (fast-track threshold is 1%)
-            const tx = await harness.connect(guardian1).proposeEmergencyPrice(
-                COLLECTION,
-                e18(100.5),
-                validUntil,
-                1,
-                0
-            );
+            const tx = await harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(100.5), validUntil, 1, 0);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -269,13 +219,7 @@ describe("EmergencyPriceLib", () => {
             await oracle.setPrice(COLLECTION, e18(100), e18(1), await time.latest());
 
             // 2% deviation (above 1% fast-track but below 5% max)
-            const tx = await harness.connect(guardian1).proposeEmergencyPrice(
-                COLLECTION,
-                e18(102),
-                validUntil,
-                1,
-                0
-            );
+            const tx = await harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(102), validUntil, 1, 0);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -305,13 +249,7 @@ describe("EmergencyPriceLib", () => {
             await oracle.setPrice(COLLECTION, e18(100), e18(1), await time.latest());
 
             // 10% deviation (exceeds 5% max)
-            const tx = await harness.connect(guardian1).proposeEmergencyPrice(
-                COLLECTION,
-                e18(110),
-                validUntil,
-                1,
-                0
-            );
+            const tx = await harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(110), validUntil, 1, 0);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -323,9 +261,10 @@ describe("EmergencyPriceLib", () => {
             const parsedEvent = harness.interface.parseLog(event as any);
             const proposalId = parsedEvent?.args[0];
 
-            await expect(
-                harness.connect(guardian2).confirmEmergencyPrice(proposalId)
-            ).to.be.revertedWithCustomError(harness, "EmergencyPriceDeviationTooHigh");
+            await expect(harness.connect(guardian2).confirmEmergencyPrice(proposalId)).to.be.revertedWithCustomError(
+                harness,
+                "EmergencyPriceDeviationTooHigh",
+            );
         });
 
         it("reverts when oracle is unreachable", async () => {
@@ -334,13 +273,7 @@ describe("EmergencyPriceLib", () => {
 
             await oracle.setShouldRevert(true);
 
-            const tx = await harness.connect(guardian1).proposeEmergencyPrice(
-                COLLECTION,
-                e18(102),
-                validUntil,
-                1,
-                0
-            );
+            const tx = await harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(102), validUntil, 1, 0);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -352,9 +285,10 @@ describe("EmergencyPriceLib", () => {
             const parsedEvent = harness.interface.parseLog(event as any);
             const proposalId = parsedEvent?.args[0];
 
-            await expect(
-                harness.connect(guardian2).confirmEmergencyPrice(proposalId)
-            ).to.be.revertedWithCustomError(harness, "OracleUnreachableForOverride");
+            await expect(harness.connect(guardian2).confirmEmergencyPrice(proposalId)).to.be.revertedWithCustomError(
+                harness,
+                "OracleUnreachableForOverride",
+            );
         });
 
         it("reverts when oracle returns zero price", async () => {
@@ -363,13 +297,7 @@ describe("EmergencyPriceLib", () => {
 
             await oracle.setPrice(COLLECTION, 0, e18(1), await time.latest());
 
-            const tx = await harness.connect(guardian1).proposeEmergencyPrice(
-                COLLECTION,
-                e18(102),
-                validUntil,
-                1,
-                0
-            );
+            const tx = await harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(102), validUntil, 1, 0);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -381,9 +309,10 @@ describe("EmergencyPriceLib", () => {
             const parsedEvent = harness.interface.parseLog(event as any);
             const proposalId = parsedEvent?.args[0];
 
-            await expect(
-                harness.connect(guardian2).confirmEmergencyPrice(proposalId)
-            ).to.be.revertedWithCustomError(harness, "OracleUnreachableForOverride");
+            await expect(harness.connect(guardian2).confirmEmergencyPrice(proposalId)).to.be.revertedWithCustomError(
+                harness,
+                "OracleUnreachableForOverride",
+            );
         });
     });
 
@@ -394,13 +323,7 @@ describe("EmergencyPriceLib", () => {
 
             await oracle.setPrice(COLLECTION, e18(100), e18(1), await time.latest());
 
-            const tx = await harness.connect(guardian1).proposeEmergencyPrice(
-                COLLECTION,
-                e18(102),
-                validUntil,
-                1,
-                0
-            );
+            const tx = await harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(102), validUntil, 1, 0);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -426,9 +349,10 @@ describe("EmergencyPriceLib", () => {
         it("reverts when no pending override exists", async () => {
             const { harness } = await loadFixture(deployFixture);
 
-            await expect(
-                harness.applyPendingEmergencyPrice(COLLECTION)
-            ).to.be.revertedWithCustomError(harness, "NoPendingOverride");
+            await expect(harness.applyPendingEmergencyPrice(COLLECTION)).to.be.revertedWithCustomError(
+                harness,
+                "NoPendingOverride",
+            );
         });
 
         it("reverts when timelock not yet expired", async () => {
@@ -437,13 +361,7 @@ describe("EmergencyPriceLib", () => {
 
             await oracle.setPrice(COLLECTION, e18(100), e18(1), await time.latest());
 
-            const tx = await harness.connect(guardian1).proposeEmergencyPrice(
-                COLLECTION,
-                e18(102),
-                validUntil,
-                1,
-                0
-            );
+            const tx = await harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(102), validUntil, 1, 0);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -457,9 +375,10 @@ describe("EmergencyPriceLib", () => {
 
             await harness.connect(guardian2).confirmEmergencyPrice(proposalId);
 
-            await expect(
-                harness.applyPendingEmergencyPrice(COLLECTION)
-            ).to.be.revertedWithCustomError(harness, "PendingOverrideTimelockActive");
+            await expect(harness.applyPendingEmergencyPrice(COLLECTION)).to.be.revertedWithCustomError(
+                harness,
+                "PendingOverrideTimelockActive",
+            );
         });
 
         it("re-validates deviation at apply time", async () => {
@@ -468,13 +387,7 @@ describe("EmergencyPriceLib", () => {
 
             await oracle.setPrice(COLLECTION, e18(100), e18(1), await time.latest());
 
-            const tx = await harness.connect(guardian1).proposeEmergencyPrice(
-                COLLECTION,
-                e18(102),
-                validUntil,
-                1,
-                0
-            );
+            const tx = await harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(102), validUntil, 1, 0);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -492,9 +405,10 @@ describe("EmergencyPriceLib", () => {
             // Price moved significantly
             await oracle.setPrice(COLLECTION, e18(150), e18(1), await time.latest());
 
-            await expect(
-                harness.applyPendingEmergencyPrice(COLLECTION)
-            ).to.be.revertedWithCustomError(harness, "EmergencyPriceDeviationTooHigh");
+            await expect(harness.applyPendingEmergencyPrice(COLLECTION)).to.be.revertedWithCustomError(
+                harness,
+                "EmergencyPriceDeviationTooHigh",
+            );
         });
     });
 
@@ -505,13 +419,7 @@ describe("EmergencyPriceLib", () => {
 
             await oracle.setPrice(COLLECTION, e18(100), e18(1), await time.latest());
 
-            const tx = await harness.connect(guardian1).proposeEmergencyPrice(
-                COLLECTION,
-                e18(102),
-                validUntil,
-                1,
-                0
-            );
+            const tx = await harness.connect(guardian1).proposeEmergencyPrice(COLLECTION, e18(102), validUntil, 1, 0);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -537,9 +445,10 @@ describe("EmergencyPriceLib", () => {
         it("reverts when no pending override exists", async () => {
             const { harness } = await loadFixture(deployFixture);
 
-            await expect(
-                harness.cancelPendingEmergencyPrice(COLLECTION)
-            ).to.be.revertedWithCustomError(harness, "NoPendingOverride");
+            await expect(harness.cancelPendingEmergencyPrice(COLLECTION)).to.be.revertedWithCustomError(
+                harness,
+                "NoPendingOverride",
+            );
         });
     });
 });
@@ -571,10 +480,8 @@ describe("EmergencyPauseLib", () => {
     describe("proposeEmergencyPause", () => {
         it("creates a new pause proposal", async () => {
             const { harness, pausable1, guardian1 } = await loadFixture(deployFixture);
-            
-            const tx = await harness.connect(guardian1).proposeEmergencyPause([
-                await pausable1.getAddress()
-            ]);
+
+            const tx = await harness.connect(guardian1).proposeEmergencyPause([await pausable1.getAddress()]);
             const receipt = await tx.wait();
 
             // Find the pauseId from events
@@ -587,7 +494,7 @@ describe("EmergencyPauseLib", () => {
             });
 
             expect(event).to.not.be.undefined;
-            
+
             const parsedEvent = harness.interface.parseLog(event as any);
             const pauseId = parsedEvent?.args[0];
 
@@ -598,7 +505,7 @@ describe("EmergencyPauseLib", () => {
 
         it("tracks multiple targets", async () => {
             const { harness, pausable1, pausable2, guardian1 } = await loadFixture(deployFixture);
-            
+
             const targets = [await pausable1.getAddress(), await pausable2.getAddress()];
             const tx = await harness.connect(guardian1).proposeEmergencyPause(targets);
             const receipt = await tx.wait();
@@ -621,10 +528,8 @@ describe("EmergencyPauseLib", () => {
     describe("confirmEmergencyPause", () => {
         it("increments confirmations", async () => {
             const { harness, pausable1, guardian1, guardian2 } = await loadFixture(deployFixture);
-            
-            const tx = await harness.connect(guardian1).proposeEmergencyPause([
-                await pausable1.getAddress()
-            ]);
+
+            const tx = await harness.connect(guardian1).proposeEmergencyPause([await pausable1.getAddress()]);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -644,10 +549,8 @@ describe("EmergencyPauseLib", () => {
 
         it("executes pause when quorum reached", async () => {
             const { harness, pausable1, guardian1, guardian2 } = await loadFixture(deployFixture);
-            
-            const tx = await harness.connect(guardian1).proposeEmergencyPause([
-                await pausable1.getAddress()
-            ]);
+
+            const tx = await harness.connect(guardian1).proposeEmergencyPause([await pausable1.getAddress()]);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -668,10 +571,8 @@ describe("EmergencyPauseLib", () => {
 
         it("tracks failed targets", async () => {
             const { harness, reverting, guardian1, guardian2 } = await loadFixture(deployFixture);
-            
-            const tx = await harness.connect(guardian1).proposeEmergencyPause([
-                await reverting.getAddress()
-            ]);
+
+            const tx = await harness.connect(guardian1).proposeEmergencyPause([await reverting.getAddress()]);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -696,17 +597,16 @@ describe("EmergencyPauseLib", () => {
             const { harness, guardian2 } = await loadFixture(deployFixture);
             const fakeId = ethers.keccak256(ethers.toUtf8Bytes("fake"));
 
-            await expect(
-                harness.connect(guardian2).confirmEmergencyPause(fakeId)
-            ).to.be.revertedWithCustomError(harness, "ProposalNotFound");
+            await expect(harness.connect(guardian2).confirmEmergencyPause(fakeId)).to.be.revertedWithCustomError(
+                harness,
+                "ProposalNotFound",
+            );
         });
 
         it("reverts when already confirmed by same guardian", async () => {
             const { harness, pausable1, guardian1 } = await loadFixture(deployFixture);
-            
-            const tx = await harness.connect(guardian1).proposeEmergencyPause([
-                await pausable1.getAddress()
-            ]);
+
+            const tx = await harness.connect(guardian1).proposeEmergencyPause([await pausable1.getAddress()]);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -718,17 +618,16 @@ describe("EmergencyPauseLib", () => {
             const parsedEvent = harness.interface.parseLog(event as any);
             const pauseId = parsedEvent?.args[0];
 
-            await expect(
-                harness.connect(guardian1).confirmEmergencyPause(pauseId)
-            ).to.be.revertedWithCustomError(harness, "AlreadyConfirmed");
+            await expect(harness.connect(guardian1).confirmEmergencyPause(pauseId)).to.be.revertedWithCustomError(
+                harness,
+                "AlreadyConfirmed",
+            );
         });
 
         it("reverts when proposal expired", async () => {
             const { harness, pausable1, guardian1, guardian2 } = await loadFixture(deployFixture);
-            
-            const tx = await harness.connect(guardian1).proposeEmergencyPause([
-                await pausable1.getAddress()
-            ]);
+
+            const tx = await harness.connect(guardian1).proposeEmergencyPause([await pausable1.getAddress()]);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
                 try {
@@ -742,20 +641,17 @@ describe("EmergencyPauseLib", () => {
 
             await time.increase(3601); // Expires after 1 hour
 
-            await expect(
-                harness.connect(guardian2).confirmEmergencyPause(pauseId)
-            ).to.be.revertedWithCustomError(harness, "ProposalExpired");
+            await expect(harness.connect(guardian2).confirmEmergencyPause(pauseId)).to.be.revertedWithCustomError(
+                harness,
+                "ProposalExpired",
+            );
         });
 
         it("handles multiple targets with mixed success/failure", async () => {
             const { harness, pausable1, pausable2, reverting, guardian1, guardian2 } = await loadFixture(deployFixture);
-            
-            const targets = [
-                await pausable1.getAddress(),
-                await reverting.getAddress(),
-                await pausable2.getAddress()
-            ];
-            
+
+            const targets = [await pausable1.getAddress(), await reverting.getAddress(), await pausable2.getAddress()];
+
             const tx = await harness.connect(guardian1).proposeEmergencyPause(targets);
             const receipt = await tx.wait();
             const event = receipt?.logs.find((log: any) => {
@@ -799,14 +695,14 @@ describe("MonitoringLib", () => {
     describe("getProtocolHealth", () => {
         it("returns healthy state with low bad debt ratio", async () => {
             const { harness, oracle, vault } = await loadFixture(deployFixture);
-            
+
             await vault.setTotalAssets(e6(1_000_000)); // $1M
             const currentTime = await time.latest();
             await harness.setProtocolHealth(true, e6(1000), currentTime); // $1k bad debt
 
             const [isHealthy, totalBadDebt, totalAssets, badDebtRatioBps] = await harness.getProtocolHealth(
                 await vault.getAddress(),
-                await oracle.getAddress()
+                await oracle.getAddress(),
             );
 
             expect(isHealthy).to.equal(true);
@@ -817,14 +713,14 @@ describe("MonitoringLib", () => {
 
         it("returns unhealthy state with high bad debt", async () => {
             const { harness, oracle, vault } = await loadFixture(deployFixture);
-            
+
             await vault.setTotalAssets(e6(1_000_000));
             const currentTime = await time.latest();
             await harness.setProtocolHealth(false, e6(900_000), currentTime);
 
             const [isHealthy, , , badDebtRatioBps] = await harness.getProtocolHealth(
                 await vault.getAddress(),
-                await oracle.getAddress()
+                await oracle.getAddress(),
             );
 
             expect(isHealthy).to.equal(false);
@@ -833,14 +729,14 @@ describe("MonitoringLib", () => {
 
         it("handles zero total assets", async () => {
             const { harness, oracle, vault } = await loadFixture(deployFixture);
-            
+
             await vault.setTotalAssets(0);
             const currentTime = await time.latest();
             await harness.setProtocolHealth(true, 0, currentTime);
 
             const [, , totalAssets, badDebtRatioBps] = await harness.getProtocolHealth(
                 await vault.getAddress(),
-                await oracle.getAddress()
+                await oracle.getAddress(),
             );
 
             expect(totalAssets).to.equal(0n);
@@ -849,7 +745,7 @@ describe("MonitoringLib", () => {
 
         it("includes global PnL calculation", async () => {
             const { harness, oracle, vault } = await loadFixture(deployFixture);
-            
+
             await vault.setTotalAssets(e6(1_000_000));
             const currentTime = await time.latest();
             await harness.setProtocolHealth(true, 0, currentTime);
@@ -859,7 +755,7 @@ describe("MonitoringLib", () => {
 
             const [, , , , , globalPnL] = await harness.getProtocolHealth(
                 await vault.getAddress(),
-                await oracle.getAddress()
+                await oracle.getAddress(),
             );
 
             // GlobalPnL should be calculated (may be 0 or non-zero depending on market state)
@@ -873,7 +769,7 @@ describe("MonitoringLib", () => {
 
             const [isRestricted, activeBreakers, globalPause] = await harness.getCircuitStatus(
                 await oracle.getAddress(),
-                MARKET
+                MARKET,
             );
 
             expect(isRestricted).to.equal(false);
@@ -885,16 +781,16 @@ describe("MonitoringLib", () => {
     describe("getPositionHealth", () => {
         it("returns health for open position", async () => {
             const { harness, oracle } = await loadFixture(deployFixture);
-            
+
             await oracle.setPrice(MARKET, e18(100), e18(1), await time.latest());
-            
+
             // PosStatus.OPEN = 1, flags with isLong bit set = 1
             await harness.setPosition(1, 1, MARKET, e18(10_000), e18(100), 1);
             await harness.setCollateral(1, e18(2000));
 
             const [isLiquidatable, healthFactor, unrealizedPnL, currentPrice] = await harness.getPositionHealth(
                 1,
-                await oracle.getAddress()
+                await oracle.getAddress(),
             );
 
             expect(isLiquidatable).to.be.a("boolean");
@@ -904,16 +800,16 @@ describe("MonitoringLib", () => {
 
         it("returns max health factor for closed position", async () => {
             const { harness, oracle } = await loadFixture(deployFixture);
-            
+
             await oracle.setPrice(MARKET, e18(100), e18(1), await time.latest());
-            
+
             // PosStatus.CLOSED = 2
             await harness.setPosition(1, 2, MARKET, e18(10_000), e18(100), 1);
             await harness.setCollateral(1, e18(2000));
 
             const [isLiquidatable, healthFactor, unrealizedPnL, currentPrice] = await harness.getPositionHealth(
                 1,
-                await oracle.getAddress()
+                await oracle.getAddress(),
             );
 
             expect(isLiquidatable).to.equal(false);
@@ -924,9 +820,9 @@ describe("MonitoringLib", () => {
 
         it("detects liquidatable position", async () => {
             const { harness, oracle } = await loadFixture(deployFixture);
-            
+
             await oracle.setPrice(MARKET, e18(85), e18(1), await time.latest());
-            
+
             // Long position with 20x leverage, small collateral
             await harness.setPosition(1, 1, MARKET, e18(10_000), e18(100), 1);
             await harness.setCollateral(1, e18(200)); // Very small collateral
@@ -957,16 +853,13 @@ describe("DustLib", () => {
     describe("sweepDust", () => {
         it("sweeps accumulated dust to treasury", async () => {
             const { harness, usdc, treasury } = await loadFixture(deployFixture);
-            
+
             // Set dust: 1.5 USDC in internal precision (1e18)
             await harness.setDust(e18(1.5), 0);
 
             const balanceBefore = await usdc.balanceOf(treasury.address);
 
-            const swept = await harness.sweepDust.staticCall(
-                await usdc.getAddress(),
-                treasury.address
-            );
+            const swept = await harness.sweepDust.staticCall(await usdc.getAddress(), treasury.address);
             // e18(1.5) / 1e12 = 1.5e6 (USDC precision)
             expect(swept).to.equal(e6(1.5));
 
@@ -981,15 +874,12 @@ describe("DustLib", () => {
 
         it("handles zero dust (no-op)", async () => {
             const { harness, usdc, treasury } = await loadFixture(deployFixture);
-            
+
             await harness.setDust(0, 0);
 
             const balanceBefore = await usdc.balanceOf(treasury.address);
 
-            const swept = await harness.sweepDust.staticCall(
-                await usdc.getAddress(),
-                treasury.address
-            );
+            const swept = await harness.sweepDust.staticCall(await usdc.getAddress(), treasury.address);
             expect(swept).to.equal(0n);
 
             await harness.sweepDust(await usdc.getAddress(), treasury.address);
@@ -1003,14 +893,11 @@ describe("DustLib", () => {
 
         it("handles dust below 1 USDC precision", async () => {
             const { harness, usdc, treasury } = await loadFixture(deployFixture);
-            
+
             // 0.5 USDC in internal precision
             await harness.setDust(e18(0.5), 0);
 
-            const swept = await harness.sweepDust.staticCall(
-                await usdc.getAddress(),
-                treasury.address
-            );
+            const swept = await harness.sweepDust.staticCall(await usdc.getAddress(), treasury.address);
             // e18(0.5) / 1e12 = 0.5e6 = 500000 (in USDC 6 decimals, this is 0.5 USDC)
             expect(swept).to.equal(e6(0.5));
 
@@ -1021,10 +908,10 @@ describe("DustLib", () => {
 
         it("accumulates multiple sweep timestamps", async () => {
             const { harness, usdc, treasury } = await loadFixture(deployFixture);
-            
+
             await harness.setDust(e18(1.5), 0);
             await harness.sweepDust(await usdc.getAddress(), treasury.address);
-            
+
             const timestamp1 = await harness.getLastSweepTimestamp();
             expect(timestamp1).to.be.greaterThan(0n);
 
@@ -1039,14 +926,11 @@ describe("DustLib", () => {
 
         it("handles large dust amounts", async () => {
             const { harness, usdc, treasury } = await loadFixture(deployFixture);
-            
+
             // 1000 USDC worth of dust
             await harness.setDust(e18(1000), 0);
 
-            const swept = await harness.sweepDust.staticCall(
-                await usdc.getAddress(),
-                treasury.address
-            );
+            const swept = await harness.sweepDust.staticCall(await usdc.getAddress(), treasury.address);
             expect(swept).to.equal(e6(1000));
         });
     });

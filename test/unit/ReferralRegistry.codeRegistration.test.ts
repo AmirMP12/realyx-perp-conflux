@@ -45,27 +45,22 @@ describe("ReferralRegistry — code registration", () => {
         it("reverts when caller already has a code", async () => {
             const { rr, alice } = await loadFixture(deploy);
             await rr.connect(alice).registerCode("alice1");
-            await expect(rr.connect(alice).registerCode("alice2")).to.be.revertedWithCustomError(
-                rr,
-                "AlreadyHasCode",
-            );
+            await expect(rr.connect(alice).registerCode("alice2")).to.be.revertedWithCustomError(rr, "AlreadyHasCode");
         });
 
         it("reverts when the code is already taken by someone else", async () => {
             const { rr, alice, bob } = await loadFixture(deploy);
             await rr.connect(alice).registerCode("shared1");
-            await expect(rr.connect(bob).registerCode("SHARED1")).to.be.revertedWithCustomError(
-                rr,
-                "CodeAlreadyTaken",
-            );
+            await expect(rr.connect(bob).registerCode("SHARED1")).to.be.revertedWithCustomError(rr, "CodeAlreadyTaken");
         });
 
         it("rejects too-short, too-long and invalid-character codes", async () => {
             const { rr, alice } = await loadFixture(deploy);
             await expect(rr.connect(alice).registerCode("abc")).to.be.revertedWithCustomError(rr, "CodeTooShort");
-            await expect(
-                rr.connect(alice).registerCode("abcdefghijklmnopq"),
-            ).to.be.revertedWithCustomError(rr, "CodeTooLong");
+            await expect(rr.connect(alice).registerCode("abcdefghijklmnopq")).to.be.revertedWithCustomError(
+                rr,
+                "CodeTooLong",
+            );
             await expect(rr.connect(alice).registerCode("ab!d")).to.be.revertedWithCustomError(
                 rr,
                 "InvalidCodeCharacters",
@@ -107,9 +102,10 @@ describe("ReferralRegistry — code registration", () => {
         it("reverts on zero new owner", async () => {
             const { rr, alice } = await loadFixture(deploy);
             await rr.connect(alice).registerCode("alice1");
-            await expect(
-                rr.connect(alice).transferCode("alice1", ethers.ZeroAddress),
-            ).to.be.revertedWithCustomError(rr, "ZeroAddress");
+            await expect(rr.connect(alice).transferCode("alice1", ethers.ZeroAddress)).to.be.revertedWithCustomError(
+                rr,
+                "ZeroAddress",
+            );
         });
 
         it("reverts when caller is not the code owner", async () => {

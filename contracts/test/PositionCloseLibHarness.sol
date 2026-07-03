@@ -89,9 +89,6 @@ contract PositionCloseLibHarness {
         userExposure[user] = amount;
     }
 
-    /// @dev Additive coverage helper: seed market open-interest accumulators so
-    ///      the OI-decrement `> closeSize`/`> cost` true sides in
-    ///      `_updateMarketAndFinalize` are reachable.
     function setMarketOI(
         address market,
         uint256 longSize,

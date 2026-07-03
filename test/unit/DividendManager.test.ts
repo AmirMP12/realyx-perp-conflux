@@ -60,9 +60,7 @@ describe("DividendManager", () => {
     describe("settleDividends", () => {
         it("only TradingCore role", async () => {
             const { dm, other } = await loadFixture(deploy);
-            await expect(
-                dm.connect(other).settleDividends(1, "AAPL", e18(1000), true, 0),
-            ).to.be.reverted;
+            await expect(dm.connect(other).settleDividends(1, "AAPL", e18(1000), true, 0)).to.be.reverted;
         });
         it("reverts when lastIndex > currentIndex", async () => {
             const { dm, core } = await loadFixture(deploy);
@@ -113,10 +111,7 @@ describe("DividendManager", () => {
         });
         it("reverts proposeImplementation zero address", async () => {
             const { dm } = await loadFixture(deploy);
-            await expect(dm.proposeImplementation(ethers.ZeroAddress)).to.be.revertedWithCustomError(
-                dm,
-                "ZeroAddress",
-            );
+            await expect(dm.proposeImplementation(ethers.ZeroAddress)).to.be.revertedWithCustomError(dm, "ZeroAddress");
         });
     });
 });

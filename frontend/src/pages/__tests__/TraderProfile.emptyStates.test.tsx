@@ -18,7 +18,7 @@ function renderProfile(address = '0x1234567890123456789012345678901234567890') {
     );
 }
 
-describe('TraderProfilePage edge cases', () => {
+describe('TraderProfilePage empty states', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         global.fetch = vi.fn();

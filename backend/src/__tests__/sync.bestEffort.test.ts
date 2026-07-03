@@ -1,16 +1,5 @@
 import { jest } from "@jest/globals";
 
-/**
- * Tests runSync's best-effort error paths that the happy-path scenarios
- * never reach:
- *  - reorg-window purge failure (DELETE position_events rejects)
- *  - checkpoint persist failure (block_checkpoints INSERT rejects)
- *  - rebate / bad-debt processing catch blocks + the block-time reuse path
- *
- * These are all "log-and-continue" paths: the pulse must never throw, so we
- * assert it resolves while the corresponding console handler fires.
- */
-
 const mockPool = {
   query: jest.fn<(sql: string, params?: unknown[]) => Promise<unknown>>(),
   on: jest.fn(),

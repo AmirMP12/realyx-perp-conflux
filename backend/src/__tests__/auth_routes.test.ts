@@ -11,7 +11,6 @@ import request from "supertest";
 import { ethers } from "ethers";
 import { app } from "../app.js";
 
-// The global setup mocks `pg`; grab the shared mock pool so we can drive query results.
 function getMockPoolQuery(): jest.Mock {
   const pg = require("pg");
   const pool = new pg.default.Pool();

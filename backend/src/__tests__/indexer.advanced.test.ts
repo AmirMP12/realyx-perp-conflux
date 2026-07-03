@@ -90,7 +90,6 @@ describe("Indexer Service Absolute Recovery Suite", () => {
         });
 
         it("returns an empty list when the on-chain fetch throws", async () => {
-            // Force the on-chain fetch to throw
             const onchain = require("../services/fetchMarketsOnchain.js");
             jest.spyOn(onchain, "fetchMarketsOnChain").mockImplementation(() => {
                 throw new Error("Critical Indexer Fail");

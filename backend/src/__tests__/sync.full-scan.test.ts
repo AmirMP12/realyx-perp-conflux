@@ -52,7 +52,6 @@ describe("sync full scan", () => {
         const sync = await import("../routes/sync.js");
         const trader = "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c";
 
-        // --- 1. Loop continuation and timeout ---
         mockProvider.getBlockNumber.mockResolvedValue(1000000); 
         
         let timeMock = 1000000;
@@ -61,7 +60,6 @@ describe("sync full scan", () => {
             return timeMock;
         });
 
-        // --- 2. Batch optimization and log parsing ---
         const openedSig = "PositionOpened(uint256,address,address,bool,uint256,uint256,uint256)";
         const openedTopic = ethers.id(openedSig);
         const topics = [
@@ -80,7 +78,6 @@ describe("sync full scan", () => {
             { topics, data, address: trader, blockNumber: 500, transactionHash: "0x2" }
         ]);
 
-        // --- 3. Cache eviction ---
         const sizeSpy = jest.spyOn(Map.prototype, "size", "get").mockReturnValue(2005);
         const keysSpy = jest.spyOn(Map.prototype, "keys").mockImplementation(() => ({
             next: () => ({ value: 123, done: false }),
@@ -93,7 +90,6 @@ describe("sync full scan", () => {
         sizeSpy.mockRestore();
         keysSpy.mockRestore();
 
-        // --- 4. Resolution permutations ---
         const closeSig = "PositionClosed(uint256,address,int256,uint256,uint256)";
         const closeTopic = ethers.id(closeSig);
         const closeTopics = [
@@ -108,7 +104,6 @@ describe("sync full scan", () => {
         mockPool.query.mockResolvedValueOnce({ rows: [{ account: null, market_id: null, data: ["1", "2", trader] }] });
         await sync.runSync({ fromBlock: 600 });
         
-        // --- 5. Repair loop body and error ---
         mockPool.query.mockImplementation((sql: string) => {
             if (sql.includes("last_synced_at")) return Promise.resolve({ rows: [{ last_synced_at: "2020-01-01" }] });
             if (sql.includes("last_synced_block")) return Promise.resolve({ rows: [{ last_synced_block: 0 }] });
@@ -124,7 +119,6 @@ describe("sync full scan", () => {
         });
         try { await sync.checkAndSync(); } catch {}
 
-        // --- 6. Router and auth ---
         const app = express();
         app.use("/sync", sync.default);
         const res1 = await request(app).get("/sync").set("Authorization", "Bearer bad");

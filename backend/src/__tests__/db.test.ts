@@ -28,7 +28,6 @@ describe("db pool routing", () => {
   });
 
   it("reports replica routing when POSTGRES_READ_URL is configured", () => {
-    // Note: the global pg mock returns a singleton Pool, so we assert the
     // routing flag (behavioral) rather than object identity here.
     process.env.POSTGRES_READ_URL = "postgres://user:pass@replica:5432/realyx";
     resetPools();

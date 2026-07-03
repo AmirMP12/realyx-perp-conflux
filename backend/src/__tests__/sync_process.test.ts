@@ -72,9 +72,9 @@ describe("sync log processing", () => {
     process.env.TRADING_CORE_ADDRESS = "0x79c81bfc2d07dd18d95488cb4bbd4abc3ec9455c";
     process.env.VAULT_CORE_ADDRESS = "0x2222222222222222222222222222222222222222";
     process.env.NODE_ENV = "test";
-    delete process.env.INDEXER_START_BLOCK;
+    process.env.INDEXER_START_BLOCK = "248000000";
     sync = await import("../routes/sync.js");
-    sync.resetSyncPool();
+    sync.resetSyncPool(mockPool);
   });
 
   afterEach(() => {

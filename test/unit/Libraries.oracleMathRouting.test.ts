@@ -5,48 +5,48 @@ import { deployAllLibraries, deployHarness } from "../helpers/harness";
 
 const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 
-async function coverageHarness() {
+async function deployCoverageHarness() {
     const libs = await deployAllLibraries();
     return deployHarness("CoverageHarness", libs);
 }
 
-describe("OracleAggregatorLib — edge cases", () => {
+describe("OracleAggregatorLib normalization and bounds", () => {
     it("normalizeChainlinkPrice: answer <= 0 returns 0", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         expect(await h.testNormalizeChainlinkPrice(0, 8)).to.equal(0n);
         expect(await h.testNormalizeChainlinkPrice(-5, 8)).to.equal(0n);
     });
     it("normalizeChainlinkPrice: decimals == 18 passthrough", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         expect(await h.testNormalizeChainlinkPrice(e18(123), 18)).to.equal(e18(123));
     });
     it("normalizeChainlinkPrice: decimals > 18 divides down", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         // 20-decimal answer of 123e20 -> 123e18
         expect(await h.testNormalizeChainlinkPrice(123n * 10n ** 20n, 20)).to.equal(e18(123));
     });
     it("normalizeChainlinkPrice: decimals < 18 scales up", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         expect(await h.testNormalizeChainlinkPrice(123n * 10n ** 8n, 8)).to.equal(e18(123));
     });
     it("calculateSimpleTWAP returns 0 for an empty buffer", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         expect(await h.testCalculateSimpleTWAPFromBuffer()).to.equal(0n);
     });
     it("checkTWAPDeviationTriggered returns (false,0) when twap is zero", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const [triggered, dev] = await h.testCheckTWAPDeviationTriggered(e18(100), 0, 500);
         expect(triggered).to.equal(false);
         expect(dev).to.equal(0n);
     });
     it("checkTWAPDeviationTriggered: current below twap path", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const [triggered, dev] = await h.testCheckTWAPDeviationTriggered(e18(80), e18(100), 1000);
         expect(triggered).to.equal(true);
         expect(dev).to.equal(2000n);
     });
     it("computeAggregatedPrice filters when an outlier skews the mean beyond max deviation", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         // 100,100,100 + 1000 outlier -> mean 325; every entry deviates > 5% so all filtered
         const [agg, valid] = await h.testComputeAggregatedPrice(
             [e18(100), e18(100), e18(100), e18(1000)],
@@ -57,7 +57,7 @@ describe("OracleAggregatorLib — edge cases", () => {
         expect(agg).to.equal(0n);
     });
     it("computeAggregatedPrice includes a tight cluster within deviation", async () => {
-        const h = await loadFixture(coverageHarness);
+        const h = await loadFixture(deployCoverageHarness);
         const [agg, valid] = await h.testComputeAggregatedPrice(
             [e18(100), e18(101), e18(99), e18(102)],
             [1, 1, 1, 1],
@@ -139,7 +139,13 @@ describe("CollateralRouterLib — disabled, zero-balance, and split-fill selecti
         await t1.mintTo(user.address, e6(10_000));
         await t2.mintTo(user.address, e6(10_000));
         await registry.setTokenEnabled(a1, false); // disabled -> skipped
-        const [token] = await h.selectBestCollateral(user.address, [a1, a2], await registry.getAddress(), e6(1000), false);
+        const [token] = await h.selectBestCollateral(
+            user.address,
+            [a1, a2],
+            await registry.getAddress(),
+            e6(1000),
+            false,
+        );
         expect(token).to.equal(a2);
     });
 

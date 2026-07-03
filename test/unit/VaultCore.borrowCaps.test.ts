@@ -165,10 +165,7 @@ describe("VaultCore — governance claim (above approval threshold)", () => {
         const { d, coreEoa } = await loadFixture(fundedVault);
         const claimId = await d.vault.connect(coreEoa).submitClaim.staticCall(usdc(50_000), 4);
         await d.vault.connect(coreEoa).submitClaim(usdc(50_000), 4);
-        await expect(d.vault.processClaim(claimId)).to.be.revertedWithCustomError(
-            d.vault,
-            "ClaimNotApproved",
-        );
+        await expect(d.vault.processClaim(claimId)).to.be.revertedWithCustomError(d.vault, "ClaimNotApproved");
     });
 });
 
@@ -225,9 +222,10 @@ describe("VaultCore — emergency escape capping + setters", () => {
 
     it("setMinSwapSlippageBps rejects values above BPS", async () => {
         const { d } = await loadFixture(fundedVault);
-        await expect(
-            d.vault.connect(d.admin).setMinSwapSlippageBps(10001),
-        ).to.be.revertedWithCustomError(d.vault, "InvalidRequest");
+        await expect(d.vault.connect(d.admin).setMinSwapSlippageBps(10001)).to.be.revertedWithCustomError(
+            d.vault,
+            "InvalidRequest",
+        );
         await d.vault.connect(d.admin).setMinSwapSlippageBps(50);
         expect(await d.vault.minSwapSlippageBps()).to.equal(50n);
     });

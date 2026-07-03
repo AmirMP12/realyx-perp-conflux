@@ -9,28 +9,11 @@ const MARKET = "0x00000000000000000000000000000000000000B7";
 const ZERO = ethers.ZeroAddress;
 const TOKEN = "0x000000000000000000000000000000000000cA11";
 
-// OrderType enum
 const MARKET_INCREASE = 0;
 const MARKET_DECREASE = 1;
 const LIMIT_INCREASE = 2;
 const LIMIT_DECREASE = 3;
 
-/**
- * Exercises additional TradingLib paths:
- *  - executeStopLossTakeProfit: session-closed skip, cold-TWAP skip, deviation
- *    skip, trailing-stop vs SL vs TP trigger selection, dividend settlement,
- *    referral resolution.
- *  - _distributeFees referral-rebate split on the open path.
- *  - LIMIT_INCREASE / *_DECREASE limit-order trigger-price gates in
- *    executeOrderFull / _executeDecrease.
- *  - cancelOrder refunds (collateralToken vs usdc, explicit
- *    executionFeePayer vs owner default, OrderNotFound / Unauthorized).
- *  - resolveFailedRepaymentFull list-removal + bad-debt decrement.
- *
- * All paths are driven through the additive, test-only harness functions
- * (driveOpen / driveExecuteSLTP / driveClose / boostCancelOrderRich /
- * boostResolveFailedRepayment*) against the existing mock suite.
- */
 async function setup() {
     const [admin, keeper, payer] = await ethers.getSigners();
     const libs = await deployAllLibraries();
@@ -268,9 +251,7 @@ describe("TradingLib — fee rebates & triggers", () => {
             const { h, base } = await loadFixture(setup);
             await open(h, base);
             // long LIMIT_DECREASE fills only when price >= trigger; trigger above price -> revert
-            await expect(
-                h.driveDecrease(1, base.account, LIMIT_DECREASE, e6(5_000), e18(55_000)),
-            ).to.be.reverted;
+            await expect(h.driveDecrease(1, base.account, LIMIT_DECREASE, e6(5_000), e18(55_000))).to.be.reverted;
         });
 
         it("fills a LIMIT_DECREASE long when current price is at/above the trigger", async () => {
@@ -284,9 +265,7 @@ describe("TradingLib — fee rebates & triggers", () => {
             const { h, base } = await loadFixture(setup);
             await open(h, base, { isLong: false });
             // short LIMIT_DECREASE fills when price <= trigger; trigger below price -> revert
-            await expect(
-                h.driveDecrease(1, base.account, LIMIT_DECREASE, e6(5_000), e18(45_000)),
-            ).to.be.reverted;
+            await expect(h.driveDecrease(1, base.account, LIMIT_DECREASE, e6(5_000), e18(45_000))).to.be.reverted;
         });
 
         it("clamps an oversized decrease to the full position size", async () => {
@@ -299,9 +278,7 @@ describe("TradingLib — fee rebates & triggers", () => {
 
         it("reverts a decrease against a non-open position (PositionNotFound)", async () => {
             const { h, base } = await loadFixture(setup);
-            await expect(
-                h.driveDecrease(7, base.account, MARKET_DECREASE, e6(1_000), 0),
-            ).to.be.reverted;
+            await expect(h.driveDecrease(7, base.account, MARKET_DECREASE, e6(1_000), 0)).to.be.reverted;
         });
     });
 
@@ -323,7 +300,16 @@ describe("TradingLib — fee rebates & triggers", () => {
 
         it("credits an explicit executionFeePayer rather than the order owner", async () => {
             const { h, admin, payer } = await loadFixture(setup);
-            await h.boostCancelOrderRich(3, admin.address, admin.address, 0, MARKET_INCREASE, e6(2), payer.address, ZERO);
+            await h.boostCancelOrderRich(
+                3,
+                admin.address,
+                admin.address,
+                0,
+                MARKET_INCREASE,
+                e6(2),
+                payer.address,
+                ZERO,
+            );
             expect(await h.orderRefundBalance(payer.address)).to.equal(e6(2));
             expect(await h.orderRefundBalance(admin.address)).to.equal(0n);
         });
@@ -337,9 +323,7 @@ describe("TradingLib — fee rebates & triggers", () => {
 
         it("reverts OrderNotFound for an unknown order id", async () => {
             const { h, admin } = await loadFixture(setup);
-            await expect(
-                h.boostCancelOrder(99, ZERO, admin.address, 0, MARKET_INCREASE, 0),
-            ).to.be.reverted;
+            await expect(h.boostCancelOrder(99, ZERO, admin.address, 0, MARKET_INCREASE, 0)).to.be.reverted;
         });
 
         it("reverts Unauthorized when caller is not the order owner", async () => {

@@ -11,7 +11,6 @@ vi.mock('react-hot-toast', async () => {
         default: {
             ... (actual as any).default,
             custom: vi.fn((cb) => {
-                // Simulate rendering the custom component
                 const t = { id: '1', visible: true };
                 return cb(t);
             }),

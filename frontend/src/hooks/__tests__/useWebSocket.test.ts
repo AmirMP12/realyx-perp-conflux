@@ -73,7 +73,6 @@ describe('useWebSocket', () => {
         
         expect(global.WebSocket).toHaveBeenCalled();
         
-        // Simulate open
         act(() => {
             wsInstance.onopen();
         });
@@ -99,7 +98,6 @@ describe('useWebSocket', () => {
             }
         };
         
-        // Simulate message
         act(() => {
             wsInstance.onmessage({ data: JSON.stringify(priceMsg) });
         });

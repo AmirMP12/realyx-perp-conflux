@@ -7,11 +7,6 @@ const e18 = (n: bigint | number) => ethers.parseUnits(n.toString(), 18);
 const e6 = (n: bigint | number) => ethers.parseUnits(n.toString(), 6);
 const MARKET = "0x00000000000000000000000000000000000000B7";
 
-/**
- * Exercises TradingLib._executeIncrease through the driveOpen harness driver.
- * Each test isolates one risk gate so its revert fires deterministically
- * without routing through the full TradingCore engine.
- */
 async function setup() {
     const [admin] = await ethers.getSigners();
     const libs = await deployAllLibraries();
@@ -37,7 +32,15 @@ async function setup() {
     await oracle.setTWAP(MARKET, e18(50_000));
     await oracle.setTWAPValid(MARKET, true);
 
-    await h.configureOpenMarket(MARKET, true, true, ethers.parseUnits("100000000", 18), ethers.parseUnits("500000000", 18), 100, 0);
+    await h.configureOpenMarket(
+        MARKET,
+        true,
+        true,
+        ethers.parseUnits("100000000", 18),
+        ethers.parseUnits("500000000", 18),
+        100,
+        0,
+    );
     await h.setOpenWiring(await usdc.getAddress(), await vault.getAddress(), await oracle.getAddress(), false);
     await h.setOpenPositionToken(await pt.getAddress());
 
@@ -61,7 +64,7 @@ async function setup() {
     return { h, usdc, vault, oracle, admin, base };
 }
 
-describe("TradingLib._executeIncrease", () => {
+describe("TradingLib executeIncrease", () => {
     it("opens a valid market-increase position (happy path)", async () => {
         const { h, base } = await loadFixture(setup);
         await h.driveOpen(base);
@@ -72,13 +75,29 @@ describe("TradingLib._executeIncrease", () => {
 
     it("reverts MarketNotActive when inactive", async () => {
         const { h, base } = await loadFixture(setup);
-        await h.configureOpenMarket(MARKET, false, true, ethers.parseUnits("100000000", 18), ethers.parseUnits("500000000", 18), 100, 0);
+        await h.configureOpenMarket(
+            MARKET,
+            false,
+            true,
+            ethers.parseUnits("100000000", 18),
+            ethers.parseUnits("500000000", 18),
+            100,
+            0,
+        );
         await expect(h.driveOpen(base)).to.be.reverted;
     });
 
     it("reverts MarketNotActive when not listed", async () => {
         const { h, base } = await loadFixture(setup);
-        await h.configureOpenMarket(MARKET, true, false, ethers.parseUnits("100000000", 18), ethers.parseUnits("500000000", 18), 100, 0);
+        await h.configureOpenMarket(
+            MARKET,
+            true,
+            false,
+            ethers.parseUnits("100000000", 18),
+            ethers.parseUnits("500000000", 18),
+            100,
+            0,
+        );
         await expect(h.driveOpen(base)).to.be.reverted;
     });
 
@@ -107,9 +126,8 @@ describe("TradingLib._executeIncrease", () => {
     it("reverts RateLimitExceededOpen (daily volume)", async () => {
         const { h, admin, base } = await loadFixture(setup);
         await h.seedOpenDailyVolume(admin.address, e6(9_500), e6(9_500));
-        await expect(
-            h.driveOpen({ ...base, userDailyVolumeLimit: e6(10_000), globalDailyVolumeLimit: e6(100_000) }),
-        ).to.be.reverted;
+        await expect(h.driveOpen({ ...base, userDailyVolumeLimit: e6(10_000), globalDailyVolumeLimit: e6(100_000) })).to
+            .be.reverted;
     });
 
     it("reverts InvalidOraclePrice when current price is zero", async () => {
@@ -141,13 +159,29 @@ describe("TradingLib._executeIncrease", () => {
 
     it("reverts ExceedsMaxLeverage", async () => {
         const { h, base } = await loadFixture(setup);
-        await h.configureOpenMarket(MARKET, true, true, ethers.parseUnits("100000000", 18), ethers.parseUnits("500000000", 18), 2, 0);
+        await h.configureOpenMarket(
+            MARKET,
+            true,
+            true,
+            ethers.parseUnits("100000000", 18),
+            ethers.parseUnits("500000000", 18),
+            2,
+            0,
+        );
         await expect(h.driveOpen(base)).to.be.reverted;
     });
 
     it("reverts InsufficientCollateral on the initial-margin floor", async () => {
         const { h, base } = await loadFixture(setup);
-        await h.configureOpenMarket(MARKET, true, true, ethers.parseUnits("100000000", 18), ethers.parseUnits("500000000", 18), 100, 5000);
+        await h.configureOpenMarket(
+            MARKET,
+            true,
+            true,
+            ethers.parseUnits("100000000", 18),
+            ethers.parseUnits("500000000", 18),
+            100,
+            5000,
+        );
         await expect(h.driveOpen(base)).to.be.reverted;
     });
 

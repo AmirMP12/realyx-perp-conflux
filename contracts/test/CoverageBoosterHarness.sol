@@ -7,8 +7,6 @@ import "../libraries/FeeCalculator.sol";
 import "../libraries/TradingLib.sol";
 
 contract CoverageBoosterHarness {
-    // This contract exists solely to call all branches in the libraries/contracts
-
     function boostMath() public pure {
         // PositionMath
         PositionMath.calculateUnrealizedPnL(1, 1, 1, true);

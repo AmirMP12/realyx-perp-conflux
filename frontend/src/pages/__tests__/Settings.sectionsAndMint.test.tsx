@@ -24,7 +24,7 @@ const mockSettings = {
 const renderPage = () =>
     render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}><SettingsPage /></MemoryRouter>);
 
-describe('SettingsPage extra', () => {
+describe('SettingsPage sections and mint', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         (useAccount as any).mockReturnValue({ address: '0xabc1234567890def', isConnected: true });

@@ -25,7 +25,6 @@ describe('ReferralsPage copy lifecycle', () => {
         renderPage();
         await act(async () => { fireEvent.click(screen.getByRole('button', { name: /Copy/i })); });
         expect(screen.getByText(/Copied/i)).toBeInTheDocument();
-        // The setTimeout(() => setCopied(false), 2000) callback runs and resets the label.
         await act(async () => { vi.advanceTimersByTime(2000); });
         expect(screen.queryByText(/Copied/i)).not.toBeInTheDocument();
     });

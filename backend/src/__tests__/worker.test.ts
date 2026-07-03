@@ -91,10 +91,6 @@ describe("indexer worker", () => {
   });
 
   describe("loop body", () => {
-    // The loop runs forever (its `stopping` flag is only flipped by signal
-    // handlers registered on auto-start, which don't run under NODE_ENV=test).
-    // We drive a single iteration under fake timers, then leave the loop parked
-    // at its sleep timer — the dangling promise never resolves but is harmless.
     afterEach(() => {
       jest.clearAllTimers();
       jest.useRealTimers();
@@ -109,7 +105,6 @@ describe("indexer worker", () => {
 
       const parked = loop();
       parked.catch(() => {});
-      // Flush microtasks so the guards pass, reconciliation starts and one pulse runs.
       for (let i = 0; i < 6; i++) await Promise.resolve();
 
       expect(startReconcileMock).toHaveBeenCalled();

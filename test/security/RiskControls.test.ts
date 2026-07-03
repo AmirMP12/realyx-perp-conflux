@@ -38,9 +38,7 @@ describe("Risk control features", () => {
 
         it("setLimits rejects an absurd maxUserExposure but accepts sane values", async () => {
             const d = await loadFixture(deployConfigured);
-            await expect(
-                d.tradingCore.connect(d.admin).setLimits(0, 0, 0, 0, usdc(20_000_000_000), 0),
-            ).to.be.reverted;
+            await expect(d.tradingCore.connect(d.admin).setLimits(0, 0, 0, 0, usdc(20_000_000_000), 0)).to.be.reverted;
             // a large-but-bounded value still applies
             await d.tradingCore.connect(d.admin).setLimits(0, 0, 0, 0, usdc(900_000_000), 0);
             expect(await d.tradingCore.maxUserExposure()).to.equal(usdc(900_000_000));
@@ -222,8 +220,7 @@ describe("Risk control features", () => {
             // market's local date.
             const nowTs = await time.latest();
             const dateY = new Date(nowTs * 1000);
-            const yyyymmdd =
-                dateY.getUTCFullYear() * 10000 + (dateY.getUTCMonth() + 1) * 100 + dateY.getUTCDate();
+            const yyyymmdd = dateY.getUTCFullYear() * 10000 + (dateY.getUTCMonth() + 1) * 100 + dateY.getUTCDate();
             await d.marketCalendar.setHoliday(mId, yyyymmdd, true);
 
             await time.increase(120);

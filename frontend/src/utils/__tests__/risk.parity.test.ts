@@ -15,7 +15,6 @@ import {
  * trust failure mode in the app. These tests fail loudly if either side drifts.
  */
 
-// ── Solidity constants (1e18 fixed point) ──
 const PRECISION = 10n ** 18n;
 const BPS = 10000n;
 const DEFAULT_MAINTENANCE_MARGIN_BPS = 500n;

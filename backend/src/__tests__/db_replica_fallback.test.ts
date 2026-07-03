@@ -1,11 +1,5 @@
 import { jest } from "@jest/globals";
 
-/**
- * Covers getReadPool's defensive fallback: when POSTGRES_READ_URL is set but the
- * replica pool can't be constructed, it must swallow the error and fall back to
- * the primary (writer) pool rather than throwing.
- */
-
 jest.mock("pg", () => {
   const Pool = jest.fn((opts: any) => {
     if (typeof opts?.connectionString === "string" && opts.connectionString.includes("replica")) {
