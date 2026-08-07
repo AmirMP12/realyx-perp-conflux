@@ -24,7 +24,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "ws": "^8.18.0"
+    "ws": "^8.21.2"
   },
   "peerDependencies": {
     "ethers": "^6.13.0"
